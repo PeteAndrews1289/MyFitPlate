@@ -1,5 +1,19 @@
 import Foundation
 
+public enum MicronutrientCategory: String, CaseIterable, Sendable {
+    case vitamin
+    case mineral
+    case other
+
+    public var displayName: String {
+        switch self {
+        case .vitamin: return "Vitamins"
+        case .mineral: return "Minerals"
+        case .other: return "Other"
+        }
+    }
+}
+
 /// Nutrients whose presence can vary by food database. A `nil` value means the
 /// source did not report the nutrient; an explicit zero remains reported data.
 public enum MicronutrientKey: String, CaseIterable, Hashable, Sendable {
@@ -27,7 +41,35 @@ public enum MicronutrientKey: String, CaseIterable, Hashable, Sendable {
     case vitaminE
     case vitaminK
 
-    public static let vitaminAndMineralKeys = allCases.filter { $0 != .fiber }
+    public static let vitaminKeys: [Self] = [
+        .vitaminA,
+        .vitaminC,
+        .vitaminD,
+        .vitaminE,
+        .vitaminK,
+        .vitaminB1,
+        .vitaminB2,
+        .vitaminB3,
+        .vitaminB5,
+        .vitaminB6,
+        .folate,
+        .vitaminB12
+    ]
+
+    public static let mineralKeys: [Self] = [
+        .calcium,
+        .iron,
+        .potassium,
+        .sodium,
+        .magnesium,
+        .phosphorus,
+        .zinc,
+        .copper,
+        .manganese,
+        .selenium
+    ]
+
+    public static let vitaminAndMineralKeys = vitaminKeys + mineralKeys
 
     public var displayName: String {
         switch self {
@@ -66,6 +108,47 @@ public enum MicronutrientKey: String, CaseIterable, Hashable, Sendable {
         default:
             return "mg"
         }
+    }
+
+    public var category: MicronutrientCategory {
+        if Self.vitaminKeys.contains(self) { return .vitamin }
+        if Self.mineralKeys.contains(self) { return .mineral }
+        return .other
+    }
+
+    /// U.S. Nutrition Facts label reference for adults and children age four and older.
+    /// This is a general label reference, not a personalized nutrition target.
+    public var dailyValue: Double {
+        switch self {
+        case .fiber: return 28
+        case .calcium: return 1_300
+        case .iron: return 18
+        case .potassium: return 4_700
+        case .sodium: return 2_300
+        case .vitaminA: return 900
+        case .vitaminC: return 90
+        case .vitaminD: return 20
+        case .vitaminB12: return 2.4
+        case .folate: return 400
+        case .magnesium: return 420
+        case .phosphorus: return 1_250
+        case .zinc: return 11
+        case .copper: return 900
+        case .manganese: return 2.3
+        case .selenium: return 55
+        case .vitaminB1: return 1.2
+        case .vitaminB2: return 1.3
+        case .vitaminB3: return 16
+        case .vitaminB5: return 5
+        case .vitaminB6: return 1.7
+        case .vitaminE: return 15
+        case .vitaminK: return 120
+        }
+    }
+
+    public func percentDailyValue(for amount: Double) -> Double? {
+        guard amount.isFinite, amount >= 0, dailyValue > 0 else { return nil }
+        return amount / dailyValue * 100
     }
 }
 

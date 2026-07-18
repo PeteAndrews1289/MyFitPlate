@@ -17,6 +17,7 @@ struct FoodDetailView: View {
     var onUpdate: ((FoodItem) -> Void)?
 
     @Environment(\.dismiss) var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var bannerService: BannerService
     private let foodAPIService = FatSecretFoodAPIService()
@@ -38,6 +39,8 @@ struct FoodDetailView: View {
 
     @State private var showingImagePicker = false
     @State private var showingCorrectionEditor = false
+    @State private var showingTrustReceipt = false
+    @State private var showingNutrientProfile = false
     @State private var correctionEditorDidSubmit = false
     @State private var correctionCalibrationContext: FoodTrustCalibrationContext?
     @State private var persistedTrustItem: FoodItem?
@@ -229,6 +232,34 @@ struct FoodDetailView: View {
         )
     }
 
+    private var nutrientCoverageBucket: String {
+        let reportedCount = MicronutrientKey.vitaminAndMineralKeys.filter {
+            adjustedNutrients.micronutrientValue(for: $0) != nil
+        }.count
+
+        switch reportedCount {
+        case 0:
+            return "none"
+        case 1...5:
+            return "low"
+        case 6...12:
+            return "medium"
+        default:
+            return "high"
+        }
+    }
+
+    private func logNutrientProfileAction(_ action: String) {
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.nutrientProfileAction.rawValue,
+            parameters: [
+                "action": action,
+                "panel_bucket": nutrientCoverageBucket,
+                "source": sourceDescriptor.sourceKey
+            ]
+        )
+    }
+
     private func openCorrectionEditor(action: String) {
         guard !isSavingTrustCorrection else { return }
         correctionEditorDidSubmit = false
@@ -278,14 +309,29 @@ struct FoodDetailView: View {
                             servingDescription: adjustedNutrients.servingDescription
                         )
 
-                        FoodTrustReceipt(
+                        FoodDetailMacroGrid(
+                            calories: adjustedNutrients.calories,
+                            protein: adjustedNutrients.protein,
+                            carbs: adjustedNutrients.carbs,
+                            fats: adjustedNutrients.fats
+                        )
+
+                        let consistencyStatus = adjustedConsistencyStatus
+                        if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
+                            NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
+                        }
+
+                        FoodTrustSummaryCard(
                             item: persistedTrustItem ?? initialFoodItem,
                             descriptor: sourceDescriptor,
                             evaluation: trustEvaluation,
                             metadata: trustMetadata,
-                            findings: sanityFindings,
                             isSavingCorrection: isSavingTrustCorrection,
                             resolution: trustResolution,
+                            onOpenReceipt: {
+                                logTrustAction("receipt_opened")
+                                showingTrustReceipt = true
+                            },
                             onAction: trustEvaluation.action.map { _ in
                                 {
                                     logTrustAction("correction_opened")
@@ -323,28 +369,28 @@ struct FoodDetailView: View {
                                     continueManually: { labelScanFailed = false }
                                 )
                             }
+                        }
 
-                            FoodDetailMacroGrid(
-                                calories: adjustedNutrients.calories,
-                                protein: adjustedNutrients.protein,
-                                carbs: adjustedNutrients.carbs,
-                                fats: adjustedNutrients.fats
-                            )
+                        servingControlsCard
 
-                            let consistencyStatus = adjustedConsistencyStatus
-                            // Only flag when macros imply MORE calories than logged (a possible
-                            // undercount). The other direction — logged higher than macros — is the
-                            // alcohol / high-fiber / incomplete-macro case where "logged stays
-                            // official," so surfacing it just adds noise (beer, low-cal tortillas).
-                            if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
-                                NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
+                        FoodNutrientProfileCard(
+                            nutrients: adjustedNutrients,
+                            onOpenProfile: {
+                                logNutrientProfileAction("profile_opened")
+                                showingNutrientProfile = true
+                            },
+                            onScanLabel: {
+                                logNutrientProfileAction("label_scan_from_summary")
+                                showingImagePicker = true
                             }
+                        )
 
-                            servingControlsCard
-                            nutritionDetailsCard
-                            FoodDetailLabelScanCard { showingImagePicker = true }
-    }
-}
+                        nutritionDetailsCard
+                        FoodDetailLabelScanCard {
+                            logNutrientProfileAction("label_scan_from_detail")
+                            showingImagePicker = true
+                        }
+                    }
 
                     .padding(.horizontal, AppSpacing.screenHorizontal)
                     .padding(.top, AppSpacing.group)
@@ -400,7 +446,7 @@ struct FoodDetailView: View {
                     }
                 }
         }
-        .sheet(isPresented: $showingCorrectionEditor, onDismiss: {
+        .fullScreenCover(isPresented: $showingCorrectionEditor, onDismiss: {
             if !correctionEditorDidSubmit {
                 logCorrectionAction(
                     "correction_abandoned",
@@ -420,87 +466,156 @@ struct FoodDetailView: View {
                     serving: correctedServing
                 )
             }
+        }
+        .sheet(isPresented: $showingTrustReceipt) {
+            trustReceiptSheet
+        }
+        .sheet(isPresented: $showingNutrientProfile) {
+            FoodNutrientProfileSheet(
+                foodName: foodName,
+                servingDescription: adjustedNutrients.servingDescription,
+                nutrients: adjustedNutrients,
+                onScanLabel: presentLabelScannerAfterSheet
+            )
             .presentationDetents([.large])
         }
     }
 
+    private var trustReceiptSheet: some View {
+        NavigationStack {
+            ScrollView {
+                FoodTrustReceipt(
+                    item: persistedTrustItem ?? initialFoodItem,
+                    descriptor: sourceDescriptor,
+                    evaluation: trustEvaluation,
+                    metadata: trustMetadata,
+                    findings: sanityFindings,
+                    isSavingCorrection: isSavingTrustCorrection,
+                    resolution: trustResolution,
+                    onAction: trustEvaluation.action.map { _ in
+                        {
+                            logTrustAction("correction_opened_from_receipt")
+                            showingTrustReceipt = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                openCorrectionEditor(action: "trust_fix_opened_from_receipt")
+                            }
+                        }
+                    }
+                )
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
+            }
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Evidence")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showingTrustReceipt = false }
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private func presentLabelScannerAfterSheet() {
+        logNutrientProfileAction("label_scan_from_profile")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            showingImagePicker = true
+        }
+    }
+
     @ViewBuilder private var servingControlsCard: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.group) {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(title: "Serving")
 
-            HStack(spacing: AppSpacing.row) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(isLoggedItem ? "Logged servings" : "Number of servings")
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
-
-                    TextField("Quantity", text: $quantity)
-                        .accessibilityLabel("Quantity")
-                        .keyboardType(.decimalPad)
-                        .appTextRole(.metric)
-                        .foregroundStyle(AppPalette.text)
-                        .multilineTextAlignment(.leading)
-                }
-
-                Spacer()
-
-                Image(systemName: "number")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundStyle(AppPalette.brandText)
-                    .frame(width: 42, height: 42)
-                    .background(AppPalette.brand.opacity(0.10), in: Circle())
-            }
-            .padding(.vertical, AppSpacing.compact)
-
-            if canChangeServing {
-                if !availableServings.isEmpty {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    quantityControl
                     Divider()
-
-                    Menu {
-                        ForEach(availableServings) { option in
-                            Button(option.description) {
-                                selectedServingID = option.id
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "fork.knife")
-                                .appFont(size: 14, weight: .bold)
-                                .foregroundStyle(AppPalette.brandText)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Serving size")
-                                    .appTextRole(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                Text(selectedServingOption?.description ?? "Select")
-                                    .appTextRole(.control)
-                                    .foregroundStyle(AppPalette.text)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.up.chevron.down")
-                                .appFont(size: 12, weight: .bold)
-                                .foregroundColor(Color(UIColor.tertiaryLabel))
-                        }
-                        .padding(.vertical, AppSpacing.compact)
-                    }
-                    .buttonStyle(.plain)
-                } else if !isLoadingDetails {
-                    Text("No other serving sizes available.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    servingSelectionControl
                 }
-            } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
-                Text("Base serving: \(baseNutrients.description)")
-                    .appFont(size: 13, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    quantityControl
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider().frame(height: 64)
+                    servingSelectionControl
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .appSurface(.quiet)
         .accessibilityIdentifier("food_detail_serving_controls")
+    }
+
+    private var quantityControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(isLoggedItem ? "Logged servings" : "Servings")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                TextField("Quantity", text: $quantity)
+                    .accessibilityLabel("Quantity")
+                    .keyboardType(.decimalPad)
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+                    .multilineTextAlignment(.leading)
+                Image(systemName: "number")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundStyle(AppPalette.brandText)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder private var servingSelectionControl: some View {
+        if canChangeServing, !availableServings.isEmpty {
+            Menu {
+                ForEach(availableServings) { option in
+                    Button(option.description) {
+                        selectedServingID = option.id
+                    }
+                }
+            } label: {
+                HStack(alignment: .center, spacing: AppSpacing.compact) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Serving size")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(selectedServingOption?.description ?? "Select")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: AppSpacing.compact)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Base serving")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Text(baseNutrients.description)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Serving size")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Text(isLoadingDetails ? "Loading options" : adjustedNutrients.servingDescription)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     @ViewBuilder private var nutritionDetailsCard: some View {
@@ -508,49 +623,15 @@ struct FoodDetailView: View {
         let totalUnsaturatedFat = nutrients.fats - (nutrients.saturatedFat ?? 0)
 
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: "Nutrition details")
+            AppSectionHeader(title: "More nutrition")
 
-            DisclosureGroup("Fat and fiber") {
+            DisclosureGroup("Fat breakdown and fiber") {
                 VStack(spacing: 8) {
                     nutrientRow(label: "Saturated fat", value: nutrients.saturatedFat, unit: "g")
                     nutrientRow(label: "Polyunsaturated fat", value: nutrients.polyunsaturatedFat, unit: "g")
                     nutrientRow(label: "Monounsaturated fat", value: nutrients.monounsaturatedFat, unit: "g")
                     nutrientRow(label: "Unsaturated fat", value: totalUnsaturatedFat > 0 ? totalUnsaturatedFat : nil, unit: "g")
                     nutrientRow(label: "Dietary fiber", value: nutrients.fiber, unit: "g")
-                }
-                .padding(.top, 8)
-            }
-
-            Divider().opacity(0.5)
-
-            DisclosureGroup("Vitamins and minerals") {
-                VStack(spacing: 8) {
-                    Text("\(nutrients.reportedVitaminMineralCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) vitamins and minerals reported. Missing values are unknown, not zero.")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    nutrientRow(label: "Calcium", value: nutrients.calcium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Iron", value: nutrients.iron, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Potassium", value: nutrients.potassium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Sodium", value: nutrients.sodium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin A", value: nutrients.vitaminA, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin C", value: nutrients.vitaminC, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin D", value: nutrients.vitaminD, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin B12", value: nutrients.vitaminB12, unit: "mcg", specifier: "%.1f")
-                    nutrientRow(label: "Folate", value: nutrients.folate, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Magnesium", value: nutrients.magnesium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Phosphorus", value: nutrients.phosphorus, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Zinc", value: nutrients.zinc, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Copper", value: nutrients.copper, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Manganese", value: nutrients.manganese, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Selenium", value: nutrients.selenium, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin B1", value: nutrients.vitaminB1, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B2", value: nutrients.vitaminB2, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B3", value: nutrients.vitaminB3, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B5", value: nutrients.vitaminB5, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B6", value: nutrients.vitaminB6, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin E", value: nutrients.vitaminE, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin K", value: nutrients.vitaminK, unit: "mcg", specifier: "%.0f")
                 }
                 .padding(.top, 8)
             }

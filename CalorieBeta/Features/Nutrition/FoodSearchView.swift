@@ -78,9 +78,18 @@ struct FoodSearchView: View {
         _showingAddFoodManually = State(initialValue: screenshotScreen == "add-food")
         _showingQuickAddMacros = State(initialValue: screenshotScreen == "quick-add-macros")
         _showingMyFoodsLibrary = State(initialValue: screenshotScreen == "my-foods")
-        _selectedFoodItem = State(
-            initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
-        )
+        let screenshotFood: FoodItem?
+        switch screenshotScreen {
+        case "trust":
+            screenshotFood = ScreenshotDemoData.trustDemoFood
+        case "trust-sparse":
+            screenshotFood = ScreenshotDemoData.sparseTrustDemoFood
+        case "trust-correction":
+            screenshotFood = ScreenshotDemoData.correctionTrustDemoFood
+        default:
+            screenshotFood = nil
+        }
+        _selectedFoodItem = State(initialValue: screenshotFood)
         #else
         _viewModel = StateObject(wrappedValue: FoodSearchViewModel())
         _showingChainBuilder = State(initialValue: initialPresentation == .chainBuilder)

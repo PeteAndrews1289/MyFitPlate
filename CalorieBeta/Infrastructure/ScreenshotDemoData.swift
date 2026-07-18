@@ -184,6 +184,49 @@ enum ScreenshotDemoData {
         discoveryFoods()[0]
     }
 
+    static var sparseTrustDemoFood: FoodItem {
+        FoodItem(
+            id: "demo-sparse-branded-food",
+            name: "Original Protein Bar",
+            calories: 210,
+            protein: 20,
+            carbs: 23,
+            fats: 7,
+            saturatedFat: 2.5,
+            fiber: 0,
+            servingSize: "1 bar (60 g)",
+            servingWeight: 60,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .fatSecret,
+                confidence: .databaseMatch,
+                reviewStatus: .unreviewed,
+                sourceName: "FatSecret"
+            )
+        )
+    }
+
+    static var correctionTrustDemoFood: FoodItem {
+        FoodItem(
+            id: "demo-correction-barcode-food",
+            name: "Cinnamon Bun Cookies",
+            calories: 150,
+            protein: 2,
+            carbs: 21,
+            fats: 7,
+            saturatedFat: 10,
+            fiber: 0,
+            servingSize: "2 cookies (29 g)",
+            servingWeight: 29,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "My Foods",
+                barcode: "0044000087579"
+            )
+        )
+    }
+
     static var trustHubDemoLog: DailyLog {
         nutritionHistory()[0]
     }

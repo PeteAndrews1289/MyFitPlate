@@ -108,6 +108,24 @@ final class AnalyticsContractTests: XCTestCase {
         XCTAssertNil(parameters["food_name"])
     }
 
+    func testNutrientProfileAnalyticsPreserveOnlyCoarseProductContext() {
+        let parameters = ProductAnalytics.firebaseParameters([
+            "action": "profile_opened",
+            "panel_bucket": "medium",
+            "source": "health_canada_cnf",
+            "food_name": "Private food",
+            "vitamin_a": 900,
+            "nutrient_values": "Private nutrition details"
+        ])
+
+        XCTAssertEqual(parameters["action"] as? String, "profile_opened")
+        XCTAssertEqual(parameters["panel_bucket"] as? String, "medium")
+        XCTAssertEqual(parameters["source"] as? String, "health_canada_cnf")
+        XCTAssertNil(parameters["food_name"])
+        XCTAssertNil(parameters["vitamin_a"])
+        XCTAssertNil(parameters["nutrient_values"])
+    }
+
     func testDurationBucketsAreStable() {
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: -1), "under_500ms")
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: 700), "500ms_to_1s")

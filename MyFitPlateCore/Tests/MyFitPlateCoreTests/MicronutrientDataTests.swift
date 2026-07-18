@@ -33,6 +33,26 @@ final class MicronutrientDataTests: XCTestCase {
         XCTAssertEqual(MicronutrientKey.vitaminAndMineralKeys.count, 22)
     }
 
+    func testVitaminAndMineralCategoriesCoverEveryReferenceNutrientOnce() {
+        let categorized = MicronutrientKey.vitaminKeys + MicronutrientKey.mineralKeys
+
+        XCTAssertEqual(categorized.count, 22)
+        XCTAssertEqual(Set(categorized).count, categorized.count)
+        XCTAssertEqual(Set(categorized), Set(MicronutrientKey.vitaminAndMineralKeys))
+        XCTAssertTrue(MicronutrientKey.vitaminKeys.allSatisfy { $0.category == .vitamin })
+        XCTAssertTrue(MicronutrientKey.mineralKeys.allSatisfy { $0.category == .mineral })
+        XCTAssertEqual(MicronutrientKey.fiber.category, .other)
+    }
+
+    func testDailyValueReferenceCalculatesPercentWithoutInventingInvalidData() {
+        XCTAssertEqual(MicronutrientKey.vitaminC.percentDailyValue(for: 45), 50)
+        XCTAssertEqual(MicronutrientKey.calcium.percentDailyValue(for: 1_300), 100)
+        XCTAssertEqual(MicronutrientKey.copper.percentDailyValue(for: 225), 25)
+        XCTAssertNil(MicronutrientKey.iron.percentDailyValue(for: .nan))
+        XCTAssertNil(MicronutrientKey.iron.percentDailyValue(for: -1))
+        XCTAssertTrue(MicronutrientKey.allCases.allSatisfy { $0.dailyValue > 0 })
+    }
+
     func testRecipeNutritionAggregationPreservesUnknownAndFullPanelValues() {
         let sparse = FoodItem(name: "Sparse", calories: 100, calcium: 0, magnesium: 30)
         let rich = FoodItem(name: "Rich", calories: 200, calcium: 120, vitaminB6: 0.5)

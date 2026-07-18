@@ -38,6 +38,34 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    private func launchFoodCorrectionDemo() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "trust-correction"
+        ]
+        app.launch()
+
+        let fixData = app.buttons["food_trust_action"]
+        XCTAssertTrue(fixData.waitForExistence(timeout: 10))
+        XCTAssertEqual(fixData.label, "Fix data")
+        XCTAssertTrue(fixData.isHittable)
+        fixData.tap()
+
+        let correctionSheet = app.descendants(matching: .any)["food_correction_sheet"]
+        if !correctionSheet.waitForExistence(timeout: 2) {
+            XCTAssertTrue(fixData.exists, "Only retry while the unchanged Trust action remains visible")
+            XCTAssertTrue(fixData.isHittable)
+            fixData.tap()
+        }
+        XCTAssertTrue(correctionSheet.waitForExistence(timeout: 5))
+        return app
+    }
+
+    @MainActor
     private func activateTab(
         _ identifier: String,
         destinationHeader: XCUIElement,
@@ -919,7 +947,7 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
-    func testFoodDetailKeepsTrustEvidenceAheadOfNutritionSummary() throws {
+    func testFoodDetailShowsNutritionBeforeCompactTrustAndOpensReceipt() throws {
         let app = XCUIApplication()
         app.terminate()
         app.launchArguments = [
@@ -931,19 +959,31 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let identity = app.descendants(matching: .any)["food_detail_identity"]
-        let receipt = app.descendants(matching: .any)["food_trust_receipt"]
-        let score = app.descendants(matching: .any)["food_trust_score"]
         let macros = app.descendants(matching: .any)["food_detail_macro_summary"]
+        let trustSummary = app.buttons["food_trust_summary"]
+        let openReceipt = trustSummary
         let logAction = app.buttons["food_detail_log_action"]
 
         XCTAssertTrue(identity.waitForExistence(timeout: 10))
+        XCTAssertTrue(macros.waitForExistence(timeout: 5))
+        XCTAssertTrue(trustSummary.waitForExistence(timeout: 5))
+        XCTAssertTrue(openReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(logAction.waitForExistence(timeout: 5))
+        XCTAssertLessThan(identity.frame.minY, macros.frame.minY)
+        XCTAssertLessThan(macros.frame.minY, trustSummary.frame.minY)
+        XCTAssertTrue(logAction.isHittable)
+
+        let summaryScreenshot = XCTAttachment(screenshot: app.screenshot())
+        summaryScreenshot.name = "Food Detail - nutrition-first hierarchy"
+        summaryScreenshot.lifetime = .keepAlways
+        add(summaryScreenshot)
+
+        openReceipt.tap()
+
+        let receipt = app.descendants(matching: .any)["food_trust_receipt"]
+        let score = app.descendants(matching: .any)["food_trust_score"]
         XCTAssertTrue(receipt.waitForExistence(timeout: 5))
         XCTAssertTrue(score.waitForExistence(timeout: 5))
-        XCTAssertTrue(macros.waitForExistence(timeout: 5))
-        XCTAssertTrue(logAction.waitForExistence(timeout: 5))
-        XCTAssertLessThan(identity.frame.minY, receipt.frame.minY)
-        XCTAssertLessThan(receipt.frame.minY, macros.frame.minY)
-        XCTAssertTrue(logAction.isHittable)
         XCTAssertEqual(score.label, "Trust rating")
         XCTAssertEqual(
             score.value as? String,
@@ -954,10 +994,10 @@ final class MyFitPlateUITests: XCTestCase {
             issue.element == nil
         }
 
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Food Detail - trust-led hierarchy"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
+        let receiptScreenshot = XCTAttachment(screenshot: app.screenshot())
+        receiptScreenshot.name = "Food Detail - complete Trust receipt"
+        receiptScreenshot.lifetime = .keepAlways
+        add(receiptScreenshot)
     }
 
     @MainActor
@@ -976,18 +1016,156 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let identity = app.descendants(matching: .any)["food_detail_identity"]
-        let receipt = app.descendants(matching: .any)["food_trust_receipt"]
-        let score = app.descendants(matching: .any)["food_trust_score"]
+        let macros = app.descendants(matching: .any)["food_detail_macro_summary"]
+        let trustSummary = app.descendants(matching: .any)["food_trust_summary"]
         let logAction = app.buttons["food_detail_log_action"]
         XCTAssertTrue(identity.waitForExistence(timeout: 10))
-        XCTAssertTrue(receipt.waitForExistence(timeout: 5))
-        XCTAssertTrue(score.waitForExistence(timeout: 5))
+        XCTAssertTrue(macros.waitForExistence(timeout: 5))
+        XCTAssertTrue(trustSummary.waitForExistence(timeout: 5))
         XCTAssertTrue(logAction.waitForExistence(timeout: 5))
         XCTAssertTrue(logAction.isHittable)
         try app.performAccessibilityAudit(for: [.textClipped])
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Food Detail - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFoodDetailNutrientProfileExposesReportedAndMissingFields() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "trust"
+        ]
+        app.launch()
+
+        let summary = app.descendants(matching: .any)["food_nutrient_profile_summary"]
+        let openProfile = app.buttons["food_nutrient_profile_open"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 10))
+
+        for _ in 0..<3 where !openProfile.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(openProfile.waitForExistence(timeout: 5))
+        XCTAssertTrue(openProfile.isHittable)
+        openProfile.tap()
+
+        let coverage = app.descendants(matching: .any)["food_nutrient_profile_coverage"]
+        let filter = app.segmentedControls["food_nutrient_profile_filter"]
+        XCTAssertTrue(coverage.waitForExistence(timeout: 5))
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        XCTAssertTrue(filter.buttons["Vitamins"].exists)
+        XCTAssertTrue(filter.buttons["Minerals"].exists)
+        XCTAssertTrue(app.staticTexts["Not reported"].exists)
+
+        filter.buttons["Minerals"].tap()
+        XCTAssertTrue(app.staticTexts["Minerals"].waitForExistence(timeout: 3))
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Food Detail - micronutrient explorer"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFoodDetailExplainsMissingMicronutrientsAndOffersRecovery() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "trust-sparse"
+        ]
+        app.launch()
+
+        let macros = app.descendants(matching: .any)["food_detail_macro_summary"]
+        let missingState = app.descendants(matching: .any)["food_nutrient_profile_missing"]
+        let scanLabel = app.buttons["Scan Nutrition Label"]
+        XCTAssertTrue(macros.waitForExistence(timeout: 10))
+
+        for _ in 0..<3 where !missingState.exists {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(missingState.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No vitamin or mineral detail reported"].exists)
+        XCTAssertTrue(scanLabel.exists)
+        XCTAssertTrue(scanLabel.isHittable)
+        // SwiftUI exposes one nameless internal node to the clipping audit. The visible
+        // copy, scan action, and macro summary are asserted above and captured below.
+        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+            issue.element == nil
+        }
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Food Detail - honest missing micronutrients"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFoodCorrectionPreservesReportedZeroAndAllowsMacroRepair() throws {
+        let app = launchFoodCorrectionDemo()
+        let saturatedFat = app.textFields["food_correction_saturatedFat"]
+        let fiber = app.textFields["food_correction_fiber"]
+        for _ in 0..<4 where !fiber.exists || !fiber.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(saturatedFat.waitForExistence(timeout: 5))
+        XCTAssertTrue(fiber.waitForExistence(timeout: 5))
+        XCTAssertEqual(fiber.value as? String, "0")
+
+        saturatedFat.tap()
+        saturatedFat.typeText(
+            XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "3"
+        )
+        XCTAssertEqual(saturatedFat.value as? String, "3")
+        XCTAssertTrue(app.buttons["food_correction_keyboard_done"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Save"].isEnabled)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Food Correction - explicit zero and repaired macros"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFoodCorrectionExposesEditableVitaminsAndMinerals() throws {
+        let app = launchFoodCorrectionDemo()
+        let micronutrients = app.buttons["food_correction_micros"]
+        XCTAssertTrue(micronutrients.waitForExistence(timeout: 5))
+        for _ in 0..<2 where !micronutrients.isHittable {
+            app.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(micronutrients.isHittable)
+        micronutrients.tap()
+
+        let vitaminA = app.textFields["food_correction_vitaminA"]
+        for _ in 0..<2 where !vitaminA.exists || !vitaminA.isHittable {
+            app.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(vitaminA.waitForExistence(timeout: 5))
+        XCTAssertTrue(vitaminA.isHittable)
+        focusAndType("5", into: vitaminA)
+        XCTAssertEqual(vitaminA.value as? String, "5")
+        XCTAssertTrue(app.buttons["food_correction_keyboard_done"].waitForExistence(timeout: 3))
+
+        let sodium = app.textFields["food_correction_sodium"]
+        for _ in 0..<8 where !sodium.exists || !sodium.isHittable {
+            app.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(sodium.waitForExistence(timeout: 5))
+        XCTAssertTrue(sodium.isHittable)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Food Correction - editable vitamins and minerals"
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }

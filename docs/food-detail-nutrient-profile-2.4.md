@@ -1,0 +1,110 @@
+# Food Detail And Nutrient Profile 2.4
+
+Status: source complete, simulator accepted, physical acceptance pending.
+
+## Product Intent
+
+Food Detail should answer three questions in this order:
+
+1. What am I about to log?
+2. What nutrition does this serving contain?
+3. Why should I trust the data, and what can I correct?
+
+The former screen gave the complete Trust Receipt most of the first viewport. That made strong
+evidence visible, but pushed the food's calories and macros below it. Micronutrients lived in a
+small disclosure group and were easy to miss even when useful data existed.
+
+## Shipping Hierarchy
+
+The 2.4 candidate uses this hierarchy:
+
+1. Food identity and serving.
+2. Calories, protein, carbohydrates, and total fat.
+3. Any meaningful calorie-versus-macro consistency warning.
+4. Compact Food Trust passport with rating, core-evidence state, source agreement, and detailed
+   nutrient coverage.
+5. Serving controls.
+6. Always-visible Micronutrient profile.
+7. Secondary fat-breakdown and fiber detail.
+8. Label-scan recovery and the persistent log action.
+
+The complete Trust Receipt remains unchanged in substance and opens in a dedicated Evidence sheet.
+Trust is therefore prominent without competing with the nutrition the user came to inspect.
+
+## Micronutrient Profile
+
+- The summary shows up to six reported vitamins or minerals, ordered by percent Daily Value.
+- Each row shows the source amount, unit, general U.S. label percent Daily Value, and a restrained
+  progress bar.
+- `Explore nutrient profile` opens an All/Vitamins/Minerals workspace with every reported field and
+  a separate list of fields the source did not report.
+- A missing value remains unknown. It is never displayed or totaled as zero.
+- An explicit reported zero remains a reported value.
+- Percent Daily Value is labeled as a general food-label reference, not a personalized target.
+- Foods with no detailed nutrients get an honest empty state and a direct Nutrition Label scan
+  action instead of an empty disclosure.
+
+The reference values follow the current U.S. Nutrition Facts label values for adults and children
+age four and older. MyFitPlate does not infer or generate missing micronutrients.
+
+## Correction Workspace
+
+`Fix food` is now a full-screen workspace so the keyboard and nested presentation stack do not
+fight for space. It supports:
+
+- food identity, serving description, and serving weight;
+- calories, protein, carbohydrates, total fat, saturated fat, and fiber;
+- all 12 vitamin fields and all 10 mineral fields used by MyFitPlate;
+- blank-as-unknown and explicit-zero semantics;
+- saturated-fat-versus-total-fat validation;
+- a before/after change summary before Save;
+- a persistent keyboard-dismiss control beside Save while a field is focused.
+
+The saved correction continues through the existing Trust correction path, including calibration
+and saved-food reuse behavior.
+
+## Analytics And Privacy
+
+Analytics schema `2.4.0` adds `food_nutrient_profile_action` for these coarse actions:
+
+- `profile_opened`
+- `label_scan_from_summary`
+- `label_scan_from_detail`
+- `label_scan_from_profile`
+
+The event records only the action, a coarse reported-field bucket, and provider type. Food names,
+food identifiers, nutrient names, nutrient amounts, macro values, and health values are excluded.
+The central sanitizer also rejects nutrition, nutrient, vitamin, mineral, and individual mineral
+parameter keys.
+
+## Verification Evidence
+
+- Strict SwiftLint: 0 violations.
+- MyFitPlateCore: 1,223 passed, 0 failed.
+- App tests: 116 passed, 0 failed.
+- Focused UI matrix: 6 passed, 0 failed across nutrition-first hierarchy, full Trust Receipt,
+  nutrient explorer, no-micronutrient recovery, correction semantics, and dark Accessibility XXXL.
+- Cold optimized Release simulator build: passed for the phone app, Watch app, widget, and Live
+  Activity extension.
+- UI result: `/Volumes/T7 Developer/MyFitPlate/TestResults/Food-Detail-UI-Matrix-20260718.xcresult`.
+- Settled captures: `/Volumes/T7 Developer/MyFitPlate/TestResults/Food-Detail-Captures-20260718`.
+- Release log: `/Volumes/T7 Developer/MyFitPlate/TestResults/Food-Detail-Release-Build-20260718.log`.
+
+## Physical Acceptance
+
+1. Open a richly sourced food. Confirm identity and macros appear before the compact Food Trust
+   passport, then open Evidence and inspect the complete receipt.
+2. Open a food with micronutrients. Confirm six useful rows appear and All, Vitamins, and Minerals
+   filters expose reported and missing fields correctly.
+3. Open a macro-only food. Confirm MyFitPlate says detailed nutrients were not reported and offers
+   Nutrition Label scanning without treating the fields as zero.
+4. Open a saved or barcode food that needs correction. Confirm an explicit fiber zero remains `0`,
+   repair saturated fat or total fat, edit one vitamin and one mineral, save, reopen, and confirm
+   both Trust and nutrient values update.
+5. While a numeric keyboard is visible in Fix food, use the top-bar keyboard button. Confirm it
+   hides the keyboard without dismissing the correction workspace, then Save normally.
+6. Repeat the first viewport and correction workspace in dark mode and a large text size. Confirm
+   labels wrap cleanly and the bottom log action remains reachable.
+
+Do not merge this branch on simulator evidence alone. Item 5 is especially important because iOS
+Simulator automation cannot fully prove the physical keyboard/presentation interaction.

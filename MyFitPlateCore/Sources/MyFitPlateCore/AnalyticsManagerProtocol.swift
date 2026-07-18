@@ -11,7 +11,8 @@ public enum AnalyticsPrivacy {
     private static let sensitiveKeyFragments = [
         "calorie", "protein", "carb", "fat", "weight", "height", "age", "gender",
         "sleep", "step", "active_energy", "water", "wellness", "heart", "distance",
-        "pace", "route", "workout", "exercise", "volume", "body", "health"
+        "pace", "route", "workout", "exercise", "volume", "body", "health",
+        "nutrition", "nutrient", "vitamin", "mineral"
     ]
 
     // Several older events used generic keys whose values were still health, journal,
@@ -34,30 +35,42 @@ public enum AnalyticsPrivacy {
         "error",
         "error_message",
         "fitness_level",
+        "fiber",
         "food_id",
         "food_name",
+        "folate",
         "goal",
         "has_pattern_note",
         "journal_entry",
         "matched_food_id",
+        "magnesium",
+        "manganese",
         "message",
         "name",
         "notes",
         "program_name",
         "prompt",
+        "phosphorus",
+        "potassium",
         "prs",
         "query",
         "response",
         "routine_name",
         "set_count",
+        "selenium",
         "should_adjust",
+        "sodium",
         "source_id",
         "text",
         "title",
         "training_load",
         "uid",
         "user_id",
-        "weigh_ins"
+        "weigh_ins",
+        "calcium",
+        "copper",
+        "iron",
+        "zinc"
     ]
 
     private static let sensitiveKeySuffixes = [

@@ -135,7 +135,9 @@ struct MainTabView: View {
         _showingAddOptions = State(initialValue: screenshotScreen == "quick-log")
         _showingFoodSearch = State(
             initialValue: [
-                "food-search", "builder", "trust", "my-foods", "add-food", "quick-add-macros"
+                "food-search", "builder", "trust", "trust-sparse", "trust-correction",
+                "my-foods", "add-food",
+                "quick-add-macros"
             ].contains(screenshotScreen)
         )
         _showingRecipeListView = State(initialValue: screenshotScreen == "recipes")

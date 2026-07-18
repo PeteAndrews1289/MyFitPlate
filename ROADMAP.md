@@ -4,7 +4,7 @@ This is the current release and decision view. Detailed execution evidence lives
 `docs/release-evidence-2.3.md`; accepted device journeys live in
 `docs/physical-acceptance-2.3.md`.
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 ## Product Direction
 
@@ -23,12 +23,13 @@ evidence, fast reviewable logging, training and recovery context, and coaching t
 
 | Ref | Purpose | State |
 | --- | --- | --- |
-| `main` | Release source | 2.3 source ready for submission; the public Store remains on tagged 2.2 until approval |
-| `codex/2.3-visual-unification` | 2.3 release branch | Binary source frozen at `39e3d1a2`; retained until the main merge is confirmed |
+| `main` | Release source | Local 2.3 merge complete; remote publication is tracked by PR #9 |
+| `codex/2.3-visual-unification` | 2.3 release branch | Binary source frozen at `39e3d1a2`; retain until the remote main merge is confirmed |
+| `codex/2.4-food-detail` | Active 2.4 development | Food Detail and Nutrient Profile source complete; device acceptance pending |
 
-Only these long-lived branches should exist during submission. The exact 2.3 source is being merged
-to `main` before upload at Peter's direction. Tag `v2.3` only after Apple accepts the build, then
-remove the development branch when no longer needed.
+The exact 2.3 source remains isolated from active 2.4 work. Tag `v2.3` only after Apple accepts the
+build, then remove the 2.3 development branch when no longer needed. Keep 2.4 changes off `main`
+until their own release gates are complete.
 
 ## 2.3 Status
 
@@ -141,10 +142,17 @@ Do not reopen 2.3 for these unless production reveals a release-blocking defect.
 
 The next product bet should deepen the moat rather than widen the feature list:
 
-1. **Recovery Continuum:** connect regional training load, recovery evidence, nutrition timing, and
+1. **Food Detail and Nutrient Profile:** source and simulator work are complete on
+   `codex/2.4-food-detail`. Macros now lead the page, Food Trust is a compact evidence passport with
+   its full receipt one tap away, and micronutrients have an always-visible preview plus a complete
+   vitamins/minerals explorer. Missing fields remain unknown rather than silently becoming zero.
+   The correction workspace now supports total fat, saturated fat, fiber, and all 22 vitamin and
+   mineral fields. Complete the short physical checklist in
+   `docs/food-detail-nutrient-profile-2.4.md` before merging.
+2. **Recovery Continuum:** connect regional training load, recovery evidence, nutrition timing, and
    the next practical action without turning uncertainty into a single magical score.
-2. **Voice logging:** reuse the review-before-write camera architecture for fast spoken meal entry.
-3. **Trust at scale:** improve community consensus and source calibration only from measured
+3. **Voice logging:** reuse the review-before-write camera architecture for fast spoken meal entry.
+4. **Trust at scale:** improve community consensus and source calibration only from measured
    production misses and corrections.
-4. **Cost-aware growth:** establish free-tier AI economics from real route/model usage before a
+5. **Cost-aware growth:** establish free-tier AI economics from real route/model usage before a
    marketing push.

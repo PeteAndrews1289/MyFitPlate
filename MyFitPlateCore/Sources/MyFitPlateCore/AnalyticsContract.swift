@@ -1,11 +1,10 @@
 import Foundation
 
-/// Stable event names and dimensions used by the replacement 2.2 acquisition and
-/// release-health dashboards. The schema keeps its internal 2.3 label. Values describe
-/// product behavior only; nutrition,
+/// Stable event names and dimensions used by acquisition and release-health dashboards.
+/// Values describe product behavior only; nutrition,
 /// body, workout-detail, location, and account identifiers remain excluded.
 public enum ProductAnalytics {
-    public static let schemaVersion = "2.3.2"
+    public static let schemaVersion = "2.4.0"
 
     public enum Event: String, CaseIterable, Sendable {
         case appSessionStarted = "app_session_started"
@@ -26,6 +25,7 @@ public enum ProductAnalytics {
         case trustCardViewed = "food_trust_card_viewed"
         case trustAction = "food_trust_action"
         case correctionAction = "food_correction_action"
+        case nutrientProfileAction = "food_nutrient_profile_action"
         case trustHubViewed = "trust_hub_viewed"
         case deepLinkOpened = "deep_link_opened"
         case trainingFuelPlannerOpened = "training_fuel_planner_opened"
