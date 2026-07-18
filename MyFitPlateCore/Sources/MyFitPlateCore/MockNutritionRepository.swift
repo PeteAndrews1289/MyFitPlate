@@ -261,20 +261,44 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         if let customFoodError { throw customFoodError }
         return customFoodsToReturn
     }
-    public var savedRecentFoods: [(userID: String, foodItem: FoodItem, source: String, stableID: String)] = []
-    public var recentFoodsToReturn: [FoodItem] = []
-    public var recentFoodError: Error?
-    public var fetchRecentFoodLimits: [Int] = []
+    private var storedSavedRecentFoods: [(userID: String, foodItem: FoodItem, source: String, stableID: String)] = []
+    private var storedRecentFoodsToReturn: [FoodItem] = []
+    private var storedRecentFoodError: Error?
+    private var storedFetchRecentFoodLimits: [Int] = []
+
+    public var savedRecentFoods: [(userID: String, foodItem: FoodItem, source: String, stableID: String)] {
+        get { lock.withLock { storedSavedRecentFoods } }
+        set { lock.withLock { storedSavedRecentFoods = newValue } }
+    }
+
+    public var recentFoodsToReturn: [FoodItem] {
+        get { lock.withLock { storedRecentFoodsToReturn } }
+        set { lock.withLock { storedRecentFoodsToReturn = newValue } }
+    }
+
+    public var recentFoodError: Error? {
+        get { lock.withLock { storedRecentFoodError } }
+        set { lock.withLock { storedRecentFoodError = newValue } }
+    }
+
+    public var fetchRecentFoodLimits: [Int] {
+        get { lock.withLock { storedFetchRecentFoodLimits } }
+        set { lock.withLock { storedFetchRecentFoodLimits = newValue } }
+    }
 
     public func saveRecentFood(userID: String, foodItem: FoodItem, source: String, stableID: String) async throws {
-        if let recentFoodError { throw recentFoodError }
-        savedRecentFoods.append((userID, foodItem, source, stableID))
+        try lock.withLock {
+            if let storedRecentFoodError { throw storedRecentFoodError }
+            storedSavedRecentFoods.append((userID, foodItem, source, stableID))
+        }
     }
 
     public func fetchRecentFoods(userID: String, limit: Int) async throws -> [FoodItem] {
-        if let recentFoodError { throw recentFoodError }
-        fetchRecentFoodLimits.append(limit)
-        return Array(recentFoodsToReturn.prefix(limit))
+        try lock.withLock {
+            if let storedRecentFoodError { throw storedRecentFoodError }
+            storedFetchRecentFoodLimits.append(limit)
+            return Array(storedRecentFoodsToReturn.prefix(limit))
+        }
     }
 }
 #endif

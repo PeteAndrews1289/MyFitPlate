@@ -84,6 +84,29 @@ final class DailyLogRecentFoodStoreTests: XCTestCase {
         XCTAssertTrue(mockRepo.savedRecentFoods.isEmpty)
     }
 
+    func testMockRepositoryRecordsConcurrentRecentFoodWritesSafely() async throws {
+        let repository = mockRepo!
+        let accountID = userID
+        let foods = (0..<40).map { food("\($0)", "Food \($0)") }
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for (index, item) in foods.enumerated() {
+                group.addTask {
+                    try await repository.saveRecentFood(
+                        userID: accountID,
+                        foodItem: item,
+                        source: "concurrency_test",
+                        stableID: "stable-\(index)"
+                    )
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let stableIDs = Set(mockRepo.savedRecentFoods.map(\.stableID))
+        XCTAssertEqual(stableIDs.count, 40)
+    }
+
     func testFetchRecentFoodItemsRejectsEmptyUserID() {
         let finished = expectation(description: "empty user failure")
 
