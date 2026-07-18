@@ -125,14 +125,26 @@ jobs:
 
       - name: Run UI tests sequentially
         run: |
-          xcodebuild test -quiet \
+          set -o pipefail
+          xcodebuild test \
             -project MyFitPlate.xcodeproj \
             -scheme MyFitPlate \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -only-testing:MyFitPlateUITests \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1 \
-            CODE_SIGNING_ALLOWED=NO
+            -resultBundlePath UITestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO | tee UITestResults.log
+
+      - name: Upload UI test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-test-results
+          path: |
+            UITestResults.xcresult
+            UITestResults.log
+          if-no-files-found: ignore
 
   functions:
     name: Firebase Functions
