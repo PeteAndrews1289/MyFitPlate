@@ -116,7 +116,7 @@ Use the eight-shot default sequence in `docs/app-store-screenshots.md`:
 8. Reports
 
 Do not replace these deterministic fixtures with screenshots from a personal account. The approved
-upload set is in `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-39e3d1a2/Screenshots/`.
+upload set is in `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-6a5e535e/Screenshots/`.
 
 ## App Review information
 

@@ -6,49 +6,48 @@ App Store Connect actions that still require Peter.
 
 Last verified: July 18, 2026
 
-> **Superseded package notice (July 18):** Peter accepted the nutrition-first Food Detail and full
-> Nutrient Profile for inclusion in version 2.3. The `39e3d1a2` archive and IPA below predate that
-> work and must not be uploaded. They remain documented as historical baseline evidence; the
-> replacement `6a5e535e` package is the only package approved below.
+> **Superseded package notice (July 18):** Do not upload `39e3d1a2` or `6a5e535e`. The first
+> predates Food Detail. Final simulator closure then proved that the second could lose an unsaved
+> correction when the numeric keyboard closed. Correction-safe source `fade6c07` is authoritative;
+> its fresh signed package will be recorded here after hosted verification and merge.
 
 ## Replacement Source Candidate
 
-- App source commit: `6a5e535e705d66bf81f18ebd732adac99fda8a06`
+- App source commit: `fade6c0778dbcc21f9291b100fe39c225e791171`
 - Deployed Functions source commit: `0aa44de980025185e86800b353b3fba8064f0632`
 - Branch: `codex/2.3-visual-unification`
 - Version/build: 2.3 (1)
-- State: app source frozen and pushed; signed archive/export, deep package audit, and refreshed
-  gallery are complete
+- State: exact source frozen and locally verified; hosted verification, merge, signed archive/export,
+  and repeated package audit remain
 
 The accepted Food Detail and Nutrient Profile work is now part of version 2.3. It presents macros
 first, keeps Food Trust compact with a full evidence receipt one tap away, exposes reported
 micronutrients without turning missing values into zero, and expands the correction workspace to
-the complete supported nutrient set.
+the complete supported nutrient set. Its correction draft is now retained by Food Detail itself,
+so SwiftUI presentation updates and keyboard dismissal cannot silently restore stale values.
 
 | Gate | Replacement result |
 | --- | --- |
-| MyFitPlateCore | 1,223/1,223 passed on exact source `6a5e535e` |
-| App unit tests | 116/116 passed, with zero failures or skips, on exact source `6a5e535e` |
-| Food Detail UI | 6/6 focused journeys passed on the accepted product source |
+| MyFitPlateCore | 1,223/1,223 passed; Core source is unchanged in `fade6c07` |
+| App and correction closure | 118/118 passed with zero failures or skips on exact app source `fade6c07` |
+| Food Detail UI | 6/6 accepted journeys, including exact macro and micronutrient retention after keyboard dismissal |
 | Broad UI catalog | All 85 journeys closed by the broad run plus two focused simulator-stability reruns |
 | Static checks | Strict SwiftLint, visual-system guard, privacy guard, structured metadata checks, and Release static analysis passed |
-| Release build | Passed on exact source `6a5e535e` for phone, widget, Live Activity, and Watch |
-| Package inspection | All products report 2.3 (1); Watch purpose strings/architectures and all 39 privacy manifests passed |
+| Release build | Passed on exact source `fade6c07` for phone, widget, Live Activity, and Watch |
+| Package inspection | Pending fresh signed package from merged `fade6c07` source |
 
-Replacement evidence:
+Authoritative final-source evidence:
 
-- App tests:
-  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-AppTests-20260718.xcresult`
+- App tests and exact correction journeys:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Closure-AppAndCorrections-20260718.xcresult`
 - Core-test log:
-  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Core-20260718.log`
-- App-test log:
-  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-AppTests-20260718.log`
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Closure-Core-20260718.log`
+- App/correction-test log:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Closure-AppAndCorrections-20260718.log`
 - Release build log:
-  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Release-20260718.log`
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Closure-Release-Exact-20260718.log`
 - Static-analysis log:
-  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Analyze-20260718.log`
-- Unsigned inspected products:
-  `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Final23Merge-AppTests-20260718/Build/Products/Release-iphoneos`
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Closure-Analyze-Exact-20260718.log`
 
 The replacement Release bundle contains no UI-test or screenshot-fixture marker. The phone app,
 widget, and Live Activity are arm64; the Watch app contains arm64_32 and arm64. Both Watch Health
@@ -67,7 +66,7 @@ inspected at full resolution, and recomposed at both Apple sizes. The remaining 
 captures and the Watch capture are unchanged; all 17 final outputs passed dimension, color-space,
 and alpha checks.
 
-### Replacement Signed App Store Package
+### Superseded Signed App Store Package - Do Not Upload
 
 - Signed archive:
   `/Volumes/T7 Developer/MyFitPlate/Xcode/Archives/2026-07-18/MyFitPlate 2.3 6a5e535e.xcarchive`
@@ -98,6 +97,9 @@ prebuilt third-party frameworks, then completes the App Store export successfull
 lines occur in the prior successful baseline export. The app, widget, Live Activity, and both Watch
 architectures each have an archive dSYM whose UUID exactly matches its executable, so MyFitPlate's
 first-party crash symbolication evidence is complete.
+
+This audit remains useful as a packaging baseline, but it does not approve the `6a5e535e` binary
+for submission. A fresh package from final merged source must repeat the same checks.
 
 ## Prior Candidate (Superseded)
 
@@ -265,7 +267,7 @@ immediately before submission.
 ## Remaining Owner Actions
 
 1. Generate and upload the replacement archive/IPA from the final merged 2.3 source; do not upload
-   `39e3d1a2`.
+   `6a5e535e`, `39e3d1a2`, or any older package.
 2. Repeat the accepted two-minute upgrade/tab/Watch smoke once on the App Store-processed
    TestFlight binary; the July 18 local final-source install already passed it.
 3. Check App Check validity and Crashlytics/launch health from that processed build. Keep App Check

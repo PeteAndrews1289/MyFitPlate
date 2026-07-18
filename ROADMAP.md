@@ -24,15 +24,16 @@ evidence, fast reviewable logging, training and recovery context, and coaching t
 | Ref | Purpose | State |
 | --- | --- | --- |
 | `main` | Release source | PR #9 is the pending publication path for the complete 2.3 source |
-| `codex/2.3-visual-unification` | Active 2.3 release branch | Includes the accepted Food Detail and Nutrient Profile work through `6a5e535e`; replacement signed package is ready |
+| `codex/2.3-visual-unification` | Active 2.3 release branch | Final correction-safe app source is `fade6c07`; hosted verification and a fresh signed package remain |
 
 All accepted product work now belongs to version 2.3. Tag `v2.3` only after Apple accepts the build,
 then remove the 2.3 development branch when no longer needed.
 
 ## 2.3 Status
 
-Version 2.3 is feature-complete and physically accepted. The July 17 signed package predates the
-accepted Food Detail addition and is superseded; the July 18 `6a5e535e` package replaces it.
+Version 2.3 is feature-complete and physically accepted. Both earlier signed packages are now
+superseded: `39e3d1a2` predates Food Detail, while `6a5e535e` predates the final correction-draft
+durability fix. Neither package should be uploaded.
 
 | Area | Status | Follow-up |
 | --- | --- | --- |
@@ -45,12 +46,13 @@ accepted Food Detail addition and is superseded; the July 18 `6a5e535e` package 
 | Strength, running, Recovery Field | Complete and physically accepted | Production observation |
 | Maia | Context/actions and local voices accepted | Online speech awaits API model access |
 | Watch, widgets, Live Activities | Complete and physically accepted | Test processed build once |
-| Signed package | Replacement archive/export complete | Upload only `6a5e535e`; do not upload `39e3d1a2` |
+| Signed package | Fresh `fade6c07` archive/export pending | Do not upload `6a5e535e` or `39e3d1a2` |
 
 The original package audit found and fixed one release issue before submission: the USDA key
-existed in Xcode settings but was not reaching the processed Info.plist. The replacement
-`6a5e535e` package preserves that explicit substitution, verifies it after export, and keeps
-OpenAI/FatSecret credentials out of the app.
+existed in Xcode settings but was not reaching the processed Info.plist. Final simulator closure
+then found a second real issue: hiding the numeric keyboard could rebuild Food Detail and discard
+an unsaved macro or micronutrient correction. Source `fade6c07` retains one draft for the complete
+editor lifetime and proves the exact entered values survive keyboard dismissal.
 
 ## Release Gates
 
@@ -58,7 +60,7 @@ OpenAI/FatSecret credentials out of the app.
 
 - [x] Classify the complete working tree and exclude generated/local-only state.
 - [x] Commit and push all intended app, backend, data, test, and release work.
-- [x] Freeze the replacement app source at `6a5e535e` after the accepted Food Detail merge.
+- [x] Freeze the correction-safe app source at `fade6c07` after the accepted Food Detail merge.
   Deployed Functions source remains `0aa44de9`.
 - [x] Confirm phone, widget, Live Activity, and Watch are all version 2.3 build 1.
 - [x] Inspect the final diff for secrets, disabled safeguards, debug fixtures, dormant prototypes,
@@ -95,18 +97,20 @@ Peter accepted sections 1-9 of `docs/physical-acceptance-2.3.md` on July 17, inc
 Preferred online Maia Natural speech remains unavailable to the current API project. The accepted
 local fallback ships without an online-quality claim.
 
-### Gate 4 - Local Release Package: Complete
+### Gate 4 - Exact Source Complete; Fresh Package Pending
 
-- [x] Core: 1,223/1,223 on exact replacement source `6a5e535e`.
-- [x] App: 116/116 on exact replacement source `6a5e535e`.
+- [x] Core: 1,223/1,223; the Core package is unchanged in final app source `fade6c07`.
+- [x] App and correction closure: 118/118 on exact app source `fade6c07`, comprising all 116 app
+  tests plus exact macro and micronutrient draft-retention journeys.
 - [x] UI: accepted Food Detail 6/6; broad catalog 85/85 across the main run plus focused closure
-  reruns on the accepted Food Detail source.
+  reruns, with both correction journeys repeated on `fade6c07`.
 - [x] Address Sanitizer and Thread Sanitizer: 1,220/1,220 each.
 - [x] Functions 33/33; Firestore Rules 33/33; migrations 10/10.
 - [x] Strict lint, visual guard, privacy guard, dependency audits, exact-source Release build, and
   exact-source static analysis.
-- [x] Signed archive and App Store export from the replacement merged source.
-- [x] Repeat deep signature, entitlements, profiles, architectures, Watch relationship, purpose strings,
+- [ ] Create a fresh signed archive and App Store export after `fade6c07` passes hosted verification
+  and merges to `main`.
+- [ ] Repeat deep signature, entitlements, profiles, architectures, Watch relationship, purpose strings,
   privacy manifests, release-key placement, and debug-hook inspection.
 - [x] Food Detail store image 2 refreshed; the eight-image iPhone gallery at both Apple sizes and
   the existing Watch image are validated and staged under the replacement release artifact.
@@ -117,8 +121,8 @@ Exact artifacts, hashes, and caveats are in `docs/release-evidence-2.3.md`.
 
 ## Peter: Submission Steps
 
-1. Upload only the replacement archive or IPA from the final merged 2.3 source and wait for
-   processing. Do not upload `39e3d1a2`.
+1. Wait for the fresh archive/IPA identified in `docs/release-evidence-2.3.md`. Do not upload
+   `6a5e535e`, `39e3d1a2`, or any older package.
 2. The local final-source section-10 smoke is accepted. After processing, repeat its two-minute
    upgrade/tab/Watch check on the exact TestFlight binary.
 3. Check App Check validity, Crashlytics, and launch health. Keep enforcement off unless valid
@@ -154,6 +158,12 @@ The next product bet should deepen the moat rather than widen the feature list:
    mineral fields. Peter accepted the complete six-item physical checklist on July 18, including
    correction persistence, physical keyboard dismissal, dark mode, and large text. The branch has
    no remaining Food Detail acceptance blocker.
+
+   Final simulator closure subsequently caught a presentation-lifetime edge case that physical
+   acceptance did not expose consistently: closing the numeric keyboard could reset an unsaved
+   field. Food Detail now owns a durable correction draft across every entry route, keeps the
+   underlying detail presentation stable, and disables gesture dismissal. Exact UI assertions
+   verify entered total/saturated-fat and vitamin values after the keyboard closes.
 
    The July 18 nightly UI matrix executed 85 tests: 83 passed in the broad run, and both outliers
    then passed in focused closure runs. The specialist-source journey received one real fix: food
