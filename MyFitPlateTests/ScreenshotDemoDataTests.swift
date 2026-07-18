@@ -30,6 +30,20 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertTrue(runs.allSatisfy(\.hasRoute))
     }
 
+    func testWorkoutHistoryFixtureRetainsCompleteSessionsAndSets() {
+        let logs = ScreenshotDemoData.workoutHistoryLogs
+
+        XCTAssertEqual(logs.count, 5)
+        XCTAssertEqual(
+            Set(logs.map(\.id)),
+            Set((0..<5).map { "demo-session-\($0)" })
+        )
+        XCTAssertTrue(logs.allSatisfy { !$0.completedExercises.isEmpty })
+        XCTAssertTrue(logs.allSatisfy { log in
+            log.completedExercises.allSatisfy { $0.sets.count >= 3 }
+        })
+    }
+
     func testGroceryFixtureCoversARealShoppingRun() {
         let nutrition = MockNutritionRepository()
         let workout = MockWorkoutRepository()

@@ -1543,30 +1543,53 @@ enum ScreenshotDemoData {
 
     private static func workoutLogs(for program: WorkoutProgram) -> [WorkoutSessionLog] {
         guard !program.routines.isEmpty else { return [] }
-        return (0..<5).map { index in
+
+        var logs: [WorkoutSessionLog] = []
+        logs.reserveCapacity(5)
+
+        for index in 0..<5 {
             let routine = program.routines[index % program.routines.count]
             let date = day(offset: -12 + index * 2).addingTimeInterval(18 * 60 * 60)
-            let completed = routine.exercises.map { exercise in
-                CompletedExercise(
-                    exerciseName: exercise.name,
-                    exercise: exercise,
-                    sets: (0..<max(3, exercise.targetSets)).map { setIndex in
+
+            var completedExercises: [CompletedExercise] = []
+            completedExercises.reserveCapacity(routine.exercises.count)
+
+            for exercise in routine.exercises {
+                let setCount = max(3, exercise.targetSets)
+                var completedSets: [CompletedSet] = []
+                completedSets.reserveCapacity(setCount)
+
+                for setIndex in 0..<setCount {
+                    completedSets.append(
                         CompletedSet(
                             reps: max(6, 12 - setIndex),
                             weight: 30 + Double(index * 2 + setIndex * 5),
                             setType: .normal,
                             effort: SetEffort(scale: .rpe, value: 7.5 + Double(setIndex) * 0.5)
                         )
-                    }
+                    )
+                }
+
+                completedExercises.append(
+                    CompletedExercise(
+                        exerciseName: exercise.name,
+                        exercise: exercise,
+                        sets: completedSets
+                    )
                 )
             }
-            return WorkoutSessionLog(
-                id: "demo-session-\(index)",
-                date: date,
-                routineID: routine.id,
-                completedExercises: completed
+
+            logs.append(
+                WorkoutSessionLog(
+                    id: "demo-session-\(index)",
+                    date: date,
+                    routineID: routine.id,
+                    completedExercises: completedExercises
+                )
             )
         }
+
+        return logs
     }
 
     private static func weightHistory() -> [(id: String, date: Date, weight: Double)] {
