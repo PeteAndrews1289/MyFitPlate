@@ -108,6 +108,18 @@ struct FoodPickerRow: View {
         return FoodSourceClassifier.descriptor(forFoodID: food.id)
     }
 
+    private var selectionAccessibilityLabel: String {
+        var parts = [food.name, servingText]
+
+        if let sourceTitle = sourceDescriptor?.title,
+           !detailText.localizedCaseInsensitiveContains(sourceTitle) {
+            parts.append(sourceTitle)
+        }
+
+        parts.append(detailText)
+        return parts.joined(separator: ", ")
+    }
+
     // No swipe-to-reveal here: a row-level DragGesture claims vertical drags too, which
     // blocked ScrollView scrolling that started on a food item. Quick log and delete are
     // already inline buttons on the row, so the swipe duplicated them at the cost of scroll.
@@ -177,6 +189,8 @@ struct FoodPickerRow: View {
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("food_picker_row_\(food.id)")
+        .accessibilityLabel(selectionAccessibilityLabel)
         .accessibilityHint("Review serving and nutrition")
     }
 
@@ -216,6 +230,7 @@ struct FoodPickerRow: View {
                 descriptor: sourceDescriptor,
                 metadata: food.sourceMetadata
             )
+            .accessibilityHidden(true)
         }
 
         if FoodDataSanity.isSuspicious(food) {
@@ -342,7 +357,6 @@ struct FoodTrustMiniBadge: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(tint.opacity(0.10), in: Capsule())
-            .accessibilityIdentifier("food_source_badge_\(descriptor.sourceKey)")
             .accessibilityLabel("\(evaluation.label), \(descriptor.title)")
     }
 }

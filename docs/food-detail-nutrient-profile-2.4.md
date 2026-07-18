@@ -84,9 +84,18 @@ parameter keys.
 - App tests: 116 passed, 0 failed.
 - Focused UI matrix: 6 passed, 0 failed across nutrition-first hierarchy, full Trust Receipt,
   nutrient explorer, no-micronutrient recovery, correction semantics, and dark Accessibility XXXL.
+- Full nightly UI matrix: 83 of 85 passed in the broad run. The two outliers then passed in focused
+  closure: the Health Canada/NIH journey after fixing its ambiguous row accessibility target, and
+  the unchanged workout dashboard after an iOS 26.5 simulator signal termination.
+- UI harness closure: Home and Quick Log to food search passed 2/2 after removing the redundant
+  pre-test app launch and adding verified text-entry fallback behavior.
 - Cold optimized Release simulator build: passed for the phone app, Watch app, widget, and Live
   Activity extension.
 - UI result: `/Volumes/T7 Developer/MyFitPlate/TestResults/Food-Detail-UI-Matrix-20260718.xcresult`.
+- Nightly closure results:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Food-Specialist-Closure-20260718.xcresult`,
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Workout-Dashboard-Closure-20260718.xcresult`, and
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/UI-Explicit-Launch-Closure-20260718.xcresult`.
 - Settled captures: `/Volumes/T7 Developer/MyFitPlate/TestResults/Food-Detail-Captures-20260718`.
 - Release log: `/Volumes/T7 Developer/MyFitPlate/TestResults/Food-Detail-Release-Build-20260718.log`.
 

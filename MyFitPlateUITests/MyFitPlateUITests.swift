@@ -11,10 +11,6 @@ final class MyFitPlateUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-
-        let app = XCUIApplication()
-        app.launchArguments.append("-ui-testing")
-        app.launch()
     }
 
     override func tearDownWithError() throws {
@@ -22,19 +18,43 @@ final class MyFitPlateUITests: XCTestCase {
 
     @MainActor
     private func focusAndType(_ text: String, into field: XCUIElement) {
-        var receivedFocus = false
+        let hittableExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"),
+            object: field
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [hittableExpectation], timeout: 5),
+            .completed,
+            "The text field should be ready for input"
+        )
 
-        for _ in 0..<2 where !receivedFocus {
-            field.tap()
+        var receivedFocus = false
+        for attempt in 0..<3 where !receivedFocus {
+            if attempt == 0 {
+                field.tap()
+            } else {
+                field.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
             let focusExpectation = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "hasKeyboardFocus == true"),
                 object: field
             )
-            receivedFocus = XCTWaiter.wait(for: [focusExpectation], timeout: 3) == .completed
+            receivedFocus = XCTWaiter.wait(for: [focusExpectation], timeout: 2) == .completed
         }
 
-        XCTAssertTrue(receivedFocus, "The text field should receive keyboard focus")
         field.typeText(text)
+
+        let expectedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !expectedText.isEmpty else { return }
+        let valueExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS[c] %@", expectedText),
+            object: field
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [valueExpectation], timeout: 3),
+            .completed,
+            "The text field should contain the entered text"
+        )
     }
 
     @MainActor
@@ -89,6 +109,8 @@ final class MyFitPlateUITests: XCTestCase {
     @MainActor
     func testHomeDashboardLoads() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing"]
+        app.launch()
 
         // Wait for the home dashboard to load
         let homeTitle = app.staticTexts["Home"]
@@ -104,6 +126,8 @@ final class MyFitPlateUITests: XCTestCase {
     @MainActor
     func testFoodSearchNavigation() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing"]
+        app.launch()
 
         let quickLogButton = app.buttons["quick_log_button"]
         XCTAssertTrue(quickLogButton.waitForExistence(timeout: 5), "Quick log button should be visible")
@@ -262,22 +286,15 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(searchField.waitForExistence(timeout: 8))
         focusAndType("salmon", into: searchField)
 
-        let canadaRow = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "Salmon, Atlantic, baked"))
-            .firstMatch
+        let canadaRow = app.buttons["food_picker_row_cnf_ui_4700"]
         XCTAssertTrue(canadaRow.waitForExistence(timeout: 5))
-        XCTAssertTrue(
-            app.descendants(matching: .any)["food_source_badge_health_canada_cnf"]
-                .waitForExistence(timeout: 5)
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)
-                .matching(NSPredicate(format: "label CONTAINS %@", "Health Canada CNF"))
-                .firstMatch
-                .waitForExistence(timeout: 5)
-        )
+        XCTAssertTrue(canadaRow.label.contains("Salmon, Atlantic, baked"))
+        XCTAssertTrue(canadaRow.label.contains("Health Canada CNF"))
         canadaRow.tap()
 
+        let canadaTrustSummary = app.buttons["food_trust_summary"]
+        XCTAssertTrue(canadaTrustSummary.waitForExistence(timeout: 5))
+        canadaTrustSummary.tap()
         XCTAssertTrue(app.staticTexts["Health Canada CNF"].waitForExistence(timeout: 5))
         let showFieldEvidence = app.buttons["Show field evidence"]
         for _ in 0..<6 where !showFieldEvidence.exists || !showFieldEvidence.isHittable {
@@ -304,17 +321,11 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(supplementSearchField.waitForExistence(timeout: 8))
         focusAndType("vitamin", into: supplementSearchField)
 
-        let supplementRow = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "Example Vitamin D3"))
-            .firstMatch
+        let supplementRow = app.buttons["food_picker_row_dsld_ui_42"]
         for _ in 0..<4 where !supplementRow.exists || !supplementRow.isHittable {
             app.swipeUp()
         }
         XCTAssertTrue(supplementRow.waitForExistence(timeout: 5))
-        XCTAssertTrue(
-            app.descendants(matching: .any)["food_source_badge_nih_dsld"]
-                .waitForExistence(timeout: 5)
-        )
         let supplementHittable = expectation(
             for: NSPredicate(format: "hittable == true"),
             evaluatedWith: supplementRow
@@ -324,20 +335,12 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(supplementRow.label.contains("1 Softgel"))
         supplementRow.tap()
 
-        let nihReceiptTitle = app.staticTexts["NIH DSLD"]
-        if !nihReceiptTitle.waitForExistence(timeout: 2) {
-            let unchangedSupplementRow = app.buttons
-                .matching(NSPredicate(format: "label CONTAINS %@", "Example Vitamin D3"))
-                .firstMatch
-            XCTAssertTrue(
-                unchangedSupplementRow.exists,
-                "Only retry while the unchanged NIH search result remains visible"
-            )
-            XCTAssertTrue(unchangedSupplementRow.isHittable)
-            unchangedSupplementRow.tap()
-        }
-        XCTAssertTrue(nihReceiptTitle.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["1 Softgel"].waitForExistence(timeout: 5))
+        let supplementTrustSummary = app.buttons["food_trust_summary"]
+        XCTAssertTrue(supplementTrustSummary.waitForExistence(timeout: 5))
+        supplementTrustSummary.tap()
+        let nihReceiptTitle = app.staticTexts["NIH DSLD"]
+        XCTAssertTrue(nihReceiptTitle.waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label CONTAINS %@", "not laboratory verification"))

@@ -25,7 +25,7 @@ evidence, fast reviewable logging, training and recovery context, and coaching t
 | --- | --- | --- |
 | `main` | Release source | Local 2.3 merge complete; remote publication is tracked by PR #9 |
 | `codex/2.3-visual-unification` | 2.3 release branch | Binary source frozen at `39e3d1a2`; retain until the remote main merge is confirmed |
-| `codex/2.4-food-detail` | Active 2.4 development | Food Detail and Nutrient Profile source complete; device acceptance pending |
+| `codex/2.4-food-detail` | Active 2.4 development | Source and simulator closure complete; six-item device acceptance pending |
 
 The exact 2.3 source remains isolated from active 2.4 work. Tag `v2.3` only after Apple accepts the
 build, then remove the 2.3 development branch when no longer needed. Keep 2.4 changes off `main`
@@ -149,6 +149,13 @@ The next product bet should deepen the moat rather than widen the feature list:
    The correction workspace now supports total fat, saturated fat, fiber, and all 22 vitamin and
    mineral fields. Complete the short physical checklist in
    `docs/food-detail-nutrient-profile-2.4.md` before merging.
+
+   The July 18 nightly UI matrix executed 85 tests: 83 passed in the broad run, and both outliers
+   then passed in focused closure runs. The specialist-source journey received one real fix: food
+   search rows now expose stable button identities and complete source-aware accessibility labels,
+   so Health Canada and NIH results cannot be confused with their visual Trust badges. The workout
+   dashboard outlier passed unchanged and was classified as Xcode/simulator instability. The UI
+   harness also stopped launching a redundant app session before every routed test.
 2. **Recovery Continuum:** connect regional training load, recovery evidence, nutrition timing, and
    the next practical action without turning uncertainty into a single magical score.
 3. **Voice logging:** reuse the review-before-write camera architecture for fast spoken meal entry.
