@@ -1,6 +1,6 @@
 # MyFitPlate Terms of Service
 
-**Effective date:** July 9, 2026
+**Effective date:** July 15, 2026
 
 These Terms of Service govern your use of MyFitPlate. By creating an account or using the app, you agree to these terms and the [Privacy Policy](privacy_policy.md).
 
@@ -36,7 +36,7 @@ We may restrict or terminate access when reasonably necessary to protect users, 
 
 ## 6. Third-Party Services and Data
 
-MyFitPlate relies on services and information from Apple, Google Firebase, OpenAI, FatSecret, USDA FoodData Central, Open Food Facts, and other platform providers. Their availability and data may change. Third-party names and trademarks belong to their respective owners and do not imply endorsement.
+MyFitPlate relies on services and information from Apple, Google Firebase, OpenAI, FatSecret, USDA FoodData Central, Open Food Facts, Health Canada Canadian Nutrient File, NIH Dietary Supplement Label Database, and other platform providers. Their availability and data may change. Third-party names and trademarks belong to their respective owners and do not imply endorsement.
 
 ## 7. Intellectual Property
 
