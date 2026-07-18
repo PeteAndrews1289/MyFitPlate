@@ -21,6 +21,7 @@ final class FoodCorrectionSheetRenderingTests: XCTestCase {
             foodName: "Cinnamon bun flavored",
             serving: serving,
             barcode: "0044000087579",
+            onCancel: {},
             onSave: { _, _ in }
         )
         let controller = UIHostingController(rootView: sheet)

@@ -58,6 +58,32 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    private func reveal(
+        _ element: XCUIElement,
+        in scrollable: XCUIElement,
+        maxAttempts: Int = 12,
+        topInset: CGFloat = 8,
+        bottomInset: CGFloat = 8
+    ) {
+        for _ in 0..<maxAttempts {
+            let viewport = scrollable.frame
+            if element.exists {
+                let frame = element.frame
+                let isFullyVisible = frame.minY >= viewport.minY + topInset
+                    && frame.maxY <= viewport.maxY - bottomInset
+                if element.isHittable && isFullyVisible {
+                    return
+                }
+                if frame.maxY < viewport.minY + topInset {
+                    scrollable.swipeDown(velocity: .slow)
+                    continue
+                }
+            }
+            scrollable.swipeUp(velocity: .slow)
+        }
+    }
+
+    @MainActor
     private func launchFoodCorrectionDemo() -> XCUIApplication {
         let app = XCUIApplication()
         app.terminate()
@@ -239,7 +265,9 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        XCTAssertTrue(app.textFields["food_search_field"].waitForExistence(timeout: 8))
+        let searchField = app.textFields["food_search_field"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 8))
+        XCTAssertTrue(searchField.isHittable)
         XCTAssertTrue(app.descendants(matching: .any)["food_search_meal_menu"].waitForExistence(timeout: 5))
         let repeatSection = app.staticTexts
             .matching(NSPredicate(
@@ -320,11 +348,13 @@ final class MyFitPlateUITests: XCTestCase {
         let supplementSearchField = app.textFields["food_search_field"]
         XCTAssertTrue(supplementSearchField.waitForExistence(timeout: 8))
         focusAndType("vitamin", into: supplementSearchField)
+        let searchKey = app.keyboards.buttons["Search"]
+        if searchKey.waitForExistence(timeout: 2) {
+            searchKey.tap()
+        }
 
         let supplementRow = app.buttons["food_picker_row_dsld_ui_42"]
-        for _ in 0..<4 where !supplementRow.exists || !supplementRow.isHittable {
-            app.swipeUp()
-        }
+        reveal(supplementRow, in: app.scrollViews.firstMatch, bottomInset: 24)
         XCTAssertTrue(supplementRow.waitForExistence(timeout: 5))
         let supplementHittable = expectation(
             for: NSPredicate(format: "hittable == true"),
@@ -527,15 +557,12 @@ final class MyFitPlateUITests: XCTestCase {
         topScreenshot.lifetime = .keepAlways
         add(topScreenshot)
 
-        for _ in 0..<8 {
-            let detailsIsFullyVisible = details.exists
-                && details.frame.minY >= visibleCancel.frame.maxY
-                && details.frame.maxY <= primaryAction.frame.minY
-            if detailsIsFullyVisible {
-                break
-            }
-            app.swipeUp()
-        }
+        reveal(
+            details,
+            in: app.scrollViews.firstMatch,
+            topInset: max(8, visibleCancel.frame.maxY - app.scrollViews.firstMatch.frame.minY),
+            bottomInset: max(8, app.scrollViews.firstMatch.frame.maxY - primaryAction.frame.minY)
+        )
         XCTAssertTrue(details.waitForExistence(timeout: 5))
         XCTAssertTrue(details.isHittable)
         XCTAssertTrue(primaryAction.isHittable)
@@ -755,6 +782,7 @@ final class MyFitPlateUITests: XCTestCase {
         libraryScreenshot.lifetime = .keepAlways
         add(libraryScreenshot)
 
+        reveal(firstRecipe, in: app.scrollViews.firstMatch, topInset: 8, bottomInset: 24)
         XCTAssertTrue(firstRecipe.isHittable)
         firstRecipe.press(forDuration: 0.1)
         if !detail.waitForExistence(timeout: 3) {
@@ -1089,17 +1117,16 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let macros = app.descendants(matching: .any)["food_detail_macro_summary"]
-        let missingState = app.descendants(matching: .any)["food_nutrient_profile_missing"]
+        let missingState = app.staticTexts["No vitamin or mineral detail reported"]
         let scanLabel = app.buttons["Scan Nutrition Label"]
         XCTAssertTrue(macros.waitForExistence(timeout: 10))
 
-        for _ in 0..<3 where !missingState.exists {
-            app.swipeUp()
-        }
+        reveal(missingState, in: app.scrollViews.firstMatch, bottomInset: 132)
 
         XCTAssertTrue(missingState.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["No vitamin or mineral detail reported"].exists)
-        XCTAssertTrue(scanLabel.exists)
+        reveal(scanLabel, in: app.scrollViews.firstMatch, bottomInset: 132)
+        XCTAssertTrue(scanLabel.waitForExistence(timeout: 5))
         XCTAssertTrue(scanLabel.isHittable)
         // SwiftUI exposes one nameless internal node to the clipping audit. The visible
         // copy, scan action, and macro summary are asserted above and captured below.
@@ -1130,8 +1157,15 @@ final class MyFitPlateUITests: XCTestCase {
             XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "3"
         )
         XCTAssertEqual(saturatedFat.value as? String, "3")
-        XCTAssertTrue(app.buttons["food_correction_keyboard_done"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Save"].isEnabled)
+        let keyboardDone = app.buttons["food_correction_keyboard_done"]
+        XCTAssertTrue(keyboardDone.waitForExistence(timeout: 3))
+        keyboardDone.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["Fix food"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Save"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["food_correction_sheet"].exists)
+        XCTAssertEqual(saturatedFat.value as? String, "3")
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Food Correction - explicit zero and repaired macros"
@@ -1150,20 +1184,42 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(micronutrients.isHittable)
         micronutrients.tap()
 
-        let vitaminA = app.textFields["food_correction_vitaminA"]
-        for _ in 0..<2 where !vitaminA.exists || !vitaminA.isHittable {
-            app.swipeUp(velocity: .slow)
+        let expanded = expectation(
+            for: NSPredicate(format: "value == %@", "Expanded"),
+            evaluatedWith: micronutrients
+        )
+        if XCTWaiter.wait(for: [expanded], timeout: 2) != .completed {
+            XCTAssertTrue(micronutrients.isHittable)
+            micronutrients.press(forDuration: 0.1)
+            let expandedAfterRetry = expectation(
+                for: NSPredicate(format: "value == %@", "Expanded"),
+                evaluatedWith: micronutrients
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [expandedAfterRetry], timeout: 2), .completed)
         }
+        XCTAssertEqual(micronutrients.value as? String, "Expanded")
+
+        let vitaminA = app.textFields["food_correction_vitaminA"]
+        reveal(vitaminA, in: app.scrollViews.firstMatch, bottomInset: 24)
         XCTAssertTrue(vitaminA.waitForExistence(timeout: 5))
         XCTAssertTrue(vitaminA.isHittable)
         focusAndType("5", into: vitaminA)
         XCTAssertEqual(vitaminA.value as? String, "5")
-        XCTAssertTrue(app.buttons["food_correction_keyboard_done"].waitForExistence(timeout: 3))
+
+        let correctionScroll = app.scrollViews.firstMatch
+        let keyboardDone = app.buttons["food_correction_keyboard_done"]
+        XCTAssertTrue(keyboardDone.waitForExistence(timeout: 3))
+        keyboardDone.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["Fix food"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Save"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["food_correction_sheet"].exists)
+        reveal(vitaminA, in: correctionScroll, maxAttempts: 12, bottomInset: 24)
+        XCTAssertTrue(vitaminA.waitForExistence(timeout: 5))
+        XCTAssertEqual(vitaminA.value as? String, "5")
 
         let sodium = app.textFields["food_correction_sodium"]
-        for _ in 0..<8 where !sodium.exists || !sodium.isHittable {
-            app.swipeUp(velocity: .slow)
-        }
+        reveal(sodium, in: correctionScroll, maxAttempts: 19, bottomInset: 24)
         XCTAssertTrue(sodium.waitForExistence(timeout: 5))
         XCTAssertTrue(sodium.isHittable)
 
@@ -1370,13 +1426,14 @@ final class MyFitPlateUITests: XCTestCase {
             ("home_daily_metric_water", "Water: 72 / 64 oz")
         ]
         for (identifier, label) in immediatelyVisibleDailyMetrics {
-            XCTAssertEqual(app.descendants(matching: .any)[identifier].label, label)
+            let metric = app.descendants(matching: .any)[identifier]
+            reveal(metric, in: homeScrollView, bottomInset: 20)
+            XCTAssertTrue(metric.waitForExistence(timeout: 5))
+            XCTAssertEqual(metric.label, label)
         }
 
         let activityMetric = app.descendants(matching: .any)["home_daily_metric_activity"]
-        for _ in 0..<6 where !activityMetric.exists {
-            homeScrollView.swipeUp()
-        }
+        reveal(activityMetric, in: homeScrollView, bottomInset: 20)
         XCTAssertTrue(activityMetric.waitForExistence(timeout: 5), "Activity metric should remain reachable")
         XCTAssertEqual(activityMetric.label, "Activity: 1 session")
 
@@ -2339,9 +2396,7 @@ final class MyFitPlateUITests: XCTestCase {
 
         let spokenVoice = app.staticTexts["Spoken voice"]
         let previewVoice = app.buttons["Preview Voice"]
-        for _ in 0..<8 where !spokenVoice.isHittable || !previewVoice.isHittable {
-            app.swipeUp()
-        }
+        reveal(previewVoice, in: app.scrollViews.firstMatch, topInset: 72, bottomInset: 24)
 
         XCTAssertTrue(spokenVoice.waitForExistence(timeout: 5))
         XCTAssertTrue(previewVoice.waitForExistence(timeout: 5))
@@ -2762,10 +2817,8 @@ final class MyFitPlateUITests: XCTestCase {
 
         XCTAssertTrue(screen.waitForExistence(timeout: 10))
         XCTAssertTrue(overview.waitForExistence(timeout: 5))
+        reveal(chips, in: screen, topInset: 8, bottomInset: 112)
         XCTAssertTrue(chips.waitForExistence(timeout: 5))
-        for _ in 0..<2 where !chips.isHittable {
-            screen.swipeUp()
-        }
         XCTAssertTrue(chips.isHittable)
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         XCTAssertEqual(action.label, "Log 3 Items")

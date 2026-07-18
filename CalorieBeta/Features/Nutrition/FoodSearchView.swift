@@ -18,6 +18,7 @@ struct FoodSearchView: View {
 
     @StateObject private var viewModel: FoodSearchViewModel
     @StateObject private var voiceLoggingService = VoiceLoggingService(engine: SpeechCaptureEngine())
+    @State private var foodDetailPresentationState = FoodDetailPresentationState()
 
     @State private var showingAddFoodManually = false
     @State private var showingQuickAddMacros = false
@@ -250,31 +251,35 @@ struct FoodSearchView: View {
                 }
                 .sheet(isPresented: $showingAITextLog) { AITextLogView() }
                 .sheet(isPresented: $showingValueRadar) { RestaurantValueRadarView() }
-                .sheet(item: $selectedFoodItem) { foodItem in
+                .fullScreenCover(item: $selectedFoodItem) { foodItem in
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
                         source: selectedFoodSource,
                         targetMealName: viewModel.selectedMeal,
+                        presentationState: foodDetailPresentationState,
                         onLogUpdated: {
                             selectedFoodItem = nil
                             onFoodItemLogged?()
                         }
                     )
+                    .id(foodItem.id)
                 }
-                .sheet(item: $scannedFoodItem) { foodItem in
+                .fullScreenCover(item: $scannedFoodItem) { foodItem in
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
                         source: scannedFoodSource,
                         targetMealName: viewModel.selectedMeal,
+                        presentationState: foodDetailPresentationState,
                         onLogUpdated: {
                             self.scannedFoodItem = nil
                             onFoodItemLogged?()
                         }
                     )
+                    .id(foodItem.id)
                 }
                 .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
                      AISummaryView(estimatedItems: wrapper.items, photoReview: wrapper.photoReview)

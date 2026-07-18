@@ -752,6 +752,42 @@ struct FoodDetailBarcodeMemoryAction: View {
     }
 }
 
+final class FoodDetailCorrectionDraft: ObservableObject {
+    let originalName: String
+    let serving: ServingSizeOption
+
+    @Published var name: String
+    @Published var servingDescription: String
+    @Published var servingWeight: String
+    @Published var calories: String
+    @Published var protein: String
+    @Published var carbs: String
+    @Published var fats: String
+    @Published var saturatedFat: String
+    @Published var fiber: String
+    @Published var micronutrientValues: [MicronutrientKey: String]
+    @Published var isMicronutrientsExpanded = false
+
+    init(foodName: String, serving: ServingSizeOption) {
+        self.originalName = foodName
+        self.serving = serving
+        self.name = foodName
+        self.servingDescription = serving.description
+        self.servingWeight = FoodDetailCorrectionSheet.text(for: serving.servingWeightGrams)
+        self.calories = FoodDetailCorrectionSheet.requiredText(for: serving.calories)
+        self.protein = FoodDetailCorrectionSheet.requiredText(for: serving.protein)
+        self.carbs = FoodDetailCorrectionSheet.requiredText(for: serving.carbs)
+        self.fats = FoodDetailCorrectionSheet.requiredText(for: serving.fats)
+        self.saturatedFat = FoodDetailCorrectionSheet.text(for: serving.saturatedFat)
+        self.fiber = FoodDetailCorrectionSheet.text(for: serving.fiber)
+        self.micronutrientValues = Dictionary(
+            uniqueKeysWithValues: MicronutrientKey.vitaminAndMineralKeys.map {
+                ($0, FoodDetailCorrectionSheet.text(for: FoodDetailCorrectionSheet.value(for: $0, in: serving)))
+            }
+        )
+    }
+}
+
 struct FoodDetailCorrectionSheet: View {
     private struct CorrectionChange: Identifiable {
         let id: String
@@ -762,67 +798,60 @@ struct FoodDetailCorrectionSheet: View {
 
     let serving: ServingSizeOption
     let barcode: String?
+    let onCancel: () -> Void
     let onSave: (String, ServingSizeOption) -> Void
     private let originalName: String
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    @State private var servingDescription: String
-    @State private var servingWeight: String
-    @State private var calories: String
-    @State private var protein: String
-    @State private var carbs: String
-    @State private var fats: String
-    @State private var saturatedFat: String
-    @State private var fiber: String
-    @State private var micronutrientValues: [MicronutrientKey: String]
-    @FocusState private var focusedFieldIdentifier: String?
+    @ObservedObject private var draft: FoodDetailCorrectionDraft
+
+    init(
+        draft: FoodDetailCorrectionDraft,
+        barcode: String?,
+        onCancel: @escaping () -> Void,
+        onSave: @escaping (String, ServingSizeOption) -> Void
+    ) {
+        self.serving = draft.serving
+        self.barcode = barcode
+        self.onCancel = onCancel
+        self.onSave = onSave
+        self.originalName = draft.originalName
+        self._draft = ObservedObject(wrappedValue: draft)
+    }
 
     init(
         foodName: String,
         serving: ServingSizeOption,
         barcode: String?,
+        onCancel: @escaping () -> Void,
         onSave: @escaping (String, ServingSizeOption) -> Void
     ) {
-        self.serving = serving
-        self.barcode = barcode
-        self.onSave = onSave
-        self.originalName = foodName
-        self._name = State(initialValue: foodName)
-        self._servingDescription = State(initialValue: serving.description)
-        self._servingWeight = State(initialValue: Self.text(for: serving.servingWeightGrams))
-        self._calories = State(initialValue: Self.requiredText(for: serving.calories))
-        self._protein = State(initialValue: Self.requiredText(for: serving.protein))
-        self._carbs = State(initialValue: Self.requiredText(for: serving.carbs))
-        self._fats = State(initialValue: Self.requiredText(for: serving.fats))
-        self._saturatedFat = State(initialValue: Self.text(for: serving.saturatedFat))
-        self._fiber = State(initialValue: Self.text(for: serving.fiber))
-        self._micronutrientValues = State(
-            initialValue: Dictionary(uniqueKeysWithValues: MicronutrientKey.vitaminAndMineralKeys.map {
-                ($0, Self.text(for: Self.value(for: $0, in: serving)))
-            })
+        self.init(
+            draft: FoodDetailCorrectionDraft(foodName: foodName, serving: serving),
+            barcode: barcode,
+            onCancel: onCancel,
+            onSave: onSave
         )
     }
 
     private var trimmedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var trimmedServingDescription: String {
-        servingDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.servingDescription.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var canSave: Bool {
         !trimmedName.isEmpty &&
             !trimmedServingDescription.isEmpty &&
-            doubleValue(calories) != nil &&
-            doubleValue(protein) != nil &&
-            doubleValue(carbs) != nil &&
-            doubleValue(fats) != nil &&
-            isValidOptionalNumber(servingWeight) &&
-            isValidOptionalNumber(saturatedFat) &&
-            isValidOptionalNumber(fiber) &&
-            micronutrientValues.values.allSatisfy(isValidOptionalNumber) &&
+            doubleValue(draft.calories) != nil &&
+            doubleValue(draft.protein) != nil &&
+            doubleValue(draft.carbs) != nil &&
+            doubleValue(draft.fats) != nil &&
+            isValidOptionalNumber(draft.servingWeight) &&
+            isValidOptionalNumber(draft.saturatedFat) &&
+            isValidOptionalNumber(draft.fiber) &&
+            draft.micronutrientValues.values.allSatisfy(isValidOptionalNumber) &&
             saturatedFatValidationMessage == nil
     }
 
@@ -848,29 +877,32 @@ struct FoodDetailCorrectionSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel", action: onCancel)
                 }
 
-                ToolbarItemGroup(placement: .confirmationAction) {
-                    if focusedFieldIdentifier != nil {
-                        Button {
-                            focusedFieldIdentifier = nil
-                        } label: {
-                            Image(systemName: "keyboard.chevron.compact.down")
-                        }
-                        .accessibilityLabel("Hide keyboard")
-                        .accessibilityIdentifier("food_correction_keyboard_done")
-                    }
-
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         guard let correctedServing else { return }
                         onSave(trimmedName, correctedServing)
-                        dismiss()
                     }
                     .disabled(!canSave)
                 }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.connectedScenes
+                            .compactMap { $0 as? UIWindowScene }
+                            .flatMap(\.windows)
+                            .first(where: \.isKeyWindow)?
+                            .endEditing(true)
+                    }
+                    .accessibilityLabel("Hide keyboard")
+                    .accessibilityIdentifier("food_correction_keyboard_done")
+                }
             }
         }
+        .interactiveDismissDisabled()
         .accessibilityIdentifier("food_correction_sheet")
     }
 
@@ -908,19 +940,19 @@ struct FoodDetailCorrectionSheet: View {
 
             correctionTextField(
                 title: "Food name",
-                text: $name,
+                text: $draft.name,
                 keyboard: .default,
                 identifier: "food_correction_name"
             )
             correctionTextField(
                 title: "Serving size",
-                text: $servingDescription,
+                text: $draft.servingDescription,
                 keyboard: .default,
                 identifier: "food_correction_serving"
             )
             correctionTextField(
                 title: "Serving weight",
-                text: $servingWeight,
+                text: $draft.servingWeight,
                 unit: "g",
                 keyboard: .decimalPad,
                 identifier: "food_correction_weight"
@@ -936,42 +968,42 @@ struct FoodDetailCorrectionSheet: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppSpacing.row) {
                 correctionTextField(
                     title: "Calories",
-                    text: $calories,
+                    text: $draft.calories,
                     unit: "cal",
                     keyboard: .decimalPad,
                     identifier: "food_correction_calories"
                 )
                 correctionTextField(
                     title: "Protein",
-                    text: $protein,
+                    text: $draft.protein,
                     unit: "g",
                     keyboard: .decimalPad,
                     identifier: "food_correction_protein"
                 )
                 correctionTextField(
                     title: "Carbs",
-                    text: $carbs,
+                    text: $draft.carbs,
                     unit: "g",
                     keyboard: .decimalPad,
                     identifier: "food_correction_carbs"
                 )
                 correctionTextField(
                     title: "Total fat",
-                    text: $fats,
+                    text: $draft.fats,
                     unit: "g",
                     keyboard: .decimalPad,
                     identifier: "food_correction_fat"
                 )
                 correctionTextField(
                     title: "Saturated fat",
-                    text: $saturatedFat,
+                    text: $draft.saturatedFat,
                     unit: "g",
                     keyboard: .decimalPad,
                     identifier: "food_correction_saturatedFat"
                 )
                 correctionTextField(
                     title: "Fiber",
-                    text: $fiber,
+                    text: $draft.fiber,
                     unit: "g",
                     keyboard: .decimalPad,
                     identifier: "food_correction_fiber"
@@ -989,7 +1021,7 @@ struct FoodDetailCorrectionSheet: View {
     }
 
     private var micronutrientFields: some View {
-        DisclosureGroup {
+        DisclosureGroup(isExpanded: $draft.isMicronutrientsExpanded) {
             VStack(alignment: .leading, spacing: AppSpacing.group) {
                 Text("Leave a field blank when the source does not report it. Enter 0 only when the label explicitly reports zero.")
                     .appTextRole(.caption)
@@ -1017,6 +1049,7 @@ struct FoodDetailCorrectionSheet: View {
         .tint(AppPalette.brand)
         .appSurface(.quiet)
         .accessibilityIdentifier("food_correction_micros")
+        .accessibilityValue(draft.isMicronutrientsExpanded ? "Expanded" : "Collapsed")
     }
 
     private func micronutrientCategoryFields(_ category: MicronutrientCategory) -> some View {
@@ -1118,21 +1151,21 @@ struct FoodDetailCorrectionSheet: View {
             changes.append(CorrectionChange(id: id, title: title, before: before, after: after))
         }
 
-        addText("name", "Food name", original: originalName, current: name)
-        addText("serving", "Serving", original: serving.description, current: servingDescription)
-        addNumber("weight", "Serving weight", original: serving.servingWeightGrams, currentText: servingWeight, unit: "g")
-        addNumber("calories", "Calories", original: serving.calories, currentText: calories, unit: "cal")
-        addNumber("protein", "Protein", original: serving.protein, currentText: protein, unit: "g")
-        addNumber("carbs", "Carbs", original: serving.carbs, currentText: carbs, unit: "g")
-        addNumber("fat", "Total fat", original: serving.fats, currentText: fats, unit: "g")
-        addNumber("saturated-fat", "Saturated fat", original: serving.saturatedFat, currentText: saturatedFat, unit: "g")
-        addNumber("fiber", "Fiber", original: serving.fiber, currentText: fiber, unit: "g")
+        addText("name", "Food name", original: originalName, current: draft.name)
+        addText("serving", "Serving", original: serving.description, current: draft.servingDescription)
+        addNumber("weight", "Serving weight", original: serving.servingWeightGrams, currentText: draft.servingWeight, unit: "g")
+        addNumber("calories", "Calories", original: serving.calories, currentText: draft.calories, unit: "cal")
+        addNumber("protein", "Protein", original: serving.protein, currentText: draft.protein, unit: "g")
+        addNumber("carbs", "Carbs", original: serving.carbs, currentText: draft.carbs, unit: "g")
+        addNumber("fat", "Total fat", original: serving.fats, currentText: draft.fats, unit: "g")
+        addNumber("saturated-fat", "Saturated fat", original: serving.saturatedFat, currentText: draft.saturatedFat, unit: "g")
+        addNumber("fiber", "Fiber", original: serving.fiber, currentText: draft.fiber, unit: "g")
         for key in MicronutrientKey.vitaminAndMineralKeys {
             addNumber(
                 key.rawValue,
                 key.displayName,
                 original: Self.value(for: key, in: serving),
-                currentText: micronutrientValues[key] ?? "",
+                currentText: draft.micronutrientValues[key] ?? "",
                 unit: key.unit
             )
         }
@@ -1141,24 +1174,24 @@ struct FoodDetailCorrectionSheet: View {
 
     private var correctedServing: ServingSizeOption? {
         guard canSave,
-              let caloriesValue = doubleValue(calories),
-              let proteinValue = doubleValue(protein),
-              let carbsValue = doubleValue(carbs),
-              let fatsValue = doubleValue(fats) else {
+              let caloriesValue = doubleValue(draft.calories),
+              let proteinValue = doubleValue(draft.protein),
+              let carbsValue = doubleValue(draft.carbs),
+              let fatsValue = doubleValue(draft.fats) else {
             return nil
         }
 
         return ServingSizeOption(
             description: trimmedServingDescription,
-            servingWeightGrams: doubleValue(servingWeight),
+            servingWeightGrams: doubleValue(draft.servingWeight),
             calories: caloriesValue,
             protein: proteinValue,
             carbs: carbsValue,
             fats: fatsValue,
-            saturatedFat: doubleValue(saturatedFat),
+            saturatedFat: doubleValue(draft.saturatedFat),
             polyunsaturatedFat: serving.polyunsaturatedFat,
             monounsaturatedFat: serving.monounsaturatedFat,
-            fiber: doubleValue(fiber),
+            fiber: doubleValue(draft.fiber),
             calcium: micronutrientValue(.calcium),
             iron: micronutrientValue(.iron),
             potassium: micronutrientValue(.potassium),
@@ -1199,7 +1232,6 @@ struct FoodDetailCorrectionSheet: View {
             HStack(spacing: 6) {
                 TextField(title, text: text)
                     .keyboardType(keyboard)
-                    .focused($focusedFieldIdentifier, equals: identifier)
                     .appTextRole(.body)
                     .foregroundStyle(AppPalette.text)
                     .accessibilityIdentifier(identifier)
@@ -1222,29 +1254,29 @@ struct FoodDetailCorrectionSheet: View {
         }
     }
 
-    private static func text(for value: Double?) -> String {
+    fileprivate static func text(for value: Double?) -> String {
         guard let value, value.isFinite, value >= 0 else { return "" }
         return String(format: "%g", value)
     }
 
     private var reportedMicronutrientFieldCount: Int {
-        micronutrientValues.values.filter {
+        draft.micronutrientValues.values.filter {
             !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }.count
     }
 
     private func micronutrientBinding(for key: MicronutrientKey) -> Binding<String> {
         Binding(
-            get: { micronutrientValues[key] ?? "" },
-            set: { micronutrientValues[key] = $0 }
+            get: { draft.micronutrientValues[key] ?? "" },
+            set: { draft.micronutrientValues[key] = $0 }
         )
     }
 
     private func micronutrientValue(_ key: MicronutrientKey) -> Double? {
-        doubleValue(micronutrientValues[key] ?? "")
+        doubleValue(draft.micronutrientValues[key] ?? "")
     }
 
-    private static func value(for key: MicronutrientKey, in serving: ServingSizeOption) -> Double? {
+    fileprivate static func value(for key: MicronutrientKey, in serving: ServingSizeOption) -> Double? {
         switch key {
         case .fiber: return serving.fiber
         case .calcium: return serving.calcium
@@ -1272,7 +1304,7 @@ struct FoodDetailCorrectionSheet: View {
         }
     }
 
-    private static func requiredText(for value: Double) -> String {
+    fileprivate static func requiredText(for value: Double) -> String {
         String(format: "%g", max(0, value))
     }
 
@@ -1297,8 +1329,8 @@ struct FoodDetailCorrectionSheet: View {
     }
 
     private var saturatedFatValidationMessage: String? {
-        guard let saturatedFatValue = doubleValue(saturatedFat),
-              let totalFatValue = doubleValue(fats),
+        guard let saturatedFatValue = doubleValue(draft.saturatedFat),
+              let totalFatValue = doubleValue(draft.fats),
               !FoodDataSanity.saturatedFatFitsWithinTotalFat(
                   saturatedFat: saturatedFatValue,
                   totalFat: totalFatValue

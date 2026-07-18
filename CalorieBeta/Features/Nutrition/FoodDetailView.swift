@@ -7,6 +7,10 @@ struct FoodTrustResolution: Equatable, Identifiable {
     let detail: String
 }
 
+final class FoodDetailPresentationState: ObservableObject {
+    @Published var correctionDraft: FoodDetailCorrectionDraft?
+}
+
 struct FoodDetailView: View {
     var initialFoodItem: FoodItem
     @Binding var dailyLog: DailyLog?
@@ -38,7 +42,7 @@ struct FoodDetailView: View {
     @State private var customFoodForAction: FoodItem?
 
     @State private var showingImagePicker = false
-    @State private var showingCorrectionEditor = false
+    @StateObject private var presentationState: FoodDetailPresentationState
     @State private var showingTrustReceipt = false
     @State private var showingNutrientProfile = false
     @State private var correctionEditorDidSubmit = false
@@ -54,12 +58,22 @@ struct FoodDetailView: View {
 
     // MARK: - Robust Initializer
     // Updated to use new model fields if available, ensuring stability.
-    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "log", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
+    init(
+        initialFoodItem: FoodItem,
+        dailyLog: Binding<DailyLog?>,
+        date: Date = Date(),
+        source: String = "log",
+        targetMealName: String? = nil,
+        presentationState: FoodDetailPresentationState = FoodDetailPresentationState(),
+        onLogUpdated: @escaping () -> Void,
+        onUpdate: ((FoodItem) -> Void)? = nil
+    ) {
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
         self.date = date
         self.source = source
         self.targetMealName = targetMealName
+        self._presentationState = StateObject(wrappedValue: presentationState)
         self.onLogUpdated = onLogUpdated
         self.onUpdate = onUpdate
         
@@ -265,7 +279,10 @@ struct FoodDetailView: View {
         correctionEditorDidSubmit = false
         correctionCalibrationContext = trustCalibrationContext
         logCorrectionAction(action, context: correctionCalibrationContext)
-        showingCorrectionEditor = true
+        presentationState.correctionDraft = FoodDetailCorrectionDraft(
+            foodName: foodName,
+            serving: correctionBaseServing
+        )
     }
 
     private func logSuspiciousDataIfNeeded() {
@@ -300,6 +317,20 @@ struct FoodDetailView: View {
     }
 
     var body: some View {
+        ZStack {
+            detailContent
+                .opacity(presentationState.correctionDraft == nil ? 1 : 0)
+                .allowsHitTesting(presentationState.correctionDraft == nil)
+                .accessibilityHidden(presentationState.correctionDraft != nil)
+
+            if let correctionDraft = presentationState.correctionDraft {
+                correctionEditorView(draft: correctionDraft)
+                    .zIndex(1)
+            }
+        }
+    }
+
+    private var detailContent: some View {
         ZStack {
             VStack(spacing: 0) {
                 ScrollView {
@@ -446,27 +477,6 @@ struct FoodDetailView: View {
                     }
                 }
         }
-        .fullScreenCover(isPresented: $showingCorrectionEditor, onDismiss: {
-            if !correctionEditorDidSubmit {
-                logCorrectionAction(
-                    "correction_abandoned",
-                    context: correctionCalibrationContext
-                )
-            }
-            correctionEditorDidSubmit = false
-            correctionCalibrationContext = nil
-        }) {
-            FoodDetailCorrectionSheet(
-                foodName: foodName,
-                serving: correctionBaseServing,
-                barcode: barcodeForCorrection
-            ) { correctedName, correctedServing in
-                applyFoodCorrectionAndRemember(
-                    foodName: correctedName,
-                    serving: correctedServing
-                )
-            }
-        }
         .sheet(isPresented: $showingTrustReceipt) {
             trustReceiptSheet
         }
@@ -479,6 +489,32 @@ struct FoodDetailView: View {
             )
             .presentationDetents([.large])
         }
+    }
+
+    private func correctionEditorView(draft: FoodDetailCorrectionDraft) -> some View {
+        FoodDetailCorrectionSheet(
+            draft: draft,
+            barcode: barcodeForCorrection,
+            onCancel: closeCorrectionEditor
+        ) { correctedName, correctedServing in
+            applyFoodCorrectionAndRemember(
+                foodName: correctedName,
+                serving: correctedServing
+            )
+            closeCorrectionEditor()
+        }
+    }
+
+    private func closeCorrectionEditor() {
+        if !correctionEditorDidSubmit {
+            logCorrectionAction(
+                "correction_abandoned",
+                context: correctionCalibrationContext
+            )
+        }
+        correctionEditorDidSubmit = false
+        correctionCalibrationContext = nil
+        presentationState.correctionDraft = nil
     }
 
     private var trustReceiptSheet: some View {
