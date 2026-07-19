@@ -269,7 +269,10 @@ struct MyFoodsLibraryView: View {
             .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("My Foods")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $viewModel.query, prompt: "Search saved foods")
+            .searchable(
+                text: $viewModel.query,
+                prompt: dynamicTypeSize.isAccessibilitySize ? "Search" : "Search saved foods"
+            )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
