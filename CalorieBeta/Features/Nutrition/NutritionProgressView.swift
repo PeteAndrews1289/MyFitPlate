@@ -160,7 +160,7 @@ struct NutritionProgressView: View {
     @ViewBuilder
     private func bubblesView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, proteinPercentage: Double, fats: Double, fatsGoal: Double, fatsPercentage: Double, carbs: Double, carbsGoal: Double, carbsPercentage: Double) -> some View {
          HStack(spacing: 15) {
-             ProgressBubble(value: calories, goal: caloriesGoal, percentage: caloriesPercentage, label: "Calories", unit: "cal", color: .orange, isSmall: true)
+             ProgressBubble(value: calories, goal: caloriesGoal, percentage: caloriesPercentage, label: "Calories", unit: "cal", color: AppPalette.energy, isSmall: true)
              ProgressBubble(value: protein, goal: proteinGoal, percentage: proteinPercentage, label: "Protein", unit: "g", color: .accentProtein, isSmall: true)
              ProgressBubble(value: fats, goal: fatsGoal, percentage: fatsPercentage, label: "Fats", unit: "g", color: .accentFats, isSmall: true)
              ProgressBubble(value: carbs, goal: carbsGoal, percentage: carbsPercentage, label: "Carbs", unit: "g", color: .accentCarbs, isSmall: true)
@@ -272,9 +272,9 @@ struct NutritionConsistencyNoticeCard: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: style == .compact ? 13 : 15, weight: .bold))
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: style == .compact ? 24 : 30, height: style == .compact ? 24 : 30)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -290,7 +290,7 @@ struct NutritionConsistencyNoticeCard: View {
             Spacer(minLength: 0)
         }
         .padding(style == .compact ? 10 : 14)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: style == .compact ? 14 : 18, style: .continuous))
+        .background(AppPalette.caution.opacity(0.08), in: RoundedRectangle(cornerRadius: style == .compact ? 14 : 18, style: .continuous))
     }
 }
 
@@ -302,7 +302,7 @@ private struct DotIndicator: View {
             ForEach(0..<totalDots, id: \.self) { index in
                 Circle()
                     .frame(width: index == goalSettings.nutritionViewIndex ? 10 : 6, height: index == goalSettings.nutritionViewIndex ? 10 : 6)
-                    .foregroundColor(index == goalSettings.nutritionViewIndex ? Color.brandPrimary : Color(UIColor.secondaryLabel).opacity(0.5))
+                    .foregroundColor(index == goalSettings.nutritionViewIndex ? Color.brandForeground : Color(UIColor.secondaryLabel).opacity(0.5))
                     .onTapGesture {
                         withAnimation(.easeInOut) {
                             goalSettings.nutritionViewIndex = index

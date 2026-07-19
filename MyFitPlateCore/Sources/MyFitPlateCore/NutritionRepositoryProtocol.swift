@@ -13,6 +13,11 @@ public protocol NutritionRepositoryProtocol: Sendable {
     func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay?
     func saveMealPlan(userID: String, plan: MealPlanDay) async throws
     func saveFullMealPlanBatch(userID: String, plans: [MealPlanDay]) async throws
+    func discardMealPlans(
+        userID: String,
+        dateStrings: [String],
+        retainingGroceryItems: [GroceryListItem]
+    ) async throws
     func fetchGroceryList(userID: String) async throws -> [GroceryListItem]
     func saveGroceryList(userID: String, items: [GroceryListItem]) async throws
     
@@ -29,7 +34,14 @@ public protocol NutritionRepositoryProtocol: Sendable {
     
     // Custom Foods
     func saveCustomFood(userID: String, foodItem: FoodItem) async throws
+    func saveCustomFoodReplacingDuplicates(
+        userID: String,
+        foodItem: FoodItem,
+        removingFoodIDs: [String]
+    ) async throws
     func deleteCustomFood(userID: String, foodItemID: String) async throws
+    func removeCustomFoodBarcode(userID: String, foodItemID: String) async throws
+    func mergeCustomFoods(userID: String, keepingFoodID: String, removingFoodIDs: [String]) async throws
     func fetchCustomFoods(userID: String) async throws -> [FoodItem]
     
     // Recent Foods

@@ -52,6 +52,24 @@ final class AYCEChallengeTests: XCTestCase {
     func testZeroBuffetPriceDoesNotDivide() {
         let session = sushiSession(buffetPrice: 0, entries: [entry("sushi_gyoza", count: 3)])
         XCTAssertEqual(AYCERules.breakEvenProgress(session: session), 0)
+
+        let invalid = sushiSession(buffetPrice: .nan, entries: [entry("sushi_gyoza", count: 3)])
+        XCTAssertEqual(AYCERules.breakEvenProgress(session: invalid), 0)
+        XCTAssertEqual(AYCERules.money(.infinity), "$0.00")
+    }
+
+    func testBuffetPriceInputAcceptsCommonCurrencyFormats() throws {
+        XCTAssertEqual(try XCTUnwrap(AYCESessionInputRules.buffetPrice(from: "$32.99")), 32.99, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(AYCESessionInputRules.buffetPrice(from: " 28,50 ")), 28.5, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(AYCESessionInputRules.buffetPrice(from: "$1,000.50")), 1_000.5)
+        XCTAssertEqual(try XCTUnwrap(AYCESessionInputRules.buffetPrice(from: "1.000,50")), 1_000.5)
+        XCTAssertEqual(AYCESessionInputRules.decimal(from: "1,000"), 1_000)
+        XCTAssertEqual(AYCESessionInputRules.decimal(from: "0,125"), 0.125)
+        XCTAssertNil(AYCESessionInputRules.buffetPrice(from: ""))
+        XCTAssertNil(AYCESessionInputRules.buffetPrice(from: "0"))
+        XCTAssertNil(AYCESessionInputRules.buffetPrice(from: "-5"))
+        XCTAssertNil(AYCESessionInputRules.buffetPrice(from: "nan"))
+        XCTAssertNil(AYCESessionInputRules.buffetPrice(from: "1,00,0"))
     }
 
     // MARK: Copy tiers (DESIGN.md 5: sentence case, no exclamation marks)

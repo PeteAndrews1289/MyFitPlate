@@ -291,10 +291,10 @@ public extension ChainRestaurant {
 }
 
 public struct ChainRestaurantCatalog {
-    public static let catalogVersion: String = "2026.07.V1"
+    public static let catalogVersion: String = "2026.07.V2"
     public static let lastUpdatedDate: String = "July 2026"
 
-    public static let allChains: [ChainRestaurant] = [
+    private static let baseChains: [ChainRestaurant] = [
         chipotle,
         sweetgreen,
         cava,
@@ -321,6 +321,8 @@ public struct ChainRestaurantCatalog {
         dominos,
         fiveGuys
     ]
+
+    public static let allChains: [ChainRestaurant] = baseChains.map(expandingMenu)
 
     // MARK: - Chipotle
     public static let chipotle = ChainRestaurant(

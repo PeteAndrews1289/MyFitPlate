@@ -85,7 +85,18 @@ final class LocalStateManagerTests: XCTestCase {
                 title: "Review food data",
                 detail: "1 entry needs your review",
                 deepLink: "myfitplate://trust"
-            )
+            ),
+            pathEvents: [
+                WidgetPathEvent(
+                    kind: .meal,
+                    state: .completed,
+                    sequence: 0,
+                    startDate: Date(timeIntervalSince1970: 100),
+                    isApproximate: false,
+                    needsTrustReview: true
+                )
+            ],
+            pathDate: Date(timeIntervalSince1970: 90)
         )
 
         XCTAssertTrue(manager.saveData(data))
@@ -94,6 +105,9 @@ final class LocalStateManagerTests: XCTestCase {
         XCTAssertEqual(loaded?.proteinGoal, 180)
         XCTAssertEqual(loaded?.macroCalorieDelta, 12)
         XCTAssertEqual(loaded?.nextAction?.kind, .trustReview)
+        XCTAssertEqual(loaded?.pathEvents?.first?.kind, .meal)
+        XCTAssertEqual(loaded?.pathEvents?.first?.needsTrustReview, true)
+        XCTAssertEqual(loaded?.pathDate, Date(timeIntervalSince1970: 90))
 
         manager.logPendingWater(ounces: 8)
         manager.logPendingWater(ounces: 4)
@@ -112,6 +126,7 @@ final class LocalStateManagerTests: XCTestCase {
         XCTAssertNil(preview.macroCalorieDelta)
         XCTAssertNotNil(preview.lastUpdated)
         XCTAssertEqual(preview.nextAction?.kind, .preWorkoutFuel)
+        XCTAssertEqual(preview.pathEvents?.map(\.kind), [.meal, .strength, .recovery])
     }
 
     func testWidgetDataDecodesLegacyPayloadWithoutNextAction() throws {
@@ -132,5 +147,7 @@ final class LocalStateManagerTests: XCTestCase {
 
         XCTAssertEqual(decoded.calories, 900)
         XCTAssertNil(decoded.nextAction)
+        XCTAssertNil(decoded.pathEvents)
+        XCTAssertNil(decoded.pathDate)
     }
 }

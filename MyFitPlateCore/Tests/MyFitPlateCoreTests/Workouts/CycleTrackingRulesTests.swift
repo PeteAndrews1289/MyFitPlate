@@ -41,6 +41,8 @@ final class CycleTrackingRulesTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Lose weight"))
         XCTAssertTrue(prompt.contains("No recent activity logged."))
         XCTAssertTrue(prompt.contains("Your response MUST be a valid JSON object"))
+        XCTAssertTrue(prompt.contains("hormone measurement"))
+        XCTAssertTrue(prompt.contains("Never claim that the user's hormone levels are known"))
     }
 
     func testCreateAIInsightPromptWithLogs() {

@@ -9,14 +9,23 @@ import CoreLocation
 public final class RunImportService {
 
     private let healthStore: HealthStoreScheduling
+    private let fallbackStore: RunFallbackStore
 
-    public init(healthStore: HealthStoreScheduling = HealthKitManager.shared.store) {
+    public init(
+        healthStore: HealthStoreScheduling = HealthKitManager.shared.store,
+        fallbackStore: RunFallbackStore = .shared
+    ) {
         self.healthStore = healthStore
+        self.fallbackStore = fallbackStore
     }
 
     /// Runs since `since`, newest first, already filtered and de-duplicated.
     /// Completion is delivered on the main queue.
-    public func fetchRuns(since: Date, completion: @escaping ([Run]) -> Void) {
+    public func fetchRuns(
+        since: Date,
+        userID: String? = nil,
+        completion: @escaping ([Run]) -> Void
+    ) {
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             HKQuery.predicateForWorkouts(with: .running),
             HKQuery.predicateForSamples(withStart: since, end: nil, options: .strictStartDate)
@@ -33,12 +42,14 @@ public final class RunImportService {
                 AppLog.health.error("Run import query failed: \(error.localizedDescription, privacy: .public)")
             }
             let workouts = (samples as? [HKWorkout]) ?? []
-            let runs = RunImportRules.deduplicated(
-                workouts
-                    .map(Self.summary(from:))
-                    .filter(RunImportRules.isImportableRun)
-                    .map(RunImportRules.run(from:))
-            )
+            let healthRuns = workouts
+                .map(Self.summary(from:))
+                .filter(RunImportRules.isImportableRun)
+                .map(RunImportRules.run(from:))
+            let fallbackRuns = userID.map {
+                self.fallbackStore.runs(since: since, for: $0)
+            } ?? []
+            let runs = RunImportRules.deduplicated(healthRuns + fallbackRuns)
             DispatchQueue.main.async {
                 completion(runs)
             }

@@ -6,14 +6,20 @@ struct WeeklyRecapView: View {
     @EnvironmentObject private var goalSettings: GoalSettings
     @EnvironmentObject private var workoutService: WorkoutService
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.displayScale) private var displayScale
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
-    @State private var recap: WeeklyRecap?
-    @State private var isLoading = true
-    @State private var loadMessage: String?
-    @State private var shareImage: Image?
+    @StateObject private var loader: WeeklyRecapLoader
     @State private var csvURL: URL?
+    @State private var didRecordView = false
+    @State private var showingShareOptions = false
+
+    init(initialRecap: WeeklyRecap? = nil) {
+        _loader = StateObject(wrappedValue: WeeklyRecapLoader(initialRecap: initialRecap))
+    }
+
+    private var recap: WeeklyRecap? { loader.recap }
+    private var isLoading: Bool { loader.isLoading }
+    private var loadMessage: String? { loader.loadMessage }
 
     private var weightUnit: String { BodyUnits.weightUnit(metric: useMetric) }
 
@@ -52,12 +58,24 @@ struct WeeklyRecapView: View {
                 }
             }
             .task { await loadRecap() }
+            .onDisappear(perform: cleanupCSVExport)
+            .sheet(isPresented: $showingShareOptions) {
+                if let recap {
+                    WeeklyRecapShareOptionsView(
+                        recap: recap,
+                        weekRangeText: weekRangeText,
+                        useMetric: useMetric
+                    )
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                }
+            }
         }
     }
 
     private func reportContent(_ recap: WeeklyRecap) -> some View {
         VStack(alignment: .leading, spacing: 22) {
-            storySection(recap)
+            WeekInMotionView(recap: recap, showsDetailAction: false)
 
             VStack(alignment: .leading, spacing: 12) {
                 WeeklyReportSectionHeader(
@@ -85,47 +103,6 @@ struct WeeklyRecapView: View {
             }
 
             shareMenu
-        }
-    }
-
-    private func storySection(_ recap: WeeklyRecap) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(weekRangeText)
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .textCase(.uppercase)
-
-                Text(recap.story.headline)
-                    .appFont(size: 27, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("weekly_report_headline")
-            }
-
-            VStack(spacing: 0) {
-                WeeklyStoryRow(
-                    title: "Training",
-                    text: recap.story.training,
-                    icon: "figure.mixed.cardio",
-                    color: .brandPrimary
-                )
-                Divider().padding(.leading, 48)
-                WeeklyStoryRow(
-                    title: "Fuel",
-                    text: recap.story.fueling,
-                    icon: "fork.knife",
-                    color: .accentProtein
-                )
-                Divider().padding(.leading, 48)
-                WeeklyStoryRow(
-                    title: "Change",
-                    text: recap.story.change,
-                    icon: "chart.line.uptrend.xyaxis",
-                    color: .accentCarbs
-                )
-            }
-            .weeklyReportSurface()
         }
     }
 
@@ -275,7 +252,7 @@ struct WeeklyRecapView: View {
                 title: "Calories",
                 progress: recap.calorieAdherence,
                 detail: calorieDetail(recap),
-                color: .orange
+                color: AppPalette.energy
             )
 
             WeeklyReportProgressRow(
@@ -388,7 +365,7 @@ struct WeeklyRecapView: View {
             )
 
             ProgressView(value: min(max(shoe.wearFraction, 0), 1))
-                .tint(shoe.isWornOut ? .orange : .brandPrimary)
+                .tint(shoe.isWornOut ? AppPalette.caution : .brandPrimary)
                 .accessibilityLabel("Shoe wear")
                 .accessibilityValue("\(Int((shoe.wearFraction * 100).rounded())) percent")
         }
@@ -396,213 +373,87 @@ struct WeeklyRecapView: View {
 
     @ViewBuilder
     private var shareMenu: some View {
-        if let shareImage {
-            Menu {
-                ShareLink(
-                    item: shareImage,
-                    subject: Text("My weekly Training & Fuel report"),
-                    message: Text(MyFitPlateLinks.shareMessage("My nutrition and training report from this week.")),
-                    preview: SharePreview("Training & Fuel", image: shareImage)
-                ) {
-                    Label("Share summary image", systemImage: "photo")
-                }
-
-                if let csvURL {
-                    ShareLink(
-                        item: csvURL,
-                        subject: Text("My weekly Training & Fuel data"),
-                        message: Text("Aggregate weekly data from MyFitPlate. Routes, food names, account details, and raw heart-rate samples are not included.")
-                    ) {
-                        Label("Share data as CSV", systemImage: "tablecells")
-                    }
-                }
+        Menu {
+            Button {
+                showingShareOptions = true
             } label: {
-                Label("Share report", systemImage: "square.and.arrow.up")
-                    .frame(maxWidth: .infinity)
+                Label("Choose summary image", systemImage: "photo")
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded {
-                DIContainer.shared.analyticsManager?.logEvent("weekly_report_share_opened", parameters: nil)
-            })
-            .accessibilityIdentifier("weekly_report_share")
+
+            if let csvURL {
+                ShareLink(
+                    item: csvURL,
+                    subject: Text("My weekly Training & Fuel data"),
+                    message: Text("Aggregate weekly data from MyFitPlate. Routes, food names, account details, and raw heart-rate samples are not included.")
+                ) {
+                    Label("Share data as CSV", systemImage: "tablecells")
+                }
+            }
+        } label: {
+            Label("Share report", systemImage: "square.and.arrow.up")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(AppActionButtonStyle(.primary))
+        .simultaneousGesture(TapGesture().onEnded {
+            DIContainer.shared.analyticsManager?.logEvent(
+                ProductAnalytics.Event.weeklyReportShareOpened.rawValue,
+                parameters: nil
+            )
+        })
+        .accessibilityIdentifier("weekly_report_share")
     }
 
     @MainActor
     private func loadRecap(force: Bool = false) async {
-        guard force || recap == nil else { return }
-        isLoading = true
-        loadMessage = nil
-
-        guard let userID = DIContainer.shared.authService.currentUserID else {
-            isLoading = false
-            loadMessage = "Sign in to build your weekly report."
-            return
-        }
-
-        let now = Date()
-        let calendar = Calendar.current
-        let weekStart = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now)) ?? now
-        let runHistoryStart = calendar.date(byAdding: .year, value: -2, to: weekStart) ?? weekStart
-
-        async let logsResult = dailyLogService.fetchDailyHistory(
-            for: userID,
-            startDate: weekStart,
-            endDate: now
+        await loader.load(
+            dailyLogService: dailyLogService,
+            workoutService: workoutService,
+            goalSettings: goalSettings,
+            force: force
         )
-        async let sessionsResult = workoutService.fetchRecentSessionLogsResult(sinceDays: 365)
+        guard let built = loader.recap else { return }
 
-        let (dailyLogsResult, workoutLogsResult) = await (logsResult, sessionsResult)
-        let dailyLogs: [DailyLog]
-        let sessions: [WorkoutSessionLog]
-        do {
-            dailyLogs = try dailyLogsResult.get()
-            sessions = try workoutLogsResult.get()
-        } catch {
-            AppLog.data.error("Weekly report data load failed: \(error.localizedDescription, privacy: .public)")
-            isLoading = false
-            loadMessage = "We couldn't load all of your weekly data. Check your connection and try again."
-            return
+        if !didRecordView {
+            didRecordView = true
+            DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.weeklyRecapViewed.rawValue, parameters: [
+                "days_logged": built.daysLogged,
+                "training_days": built.trainingDays,
+                "workouts": built.workoutsCompleted,
+                "runs": built.runCount,
+                "prs": built.personalRecords + built.runRecordCount
+            ])
         }
-
-        let importer = RunImportService()
-        var shouldQueryHealth = true
-        var runs: [Run]
-        var zoneSeconds: [Double]?
-
-        #if DEBUG
-        if ScreenshotDemoMode.isEnabled {
-            runs = ScreenshotDemoData.runningDemoRuns
-            zoneSeconds = [180, 1_020, 2_040, 1_080, 240]
-            shouldQueryHealth = false
-        } else {
-            runs = await fetchRuns(since: runHistoryStart, importer: importer)
-        }
-        #else
-        runs = await fetchRuns(since: runHistoryStart, importer: importer)
-        #endif
-
-        let shoeStore = RunningShoeStore()
-        runs = shoeStore.applyTags(to: runs)
-
-        if shouldQueryHealth {
-            runs = await confirmingRoutes(
-                in: runs,
-                weekStart: weekStart,
-                importer: importer
-            )
-            zoneSeconds = await aggregateHeartRateZones(
-                for: runs.filter { $0.startDate >= weekStart && $0.startDate <= now },
-                importer: importer,
-                maxHR: HeartRateZones.estimatedMaxHR(age: goalSettings.age)
-            )
-        }
-
-        let workoutResultStore = RunWorkoutResultStore()
-        let weekRunIDs = runs.filter { $0.startDate >= weekStart && $0.startDate <= now }.map(\.id)
-        let workoutResults = weekRunIDs.compactMap { workoutResultStore.result(forRunID: $0) }
-
-        let built = WeeklyRecapBuilder.build(
-            weekEnding: now,
-            calendar: calendar,
-            dailyLogs: dailyLogs,
-            sessionLogs: sessions,
-            priorSessionLogs: sessions,
-            weightHistory: goalSettings.weightHistory,
-            runs: runs,
-            calorieGoal: goalSettings.calories,
-            proteinGoal: goalSettings.protein,
-            bodyWeightLbs: goalSettings.weight,
-            heartRateZoneSeconds: zoneSeconds,
-            runWorkoutResults: workoutResults,
-            shoes: shoeStore.shoes
-        )
-
-        recap = built
-        isLoading = false
-        DIContainer.shared.analyticsManager?.logEvent("weekly_recap_viewed", parameters: [
-            "days_logged": built.daysLogged,
-            "training_days": built.trainingDays,
-            "workouts": built.workoutsCompleted,
-            "runs": built.runCount,
-            "prs": built.personalRecords + built.runRecordCount
-        ])
-        renderShareImage(for: built)
         prepareCSV(for: built)
     }
 
-    private func fetchRuns(since: Date, importer: RunImportService) async -> [Run] {
-        await withCheckedContinuation { continuation in
-            importer.fetchRuns(since: since) { continuation.resume(returning: $0) }
-        }
-    }
-
-    private func confirmingRoutes(
-        in runs: [Run],
-        weekStart: Date,
-        importer: RunImportService
-    ) async -> [Run] {
-        var enriched = runs
-        for index in enriched.indices where
-            enriched[index].startDate >= weekStart &&
-            !enriched[index].isIndoor &&
-            !enriched[index].hasRoute {
-            let fixes = await withCheckedContinuation { continuation in
-                importer.fetchRoute(forRunID: enriched[index].id) {
-                    continuation.resume(returning: $0)
-                }
-            }
-            enriched[index].hasRoute = fixes.count > 1
-        }
-        return enriched
-    }
-
-    private func aggregateHeartRateZones(
-        for runs: [Run],
-        importer: RunImportService,
-        maxHR: Double
-    ) async -> [Double]? {
-        var totals = [Double](repeating: 0, count: HeartRateZones.zones.count)
-        for run in runs {
-            let samples: [(date: Date, bpm: Double)] = await withCheckedContinuation { continuation in
-                importer.fetchHeartRateSeries(start: run.startDate, end: run.endDate) {
-                    continuation.resume(returning: $0)
-                }
-            }
-            let zones = HeartRateZones.timeInZones(samples: samples, maxHR: maxHR)
-            for index in totals.indices {
-                totals[index] += zones[index]
-            }
-        }
-        return totals.reduce(0, +) > 0 ? totals : nil
-    }
-
-    @MainActor
-    private func renderShareImage(for recap: WeeklyRecap) {
-        let renderer = ImageRenderer(content: WeeklyRecapShareCard(
-            recap: recap,
-            weekRangeText: weekRangeText,
-            useMetric: useMetric
-        ))
-        renderer.scale = displayScale
-        if let uiImage = renderer.uiImage {
-            shareImage = Image(uiImage: uiImage)
-        }
-    }
-
     private func prepareCSV(for recap: WeeklyRecap) {
+        cleanupCSVExport()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let filename = "MyFitPlate-Training-Fuel-\(formatter.string(from: recap.weekEnd)).csv"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MyFitPlateWeeklyExport-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent(filename)
         let csv = WeeklyRecapCSVExporter.csvString(for: recap, metric: useMetric)
         do {
-            try Data(csv.utf8).write(to: url, options: .atomic)
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.complete]
+            )
+            try Data(csv.utf8).write(to: url, options: [.atomic, .completeFileProtection])
             csvURL = url
         } catch {
+            try? FileManager.default.removeItem(at: directory)
             csvURL = nil
             AppLog.data.error("Weekly report CSV could not be prepared: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private func cleanupCSVExport() {
+        guard let csvURL else { return }
+        self.csvURL = nil
+        try? FileManager.default.removeItem(at: csvURL.deletingLastPathComponent())
     }
 
     private func volumeText(_ poundsReps: Double) -> String {
@@ -687,37 +538,6 @@ private struct WeeklyReportSectionHeader: View {
     }
 }
 
-private struct WeeklyStoryRow: View {
-    let title: String
-    let text: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 34, height: 34)
-                .background(color.opacity(0.11), in: RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                Text(text)
-                    .appFont(size: 14, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 12)
-        .accessibilityElement(children: .combine)
-    }
-}
-
 private struct WeeklyReportCardHeader: View {
     let title: String
     let subtitle: String
@@ -727,7 +547,7 @@ private struct WeeklyReportCardHeader: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .appFont(size: 15, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .frame(width: 36, height: 36)
                 .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
 
@@ -929,7 +749,7 @@ private struct WeeklyReportEmptyState: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
             Button("Try again", action: retry)
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
         }
         .padding(.top, 80)
     }
@@ -947,74 +767,319 @@ private extension View {
     }
 }
 
+struct WeeklyShareSelection: OptionSet, Equatable {
+    let rawValue: Int
+
+    static let rhythm = WeeklyShareSelection(rawValue: 1 << 0)
+    static let evidence = WeeklyShareSelection(rawValue: 1 << 1)
+    static let observation = WeeklyShareSelection(rawValue: 1 << 2)
+    static let standard: WeeklyShareSelection = [.rhythm, .evidence, .observation]
+}
+
+struct WeeklyRecapShareOptionsView: View {
+    let recap: WeeklyRecap
+    let weekRangeText: String
+    let useMetric: Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
+    @State private var includesRhythm = true
+    @State private var includesEvidence = true
+    @State private var includesObservation = true
+    @State private var shareImage: Image?
+
+    private var selection: WeeklyShareSelection {
+        var selection: WeeklyShareSelection = []
+        if includesRhythm { selection.insert(.rhythm) }
+        if includesEvidence { selection.insert(.evidence) }
+        if includesObservation { selection.insert(.observation) }
+        return selection
+    }
+
+    private var selectedCount: Int {
+        [includesRhythm, includesEvidence, includesObservation].filter { $0 }.count
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("Include in image")
+                        .appFont(size: 20, weight: .bold)
+
+                    VStack(spacing: 0) {
+                        selectionToggle(
+                            title: "Seven-day rhythm",
+                            systemImage: "calendar.day.timeline.left",
+                            identifier: "weeklyShareRhythmToggle",
+                            isOn: $includesRhythm
+                        )
+                        Divider()
+                        selectionToggle(
+                            title: "Evidence summary",
+                            systemImage: "list.bullet.rectangle",
+                            identifier: "weeklyShareEvidenceToggle",
+                            isOn: $includesEvidence
+                        )
+                        Divider()
+                        selectionToggle(
+                            title: "Weekly observation",
+                            systemImage: "quote.bubble.fill",
+                            identifier: "weeklyShareObservationToggle",
+                            isOn: $includesObservation
+                        )
+                    }
+
+                    FixedShareCardPreview {
+                        WeeklyRecapShareCard(
+                            recap: recap,
+                            weekRangeText: weekRangeText,
+                            useMetric: useMetric,
+                            selection: selection
+                        )
+                    }
+                    .accessibilityHidden(true)
+
+                    if let shareImage {
+                        ShareLink(
+                            item: shareImage,
+                            subject: Text("My Week in Motion"),
+                            message: Text(MyFitPlateLinks.shareMessage(
+                                "My training, fuel, recovery, and Trust story from this week."
+                            )),
+                            preview: SharePreview("Week in Motion", image: shareImage)
+                        ) {
+                            Label("Share Week in Motion", systemImage: "square.and.arrow.up")
+                                .appFont(size: 16, weight: .bold)
+                                .foregroundStyle(AppPalette.onBrand)
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .simultaneousGesture(TapGesture().onEnded(logShareOpened))
+                        .accessibilityIdentifier("weeklyShareCommitButton")
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .navigationTitle("Share Week in Motion")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task(id: selection.rawValue) {
+                renderShareImage()
+            }
+            .onAppear {
+                DIContainer.shared.analyticsManager?.logEvent(
+                    ProductAnalytics.Event.weeklyReportShareOptionsOpened.rawValue,
+                    parameters: nil
+                )
+            }
+        }
+    }
+
+    private func selectionToggle(
+        title: String,
+        systemImage: String,
+        identifier: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            Label(title, systemImage: systemImage)
+                .appFont(size: 15, weight: .semibold)
+                .foregroundStyle(Color.textPrimary)
+        }
+        .tint(.brandPrimary)
+        .padding(.vertical, 13)
+        .disabled(isOn.wrappedValue && selectedCount == 1)
+        .accessibilityIdentifier(identifier)
+    }
+
+    @MainActor
+    private func renderShareImage() {
+        let renderer = ImageRenderer(content: WeeklyRecapShareCard(
+            recap: recap,
+            weekRangeText: weekRangeText,
+            useMetric: useMetric,
+            selection: selection
+        ))
+        renderer.scale = max(2, displayScale)
+        shareImage = renderer.uiImage.map(Image.init(uiImage:))
+    }
+
+    private func logShareOpened() {
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.weeklyReportShareImageOpened.rawValue,
+            parameters: [
+                "includes_rhythm": includesRhythm,
+                "includes_evidence": includesEvidence,
+                "includes_observation": includesObservation
+            ]
+        )
+    }
+}
+
 /// Fixed-size, aggregate-only card rendered for social sharing.
 struct WeeklyRecapShareCard: View {
     let recap: WeeklyRecap
     let weekRangeText: String
     let useMetric: Bool
+    var selection: WeeklyShareSelection = .standard
 
-    private var weightUnit: String { BodyUnits.weightUnit(metric: useMetric) }
+    private var motion: WeekInMotion { WeekInMotionBuilder.build(from: recap) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("MyFitPlate")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.92))
+                    .foregroundColor(Color(red: 0.00, green: 0.66, blue: 0.38))
                 Spacer()
                 Text(weekRangeText)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.65))
+                    .foregroundColor(Color.black.opacity(0.48))
             }
 
-            Text(recap.story.headline)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .fixedSize(horizontal: false, vertical: true)
+            Text("WEEK IN MOTION")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.00, green: 0.66, blue: 0.38))
 
-            VStack(spacing: 10) {
-                shareRow(label: "Training days", value: "\(recap.trainingDays)")
-                if recap.workoutsCompleted > 0 {
-                    shareRow(label: "Strength", value: "\(recap.workingSetCount) working sets")
+            if selection.contains(.rhythm) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(motion.headline)
+                        .font(.system(size: 25, weight: .bold, design: .rounded))
+                        .foregroundColor(.black)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(alignment: .top, spacing: 0) {
+                        ForEach(motion.days, id: \.date) { day in
+                            VStack(spacing: 5) {
+                                Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .foregroundColor(Color.black.opacity(0.45))
+                                ZStack {
+                                    Circle()
+                                        .fill(shareTrainingColor(day))
+                                        .frame(width: 27, height: 27)
+                                    Image(systemName: shareTrainingIcon(day))
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(day.hasTraining ? AppPalette.onSignal : Color.black.opacity(0.35))
+                                }
+                                Circle()
+                                    .fill(day.nutritionLogged
+                                          ? Color(red: 0.20, green: 0.48, blue: 0.78)
+                                          : Color.black.opacity(0.12))
+                                    .frame(width: 6, height: 6)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
                 }
-                if recap.runCount > 0 {
-                    shareRow(label: "Running", value: RunFormat.distanceText(meters: recap.runMeters, metric: useMetric))
+            }
+
+            if selection.contains(.evidence) {
+                VStack(spacing: 8) {
+                    shareRow(label: "Training", value: shareTrainingValue)
+                    shareRow(
+                        label: "Fuel coverage",
+                        value: recap.trainingDays > 0
+                            ? "\(recap.trainingDaysLogged) of \(recap.trainingDays) training days"
+                            : "\(recap.daysLogged) of 7 days"
+                    )
+                    shareRow(
+                        label: "Recovery",
+                        value: recap.recoveryFuelAdherence.eligible > 0
+                            ? "\(recap.recoveryFuelAdherence.completed) of \(recap.recoveryFuelAdherence.eligible) assessed runs"
+                            : "No assessed window"
+                    )
+                    shareRow(
+                        label: "Trust",
+                        value: recap.trustReview.eligible > 0
+                            ? "\(recap.trustReview.completed) of \(recap.trustReview.eligible) reviewed"
+                            : "No review required"
+                    )
                 }
-                shareRow(label: "Food logged", value: "\(recap.daysLogged) of 7 days")
-                if recap.proteinAdherence.eligible > 0 {
-                    shareRow(label: "Protein consistency", value: "\(recap.proteinAdherence.completed) of \(recap.proteinAdherence.eligible)")
+            }
+
+            if selection.contains(.observation) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(motion.observation.title)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundColor(shareObservationColor)
+                    Text(motion.observation.text)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(.black)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                if let change = recap.smoothedWeightChange {
-                    let displayed = BodyUnits.weightDisplayValue(lbs: change, metric: useMetric)
-                    shareRow(label: "Smoothed weight", value: String(format: "%+.1f %@", displayed, weightUnit))
+                .padding(.leading, 10)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(shareObservationColor).frame(width: 3)
                 }
             }
 
             Spacer(minLength: 0)
-
-            Text("Training & Fuel report")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.55))
         }
-        .padding(26)
+        .padding(24)
         .frame(width: 360, height: 500, alignment: .topLeading)
-        .background(Color(red: 0.07, green: 0.20, blue: 0.15))
+        .background(Color.white)
     }
 
     private func shareRow(label: String, value: String) -> some View {
         HStack(spacing: 12) {
             Text(label)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.72))
+                .foregroundColor(Color.black.opacity(0.52))
             Spacer()
             Text(value)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(.black)
                 .multilineTextAlignment(.trailing)
                 .monospacedDigit()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func shareTrainingIcon(_ day: WeeklyRecapDay) -> String {
+        switch day.trainingKind {
+        case .rest: return "minus"
+        case .strength: return "dumbbell.fill"
+        case .run: return "figure.run"
+        case .mixed: return "figure.cross.training"
+        }
+    }
+
+    private var shareTrainingValue: String {
+        switch (recap.workoutsCompleted > 0, recap.runCount > 0) {
+        case (true, true):
+            return "\(recap.workoutsCompleted) strength · \(RunFormat.distanceText(meters: recap.runMeters, metric: useMetric))"
+        case (true, false):
+            return "\(recap.workoutsCompleted) strength \(recap.workoutsCompleted == 1 ? "session" : "sessions")"
+        case (false, true):
+            return RunFormat.distanceText(meters: recap.runMeters, metric: useMetric)
+        case (false, false):
+            return "No sessions or runs"
+        }
+    }
+
+    private func shareTrainingColor(_ day: WeeklyRecapDay) -> Color {
+        switch day.trainingKind {
+        case .rest: return Color.black.opacity(0.08)
+        case .strength: return Color(red: 0.00, green: 0.66, blue: 0.38)
+        case .run: return Color(red: 0.05, green: 0.48, blue: 0.92)
+        case .mixed: return Color(red: 0.92, green: 0.55, blue: 0.10)
+        }
+    }
+
+    private var shareObservationColor: Color {
+        switch motion.observation.tone {
+        case .neutral: return Color.black.opacity(0.50)
+        case .positive: return Color(red: 0.00, green: 0.55, blue: 0.30)
+        case .attention: return Color(red: 0.95, green: 0.42, blue: 0.08)
+        }
     }
 }

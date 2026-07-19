@@ -5,14 +5,18 @@ import XCTest
 final class JournalEntryStoreTests: XCTestCase {
     private var service: DailyLogService!
     private var mockRepo: MockNutritionRepository!
+    private var authService: MockAuthService!
     private var store: JournalEntryStore!
 
     override func setUp() {
         super.setUp()
         mockRepo = MockNutritionRepository()
         DIContainer.shared.nutritionRepository = mockRepo
-        DIContainer.shared.authService = MockAuthService()
+        authService = MockAuthService()
+        authService.currentUserID = "user-1"
+        DIContainer.shared.authService = authService
         service = DailyLogService()
+        service.activateAccount("user-1")
         store = JournalEntryStore(dailyLogService: service)
     }
 
@@ -20,6 +24,7 @@ final class JournalEntryStoreTests: XCTestCase {
         store = nil
         service = nil
         mockRepo = nil
+        authService = nil
         super.tearDown()
     }
 
@@ -135,5 +140,12 @@ final class JournalEntryStoreTests: XCTestCase {
 
         XCTAssertNil(mockRepo.lastUpdatedLog)
         XCTAssertEqual(service.currentDailyLog?.journalEntries?.map(\.id), ["entry-1"])
+    }
+
+    func testJournalMutationForAnotherAccountIsIgnored() async {
+        await store.addJournalEntry(for: "user-2", entry: entry(id: "private-entry"))
+
+        XCTAssertNil(mockRepo.lastUpdatedLog)
+        XCTAssertNil(service.currentDailyLog)
     }
 }

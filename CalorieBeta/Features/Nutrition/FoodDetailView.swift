@@ -1,4 +1,15 @@
 import SwiftUI
+import UIKit
+
+struct FoodTrustResolution: Equatable, Identifiable {
+    let id = UUID()
+    let title: String
+    let detail: String
+}
+
+final class FoodDetailPresentationState: ObservableObject {
+    @Published var correctionDraft: FoodDetailCorrectionDraft?
+}
 
 struct FoodDetailView: View {
     var initialFoodItem: FoodItem
@@ -10,6 +21,7 @@ struct FoodDetailView: View {
     var onUpdate: ((FoodItem) -> Void)?
 
     @Environment(\.dismiss) var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var bannerService: BannerService
     private let foodAPIService = FatSecretFoodAPIService()
@@ -30,22 +42,38 @@ struct FoodDetailView: View {
     @State private var customFoodForAction: FoodItem?
 
     @State private var showingImagePicker = false
-    @State private var showingCorrectionEditor = false
+    @StateObject private var presentationState: FoodDetailPresentationState
+    @State private var showingTrustReceipt = false
+    @State private var showingNutrientProfile = false
     @State private var correctionEditorDidSubmit = false
     @State private var correctionCalibrationContext: FoodTrustCalibrationContext?
+    @State private var persistedTrustItem: FoodItem?
+    @State private var trustResolution: FoodTrustResolution?
+    @State private var isSavingTrustCorrection = false
     @State private var hasLoggedSuspiciousData = false
     @State private var hasLoggedTrustCardView = false
     @State private var isProcessingLabel = false
-    @State private var scanError: (Bool, String) = (false, "")
+    @State private var labelAnalysisID: UUID?
+    @State private var labelScanFailed = false
 
     // MARK: - Robust Initializer
     // Updated to use new model fields if available, ensuring stability.
-    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "log", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
+    init(
+        initialFoodItem: FoodItem,
+        dailyLog: Binding<DailyLog?>,
+        date: Date = Date(),
+        source: String = "log",
+        targetMealName: String? = nil,
+        presentationState: FoodDetailPresentationState = FoodDetailPresentationState(),
+        onLogUpdated: @escaping () -> Void,
+        onUpdate: ((FoodItem) -> Void)? = nil
+    ) {
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
         self.date = date
         self.source = source
         self.targetMealName = targetMealName
+        self._presentationState = StateObject(wrappedValue: presentationState)
         self.onLogUpdated = onLogUpdated
         self.onUpdate = onUpdate
         
@@ -91,7 +119,7 @@ struct FoodDetailView: View {
     private var sourceDescriptor: FoodSourceDescriptor {
         FoodSourceClassifier.descriptor(
             for: source,
-            foodID: initialFoodItem.id,
+            foodID: persistedTrustItem?.id ?? initialFoodItem.id,
             metadata: trustMetadata
         )
     }
@@ -157,10 +185,12 @@ struct FoodDetailView: View {
     }
 
     private var trustMetadata: FoodSourceMetadata? {
-        guard var metadata = initialFoodItem.sourceMetadata else { return nil }
-        if metadata.hasIndependentCrossVerification,
+        let trustItem = persistedTrustItem ?? initialFoodItem
+        guard var metadata = trustItem.sourceMetadata else { return nil }
+        if metadata.hasCrossDatabaseAgreement,
            !FoodSourceAgreement.preservesAgreementEvidence(sanityCheckItem, initialFoodItem) {
             metadata.crossVerifiedBy = nil
+            metadata.crossVerificationEvidence = nil
         }
         return metadata
     }
@@ -216,11 +246,43 @@ struct FoodDetailView: View {
         )
     }
 
+    private var nutrientCoverageBucket: String {
+        let reportedCount = MicronutrientKey.vitaminAndMineralKeys.filter {
+            adjustedNutrients.micronutrientValue(for: $0) != nil
+        }.count
+
+        switch reportedCount {
+        case 0:
+            return "none"
+        case 1...5:
+            return "low"
+        case 6...12:
+            return "medium"
+        default:
+            return "high"
+        }
+    }
+
+    private func logNutrientProfileAction(_ action: String) {
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.nutrientProfileAction.rawValue,
+            parameters: [
+                "action": action,
+                "panel_bucket": nutrientCoverageBucket,
+                "source": sourceDescriptor.sourceKey
+            ]
+        )
+    }
+
     private func openCorrectionEditor(action: String) {
+        guard !isSavingTrustCorrection else { return }
         correctionEditorDidSubmit = false
         correctionCalibrationContext = trustCalibrationContext
         logCorrectionAction(action, context: correctionCalibrationContext)
-        showingCorrectionEditor = true
+        presentationState.correctionDraft = FoodDetailCorrectionDraft(
+            foodName: foodName,
+            serving: correctionBaseServing
+        )
     }
 
     private func logSuspiciousDataIfNeeded() {
@@ -256,19 +318,51 @@ struct FoodDetailView: View {
 
     var body: some View {
         ZStack {
+            detailContent
+                .opacity(presentationState.correctionDraft == nil ? 1 : 0)
+                .allowsHitTesting(presentationState.correctionDraft == nil)
+                .accessibilityHidden(presentationState.correctionDraft != nil)
+
+            if let correctionDraft = presentationState.correctionDraft {
+                correctionEditorView(draft: correctionDraft)
+                    .zIndex(1)
+            }
+        }
+    }
+
+    private var detailContent: some View {
+        ZStack {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: AppSpacing.group) {
                         FoodDetailHeroCard(
                             foodName: foodName,
                             servingDescription: adjustedNutrients.servingDescription
                         )
 
-                        FoodSourceConfidenceCard(
+                        FoodDetailMacroGrid(
+                            calories: adjustedNutrients.calories,
+                            protein: adjustedNutrients.protein,
+                            carbs: adjustedNutrients.carbs,
+                            fats: adjustedNutrients.fats
+                        )
+
+                        let consistencyStatus = adjustedConsistencyStatus
+                        if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
+                            NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
+                        }
+
+                        FoodTrustSummaryCard(
+                            item: persistedTrustItem ?? initialFoodItem,
                             descriptor: sourceDescriptor,
                             evaluation: trustEvaluation,
                             metadata: trustMetadata,
-                            findings: sanityFindings,
+                            isSavingCorrection: isSavingTrustCorrection,
+                            resolution: trustResolution,
+                            onOpenReceipt: {
+                                logTrustAction("receipt_opened")
+                                showingTrustReceipt = true
+                            },
                             onAction: trustEvaluation.action.map { _ in
                                 {
                                     logTrustAction("correction_opened")
@@ -276,37 +370,18 @@ struct FoodDetailView: View {
                                 }
                             }
                         )
-                        .onAppear(perform: logTrustCardViewedIfNeeded)
+                        .onAppear {
+                            logTrustCardViewedIfNeeded()
+                            logSuspiciousDataIfNeeded()
+                        }
 
-                        if shouldShowBarcodeCorrectionCard {
-                            FoodDetailBarcodeCorrectionCard(
-                                fixAction: {
-                                    openCorrectionEditor(action: "fix_opened")
-                                },
+                        if shouldShowBarcodeCorrectionCard, trustEvaluation.action == nil {
+                            FoodDetailBarcodeMemoryAction(
                                 rememberAction: {
                                     logCorrectionAction("remember")
                                     saveAsCustomFood()
                                 }
                             )
-                        }
-
-                        if !sanityFindings.isEmpty {
-                            FoodDataSanityCard(
-                                findings: sanityFindings,
-                                fixAction: {
-                                    openCorrectionEditor(action: "sanity_fix_opened")
-                                }
-                            )
-                            .onAppear(perform: logSuspiciousDataIfNeeded)
-                        }
-
-                        // AI estimates get a persistent refine path even when the numbers
-                        // pass every sanity check — the least-trusted source should always
-                        // be the easiest to correct.
-                        if sourceDescriptor.isEstimated {
-                            FoodDetailAIRefineCard(refineAction: {
-                                openCorrectionEditor(action: "refine_opened")
-                            })
                         }
 
                         if isShowingDetailsLoading {
@@ -319,31 +394,38 @@ struct FoodDetailView: View {
                                 )
                             }
 
-                            FoodDetailMacroGrid(
-                                calories: adjustedNutrients.calories,
-                                protein: adjustedNutrients.protein,
-                                carbs: adjustedNutrients.carbs,
-                                fats: adjustedNutrients.fats
-                            )
-
-                            let consistencyStatus = adjustedConsistencyStatus
-                            // Only flag when macros imply MORE calories than logged (a possible
-                            // undercount). The other direction — logged higher than macros — is the
-                            // alcohol / high-fiber / incomplete-macro case where "logged stays
-                            // official," so surfacing it just adds noise (beer, low-cal tortillas).
-                            if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
-                                NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
+                            if labelScanFailed {
+                                LabelScanFailureCard(
+                                    retry: { showingImagePicker = true },
+                                    continueManually: { labelScanFailed = false }
+                                )
                             }
+                        }
 
-                            servingControlsCard
-                            nutritionDetailsCard
-                            FoodDetailLabelScanCard { showingImagePicker = true }
-    }
-}
+                        servingControlsCard
 
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
+                        FoodNutrientProfileCard(
+                            nutrients: adjustedNutrients,
+                            onOpenProfile: {
+                                logNutrientProfileAction("profile_opened")
+                                showingNutrientProfile = true
+                            },
+                            onScanLabel: {
+                                logNutrientProfileAction("label_scan_from_summary")
+                                showingImagePicker = true
+                            }
+                        )
+
+                        nutritionDetailsCard
+                        FoodDetailLabelScanCard {
+                            logNutrientProfileAction("label_scan_from_detail")
+                            showingImagePicker = true
+                        }
+                    }
+
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
+                    .padding(.bottom, AppSpacing.row)
                 }
                 .scrollDismissesKeyboard(.interactively)
 
@@ -355,7 +437,10 @@ struct FoodDetailView: View {
             }.blur(radius: isProcessingLabel ? 3 : 0)
             
             if isProcessingLabel {
-                ImageProcessingView()
+                ImageProcessingView(kind: .nutritionLabel) {
+                    labelAnalysisID = nil
+                    isProcessingLabel = false
+                }
             }
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
@@ -365,7 +450,7 @@ struct FoodDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: toggleSavedState) {
                     Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                        .foregroundColor(isSavedAsCustom ? .yellow : .blue)
+                        .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brandText)
                 }
             }
         }
@@ -374,140 +459,209 @@ struct FoodDetailView: View {
             setupInitialData()
             checkIfSaved()
         }
-        .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(sourceType: .camera) { image in
+        .imageSourceDialog(isPresented: $showingImagePicker) { image in
+                let requestID = UUID()
+                labelAnalysisID = requestID
+                labelScanFailed = false
                 self.isProcessingLabel = true
                 imageModel.parseNutritionLabel(from: image) { result in
+                    guard labelAnalysisID == requestID else { return }
+                    labelAnalysisID = nil
                     self.isProcessingLabel = false
                     switch result {
                     case .success(let nutrition):
                         self.handleScannedNutrition(nutrition)
                     case .failure(let error):
-                        self.scanError = (true, "Could not read the nutrition label. Error: \(error.localizedDescription)")
+                        AppLog.data.error("Nutrition label scan failed: \(error.localizedDescription, privacy: .public)")
+                        self.labelScanFailed = true
                     }
+                }
+        }
+        .sheet(isPresented: $showingTrustReceipt) {
+            trustReceiptSheet
+        }
+        .sheet(isPresented: $showingNutrientProfile) {
+            FoodNutrientProfileSheet(
+                foodName: foodName,
+                servingDescription: adjustedNutrients.servingDescription,
+                nutrients: adjustedNutrients,
+                onScanLabel: presentLabelScannerAfterSheet
+            )
+            .presentationDetents([.large])
+        }
+    }
+
+    private func correctionEditorView(draft: FoodDetailCorrectionDraft) -> some View {
+        FoodDetailCorrectionSheet(
+            draft: draft,
+            barcode: barcodeForCorrection,
+            onCancel: closeCorrectionEditor
+        ) { correctedName, correctedServing in
+            applyFoodCorrectionAndRemember(
+                foodName: correctedName,
+                serving: correctedServing
+            )
+            closeCorrectionEditor()
+        }
+    }
+
+    private func closeCorrectionEditor() {
+        if !correctionEditorDidSubmit {
+            logCorrectionAction(
+                "correction_abandoned",
+                context: correctionCalibrationContext
+            )
+        }
+        correctionEditorDidSubmit = false
+        correctionCalibrationContext = nil
+        presentationState.correctionDraft = nil
+    }
+
+    private var trustReceiptSheet: some View {
+        NavigationStack {
+            ScrollView {
+                FoodTrustReceipt(
+                    item: persistedTrustItem ?? initialFoodItem,
+                    descriptor: sourceDescriptor,
+                    evaluation: trustEvaluation,
+                    metadata: trustMetadata,
+                    findings: sanityFindings,
+                    isSavingCorrection: isSavingTrustCorrection,
+                    resolution: trustResolution,
+                    onAction: trustEvaluation.action.map { _ in
+                        {
+                            logTrustAction("correction_opened_from_receipt")
+                            showingTrustReceipt = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                openCorrectionEditor(action: "trust_fix_opened_from_receipt")
+                            }
+                        }
+                    }
+                )
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
+            }
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Evidence")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showingTrustReceipt = false }
                 }
             }
         }
-        .sheet(isPresented: $showingCorrectionEditor, onDismiss: {
-            if !correctionEditorDidSubmit {
-                logCorrectionAction(
-                    "correction_abandoned",
-                    context: correctionCalibrationContext
-                )
-            }
-            correctionEditorDidSubmit = false
-            correctionCalibrationContext = nil
-        }) {
-            FoodDetailCorrectionSheet(
-                foodName: foodName,
-                serving: correctionBaseServing,
-                barcode: barcodeForCorrection
-            ) { correctedName, correctedServing in
-                applyFoodCorrectionAndRemember(
-                    foodName: correctedName,
-                    serving: correctedServing
-                )
-            }
-            .presentationDetents([.large])
-        }
-        .alert("Scan error", isPresented: $scanError.0) {
-            Button("OK") { }
-        } message: {
-            Text(scanError.1)
+        .presentationDetents([.large])
+    }
+
+    private func presentLabelScannerAfterSheet() {
+        logNutrientProfileAction("label_scan_from_profile")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            showingImagePicker = true
         }
     }
 
     @ViewBuilder private var servingControlsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Serving")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Serving")
 
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(isLoggedItem ? "Logged servings" : "Number of servings")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-
-                    TextField("Quantity", text: $quantity)
-                        .accessibilityLabel("Quantity")
-                        .keyboardType(.decimalPad)
-                        .appFont(size: 28, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .multilineTextAlignment(.leading)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    quantityControl
+                    Divider()
+                    servingSelectionControl
                 }
-
-                Spacer()
-
-                Image(systemName: "number")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: Circle())
-            }
-            .padding(14)
-            .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            if canChangeServing {
-                if !availableServings.isEmpty {
-                    Menu {
-                        ForEach(availableServings) { option in
-                            Button(option.description) {
-                                selectedServingID = option.id
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "fork.knife")
-                                .appFont(size: 14, weight: .bold)
-                                .foregroundColor(.blue)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Serving size")
-                                    .appFont(size: 13, weight: .semibold)
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
-
-                                Text(selectedServingOption?.description ?? "Select")
-                                    .appFont(size: 15, weight: .bold)
-                                    .foregroundColor(.textPrimary)
-                                    .lineLimit(2)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.up.chevron.down")
-                                .appFont(size: 12, weight: .bold)
-                                .foregroundColor(Color(UIColor.tertiaryLabel))
-                        }
-                        .padding(14)
-                        .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                } else if !isLoadingDetails {
-                    Text("No other serving sizes available.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    quantityControl
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider().frame(height: 64)
+                    servingSelectionControl
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
-                Text("Base serving: \(baseNutrients.description)")
-                    .appFont(size: 13, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .appSurface(.quiet)
+        .accessibilityIdentifier("food_detail_serving_controls")
+    }
+
+    private var quantityControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(isLoggedItem ? "Logged servings" : "Servings")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                TextField("Quantity", text: $quantity)
+                    .accessibilityLabel("Quantity")
+                    .keyboardType(.decimalPad)
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+                    .multilineTextAlignment(.leading)
+                Image(systemName: "number")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundStyle(AppPalette.brandText)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder private var servingSelectionControl: some View {
+        if canChangeServing, !availableServings.isEmpty {
+            Menu {
+                ForEach(availableServings) { option in
+                    Button(option.description) {
+                        selectedServingID = option.id
+                    }
+                }
+            } label: {
+                HStack(alignment: .center, spacing: AppSpacing.compact) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Serving size")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(selectedServingOption?.description ?? "Select")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: AppSpacing.compact)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Base serving")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Text(baseNutrients.description)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Serving size")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Text(isLoadingDetails ? "Loading options" : adjustedNutrients.servingDescription)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     @ViewBuilder private var nutritionDetailsCard: some View {
         let nutrients = adjustedNutrients
         let totalUnsaturatedFat = nutrients.fats - (nutrients.saturatedFat ?? 0)
 
-        VStack(alignment: .leading, spacing: 13) {
-            Text("Nutrition details")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "More nutrition")
 
-            DisclosureGroup("Fat and fiber") {
+            DisclosureGroup("Fat breakdown and fiber") {
                 VStack(spacing: 8) {
                     nutrientRow(label: "Saturated fat", value: nutrients.saturatedFat, unit: "g")
                     nutrientRow(label: "Polyunsaturated fat", value: nutrients.polyunsaturatedFat, unit: "g")
@@ -517,44 +671,10 @@ struct FoodDetailView: View {
                 }
                 .padding(.top, 8)
             }
-
-            Divider().opacity(0.5)
-
-            DisclosureGroup("Vitamins and minerals") {
-                VStack(spacing: 8) {
-                    Text("\(nutrients.reportedVitaminMineralCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) vitamins and minerals reported. Missing values are unknown, not zero.")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    nutrientRow(label: "Calcium", value: nutrients.calcium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Iron", value: nutrients.iron, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Potassium", value: nutrients.potassium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Sodium", value: nutrients.sodium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin A", value: nutrients.vitaminA, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin C", value: nutrients.vitaminC, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin D", value: nutrients.vitaminD, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin B12", value: nutrients.vitaminB12, unit: "mcg", specifier: "%.1f")
-                    nutrientRow(label: "Folate", value: nutrients.folate, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Magnesium", value: nutrients.magnesium, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Phosphorus", value: nutrients.phosphorus, unit: "mg", specifier: "%.0f")
-                    nutrientRow(label: "Zinc", value: nutrients.zinc, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Copper", value: nutrients.copper, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Manganese", value: nutrients.manganese, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Selenium", value: nutrients.selenium, unit: "mcg", specifier: "%.0f")
-                    nutrientRow(label: "Vitamin B1", value: nutrients.vitaminB1, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B2", value: nutrients.vitaminB2, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B3", value: nutrients.vitaminB3, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B5", value: nutrients.vitaminB5, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin B6", value: nutrients.vitaminB6, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin E", value: nutrients.vitaminE, unit: "mg", specifier: "%.1f")
-                    nutrientRow(label: "Vitamin K", value: nutrients.vitaminK, unit: "mcg", specifier: "%.0f")
-                }
-                .padding(.top, 8)
-            }
         }
-        .tint(.blue)
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .tint(AppPalette.brand)
+        .appSurface(.quiet)
+        .accessibilityIdentifier("food_detail_nutrition_details")
     }
 
     private var labelScannerButton: some View {
@@ -563,7 +683,7 @@ struct FoodDetailView: View {
         } label: {
             Label("Not correct? Take a photo of the nutrition label.", systemImage: "camera.fill")
         }
-        .tint(.blue)
+        .tint(AppPalette.effort)
         .padding(.top, 5)
     }
 
@@ -688,7 +808,8 @@ struct FoodDetailView: View {
         serving: ServingSizeOption,
         quantityValue: Double,
         correctionScope: String? = nil,
-        calibrationContext: FoodTrustCalibrationContext? = nil
+        calibrationContext: FoodTrustCalibrationContext? = nil,
+        completion: ((Bool, FoodItem?) -> Void)? = nil
     ) {
         guard let userID = DIContainer.shared.authService.currentUserID else {
             if let correctionScope {
@@ -698,6 +819,7 @@ struct FoodDetailView: View {
                     context: calibrationContext
                 )
             }
+            completion?(false, nil)
             return
         }
         let finalNutrients = ServingNutritionCalculator.adjustedNutrition(
@@ -733,28 +855,50 @@ struct FoodDetailView: View {
                 originalItem: initialFoodItem
             )
 
-        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
+        let finishSave: (Bool, FoodItem?) -> Void = { success, persistedItem in
             Task { @MainActor in
-                if success {
+                if success, let persistedItem {
                     self.isSavedAsCustom = true
-                    self.hasSavedBarcodeCorrection = itemToSave.sourceMetadata?.barcode?.isEmpty == false
-                    self.customFoodForAction = itemToSave
+                    self.hasSavedBarcodeCorrection = persistedItem.sourceMetadata?.barcode?.isEmpty == false
+                    self.customFoodForAction = persistedItem
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        self.persistedTrustItem = persistedItem
+                    }
                     let message = self.hasSavedBarcodeCorrection
                         ? "\(foodName) will be used for future scans of this barcode."
                         : "\(foodName) added to My Foods."
                     bannerService.showBanner(title: "Saved", message: message)
-                    self.contributeToCommunityPoolIfEligible(itemToSave)
+                    self.contributeToCommunityPoolIfEligible(persistedItem)
                 } else {
-                    bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: .red)
+                    bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
                 if let correctionScope {
                     self.logCorrectionAction(
                         success ? "correction_saved" : "correction_save_failed",
                         correctionScope: correctionScope,
-                        resultingItem: success ? itemToSave : nil,
+                        resultingItem: persistedItem,
                         context: calibrationContext
                     )
                 }
+                completion?(success, persistedItem)
+            }
+        }
+
+        if itemToSave.sourceMetadata?.barcode?.isEmpty == false {
+            dailyLogService.customFoodStore.saveBarcodeCorrection(
+                for: userID,
+                foodItem: itemToSave
+            ) { result in
+                switch result {
+                case .success(let persistedItem):
+                    finishSave(true, persistedItem)
+                case .failure:
+                    finishSave(false, nil)
+                }
+            }
+        } else {
+            dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
+                finishSave(success, success ? itemToSave : nil)
             }
         }
     }
@@ -792,17 +936,32 @@ struct FoodDetailView: View {
             correctionScope: correctionScope,
             context: calibrationContext
         )
-        foodName = correctedName
-        availableServings.insert(correctedServing, at: 0)
-        selectedServingID = correctedServing.id
-        quantity = "1"
+        isSavingTrustCorrection = true
         saveCustomFood(
             foodName: correctedName,
             serving: correctedServing,
             quantityValue: 1,
             correctionScope: correctionScope,
             calibrationContext: calibrationContext
-        )
+        ) { success, persistedItem in
+            self.isSavingTrustCorrection = false
+            guard success, persistedItem != nil else { return }
+
+            withAnimation(.easeInOut(duration: 0.24)) {
+                self.foodName = correctedName
+                self.availableServings.removeAll { $0.id == correctedServing.id }
+                self.availableServings.insert(correctedServing, at: 0)
+                self.selectedServingID = correctedServing.id
+                self.quantity = "1"
+                self.trustResolution = FoodTrustResolution(
+                    title: "Correction saved",
+                    detail: self.barcodeForCorrection == nil
+                        ? "Trust now reflects your saved review"
+                        : "Future scans will use this reviewed entry"
+                )
+            }
+            HapticManager.instance.notification(.success)
+        }
     }
     
     private func unsaveCustomFood() {
@@ -819,7 +978,7 @@ struct FoodDetailView: View {
                     self.customFoodForAction = nil
                     bannerService.showBanner(title: "Removed", message: "\(foodName) removed from My Foods.", iconName: "star.slash.fill")
                 } else {
-                    bannerService.showBanner(title: "Error", message: "Could not remove custom food.", iconName: "xmark.circle.fill", iconColor: .red)
+                    bannerService.showBanner(title: "Error", message: "Could not remove custom food.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
             }
         }
@@ -832,14 +991,21 @@ struct FoodDetailView: View {
                 guard case .success(let items) = result else { return }
 
                 if let barcode = self.barcodeForCorrection,
-                   let savedBarcodeItem = items.first(where: { BarcodeCorrectionRules.matches($0, barcode: barcode) }) {
+                   let savedBarcodeItem = BarcodeCorrectionRules.bestCorrectedFood(
+                       in: items,
+                       barcode: barcode
+                   ) {
                     self.isSavedAsCustom = true
                     self.hasSavedBarcodeCorrection = true
                     self.customFoodForAction = savedBarcodeItem
+                    self.persistedTrustItem = savedBarcodeItem
                 } else if let savedItem = items.first(where: { $0.name == self.foodName }) {
                     self.isSavedAsCustom = true
                     self.hasSavedBarcodeCorrection = false
                     self.customFoodForAction = savedItem
+                    if savedItem.id == self.initialFoodItem.id {
+                        self.persistedTrustItem = savedItem
+                    }
                 }
             }
         }
@@ -1014,27 +1180,31 @@ struct FoodDetailView: View {
     }
 }
 
-private struct FoodSourceConfidenceCard: View {
+struct FoodTrustReceipt: View {
+    let item: FoodItem
     let descriptor: FoodSourceDescriptor
     let evaluation: FoodTrustEvaluation
     let metadata: FoodSourceMetadata?
     let findings: [FoodDataSanity.Finding]
+    let isSavingCorrection: Bool
+    let resolution: FoodTrustResolution?
     let onAction: (() -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var usesAccessibilityLayout: Bool {
-        dynamicTypeSize.isAccessibilitySize
-    }
+    @State private var showsScoreDetails = false
+    @State private var showsSourceDetails = false
+    @State private var showsCoverageDetails = false
+    @State private var presentedResolution: FoodTrustResolution?
 
     private var tint: Color {
         switch evaluation.level {
         case .excellent, .strong:
             return .accentPositiveText
         case .review:
-            return .orange
+            return AppPalette.caution
         case .low:
-            return evaluation.requiresCorrection ? .red : .orange
+            return evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
     }
 
@@ -1042,30 +1212,20 @@ private struct FoodSourceConfidenceCard: View {
         metadata?.sourceName ?? descriptor.title
     }
 
-    private var verifiedSources: [String] {
-        metadata?.validatedCrossVerifiedBy ?? []
+    private var passport: FoodTrustPassport {
+        FoodTrustPassport.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: metadata
+        )
     }
 
-    private var crossVerificationText: String {
-        if !verifiedSources.isEmpty {
-            return "Calories + macros matched with \(verifiedSources.prefix(2).joined(separator: ", "))"
-        }
-        if descriptor.sourceKey == "community_barcode" {
-            return "One community submission"
-        }
-        if descriptor.isEstimated {
-            return "No independent database match"
-        }
-        switch descriptor.sourceKey {
-        case "usda", "fatsecret", "open_food_facts":
-            return "One database source"
-        default:
-            return "No independent database match"
-        }
+    private var coreScope: FoodTrustEvidenceScope {
+        passport.coreNutrition
     }
 
-    private var crossVerificationTint: Color {
-        verifiedSources.isEmpty ? Color(UIColor.secondaryLabel) : .accentPositiveText
+    private var supportingEvidence: [FoodVerificationEvidence] {
+        metadata?.validatedCrossVerificationEvidence ?? []
     }
 
     private var reviewText: String {
@@ -1090,7 +1250,7 @@ private struct FoodSourceConfidenceCard: View {
         case .notRequired:
             return Color(UIColor.secondaryLabel)
         case .unreviewed, nil:
-            return descriptor.isEstimated ? .orange : Color(UIColor.secondaryLabel)
+            return descriptor.isEstimated ? AppPalette.caution : Color(UIColor.secondaryLabel)
         }
     }
 
@@ -1107,70 +1267,584 @@ private struct FoodSourceConfidenceCard: View {
 
     private var sanityTint: Color {
         if findings.contains(where: { $0.severity == .warning }) {
-            return .red
+            return AppPalette.critical
         }
-        return findings.isEmpty ? .accentPositiveText : .orange
+        return findings.isEmpty ? .accentPositiveText : AppPalette.caution
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: descriptor.systemImage)
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(tint)
-                    .frame(width: 38, height: 38)
-                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        VStack(alignment: .leading, spacing: 14) {
+            receiptHeader
 
-                VStack(alignment: .leading, spacing: 4) {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 8) {
-                            sourceTitle
-                            confidenceBadge
-                        }
+            if let presentedResolution {
+                resolutionNotice(presentedResolution)
+                    .transition(.opacity)
+            }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            sourceTitle
-                            confidenceBadge
+            evidenceFingerprint
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 0) {
+                receiptStep(
+                    icon: descriptor.systemImage,
+                    title: "Source",
+                    value: sourceName,
+                    detail: "\(passport.lineage.title). \(descriptor.detail)",
+                    rowTint: tint,
+                    isLast: false
+                )
+                receiptStep(
+                    icon: "checkmark.seal.fill",
+                    title: "Core Nutrition",
+                    value: coreScope.state.label,
+                    detail: coreScope.detail,
+                    rowTint: evidenceTint(coreScope.state),
+                    isLast: false
+                )
+                nutritionStep
+                receiptStep(
+                    icon: "person.crop.circle.badge.checkmark",
+                    title: "Your Review",
+                    value: reviewText,
+                    detail: reviewDetail,
+                    rowTint: reviewTint,
+                    isLast: true,
+                    isEmphasized: presentedResolution != nil
+                )
+            }
+
+            if !supportingEvidence.isEmpty {
+                sourceAgreementDisclosure
+            }
+
+            evidenceCoverage
+
+            scoreDisclosure
+
+            if let action = evaluation.action, let onAction {
+                Button(action: onAction) {
+                    HStack(spacing: 8) {
+                        if isSavingCorrection {
+                            ProgressView()
+                        } else {
+                            Image(systemName: action == "Fix data" ? "pencil" : "slider.horizontal.3")
                         }
+                        Text(isSavingCorrection ? "Saving correction" : action)
+                    }
+                }
+                .buttonStyle(AppActionButtonStyle(evaluation.requiresCorrection ? .destructive : .secondary))
+                .disabled(isSavingCorrection)
+                .accessibilityIdentifier("food_trust_action")
+                .accessibilityLabel(isSavingCorrection ? "Saving correction" : action)
+                .accessibilityHint("Opens the nutrition editor for this food.")
+            }
+        }
+        .padding(.vertical, 4)
+        .task(id: resolution?.id) {
+            await presentResolutionIfNeeded()
+        }
+    }
+
+    private var receiptHeader: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    receiptIdentity
+                    scoreSummary
+                }
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    receiptIdentity
+                    Spacer(minLength: AppSpacing.group)
+                    scoreSummary
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var receiptIdentity: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Trust Receipt")
+                .appFont(size: 20, weight: .bold)
+                .foregroundColor(.textPrimary)
+                .accessibilityIdentifier("food_trust_receipt")
+            Text(evaluation.label)
+                .appFont(size: 12, weight: .bold)
+                .foregroundColor(tint)
+        }
+    }
+
+    private var scoreSummary: some View {
+        Label(coreScope.state.label, systemImage: evidenceIcon(coreScope.state))
+            .appFont(size: 10, weight: .bold)
+            .foregroundColor(evidenceTint(coreScope.state))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(evidenceTint(coreScope.state).opacity(0.10), in: Capsule())
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("food_trust_score")
+            .accessibilityLabel("Trust rating")
+            .accessibilityValue(
+                "\(evaluation.label). \(coreScope.state.label). Evidence index \(evaluation.score) out of 99"
+            )
+    }
+
+    private var evidenceFingerprint: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text("Evidence Fingerprint")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: AppSpacing.compact),
+                    count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
+                ),
+                alignment: .leading,
+                spacing: AppSpacing.compact
+            ) {
+                fingerprintCell(
+                    icon: descriptor.systemImage,
+                    title: "Source type",
+                    value: passport.lineage.title,
+                    color: tint
+                )
+                fingerprintCell(
+                    icon: "point.3.connected.trianglepath.dotted",
+                    title: "Agreement",
+                    value: agreementFingerprintText,
+                    color: supportingEvidence.isEmpty ? .secondary : .accentPositiveText
+                )
+                fingerprintCell(
+                    icon: "person.crop.circle.badge.checkmark",
+                    title: "Your review",
+                    value: reviewText,
+                    color: reviewTint
+                )
+                fingerprintCell(
+                    icon: freshnessIcon,
+                    title: "Freshness",
+                    value: freshnessFingerprintText,
+                    color: freshnessTint
+                )
+            }
+        }
+        .padding(AppSpacing.row)
+        .background(
+            AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+        )
+        .accessibilityIdentifier("food_trust_fingerprint")
+    }
+
+    private func fingerprintCell(
+        icon: String,
+        title: String,
+        value: String,
+        color: Color
+    ) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.compact) {
+            Image(systemName: icon)
+                .appFont(size: 12, weight: .bold)
+                .foregroundStyle(color)
+                .frame(width: 24, height: 24)
+                .background(color.opacity(0.10), in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var agreementFingerprintText: String {
+        supportingEvidence.isEmpty
+            ? "No attached comparison"
+            : "\(supportingEvidence.count + 1) comparable records"
+    }
+
+    private var freshnessFingerprintText: String {
+        switch passport.freshness.state {
+        case .current: "Current record"
+        case .aging: "Older record"
+        case .stale: "May be stale"
+        case .retrieved: "Retrieval date only"
+        case .unknown: "Date unavailable"
+        }
+    }
+
+    private var evidenceCoverage: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+
+            Button {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.14) : AppMotion.visibility) {
+                    showsCoverageDetails.toggle()
+                }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Field Evidence")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
+                        Text("Identity, serving, detailed nutrients, and ingredients")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Text(descriptor.detail)
-                        .appFont(size: 12)
+                    Spacer(minLength: 0)
+                    Image(systemName: showsCoverageDetails ? "chevron.up" : "chevron.down")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(showsCoverageDetails ? "Hide field evidence" : "Show field evidence")
+
+            if showsCoverageDetails {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    ForEach(passport.scopes.filter { $0.field != .coreNutrition }) { scope in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: evidenceIcon(scope.state))
+                                .appFont(size: 11, weight: .bold)
+                                .foregroundColor(evidenceTint(scope.state))
+                                .frame(width: 24, height: 24)
+                                .background(evidenceTint(scope.state).opacity(0.10), in: Circle())
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text(scope.title)
+                                        .appFont(size: 11, weight: .bold)
+                                        .foregroundColor(.textPrimary)
+                                    Spacer(minLength: 4)
+                                    Text(scope.state.label)
+                                        .appFont(size: 9, weight: .bold)
+                                        .foregroundColor(evidenceTint(scope.state))
+                                        .multilineTextAlignment(.trailing)
+                                }
+                                Text(scope.detail)
+                                    .appFont(size: 10, weight: .medium)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+
+                    Label(freshnessText, systemImage: freshnessIcon)
+                        .appFont(size: 10, weight: .semibold)
+                        .foregroundColor(freshnessTint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var sourceAgreementDisclosure: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Divider()
+
+            Button {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.2)) {
+                    showsSourceDetails.toggle()
+                }
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(.accentPositiveText)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sources in agreement")
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Text(sourceAgreementSummary)
+                            .appFont(size: 10, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    Image(systemName: showsSourceDetails ? "chevron.up" : "chevron.down")
+                        .appFont(size: 10, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+                .padding(.vertical, 5)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                showsSourceDetails
+                    ? "Hide agreeing source details"
+                    : "Show agreeing source details"
+            )
+
+            if showsSourceDetails {
+                VStack(alignment: .leading, spacing: 10) {
+                    sourceEvidenceRow(
+                        name: sourceName,
+                        lineage: metadata?.effectiveEvidenceLineage ?? .unknown,
+                        date: metadata?.sourceUpdatedAt ?? metadata?.sourceObservedAt,
+                        isPrimary: true
+                    )
+
+                    ForEach(supportingEvidence, id: \.sourceName) { evidence in
+                        sourceEvidenceRow(
+                            name: evidence.sourceName,
+                            lineage: evidence.lineage,
+                            date: evidence.sourceUpdatedAt ?? evidence.observedAt,
+                            isPrimary: false
+                        )
+                    }
+
+                    Text(sourceAgreementCaveat)
+                        .appFont(size: 10, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer(minLength: 0)
+                .padding(.leading, 2)
+                .transition(.opacity)
             }
-            .accessibilityElement(children: .combine)
+        }
+        .accessibilityIdentifier("food_trust_source_agreement")
+    }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Trust Score")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+    private func sourceEvidenceRow(
+        name: String,
+        lineage: FoodEvidenceLineage,
+        date: Date?,
+        isPrimary: Bool
+    ) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: isPrimary ? "checkmark.circle.fill" : "plus.circle.fill")
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(isPrimary ? .brandForeground : .accentPositiveText)
+                .frame(width: 22, height: 22)
+                .background(
+                    (isPrimary ? Color.brandPrimary : Color.accentPositiveText).opacity(0.10),
+                    in: Circle()
+                )
 
-                        Text(evaluation.label)
-                            .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                    }
-
-                    Spacer()
-
-                    HStack(alignment: .firstTextBaseline, spacing: 0) {
-                        Text("\(evaluation.score)")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(tint)
-
-                        Text("/99")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(name)
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    if isPrimary {
+                        Text("Primary")
+                            .appFont(size: 8, weight: .bold)
+                            .foregroundColor(.brandForeground)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.brandPrimary.opacity(0.10), in: Capsule())
                     }
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Trust Score")
-                .accessibilityValue("\(evaluation.score) out of 99, \(evaluation.label)")
+
+                Text(lineage.title)
+                    .appFont(size: 10, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+
+                if let date {
+                    Text("Record date \(date.formatted(.dateTime.year().month(.abbreviated).day()))")
+                        .appFont(size: 9, weight: .medium)
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var sourceAgreementSummary: String {
+        let names = supportingEvidence.map(\.sourceName)
+        return ([sourceName] + names).joined(separator: " + ")
+    }
+
+    private var sourceAgreementCaveat: String {
+        let hasBarcode = !(metadata?.barcode?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+        if hasBarcode {
+            return "These databases report comparable core nutrition for the matched barcode. They may still reproduce the same manufacturer label, so provider count is not laboratory verification."
+        }
+        return "These reference records match the search description and report comparable core nutrition after serving normalization. This supports the core values, not exact packaged-product identity."
+    }
+
+    private func resolutionNotice(_ resolution: FoodTrustResolution) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.accentPositiveText)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(resolution.title)
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text(resolution.detail)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 5)
+        .padding(.leading, 10)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Color.accentPositiveText)
+                .frame(width: 3)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(resolution.title). \(resolution.detail)")
+    }
+
+    private func receiptStep(
+        icon: String,
+        title: String,
+        value: String,
+        detail: String,
+        rowTint: Color,
+        isLast: Bool,
+        showsFindings: Bool = false,
+        isEmphasized: Bool = false
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .appFont(size: 12, weight: .bold)
+                .foregroundColor(rowTint)
+                .frame(width: 30, height: 30)
+                .background(rowTint.opacity(0.11), in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(rowTint.opacity(isEmphasized ? 0.48 : 0), lineWidth: 2)
+                        .padding(-3)
+                }
+            .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .appFont(size: 11, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text(value)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if showsFindings, !findings.isEmpty {
+                    ForEach(findings) { finding in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(findingFieldTitle(finding))
+                                .appFont(size: 10, weight: .bold)
+                                .foregroundColor(finding.severity == .warning ? AppPalette.critical : AppPalette.caution)
+                            Text(finding.message)
+                                .appFont(size: 11, weight: .medium)
+                                .foregroundColor(.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.top, 3)
+                        .padding(.leading, 8)
+                        .overlay(alignment: .leading) {
+                            Rectangle()
+                                .fill(finding.severity == .warning ? AppPalette.critical : AppPalette.caution)
+                                .frame(width: 2)
+                        }
+                    }
+                } else {
+                    Text(detail)
+                        .appFont(size: 11, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.bottom, isLast ? 0 : 14)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 3)
+        .overlay(alignment: .topLeading) {
+            if !isLast {
+                GeometryReader { proxy in
+                    Rectangle()
+                        .fill(Color(UIColor.separator).opacity(0.55))
+                        .frame(width: 2, height: max(0, proxy.size.height - 27))
+                        .offset(x: 14, y: 30)
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .background(isEmphasized ? rowTint.opacity(0.055) : Color.clear)
+        .scaleEffect(isEmphasized && !reduceMotion ? 1.01 : 1, anchor: .leading)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.22),
+            value: isEmphasized
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var nutritionStep: some View {
+        receiptStep(
+            icon: "checkmark.shield.fill",
+            title: "Nutrition Check",
+            value: sanityText,
+            detail: "No contradictions found in the serving, calories, macros, or fat breakdown.",
+            rowTint: sanityTint,
+            isLast: false,
+            showsFindings: true,
+            isEmphasized: presentedResolution != nil
+        )
+    }
+
+    private var scoreDisclosure: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Button {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.2)) {
+                    showsScoreDetails.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Why this rating")
+                        .appFont(size: 12, weight: .bold)
+                    Spacer(minLength: 0)
+                    Image(systemName: showsScoreDetails ? "chevron.up" : "chevron.down")
+                        .appFont(size: 10, weight: .bold)
+                }
+                .foregroundColor(.textPrimary)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(showsScoreDetails ? "Hide Trust rating details" : "Show Trust rating details")
+
+            if showsScoreDetails {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("Evidence index")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Spacer(minLength: 4)
+                    Text("\(evaluation.score) / 99")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(tint)
+                }
+
+                Text(evaluation.summary)
+                    .appFont(size: 11, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
 
                 GeometryReader { proxy in
                     Capsule()
@@ -1181,20 +1855,8 @@ private struct FoodSourceConfidenceCard: View {
                                 .frame(width: proxy.size.width * CGFloat(evaluation.score) / 99)
                         }
                 }
-                .frame(height: 7)
+                .frame(height: 5)
                 .accessibilityHidden(true)
-
-                Text(evaluation.summary)
-                    .appFont(size: 12, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(spacing: 7) {
-                    trustFactRow(icon: "tag.fill", title: "Source", value: sourceName, rowTint: tint)
-                    trustFactRow(icon: "checkmark.seal.fill", title: "Verification", value: crossVerificationText, rowTint: crossVerificationTint)
-                    trustFactRow(icon: "person.crop.circle.badge.checkmark", title: "Your Review", value: reviewText, rowTint: reviewTint)
-                    trustFactRow(icon: "checkmark.shield.fill", title: "Nutrition Check", value: sanityText, rowTint: sanityTint)
-                }
 
                 ForEach(Array(visibleReasons.prefix(3))) { reason in
                     Label(reason.text, systemImage: reasonIcon(for: reason))
@@ -1203,87 +1865,167 @@ private struct FoodSourceConfidenceCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if let action = evaluation.action, let onAction {
-                    Button(action: onAction) {
-                        Label(action, systemImage: action == "Fix data" ? "pencil" : "slider.horizontal.3")
-                            .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(action)
-                    .accessibilityHint("Opens the nutrition editor for this food.")
-                }
+                Text("The evidence index ranks source support and consistency. It is not a probability that every field is correct.")
+                    .appFont(size: 10, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    @ViewBuilder
-    private func trustFactRow(icon: String, title: String, value: String, rowTint: Color) -> some View {
-        HStack(alignment: usesAccessibilityLayout ? .top : .center, spacing: 8) {
-            trustFactIcon(icon, tint: rowTint)
-
-            if usesAccessibilityLayout {
-                VStack(alignment: .leading, spacing: 2) {
-                    trustFactTitle(title)
-                    trustFactValue(value)
-                }
-            } else {
-                trustFactTitle(title)
-                    .frame(width: 88, alignment: .leading)
-                trustFactValue(value)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
+        .padding(.vertical, 2)
+        .overlay(alignment: .top) {
+            Divider()
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 8)
-        .background(Color.backgroundPrimary.opacity(0.52), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
     }
 
-    private func trustFactIcon(_ icon: String, tint: Color) -> some View {
-        Image(systemName: icon)
-            .appFont(size: 11, weight: .bold)
-            .foregroundColor(tint)
-            .frame(width: 22, height: 22)
-            .background(tint.opacity(0.10), in: Circle())
+    private var reviewDetail: String {
+        switch metadata?.reviewStatus {
+        case .userEdited:
+            return "Your saved nutrition correction is part of this entry."
+        case .userConfirmed:
+            return "You confirmed the serving or nutrition for this entry."
+        case .notRequired:
+            return "No personal correction is attached."
+        case .unreviewed, nil:
+            return descriptor.isEstimated
+                ? "Review the serving before relying on this estimate."
+                : "No personal review is attached."
+        }
     }
 
-    private var sourceTitle: some View {
-        Text(descriptor.title)
-            .appFont(size: 15, weight: .bold)
-            .foregroundColor(.textPrimary)
+    private func evidenceTint(_ state: FoodTrustEvidenceState) -> Color {
+        switch state {
+        case .crossDatabaseAgreement, .userReviewed:
+            return .accentPositiveText
+        case .sourceReported:
+            return .accentProtein
+        case .estimated:
+            return AppPalette.caution
+        case .needsCorrection:
+            return AppPalette.critical
+        case .unavailable, .notChecked:
+            return Color(UIColor.secondaryLabel)
+        }
     }
 
-    private var confidenceBadge: some View {
-        Text(descriptor.confidence)
-            .appFont(size: 11, weight: .bold)
-            .foregroundColor(tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(tint.opacity(0.10), in: Capsule())
-            .fixedSize(horizontal: true, vertical: false)
+    private func evidenceIcon(_ state: FoodTrustEvidenceState) -> String {
+        switch state {
+        case .crossDatabaseAgreement: return "checkmark.seal.fill"
+        case .userReviewed: return "person.crop.circle.badge.checkmark"
+        case .sourceReported: return "doc.text.fill"
+        case .estimated: return "sparkles"
+        case .needsCorrection: return "exclamationmark.triangle.fill"
+        case .unavailable: return "questionmark.circle.fill"
+        case .notChecked: return "minus.circle.fill"
+        }
     }
 
-    private func trustFactTitle(_ title: String) -> some View {
-        Text(title)
-            .appFont(size: 11, weight: .bold)
-            .foregroundColor(Color(UIColor.secondaryLabel))
-            .fixedSize(horizontal: false, vertical: true)
+    private var freshnessText: String {
+        let dateText = freshnessDateText
+        switch passport.freshness.state {
+        case .current:
+            if passport.lineage == .governmentCompilation {
+                return "Reference dataset released \(dateText ?? "recently")"
+            }
+            return "Source record updated \(dateText ?? "recently")"
+        case .aging:
+            if passport.lineage == .governmentCompilation {
+                return "Reference dataset was released \(dateText ?? "over 18 months ago")"
+            }
+            return "Source record was last updated \(dateText ?? "over 18 months ago")"
+        case .stale:
+            if passport.lineage == .governmentCompilation {
+                return "Reference dataset may be stale; release \(dateText ?? "is over three years old")"
+            }
+            return "Source record may be stale; last update \(dateText ?? "is over three years old")"
+        case .retrieved:
+            switch passport.lineage {
+            case .personalReview:
+                return "Saved \(dateText ?? "previously"); no external formulation date"
+            case .modelEstimate:
+                return "Estimated \(dateText ?? "previously"); no provider formulation date"
+            case .derivedEntry:
+                return "Created \(dateText ?? "previously"); source formulation date unavailable"
+            case .restaurantCatalog:
+                return "Catalog observed \(dateText ?? "previously"); menu update date unavailable"
+            case .manufacturerLabel:
+                return "Label record retrieved \(dateText ?? "previously"); manufacturer update date unavailable"
+            default:
+                return "Retrieved \(dateText ?? "previously"); provider formulation date unavailable"
+            }
+        case .unknown:
+            return "Provider formulation date unavailable"
+        }
     }
 
-    private func trustFactValue(_ value: String) -> some View {
-        Text(value)
-            .appFont(size: 11, weight: .semibold)
-            .foregroundColor(.textPrimary)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
+    private var freshnessDateText: String? {
+        guard let date = passport.freshness.date else { return nil }
+        guard passport.lineage == .governmentCompilation else {
+            return date.formatted(date: .abbreviated, time: .omitted)
+        }
+
+        // CNF release values are calendar dates, not local timestamps. Formatting midnight UTC
+        // in a western timezone otherwise shows the previous day.
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = .current
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+
+    private var freshnessIcon: String {
+        switch passport.freshness.state {
+        case .current: return "checkmark.circle.fill"
+        case .aging: return "clock.fill"
+        case .stale: return "exclamationmark.arrow.triangle.2.circlepath"
+        case .retrieved: return "tray.and.arrow.down.fill"
+        case .unknown: return "questionmark.circle.fill"
+        }
+    }
+
+    private var freshnessTint: Color {
+        switch passport.freshness.state {
+        case .current: return .accentPositiveText
+        case .aging: return AppPalette.caution
+        case .stale: return AppPalette.critical
+        case .retrieved, .unknown: return Color(UIColor.secondaryLabel)
+        }
+    }
+
+    private func findingFieldTitle(_ finding: FoodDataSanity.Finding) -> String {
+        switch finding.id {
+        case "saturated_fat_exceeds_total": return "Saturated fat + Total fat"
+        case "fiber_exceeds_carbs": return "Fiber + Total carbs"
+        case "macros_exceed_serving_weight": return "Macros + Serving weight"
+        case "serving_weight_implausible", "energy_density_impossible": return "Serving weight"
+        case "sodium_unit_suspect", "sodium_high_for_entry": return "Sodium"
+        case "potassium_unit_suspect", "potassium_high_for_entry": return "Potassium"
+        case "macros_without_calories", "calories_undercount", "calories_below_macro_estimate",
+             "calories_exceed_macros": return "Calories + Macros"
+        default: return "Nutrition values"
+        }
+    }
+
+    @MainActor
+    private func presentResolutionIfNeeded() async {
+        guard let resolution else { return }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.22)) {
+            presentedResolution = resolution
+        }
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "\(resolution.title). \(resolution.detail)"
+        )
+        do {
+            try await Task.sleep(nanoseconds: 2_600_000_000)
+        } catch {
+            return
+        }
+        guard presentedResolution?.id == resolution.id else { return }
+        withAnimation(.easeOut(duration: reduceMotion ? 0.14 : 0.2)) {
+            presentedResolution = nil
+        }
     }
 
     private func reasonIcon(for reason: FoodTrustReason) -> String {
@@ -1302,9 +2044,9 @@ private struct FoodSourceConfidenceCard: View {
         case .evidence:
             return Color(UIColor.secondaryLabel)
         case .caution:
-            return .orange
+            return AppPalette.caution
         case .correction:
-            return .red
+            return AppPalette.critical
         }
     }
 }

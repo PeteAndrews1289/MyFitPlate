@@ -1,54 +1,91 @@
 import SwiftUI
 
 struct LandingPageView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject private var appState: AppState
     @State private var errorMessage: String?
 
     var body: some View {
-        ZStack {
-            Color.backgroundPrimary.ignoresSafeArea()
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            Spacer()
 
-            VStack(spacing: 20) {
-                Image("mfp logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 112, height: 112)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.10), radius: 16, x: 0, y: 8)
+            MyFitPlateLaunchMark(treatment: .launch)
+                .accessibilityHidden(true)
 
-                Text("MyFitPlate")
-                    .appFont(size: 34, weight: .bold)
-                    .foregroundColor(.textPrimary)
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                Text("MYFITPLATE")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.launchForeground.opacity(0.82))
 
-                if let error = errorMessage {
-                    Text(error)
-                        .appFont(size: 13)
-                        .foregroundColor(.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .padding(14)
-                        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                Text(errorMessage == nil ? "Preparing your day" : "We couldn't load your account")
+                    .appTextRole(.display)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Button("Retry") {
-                        loadData()
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                } else {
-                    ProgressView()
-                        .tint(.blue)
-                        .scaleEffect(1.2)
-                }
+                Text(errorMessage ?? "Loading your goals, recent meals, and training context.")
+                    .appTextRole(.body)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(24)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+
+            if errorMessage == nil {
+                ProgressView()
+                    .tint(AppPalette.launchForeground)
+                    .accessibilityLabel("Loading account")
+            } else {
+                Button("Try again", action: loadData)
+                    .buttonStyle(AppActionButtonStyle(.primary))
+            }
+
+            Spacer()
         }
-        .onAppear {
-            loadData()
-        }
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.vertical, AppSpacing.section)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppPalette.launchBackground.ignoresSafeArea())
+        .accessibilityIdentifier("account_loading_screen")
+        .onAppear(perform: loadData)
     }
 
     private func loadData() {
         guard DIContainer.shared.authService.currentUserID != nil else {
-            errorMessage = "User not authenticated. Please log in."
+            errorMessage = "Your sign-in is no longer available. Return to sign in and try again."
+            appState.setUserLoggedIn(false)
             return
         }
+        errorMessage = nil
+    }
+}
+
+struct MyFitPlateLaunchMark: View {
+    enum Treatment {
+        case standard
+        case launch
+    }
+
+    let treatment: Treatment
+
+    init(treatment: Treatment = .standard) {
+        self.treatment = treatment
+    }
+
+    var body: some View {
+        Text("MFP")
+            .font(.system(size: 25, weight: .bold, design: .rounded))
+            .foregroundStyle(foregroundColor)
+            .frame(width: 76, height: 76)
+            .background(
+                backgroundColor,
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
+    }
+
+    private var foregroundColor: Color {
+        treatment == .launch ? AppPalette.launchBackground : AppPalette.launchForeground
+    }
+
+    private var backgroundColor: Color {
+        treatment == .launch ? AppPalette.launchForeground : AppPalette.launchBackground
     }
 }

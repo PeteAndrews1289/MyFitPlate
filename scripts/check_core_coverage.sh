@@ -24,8 +24,10 @@ SEARCH_DIRS=()
 PROF=""
 BIN=""
 if (( ${#SEARCH_DIRS[@]} > 0 )); then
-  PROF="$(find "${SEARCH_DIRS[@]}" -name 'default.profdata' -print -quit 2>/dev/null || true)"
-  BIN="$(find "${SEARCH_DIRS[@]}" -type f -name "${PKG}PackageTests" -print -quit 2>/dev/null || true)"
+  # `MyFitPlateCore/.build` may be a symlink to the external developer volume. `-H`
+  # follows command-line symlinks without traversing any unrelated links inside the build tree.
+  PROF="$(find -H "${SEARCH_DIRS[@]}" -name 'default.profdata' -print -quit 2>/dev/null || true)"
+  BIN="$(find -H "${SEARCH_DIRS[@]}" -type f -name "${PKG}PackageTests" -print -quit 2>/dev/null || true)"
 fi
 
 if [[ -z "$PROF" || -z "$BIN" ]]; then
@@ -35,7 +37,7 @@ fi
 
 # Total line-coverage % over Core source only (exclude the test bundle and .build dependencies).
 PERCENT="$(xcrun llvm-cov report "$BIN" -instr-profile="$PROF" \
-  -ignore-filename-regex='(\.build|\.codex_xcode|/Tests/|/Mocks/|/Previews/|HealthKitManager\.swift|HealthKitViewModel\.swift|NotificationManager\.swift)' 2>/dev/null \
+  -ignore-filename-regex='(/checkouts/|\.build|\.codex_xcode|/Tests/|/Mocks/|/Previews/|HealthKitManager\.swift|HealthKitViewModel\.swift|NotificationManager\.swift)' 2>/dev/null \
   | awk '/^TOTAL/ { gsub("%","",$10); print $10 }')"
 
 if [[ -z "$PERCENT" ]]; then

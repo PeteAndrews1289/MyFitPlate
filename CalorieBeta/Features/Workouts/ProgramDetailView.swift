@@ -147,7 +147,7 @@ struct ProgramDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
                 ProgramDetailHeroCard(
                     programName: program.name,
                     statusText: statusText,
@@ -215,10 +215,13 @@ struct ProgramDetailView: View {
                     onStart: { self.calendarRoutineToPlay = $0 }
                 )
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle(program.name)
+        .accessibilityIdentifier("program_detail")
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .navigationTitle(isPreview ? "Program Preview" : "Program")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $routineToEdit) { routine in
             RoutineEditorView(
@@ -259,11 +262,6 @@ struct ProgramDetailView: View {
                 WorkoutCompleteAnalyticsView(log: log)
                     .navigationTitle("Session Review")
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") { reviewLog = nil }
-                        }
-                    }
             }
         }
         .onAppear {

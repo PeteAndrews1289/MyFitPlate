@@ -27,7 +27,7 @@ struct TrainingFuelTargetContextView: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: target.phase == .beforeTraining ? "bolt.fill" : "arrow.clockwise.heart.fill")
                     .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .frame(width: 34, height: 34)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 

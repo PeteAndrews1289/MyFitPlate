@@ -1,53 +1,82 @@
 import SwiftUI
 
+struct GroceryUndoBanner: View {
+    let itemName: String
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: "trash")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.caution)
+                .accessibilityHidden(true)
+
+            Text("\(itemName) removed")
+                .appTextRole(.body)
+                .foregroundStyle(AppPalette.text)
+                .lineLimit(2)
+
+            Spacer(minLength: AppSpacing.compact)
+
+            Button("Undo", action: onUndo)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.brandText)
+        }
+        .appSurface(.emphasized)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("grocery_delete_undo")
+    }
+}
+
 struct GroceryAllCompleteState: View {
     let onShowCompleted: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppSpacing.group) {
             Image(systemName: "checkmark.seal.fill")
-                .appFont(size: 30, weight: .bold)
-                .foregroundColor(.accentPositive)
-                .frame(width: 58, height: 58)
-                .background(Color.accentPositive.opacity(0.12), in: Circle())
+                .appTextRole(.screenTitle)
+                .foregroundStyle(Color.accentPositive)
+                .frame(width: 56, height: 56)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
 
             VStack(spacing: 4) {
-                Text("Everything visible is checked off")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                Text("Everything Is Checked")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
 
-                Text("Completed items are hidden for a cleaner shopping run.")
-                    .appFont(size: 13, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text("Checked items are hidden so the remaining shopping view stays focused.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("Show checked items", action: onShowCompleted)
-                .buttonStyle(SecondaryButtonStyle())
+            Button("Show Checked Items", action: onShowCompleted)
+                .buttonStyle(AppActionButtonStyle(.secondary))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .glassCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("grocery_all_complete")
     }
 }
 
 struct GroceryListLoadingState: View {
     var body: some View {
-        VStack(spacing: 13) {
+        VStack(spacing: AppSpacing.row) {
             ProgressView()
-                .tint(.blue)
+                .tint(AppPalette.brand)
 
-            Text("Loading grocery list")
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
+            Text("Loading Grocery List")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
 
-            Text("Pulling together your planned ingredients.")
-                .appFont(size: 13, weight: .medium)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+            Text("Pulling together your planned and manually added items.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 72)
+        .frame(maxWidth: .infinity, minHeight: 260)
+        .accessibilityIdentifier("grocery_loading")
     }
 }
 
@@ -56,40 +85,74 @@ struct GroceryListEmptyState: View {
     let onAddManual: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "cart.fill")
-                .appFont(size: 39, weight: .bold)
-                .foregroundColor(.blue)
-                .frame(width: 76, height: 76)
-                .background(Color(UIColor.secondarySystemFill), in: Circle())
+        VStack(spacing: AppSpacing.group) {
+            Image(systemName: "cart")
+                .appTextRole(.screenTitle)
+                .foregroundStyle(AppPalette.brandText)
+                .frame(width: 64, height: 64)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
 
-            VStack(spacing: 5) {
-                Text("No grocery list yet")
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.textPrimary)
+            VStack(spacing: 4) {
+                Text("No Grocery List Yet")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
 
-                Text("Generate a meal plan to build one automatically, add an item, or scan as you shop.")
-                    .appFont(size: 14, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text("A meal plan can build this automatically, or you can add what you need now.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: AppSpacing.row) {
                 Button(action: onAddManual) {
-                    Label("Add item", systemImage: "plus")
+                    Label("Add Item", systemImage: "plus")
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
 
                 Button(action: onScan) {
-                    Label("Scan barcode", systemImage: "barcode.viewfinder")
+                    Label("Scan Barcode", systemImage: "barcode.viewfinder")
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.secondary))
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 40)
-        .glassCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("grocery_empty")
+    }
+}
+
+struct GroceryListLoadErrorState: View {
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(spacing: AppSpacing.group) {
+            Image(systemName: "icloud.slash")
+                .appTextRole(.screenTitle)
+                .foregroundStyle(AppPalette.caution)
+                .frame(width: 64, height: 64)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+                .accessibilityHidden(true)
+
+            VStack(spacing: 4) {
+                Text("Grocery List Unavailable")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+
+                Text("Your saved list was not changed. Check your connection and try loading it again.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(action: onRetry) {
+                Label("Try Again", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+        }
+        .frame(maxWidth: .infinity)
+        .appSurface(.quiet)
+        .accessibilityIdentifier("grocery_load_error")
     }
 }

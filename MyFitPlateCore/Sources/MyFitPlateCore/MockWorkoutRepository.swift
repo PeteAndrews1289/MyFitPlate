@@ -1,5 +1,10 @@
+#if DEBUG
 import Foundation
 import Combine
+
+public enum MockWorkoutRepositoryError: Error, Equatable {
+    case resultNotConfigured
+}
 
 public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked Sendable {
     public var mockFetchSessionLogResult: Result<WorkoutSessionLog, Error>?
@@ -22,7 +27,7 @@ public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked 
             case .failure(let error): throw error
             }
         }
-        fatalError("No mock result set")
+        throw MockWorkoutRepositoryError.resultNotConfigured
     }
     public func fetchSessionLogs(userID: String, routineIDs: [String]) async throws -> [WorkoutSessionLog] { return mockFetchSessionLogsResult }
     public func fetchRecentSessionLogs(userID: String, sinceDays: Int) async throws -> [WorkoutSessionLog] {
@@ -84,3 +89,4 @@ public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked 
     public func fetchWorkoutHistory(userID: String, limit: Int) async throws -> [WorkoutSessionLog] { return mockFetchHistoryResult }
     public func fetchWorkoutHistory(userID: String, routineID: String, limit: Int) async throws -> [WorkoutSessionLog] { return mockFetchHistoryResult }
 }
+#endif

@@ -173,6 +173,150 @@ final class FoodSearchRankingTests: XCTestCase {
         XCTAssertEqual(merged.map(\.id), ["fs_1", "usda_1", "off_2"])
     }
 
+    func testMergedResultsIncludeHealthCanadaAndPreferItsRicherExactMatch() {
+        let fatSecret = [FoodItem(id: "111", name: "Lentils Cooked", calories: 116)]
+        let canada = [FoodItem(
+            id: "cnf_1",
+            name: "Lentils Cooked",
+            calories: 116,
+            protein: 9,
+            carbs: 20,
+            fats: 0.4,
+            servingSize: "100 g",
+            servingWeight: 100,
+            iron: 3.3,
+            potassium: 369,
+            folate: 181,
+            magnesium: 36
+        )]
+
+        let merged = FoodSearchRanking.mergedSearchResults(
+            fatSecret: fatSecret,
+            usda: [],
+            healthCanada: canada
+        )
+
+        XCTAssertEqual(merged.map(\.id), ["cnf_1"])
+        XCTAssertEqual(merged.first?.reportedMicronutrientCount, 4)
+    }
+
+    func testMergedResultsAttachHealthCanadaAgreementForGenericSearch() {
+        let fatSecret = [
+            FoodItem(
+                id: "111",
+                name: "Chicken Breast",
+                calories: 165,
+                protein: 31,
+                carbs: 0,
+                fats: 3.6,
+                servingSize: "100 g",
+                servingWeight: 100
+            ).withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "111")
+        ]
+        let canada = [
+            FoodItem(
+                id: "cnf_1",
+                name: "Chicken, breast, meat only, roasted",
+                calories: 165,
+                protein: 31.02,
+                carbs: 0,
+                fats: 3.57,
+                servingSize: "100 g",
+                servingWeight: 100,
+                potassium: 256,
+                selenium: 27.6
+            ).withDatabaseSource(
+                .healthCanadaCNF,
+                sourceName: "Health Canada CNF",
+                sourceID: "cnf_1"
+            )
+        ]
+
+        let merged = FoodSearchRanking.mergedSearchResults(
+            fatSecret: fatSecret,
+            usda: [],
+            healthCanada: canada,
+            query: "chicken breast"
+        )
+
+        XCTAssertEqual(
+            merged.first?.sourceMetadata?.validatedCrossVerifiedBy,
+            ["Health Canada CNF"]
+        )
+    }
+
+    func testMergedResultsDoNotAttachAgreementForDifferentSearchIntent() {
+        let chicken = FoodItem(
+            id: "111",
+            name: "Chicken Breast",
+            calories: 165,
+            protein: 31,
+            carbs: 0,
+            fats: 3.6,
+            servingSize: "100 g",
+            servingWeight: 100
+        ).withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "111")
+        let turkey = FoodItem(
+            id: "cnf_2",
+            name: "Turkey Breast",
+            calories: 165,
+            protein: 31,
+            carbs: 0,
+            fats: 3.6,
+            servingSize: "100 g",
+            servingWeight: 100
+        ).withDatabaseSource(
+            .healthCanadaCNF,
+            sourceName: "Health Canada CNF",
+            sourceID: "cnf_2"
+        )
+
+        let merged = FoodSearchRanking.mergedSearchResults(
+            fatSecret: [chicken],
+            usda: [],
+            healthCanada: [turkey],
+            query: "chicken breast"
+        )
+
+        XCTAssertTrue(merged.first?.sourceMetadata?.validatedCrossVerifiedBy.isEmpty ?? true)
+    }
+
+    func testBroadSingleTokenSearchDoesNotCrossVerifyDifferentCuts() {
+        let breast = FoodItem(
+            id: "breast",
+            name: "Chicken Breast",
+            calories: 165,
+            protein: 31,
+            carbs: 0,
+            fats: 3.6,
+            servingSize: "100 g",
+            servingWeight: 100
+        ).withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "breast")
+        let thigh = FoodItem(
+            id: "thigh",
+            name: "Chicken Thigh",
+            calories: 165,
+            protein: 31,
+            carbs: 0,
+            fats: 3.6,
+            servingSize: "100 g",
+            servingWeight: 100
+        ).withDatabaseSource(
+            .healthCanadaCNF,
+            sourceName: "Health Canada CNF",
+            sourceID: "thigh"
+        )
+
+        let merged = FoodSearchRanking.mergedSearchResults(
+            fatSecret: [breast],
+            usda: [],
+            healthCanada: [thigh],
+            query: "chicken"
+        )
+
+        XCTAssertTrue(merged.first?.sourceMetadata?.validatedCrossVerifiedBy.isEmpty ?? true)
+    }
+
     func testRankedRemoteMatchesPreferPlainQueryBeforeIngredientMatches() {
         let foods = [
             FoodItem(id: "1", name: "Croissants, Apple", calories: 260),

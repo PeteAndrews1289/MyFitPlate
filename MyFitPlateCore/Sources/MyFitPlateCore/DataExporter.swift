@@ -59,16 +59,25 @@ public enum DataExporter {
         return rows.joined(separator: "\n")
     }
 
-    /// RFC 4180 quoting: fields containing commas, quotes, or newlines are wrapped in
-    /// quotes with internal quotes doubled.
+    /// Neutralizes spreadsheet formulas before applying RFC 4180 quoting.
     static func escape(_ field: String) -> String {
-        guard field.contains(",") || field.contains("\"") || field.contains("\n") else {
-            return field
+        let formulaPrefixes: Set<Character> = ["=", "+", "-", "@"]
+        let firstNonWhitespace = field.first(where: { !$0.isWhitespace })
+        let startsWithControlCharacter =
+            field.first == "\t" || field.first == "\r" || field.first == "\n"
+        let startsWithFormula = firstNonWhitespace.map(formulaPrefixes.contains) == true
+        let protectedField = startsWithControlCharacter || startsWithFormula
+            ? "'\(field)"
+            : field
+
+        guard protectedField.contains(",") || protectedField.contains("\"") || protectedField.contains("\n") else {
+            return protectedField
         }
-        return "\"\(field.replacingOccurrences(of: "\"", with: "\"\""))\""
+        return "\"\(protectedField.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 
     private static func format(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+        guard value.isFinite else { return "" }
+        return value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }

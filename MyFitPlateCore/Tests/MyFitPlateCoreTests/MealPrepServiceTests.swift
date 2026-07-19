@@ -14,7 +14,7 @@ final class MealPrepServiceTests: XCTestCase {
             day("d1", [
                 PlannedMeal(mealType: "Chicken Bowl",
                             ingredients: ["200 g Chicken", "1 cup Rice"],
-                            instructions: "1. Cook chicken\n2. Cook rice")
+                            instructions: "1. Cook chicken\n2) Cook rice")
             ]),
             day("d2", [
                 PlannedMeal(mealType: "Chicken Salad",
@@ -35,9 +35,10 @@ final class MealPrepServiceTests: XCTestCase {
         // Steps: leading "N. " numbering stripped, all non-empty.
         XCTAssertEqual(service.prepSteps.count, 3)
         XCTAssertTrue(service.prepSteps.contains { $0.step == "Cook chicken" })
+        XCTAssertTrue(service.prepSteps.contains { $0.step == "Cook rice" })
         XCTAssertTrue(service.prepSteps.contains { $0.step == "Chop" })
         XCTAssertFalse(
-            service.prepSteps.contains { $0.step.range(of: "^\\d+\\.", options: .regularExpression) != nil },
+            service.prepSteps.contains { $0.step.range(of: "^\\d+[.)]", options: .regularExpression) != nil },
             "leading numbering must be stripped"
         )
     }

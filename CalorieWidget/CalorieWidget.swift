@@ -31,6 +31,8 @@ struct SimpleEntry: TimelineEntry {
 private enum WidgetPalette {
     // Tuned palette (DESIGN.md 2a) — must stay in sync with the app's colorsets.
     static let brandPrimary = Color(red: 0.263, green: 0.678, blue: 0.435)
+    static let brandForeground = Color("AccentPositiveText")
+    static let onSignal = Color.black.opacity(0.86)
     static let accentProtein = Color(red: 0.310, green: 0.525, blue: 0.749)
     static let accentCarbs = Color(red: 0.839, green: 0.659, blue: 0.243)
     static let accentFats = Color(red: 0.588, green: 0.427, blue: 0.675)
@@ -49,7 +51,7 @@ struct CalorieWidgetEntryView: View {
     @Environment(\.widgetFamily) var family
 
     private var homeURL: URL {
-        URL(string: "myfitplate://home")!
+        URL(string: "myfitplate://home") ?? MyFitPlateLinks.appStoreURL
     }
 
     private var destinationURL: URL {
@@ -103,7 +105,7 @@ struct CalorieWidgetEntryView: View {
         VStack(alignment: .center, spacing: 5) {
             Text("MyFitPlate")
                 .font(.headline)
-            Text("Log a meal to see your day here.")
+            Text("Open MyFitPlate to sync your day.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -140,7 +142,20 @@ struct AccessoryRectangularCaloriesView: View {
 
     var body: some View {
         if let data, data.calorieGoal > 0 {
-            if let action = data.nextAction {
+            if data.widgetFreshness.state == .stale {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Open app to refresh", systemImage: "clock.badge.exclamationmark")
+                        .font(.headline)
+                        .widgetAccentable()
+                        .lineLimit(1)
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(data.widgetFreshness.shortLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let action = data.nextAction {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.title)
                         .font(.headline)
@@ -173,7 +188,7 @@ struct AccessoryRectangularCaloriesView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("MyFitPlate")
                     .font(.headline)
-                Text("Log a meal to see your day here.")
+                Text("Open the app to sync your day.")
                     .font(.caption2)
             }
         }
@@ -184,7 +199,9 @@ struct AccessoryInlineCaloriesView: View {
     let data: WidgetData?
 
     var body: some View {
-        if let action = data?.nextAction {
+        if let data, data.widgetFreshness.state == .stale {
+            Text("MyFitPlate: Open app to refresh")
+        } else if let action = data?.nextAction {
             Text("MyFitPlate: \(action.title)")
         } else if let data, data.calorieGoal > 0 {
             Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
@@ -224,7 +241,68 @@ struct MediumWidgetView: View {
         abs(data.macroCalorieDelta ?? 0) >= 75
     }
 
+    private var pathEvents: [WidgetPathEvent] {
+        data.currentPathEvents
+    }
+
     var body: some View {
+        Group {
+            if pathEvents.isEmpty {
+                legacyBody
+            } else {
+                livingDayBody
+            }
+        }
+        .padding()
+    }
+
+    private var livingDayBody: some View {
+        VStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Living Day")
+                        .font(.caption.weight(.bold))
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .foregroundStyle(WidgetPalette.brandForeground)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                if data.widgetFreshness.state == .stale {
+                    WidgetFreshnessMark(data: data, compact: true)
+                }
+
+                HStack(spacing: 8) {
+                    Text("P \(Int(max(0, data.proteinGoal - data.protein)).formatted())g")
+                        .foregroundStyle(WidgetPalette.accentProtein)
+                    Text("C \(Int(max(0, data.carbsGoal - data.carbs)).formatted())g")
+                        .foregroundStyle(WidgetPalette.accentCarbs)
+                    Text("F \(Int(max(0, data.fatGoal - data.fats)).formatted())g")
+                        .foregroundStyle(WidgetPalette.accentFats)
+                }
+                .font(.caption2.weight(.bold))
+
+                Button(intent: LogWaterIntent()) {
+                    Image(systemName: "drop.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(WidgetPalette.onSignal)
+                        .frame(width: 26, height: 26)
+                        .background(WidgetPalette.accentWater, in: Circle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            WidgetFuelPathStrip(events: Array(pathEvents.prefix(3)))
+
+            if let action = data.nextAction {
+                WidgetNextActionRow(action: action, compact: true)
+            }
+        }
+    }
+
+    private var legacyBody: some View {
         VStack(spacing: 9) {
             HStack(spacing: 20) {
                 VStack {
@@ -233,7 +311,7 @@ struct MediumWidgetView: View {
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(WidgetPalette.brandPrimary)
+                        .foregroundColor(WidgetPalette.brandForeground)
                     Text("cal")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -252,12 +330,16 @@ struct MediumWidgetView: View {
                                 .foregroundColor(WidgetPalette.accentSignal)
                         }
 
+                        if data.widgetFreshness.state == .stale {
+                            WidgetFreshnessMark(data: data, compact: true)
+                        }
+
                         Spacer()
 
                         Button(intent: LogWaterIntent()) {
                             Image(systemName: "drop.fill")
                                 .font(.caption)
-                                .foregroundColor(.white)
+                                .foregroundColor(WidgetPalette.onSignal)
                                 .padding(6)
                                 .background(WidgetPalette.accentWater)
                                 .clipShape(Circle())
@@ -271,7 +353,6 @@ struct MediumWidgetView: View {
                 WidgetNextActionRow(action: action, compact: true)
             }
         }
-        .padding()
     }
 }
 
@@ -287,7 +368,7 @@ struct SmallWidgetView: View {
                         .foregroundStyle(.secondary)
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
                         .font(.system(.title2, design: .rounded, weight: .bold))
-                        .foregroundStyle(WidgetPalette.brandPrimary)
+                        .foregroundStyle(WidgetPalette.brandForeground)
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
                 }
@@ -295,9 +376,16 @@ struct SmallWidgetView: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text("Protein")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        if data.widgetFreshness.state == .stale {
+                            Image(systemName: "clock.badge.exclamationmark")
+                                .foregroundStyle(WidgetPalette.accentSignal)
+                                .accessibilityHidden(true)
+                        }
+                        Text("Protein")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.caption2)
                     Text("\(Int(max(0, data.proteinGoal - data.protein)).formatted()) g")
                         .font(.system(.headline, design: .rounded, weight: .bold))
                         .foregroundStyle(WidgetPalette.accentProtein)
@@ -343,7 +431,7 @@ private struct SmallWidgetNextActionRow: View {
         HStack(spacing: 7) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(WidgetPalette.brandPrimary)
+                .foregroundStyle(WidgetPalette.brandForeground)
                 .frame(width: 24, height: 24)
                 .background(
                     WidgetPalette.brandPrimary.opacity(0.12),
@@ -378,7 +466,73 @@ struct LargeWidgetView: View {
     let data: WidgetData
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
+    private var pathEvents: [WidgetPathEvent] {
+        data.currentPathEvents
+    }
+
     var body: some View {
+        Group {
+            if pathEvents.isEmpty {
+                legacyBody
+            } else {
+                livingDayBody
+            }
+        }
+        .padding()
+    }
+
+    private var livingDayBody: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Living Day")
+                        .font(.headline)
+                    if data.widgetFreshness.state == .stale {
+                        WidgetFreshnessMark(data: data, compact: true)
+                    } else {
+                        Text("Your current path")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .foregroundStyle(WidgetPalette.brandForeground)
+            }
+
+            HStack(spacing: 14) {
+                MacroBar(
+                    label: "Protein",
+                    value: data.protein,
+                    goal: data.proteinGoal,
+                    color: WidgetPalette.accentProtein
+                )
+                MacroBar(
+                    label: "Carbs",
+                    value: data.carbs,
+                    goal: data.carbsGoal,
+                    color: WidgetPalette.accentCarbs
+                )
+                MacroBar(
+                    label: "Fats",
+                    value: data.fats,
+                    goal: data.fatGoal,
+                    color: WidgetPalette.accentFats
+                )
+            }
+
+            WidgetFuelPathList(events: Array(pathEvents.prefix(4)))
+
+            if let action = data.nextAction {
+                WidgetNextActionRow(action: action)
+            }
+        }
+    }
+
+    private var legacyBody: some View {
         VStack(spacing: 10) {
             LazyVGrid(columns: columns, spacing: 20) {
                 ProgressBubble(
@@ -414,11 +568,147 @@ struct LargeWidgetView: View {
                     .lineLimit(1)
             }
 
+            if data.widgetFreshness.state == .stale {
+                WidgetFreshnessMark(data: data)
+            }
+
             if let action = data.nextAction {
                 WidgetNextActionRow(action: action)
             }
         }
-        .padding()
+    }
+}
+
+private struct WidgetFreshnessMark: View {
+    let data: WidgetData
+    var compact = false
+
+    var body: some View {
+        Label(data.widgetFreshness.shortLabel, systemImage: "clock.badge.exclamationmark")
+            .font(compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
+            .foregroundStyle(WidgetPalette.accentSignal)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(data.widgetFreshness.accessibilityLabel)
+    }
+}
+
+private extension WidgetData {
+    var widgetFreshness: AppDataFreshness {
+        AppDataFreshness(updatedAt: lastUpdated)
+    }
+}
+
+private struct WidgetFuelPathStrip: View {
+    let events: [WidgetPathEvent]
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(height: 1)
+                .padding(.horizontal, 30)
+                .offset(y: 25)
+
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(events) { event in
+                    VStack(spacing: 2) {
+                        Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        WidgetFuelPathNode(event: event, size: 24)
+                        Text(event.kind.shortTitle)
+                            .font(.system(size: 8, weight: .bold))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(event.accessibilitySummary)
+                }
+            }
+        }
+        .frame(height: 52)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct WidgetFuelPathList: View {
+    let events: [WidgetPathEvent]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                HStack(alignment: .top, spacing: 9) {
+                    Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .frame(width: 54, alignment: .trailing)
+
+                    VStack(spacing: 0) {
+                        WidgetFuelPathNode(event: event, size: 26)
+                        if index < events.count - 1 {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(width: 1, height: 10)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(event.kind.title)
+                            .font(.caption.weight(.bold))
+                        Text(event.state.title)
+                            .font(.caption2)
+                            .foregroundStyle(event.needsTrustReview ? WidgetPalette.accentSignal : .secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if event.needsTrustReview {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(WidgetPalette.accentSignal)
+                            .accessibilityLabel("Trust review needed")
+                    }
+                }
+                .frame(minHeight: 34)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(event.accessibilitySummary)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct WidgetFuelPathNode: View {
+    let event: WidgetPathEvent
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            nodeBackground
+            Image(systemName: event.kind.icon)
+                .font(.system(size: size * 0.42, weight: .bold))
+                .foregroundStyle(event.state == .planned ? event.kind.color : WidgetPalette.onSignal)
+        }
+        .frame(width: size, height: size)
+    }
+
+    @ViewBuilder
+    private var nodeBackground: some View {
+        switch event.state {
+        case .completed:
+            Circle().fill(event.kind.color)
+        case .planned:
+            Circle()
+                .fill(WidgetPalette.backgroundPrimary)
+                .overlay(Circle().stroke(event.kind.color, lineWidth: 1.5))
+        case .active:
+            RoundedRectangle(cornerRadius: 6)
+                .fill(event.kind.color)
+        }
     }
 }
 
@@ -526,5 +816,76 @@ struct ProgressBubble: View {
             }
             Text(label).font(.caption).bold()
         }
+    }
+}
+
+private extension WidgetData {
+    var currentPathEvents: [WidgetPathEvent] {
+        guard let pathDate,
+              Calendar.current.isDateInToday(pathDate) else { return [] }
+        return (pathEvents ?? []).sorted {
+            if $0.startDate == $1.startDate { return $0.sequence < $1.sequence }
+            return $0.startDate < $1.startDate
+        }
+    }
+}
+
+private extension WidgetPathEvent.Kind {
+    var title: String {
+        switch self {
+        case .meal: return "Meal"
+        case .strength: return "Strength"
+        case .run: return "Run"
+        case .activity: return "Activity"
+        case .recovery: return "Recovery"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .meal: return "Meal"
+        case .strength: return "Lift"
+        case .run: return "Run"
+        case .activity: return "Move"
+        case .recovery: return "Recover"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .meal: return "fork.knife"
+        case .strength: return "dumbbell.fill"
+        case .run: return "figure.run"
+        case .activity: return "figure.mixed.cardio"
+        case .recovery: return "bolt.heart.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .meal: return WidgetPalette.brandPrimary
+        case .strength: return WidgetPalette.accentProtein
+        case .run: return WidgetPalette.accentWater
+        case .activity: return WidgetPalette.accentCarbs
+        case .recovery: return WidgetPalette.brandPrimary
+        }
+    }
+}
+
+private extension WidgetPathEvent.State {
+    var title: String {
+        switch self {
+        case .completed: return "Completed"
+        case .planned: return "Planned"
+        case .active: return "In progress"
+        }
+    }
+}
+
+private extension WidgetPathEvent {
+    var accessibilitySummary: String {
+        let approximation = isApproximate ? "approximately " : ""
+        let trust = needsTrustReview ? ", Trust review needed" : ""
+        return "\(kind.title), \(state.title), \(approximation)\(startDate.formatted(date: .omitted, time: .shortened))\(trust)"
     }
 }

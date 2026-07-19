@@ -21,7 +21,10 @@ public class LiveActivityManager {
         do {
             let activity = try Activity<WorkoutAttributes>.request(
                 attributes: attributes,
-                content: .init(state: contentState, staleDate: nil),
+                content: .init(
+                    state: contentState,
+                    staleDate: Date().addingTimeInterval(8 * 60 * 60)
+                ),
                 pushType: nil
             )
             self.activity = activity
@@ -39,7 +42,12 @@ public class LiveActivityManager {
         newState.restEndTime = endTime
 
         Task {
-            await activity.update(ActivityContent(state: newState, staleDate: nil))
+            await activity.update(
+                ActivityContent(
+                    state: newState,
+                    staleDate: endTime.addingTimeInterval(5 * 60)
+                )
+            )
         }
     }
 
@@ -50,7 +58,12 @@ public class LiveActivityManager {
         newState.restEndTime = nil
 
         Task {
-            await activity.update(ActivityContent(state: newState, staleDate: nil))
+            await activity.update(
+                ActivityContent(
+                    state: newState,
+                    staleDate: Date().addingTimeInterval(8 * 60 * 60)
+                )
+            )
         }
     }
 

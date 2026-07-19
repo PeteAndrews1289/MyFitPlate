@@ -30,6 +30,7 @@ final class PrivacyGuardrailTests: XCTestCase {
         )
         XCTAssertTrue(store.allowsHealthData(for: "user-a"))
         XCTAssertNil(store.consent(for: "user-b"))
+        XCTAssertFalse(defaults.dictionaryRepresentation().keys.joined().contains("user-a"))
     }
 
     func testRevokingAIConsentBlocksAllAIDataSharing() {
@@ -40,6 +41,21 @@ final class PrivacyGuardrailTests: XCTestCase {
 
         XCTAssertFalse(store.hasCurrentConsent(for: "user-a"))
         XCTAssertFalse(store.allowsHealthData(for: "user-a"))
+    }
+
+    func testLegacyAIConsentMigratesAwayFromRawAccountKey() throws {
+        let userID = "legacy-consent-user"
+        let legacyKey = "ai_data_consent_v1_\(userID)"
+        let consent = AIDataConsent(
+            grantedAt: Date(timeIntervalSince1970: 1_750_000_000),
+            includesHealthData: true
+        )
+        defaults.set(try JSONEncoder().encode(consent), forKey: legacyKey)
+        let store = AIDataConsentStore(defaults: defaults)
+
+        XCTAssertEqual(store.consent(for: userID), consent)
+        XCTAssertNil(defaults.data(forKey: legacyKey))
+        XCTAssertFalse(defaults.dictionaryRepresentation().keys.joined().contains(userID))
     }
 
     func testMaiaContractDropsHealthKitScopeWithoutOptionalConsent() {
@@ -88,5 +104,49 @@ final class PrivacyGuardrailTests: XCTestCase {
         ] {
             XCTAssertNil(result?[key], key)
         }
+    }
+
+    func testAnalyticsSanitizerKeepsLivingDayAggregateDimensions() {
+        let result = AnalyticsPrivacy.sanitizedParameters([
+            "path_event_count": 4,
+            "has_training": true,
+            "freshness": "current",
+            "next_action_kind": "recovery_meal",
+            "density": "compact",
+            "includes_budget": true,
+            "includes_path": true,
+            "includes_trust": false,
+            "includes_action": true,
+            "food_name": "Private meal",
+            "route": "Private GPS route"
+        ])
+
+        XCTAssertEqual(result?["path_event_count"] as? Int, 4)
+        XCTAssertEqual(result?["has_training"] as? Bool, true)
+        XCTAssertEqual(result?["freshness"] as? String, "current")
+        XCTAssertEqual(result?["next_action_kind"] as? String, "recovery_meal")
+        XCTAssertEqual(result?["density"] as? String, "compact")
+        XCTAssertEqual(result?["includes_budget"] as? Bool, true)
+        XCTAssertEqual(result?["includes_path"] as? Bool, true)
+        XCTAssertEqual(result?["includes_trust"] as? Bool, false)
+        XCTAssertEqual(result?["includes_action"] as? Bool, true)
+        XCTAssertNil(result?["food_name"])
+        XCTAssertNil(result?["route"])
+    }
+
+    func testAnalyticsSanitizerRejectsUnknownIdentityAndNameSuffixes() {
+        let result = AnalyticsPrivacy.sanitizedParameters([
+            "screen_name": "food_search",
+            "correlation_id": "private-id",
+            "item_name": "Private meal",
+            "recipe_description": "Private recipe text",
+            "provider": "health_canada"
+        ])
+
+        XCTAssertEqual(result?["screen_name"] as? String, "food_search")
+        XCTAssertEqual(result?["provider"] as? String, "health_canada")
+        XCTAssertNil(result?["correlation_id"])
+        XCTAssertNil(result?["item_name"])
+        XCTAssertNil(result?["recipe_description"])
     }
 }

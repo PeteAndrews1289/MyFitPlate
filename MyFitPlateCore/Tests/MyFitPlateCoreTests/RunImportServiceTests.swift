@@ -5,16 +5,27 @@ import HealthKit
 @MainActor
 final class RunImportServiceTests: XCTestCase {
     private var mockStore: MockHealthStore!
+    private var fallbackDefaults: UserDefaults!
+    private var fallbackStore: RunFallbackStore!
     private var service: RunImportService!
 
     override func setUp() {
         super.setUp()
         mockStore = MockHealthStore()
-        service = RunImportService(healthStore: mockStore)
+        fallbackDefaults = UserDefaults(suiteName: "RunImportServiceTests")
+        fallbackDefaults.removePersistentDomain(forName: "RunImportServiceTests")
+        fallbackStore = RunFallbackStore(defaults: fallbackDefaults)
+        service = RunImportService(
+            healthStore: mockStore,
+            fallbackStore: fallbackStore
+        )
     }
 
     override func tearDown() {
         service = nil
+        fallbackStore = nil
+        fallbackDefaults.removePersistentDomain(forName: "RunImportServiceTests")
+        fallbackDefaults = nil
         mockStore = nil
         super.tearDown()
     }
@@ -90,6 +101,33 @@ final class RunImportServiceTests: XCTestCase {
         }
         waitForExpectations(timeout: 1.0)
         XCTAssertEqual(resultRuns?.count, 0)
+    }
+
+    func testFetchRunsIncludesAccountFallbackWhenHealthWriteFailed() {
+        let run = Run(
+            id: "fallback-run",
+            source: .recorded,
+            startDate: Date().addingTimeInterval(-1_800),
+            endDate: Date(),
+            distanceMeters: 5_000,
+            movingSeconds: 1_800
+        )
+        XCTAssertTrue(fallbackStore.save(run, for: "user"))
+        service = RunImportService(
+            healthStore: mockStore,
+            fallbackStore: fallbackStore
+        )
+        mockStore.workoutQueryResult = []
+
+        let exp = expectation(description: "Fetch fallback run")
+        var resultRuns: [Run] = []
+        service.fetchRuns(since: Date().addingTimeInterval(-86_400), userID: "user") { runs in
+            resultRuns = runs
+            exp.fulfill()
+        }
+        waitForExpectations(timeout: 1.0)
+
+        XCTAssertEqual(resultRuns.map(\.id), ["fallback-run"])
     }
 
     func testFetchRouteWithInvalidUUID() {

@@ -1,0 +1,507 @@
+# Version 2.3 Experience Roadmap: The Living Day
+
+Status: active implementation on `codex/2.3-living-day`
+
+Working release name: **The Living Day**
+
+Flagship interaction: **Fuel Path**
+
+## Release thesis
+
+Version 2.2 made MyFitPlate functionally credible across trusted food logging, strength,
+running, recovery, meal planning, reporting, Maia, Watch, widgets, and real-world dining.
+Version 2.3 should make that breadth feel like one product rather than several capable tools.
+
+The release should not win by adding the longest feature list. It should give MyFitPlate one
+recognizable interaction that competitors cannot reproduce without also owning food provenance,
+training execution, recovery timing, and a live nutrition diary.
+
+**Public promise:**
+
+> See how food and training fit together, then act on what matters next.
+
+**Product outcome:** a user should be able to open Home, understand the shape of today in five
+seconds, and take the next useful action without translating several cards, rings, or scores.
+
+## Why this is the opportunity
+
+The 2.2 gallery is polished and consistent, but most primary screens use the same visual recipe:
+white canvas, pale mint rounded cards, large rounded headings, and stacked summaries. The app is
+friendly, yet its most differentiated ideas are still presented using category-default dashboard
+patterns.
+
+Current category leaders tend to own one central visual or mental model:
+
+| Product | Visual or product territory it owns | MyFitPlate opportunity |
+| --- | --- | --- |
+| [MyFitnessPal Today](https://support.myfitnesspal.com/hc/en-us/articles/39985611667341-Introducing-the-brand-new-Today-tab) | Diary-first calories, macros, meals, habits, and logging shortcuts | Do not build another card-based Today dashboard |
+| [Cronometer](https://cronometer.com/features/) | Detailed nutrient coverage and accuracy reporting | Make evidence legible without becoming a dense nutrient spreadsheet |
+| [MacroFactor](https://macrofactor.com/dashboard-revamp/) | Energy balance, expenditure, weight trend, and coached adjustments | Connect nutrition to actual training timing rather than competing on expenditure modeling |
+| [Gentler Streak](https://docs.gentler.app/understanding-your-activity-path/interpret-the-activity-path) | One memorable Activity Path for training balance | Own a food-and-training path grounded in logged events, not a readiness score |
+| [Hevy](https://www.hevyapp.com/features/) | Fast lifting workflow, muscle maps, progress, and social proof | Keep workout operations quiet while making the cross-domain story distinctive |
+
+The whitespace is not another recovery ring. It is a day-level view where every meal can carry
+evidence, every workout changes the timing context, and every recommendation remains bounded by
+the user's real targets.
+
+## North-star experience: Fuel Path
+
+Fuel Path is an unframed, interactive day surface on Home. It combines actual meals, planned
+meals, training, recovery windows, remaining targets, Trust state, and the current next action
+on one time-based path.
+
+It is a visual index into existing functionality, not a new scoring algorithm and not another
+data store.
+
+### First-viewport anatomy
+
+1. **Compact day header**
+   - Date, logging streak, and one privacy-safe sync state.
+   - Previous/next-day navigation stays available but visually secondary.
+
+2. **Daily budget ribbon**
+   - Calories plus protein, carbs, and fat use separate stable colors.
+   - The ribbon shows consumed, planned, and remaining without implying that exercise erases food.
+   - Invalid or incomplete data becomes unavailable, never a false zero.
+
+3. **The path**
+   - A time rail spans the meaningful portion of the day rather than showing all 24 hours equally.
+   - Logged meals are filled nodes; planned meals are outlined nodes.
+   - Strength, outdoor run, treadmill, and imported training events use distinct familiar icons.
+   - The current time has a persistent marker and accessible text equivalent.
+   - Future events may be shifted by the user only when the source is an editable plan.
+
+4. **Training and recovery window**
+   - A confirmed Training Fuel plan appears as a bounded before/after band around the exact session.
+   - Completion, skipping, over-target, midnight, and unavailable-diary rules continue to come from
+     the deterministic 2.2 engine.
+   - The visual cannot invent fuel needs or increase a daily target.
+
+5. **Current next action**
+   - One action attaches to the current-time marker: log food, review Trust, fuel training,
+     recover, catch up protein, or hold steady.
+   - Tapping it routes to the exact existing destination.
+   - Maia may add one short annotation, but the deterministic action remains primary.
+
+### Trust on the path
+
+Every logged meal node carries a small evidence treatment:
+
+- solid ring plus check shape: independently supported and sane;
+- segmented ring: one reliable source or partial evidence;
+- amber notch plus review label: useful but worth reviewing;
+- red break plus fix label: contradictory data that requires correction.
+
+Color is never the only signal. VoiceOver receives the same source class, evidence state, and
+required action in plain language. The ring represents the food data, not whether eating the meal
+was good or bad.
+
+### Interaction model
+
+- **Tap a node:** open a compact event summary, then Food Detail, Meal Plan, workout, or run detail.
+- **Tap empty time:** open Quick Log with that time and the likely meal preselected.
+- **Tap the current marker:** perform the current next action.
+- **Swipe the path:** move through earlier and later events without changing the selected day.
+- **Long press a planned node:** reschedule or remove it when its source is editable.
+- **Log successfully:** the Quick Log control resolves into the new path node with a short haptic.
+- **Finish training:** the active band closes and the recovery target becomes the current action.
+- **Correct a food:** the node's evidence treatment updates only after persistence succeeds.
+
+No core workflow should require a gesture with no visible alternative.
+
+### Sparse, exceptional, and honest states
+
+- Empty day: show one open path with direct Search, Barcode, and Import actions.
+- No training: the path remains useful as a meal and Trust timeline.
+- No timestamps: place legacy entries in their meal period and label the timing as approximate.
+- Over target: show a neutral review state; never display punishment, debt, or a negative path.
+- Missing micronutrients: omit unsupported detail and link to coverage rather than showing zero.
+- Provider outage: local meals remain on the path and remote logging exposes recovery actions.
+- Stale sync: retain the last known state with an explicit timestamp and retry action.
+
+## Supporting signature surfaces
+
+### Trust Receipt
+
+Food Detail should replace the large nested Trust card with a compact provenance receipt:
+
+- identity and serving at the top;
+- source sequence and cross-check relationship as a readable vertical trace;
+- nutrition sanity findings beside the fields they affect;
+- user review and saved-correction state as the final step;
+- one primary correction action;
+- advanced details disclosed on demand.
+
+The existing Trust score remains available, but evidence should lead and the number should follow.
+The receipt must remain export-safe and must never expose private contributor identity.
+
+### My Foods Library
+
+The personal food library closes the correction loop and gives the new visual system practical
+depth:
+
+- search and sort saved foods;
+- filter barcode corrections, manual foods, recipes, recent foods, and items needing review;
+- edit or delete an entry;
+- merge true duplicates without silently combining different servings;
+- inspect and remove a barcode association;
+- show last used and coarse Trust state;
+- confirm exactly what future scans will reuse.
+
+Destructive operations require confirmation and must not alter already-logged historical entries.
+
+### Week in Motion
+
+The unified report should gain one editorial, shareable seven-day story:
+
+1. training rhythm;
+2. fuel timing and eligible recovery follow-through;
+3. Trust and diary coverage;
+4. weight/nutrition trend;
+5. one evidence-based next-week observation.
+
+This is a sequence of full-width bands, not a stack of miniature dashboard cards. Existing detailed
+charts and CSV export remain available below it.
+
+### Maia in context
+
+Maia should feel woven into the day rather than duplicating the dashboard:
+
+- one short annotation can attach to the current action;
+- a generated food idea must retain its deterministic calorie/macro envelope;
+- tapping the annotation opens the existing structured action or conversation;
+- hidden JSON, raw Health values, prompts, and account content remain excluded from speech and
+  analytics;
+- the Maia tab remains the full conversation destination.
+
+## Visual language for 2.3
+
+### Keep
+
+- rounded system typography;
+- evergreen brand identity;
+- macro colors already learned by users;
+- familiar SF Symbols and existing haptic vocabulary;
+- fast sheets for logging and operational tasks.
+
+### Evolve
+
+- use color for information, not as a pale tint behind every section;
+- reduce large corner radii and material layers on primary screens;
+- remove card-inside-card composition;
+- let Home, Trust, and Reports use unframed full-width visual structures;
+- use stronger black/white hierarchy with evergreen, blue, gold, purple, orange, and cyan signals;
+- reserve capsules for status and segmented choices, not ordinary labels;
+- standardize spacing, chart strokes, icon containers, selected states, and dividers.
+
+### Motion
+
+Motion should explain state changes:
+
+- node insertion after a successful log;
+- path progression at the current time;
+- planned-to-completed transition;
+- Trust evidence resolving after a saved correction;
+- training-to-recovery handoff.
+
+There are no ambient particles, decorative blobs, endless pulses, or celebration for eating less.
+Reduce Motion replaces spatial transitions with opacity and content changes. Motion can never delay
+logging, correction, workout completion, or navigation.
+
+## Technical shape
+
+### Deterministic presentation model
+
+Create a Core `LivingDaySnapshot` assembled from existing inputs:
+
+- selected-day diary and goals;
+- Food Trust evaluations and coverage;
+- active program and exact workout state;
+- recorded/imported runs;
+- confirmed Training Fuel plan and outcome;
+- Meal Plan entries;
+- current next action;
+- sync freshness and source-read failures.
+
+The snapshot should be immutable, finite-value checked, account scoped, and renderable with no
+network access. It should expose explicit unavailable and approximate states.
+
+### Rendering boundary
+
+- SwiftUI renders the snapshot without fetching repositories from individual nodes.
+- Deterministic screenshot fixtures cover empty, ordinary, training, recovery, over-target,
+  low-Trust, offline, and accessibility layouts.
+- The path has a semantic list representation used by VoiceOver and large accessibility sizes.
+- iOS 17 remains supported; later APIs require graceful fallbacks.
+
+### Rollout boundary
+
+- Ship behind `feature_livingDayHome` until device validation is complete.
+- Keep the 2.2 Home available as an immediate fallback for at least one release cycle.
+- The first implementation is read-only navigation over existing data.
+- Add rescheduling and inline actions only after read-only rendering is stable.
+- No backend schema migration is required for Fuel Path v1.
+
+## Scope
+
+### Must ship
+
+- [x] Living Day visual tokens and reusable Home path primitives.
+- [x] `LivingDaySnapshot` deterministic Core model and initial adversarial test matrix.
+- [x] Fuel Path read-only Home experience with exact navigation.
+- [x] Quick Log insertion and training-to-recovery transitions. Successful serialized diary writes
+  target and emphasize the exact meal node; planned/completed/skipped Training Fuel changes carry
+  across tabs; stale transitions expire; and Reduce Motion receives fades/content updates.
+- [x] Trust Receipt on Food Detail. Evidence leads in one unframed source/verification/nutrition/
+  review trace; the score follows behind disclosure; and correction state changes only after a
+  successful saved-food write.
+- [x] My Foods Library with search/filter/sort, persistence-backed edit/delete, personal barcode
+  detachment, and atomic true-duplicate merge. Dated diary history is outside every mutation path.
+- [x] Week in Motion opening report sequence with seven exact day states, denominator-backed
+  evidence, one bounded observation, detailed-report handoff, and aggregate-only share image.
+- [x] VoiceOver semantic order, Dynamic Type, Reduce Motion, contrast, dark mode, and compact-
+  device closure. Deterministic render and focused UI matrices cover every named state; Peter's
+  physical-device comprehension, spoken cadence, and tactile-motion pass remain rollout gates.
+- [x] Default-off feature flag, old-Home fallback, Home analytics, deterministic screenshots, and
+  immediate rollback path. Production cohort rollout remains gated on physical-device validation.
+- [x] Two evidence-reserved slots filled from Peter's physical 2.3 pass: Living Day now survives
+  Home tab reconstruction, and Reports holds a stable Week in Motion footprint while one shared,
+  account/day-scoped recap load completes.
+
+### Should ship
+
+- [x] Contextual Maia annotation on the current next action. Its fixed explanation follows the
+  deterministic rule and can only open the existing action.
+- [x] Medium/large widget adaptation of the current Fuel Path segment with an exact legacy payload
+  and layout fallback.
+- [x] Shareable Living Day and Week in Motion images with explicit coarse-section selection and no
+  account IDs, item names, routes, coordinates, or raw Health samples. Aggregate daily nutrition
+  appears only when the user explicitly selects the Nutrition budget section.
+- [x] User-selectable compact or detailed path density, persisted locally with compact as default.
+- [x] CI upgrades away from Actions that target deprecated Node 20. Current action generations run
+  on Node 24 and project JavaScript jobs run on Node 22.
+
+### Conditional on evidence
+
+- [ ] Trust model reweighting after the cohort minimums in `trust-calibration-2.3.md`.
+- [ ] Limited community barcode rollout after private abuse, conflict, cost, and rollback soak.
+- [ ] New Training Fuel actions only when 2.2 handoff telemetry identifies a repeated unmet need.
+- [ ] Expanded Watch actions only when phone/Watch usage shows a clear repeated workflow.
+
+## Explicit non-goals
+
+- A decorative app-wide reskin with no workflow improvement.
+- Another generic Home dashboard made from customizable cards.
+- A readiness, wellness, or food-morality composite score.
+- Replacing the fast Food Search, builder, workout player, or run recorder with editorial layouts.
+- Public social feeds, public challenges, or friend graphs.
+- A broad Maia rewrite or autonomous goal changes.
+- New food providers, new running modes, iPad redesign, Android, or a new subscription system.
+- 3D scenes, ornamental gradients, or motion that competes with repeated logging.
+
+## Phased build plan
+
+### Phase 0: 2.2 observation and visual prototype
+
+- Record the submitted 2.2 baseline and collect launch feedback.
+- Prototype three renderings from the same deterministic snapshot: compressed horizontal rail,
+  vertical living timeline, and plate-clock overview.
+- The selected production direction is the vertical living timeline.
+- Select the rendering by five-second comprehension, exact-action discoverability, compact-phone
+  fit, and accessibility behavior, not visual novelty alone.
+
+Exit gate: one direction is clearly understandable without explanatory copy and has a complete
+semantic fallback.
+
+Implementation checkpoint (2026-07-12): all three directions render from the same immutable
+fixture in a Debug/screenshot-only gallery. Launch with `-ui-testing -screenshot-mode` and one of
+`-screenshot-screen living-day-rail`, `living-day-timeline`, or `living-day-clock`. The vertical
+timeline is the production direction because it keeps event order, exact/approximate timing,
+Trust evidence, the current-time break, future training, and the current action visible together.
+The clock is the strongest secondary summary; the rail is the densest but gives adjacent future
+events the least room. Standard light, dark, and accessibility-extra-extra-extra-large Simulator
+captures are clean. Physical-device comprehension and motion remain rollout checks, not a design-
+selection blocker.
+
+### Phase 1: experience system and snapshot
+
+- Add spacing, shape, stroke, color, chart, and motion tokens.
+- Build `LivingDaySnapshot`, fixtures, and Core tests.
+- Render the path in a developer-only gallery with no navigation or writes.
+
+Exit gate: all edge-state fixtures render without overlap in light/dark and standard/accessibility
+sizes; snapshot invariants fail closed.
+
+### Phase 2: read-only Home integration
+
+- Add Fuel Path behind the feature flag.
+- Connect nodes and current action to exact existing destinations.
+- Preserve current Home as fallback.
+- Add first-use orientation through progressive disclosure, not a feature-tour wall of text.
+
+Exit gate: no regression in time to Quick Log, Home task completion, startup, or diary freshness.
+
+Implementation checkpoint (2026-07-12): the vertical timeline now replaces only the Today
+dashboard when `feature_livingDayHome` is enabled. The flag defaults off, refreshes once per Home
+session, and leaves historical dates and the existing 2.2 Home untouched. Its snapshot is assembled
+from the account-scoped diary, goals, meal plan, logged exercise, and confirmed Training Fuel plan.
+Logged/planned food and activity overlaps are reconciled before rendering so the projected budget,
+timeline, and deterministic action cannot contradict one another. The collapsed path shows the two
+events nearest now and expands explicitly; Quick Actions remain in the first standard-size viewport.
+Exact nodes and actions route into the existing diary, Nutrition Audit, Meal Plan, Training Fuel,
+workout, run, walk, and food-search workflows. Light, dark, accessibility-extra-extra-extra-large,
+and exact-fallback Simulator captures pass. VoiceOver labels, Dynamic Type layouts, Reduce Motion,
+analytics, stale/limited status, and shape-based event states are included. Physical-device checks
+and controlled Remote Config rollout remain open.
+
+### Phase 3: action transitions and Trust
+
+- Integrate Quick Log insertion, planned/completed transitions, and recovery handoff.
+- Ship Trust Receipt and evidence-state updates after successful correction persistence.
+- Add privacy-safe analytics for path exposure, node action, current action, and fallback use.
+
+Exit gate: actions remain exactly-once, account scoped, and consistent across midnight/offline
+recovery; Trust never changes before persistence succeeds.
+
+Implementation checkpoint (2026-07-12): Quick Log insertion is driven by the typed food-log
+notification emitted only after the serialized diary write succeeds. The affected aggregate meal
+node is forced into the collapsed two-event window, receives a short evidence-colored emphasis,
+and updates the budget and deterministic action from the new snapshot. Training Fuel plan,
+completion/recovery, and skip transitions are retained by the app shell across tab switches and
+expire before they can replay on a later Home visit. VoiceOver announces the persisted result;
+Reduce Motion replaces scale/spatial insertion with opacity and content changes. Standard and
+accessibility-size render captures pass. Food Detail now replaces its nested score-first Trust card
+and duplicate warning/AI panels with one evidence-first Trust Receipt. Findings sit beside their
+affected field group, private community identity stays absent, and the score is disclosed on demand.
+Correction submission leaves the prior receipt intact while saving; only a successful custom-food
+write updates provenance, nutrition findings, personal review, VoiceOver, and the short resolution
+treatment. Failure leaves the original state actionable.
+
+### Phase 4: personal library and weekly story
+
+- Ship My Foods Library with safe management actions.
+- Add Week in Motion above the detailed report.
+- Add share renderers and selected widget adaptation.
+
+Exit gate: duplicate management cannot mutate history; shares contain no item names, account IDs,
+routes, coordinates, or raw Health samples. Users explicitly select only coarse visible sections
+such as rhythm, evidence, budget, path, Trust status, and current action; aggregate daily nutrition
+appears only when the user selects the Nutrition budget section.
+
+Implementation checkpoint (2026-07-12): My Foods is now an operational, searchable library over
+the signed-in user's reusable `customFoods` documents. It supports source/review filters, stable
+sorting, last-used context derived only from explicit saved-food identity, in-place nutrition
+editing, personal barcode detachment, deletion, and an atomic merge offered only when normalized
+identity, serving, source category, barcode state, macros, micronutrients, weight, and quantity all
+match. The interface changes only after persistence succeeds. Standard and accessibility-extra-
+extra-extra-large captures pass, and no diary collection is read or written by a destructive
+operation. Week in Motion and sharing remain open in Phase 4. The full boundary is documented in
+`my-foods-library-2.3.md`.
+
+Implementation checkpoint (2026-07-12): Reports now opens with Week in Motion before timeframe
+controls and detailed charts. `WeeklyRecap` gained exactly seven ordered day states; the editorial
+projection joins shape-coded strength/running rhythm, food coverage, timestamped recovery outcomes,
+and Trust denominators without a composite score. One deterministic observation includes both its
+fact and its basis. A shared loader gives Reports and the detailed sheet the same recap, while the
+existing report cards, CSV, and share controls remain below. The share image now uses the same
+aggregate-only rhythm and excludes names, routes, coordinates, account data, and raw Health
+samples. Standard, dark, accessibility-extra-extra-extra-large, fixed share, real Reports-screen,
+and legacy end-to-end weekly-report checks pass. Full contract: `week-in-motion-2.3.md`.
+
+Implementation checkpoint (2026-07-13): Living Day and Week in Motion now open explicit share-
+selection sheets with fixed live previews. Living Day projects only aggregate budget status,
+coarse event kinds/states/evidence, Trust review count, and the deterministic action; Week in
+Motion shares only selected rhythm, evidence, and observation bands. Reflection-based Core tests
+reject names, identifiers, routes, coordinates, and raw samples. The medium and large widgets show
+the current coarse path segment when the new optional payload exists and preserve the exact 2.2
+body when it does not. Payload decoding remains backward compatible.
+
+The current action now carries one fixed Maia annotation, compact/detailed density is persisted
+locally, and both are analytics-safe. The inclusive matrix covers ordinary, empty, training,
+recovery, over-target, low-Trust, stale/offline, compact, dark, high-contrast, and largest-text
+states. Actual simulator Dark Mode + Increase Contrast and actual Reduce Motion UI runs pass. The
+snapshot/share/widget projection loop remains well inside its local render budget, feature-flag
+and legacy-payload rollback tests pass, and CI no longer invokes a Node 20 action runtime.
+
+### Phase 5: release closure
+
+- Use the two reserved live-feedback slots only for observed workflow or correctness failures. The
+  2026-07-13 device pass filled them with Home lifecycle persistence and Reports first-paint
+  stability; no speculative feature was added.
+- Run screenshot, UI, device, accessibility, privacy, and performance matrices.
+- Compare the feature-flag cohort with the 2.2 Home baseline.
+- Keep community publication and Trust reweighting out unless their independent evidence gates pass.
+
+Local closure checkpoint (2026-07-13): the complete app-side build queue is implemented. Core
+passes 1,067/1,067 at 85.08% line coverage, the app unit target passes 96/96, and the full UI suite
+passes 17 test methods / 20 concrete executions. The named inclusive render matrix, actual
+Simulator Dark Mode + Increase Contrast, actual Reduce Motion, compact share preview, focused
+Living Day/Week share journeys, strict SwiftLint, project/catalog/diff/privacy checks, CI parse,
+Functions 11/11, Rules 23/23, migrations 10/10, and unsigned generic-device Release build pass.
+The phone, widget, Live Activity, and embedded Watch are version 2.3 build 1; both Watch HealthKit
+purpose strings, required architectures, and privacy manifests are present. Peter's first physical
+2.3 pass then filled the two evidence slots: the app shell now owns the Living Day flag across tab
+reconstruction, and Reports reuses an account/day-scoped recap loader behind a full-footprint
+loading sequence. Focused rendering and Home-to-Reports-to-Home UI regressions pass. Physical
+revalidation, spoken/tactile behavior, real widget refresh/deep links, Remote Config cohort setup,
+and signed archive validation remain owner rollout gates in `device-test-2.3.md`. The final app
+unit target passes 98/98, the complete UI target passes 21/21 concrete executions, strict SwiftLint
+passes, and the unsigned generic-iOS Release build remains green on this production-code tree.
+
+## Success measures
+
+Final numeric targets should be set after clean 2.2 production data exists. The 2.3 comparison
+must use MyFitPlate's own baseline.
+
+Primary measures:
+
+- more Home sessions produce one meaningful action;
+- Training Fuel views more often reach a saved plan or exact handoff;
+- time from app open to successful food write does not regress;
+- Trust review opens more often reach a persisted resolution;
+- corrected barcode foods are reused and manageable without duplicates;
+- more weekly active loggers complete both nutrition and training in the same week;
+- D1/D7 return improves without higher reminder opt-out or support friction.
+
+Experience guardrails:
+
+- five-second tests correctly identify what happened, what is planned, and what to do next;
+- no primary task requires interpreting color alone;
+- largest Dynamic Type and VoiceOver expose the complete path in a useful order;
+- Reduce Motion is fully functional;
+- startup, scrolling, and log insertion remain responsive on the smallest supported phone;
+- crash-free use, diary integrity, AI cost, and App Check validity do not regress.
+
+## Build queue
+
+1. [x] Lock the Living Day information hierarchy with deterministic 2.2 fixtures.
+2. [x] Build and compare the three Fuel Path prototypes; retain Peter's on-device selection as the
+   final direction gate.
+3. [x] Carry the completed Home visual token layer into Trust Receipt and Week in Motion without
+   changing operational screens.
+4. [x] Implement and test `LivingDaySnapshot`.
+5. [x] Ship read-only Fuel Path behind default-off `feature_livingDayHome` with exact 2.2 fallback.
+6. [x] Add persistence-backed Quick Log insertion plus planned/completed/skipped training and
+   recovery transitions; exact read-only navigation remains complete.
+7. [x] Build Trust Receipt with evidence-first hierarchy, one action, persistence-backed resolution,
+   Reduce Motion behavior, VoiceOver announcement, and standard/accessibility render fixtures.
+8. [x] Build My Foods Library with safe history isolation, personal barcode management, atomic
+   true-duplicate merge, failure-path coverage, and standard/accessibility render fixtures.
+9. [x] Add the selected widget slice and Living Day/Week in Motion explicit-selection sharing with
+   legacy widget fallback and aggregate-only privacy tests.
+10. [x] Fill the two evidence-reserved slots from confirmed live feedback. Home lifecycle
+    persistence and Reports first-paint stability were implemented and regression-tested after
+    Peter's 2026-07-13 physical-phone pass.
+11. [x] Close local accessibility, privacy, performance, analytics, CI, and rollback gates.
+    Physical iPhone comprehension, spoken VoiceOver cadence, tactile motion, widget refresh/deep
+    links, signed archive validation, and the production Remote Config cohort remain Peter-owned
+    rollout checks rather than unfinished implementation.
+
+## Ownership
+
+**Codex:** prototypes, visual system, Core snapshot model, SwiftUI implementation, fixtures,
+tests, accessibility, analytics contract, rollback path, and documentation.
+
+**Peter:** visual-direction preference after hands-on prototypes, real-device comprehension and
+motion feedback, production cohort review, user-feedback priority, App Store story, and any
+decision to expose community-contributed data.

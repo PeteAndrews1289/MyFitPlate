@@ -118,6 +118,33 @@ describe('MyFitPlate Firestore Rules', () => {
             const ref = alice.firestore().collection('posts').doc('post1');
             await assertFails(ref.set({ authorID: 'bob', content: 'hello' }));
         });
+
+        it('should accept the lowercase author alias', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const ref = alice.firestore().collection('posts').doc('post1');
+            await assertSucceeds(ref.set({ authorId: 'alice', content: 'hello' }));
+        });
+
+        it('should reject conflicting author aliases', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const ref = alice.firestore().collection('posts').doc('post1');
+            await assertFails(ref.set({ authorID: 'alice', authorId: 'bob', content: 'hello' }));
+        });
+
+        it('should allow content edits while denying author transfer or takeover', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('posts').doc('post1')
+                    .set({ authorID: 'alice', content: 'before' });
+            });
+
+            const aliceRef = testEnv.authenticatedContext('alice')
+                .firestore().collection('posts').doc('post1');
+            const bobRef = testEnv.authenticatedContext('bob')
+                .firestore().collection('posts').doc('post1');
+            await assertSucceeds(aliceRef.update({ content: 'after' }));
+            await assertFails(aliceRef.update({ authorID: 'bob' }));
+            await assertFails(bobRef.update({ authorID: 'bob', content: 'takeover' }));
+        });
     });
 
     // MARK: - Groups Collection
@@ -138,6 +165,81 @@ describe('MyFitPlate Firestore Rules', () => {
             const alice = testEnv.authenticatedContext('alice');
             const ref = alice.firestore().collection('groups').doc('group1');
             await assertFails(ref.set({ creatorID: 'bob', name: 'Bob Group' }));
+        });
+
+        it('should accept the lowercase creator alias', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const ref = alice.firestore().collection('groups').doc('group1');
+            await assertSucceeds(ref.set({ creatorId: 'alice', name: 'My Group' }));
+        });
+
+        it('should reject conflicting creator aliases', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const ref = alice.firestore().collection('groups').doc('group1');
+            await assertFails(ref.set({ creatorID: 'alice', creatorId: 'bob', name: 'My Group' }));
+        });
+
+        it('should allow group edits while denying creator transfer or takeover', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('groups').doc('group1')
+                    .set({ creatorID: 'alice', name: 'Before' });
+            });
+
+            const aliceRef = testEnv.authenticatedContext('alice')
+                .firestore().collection('groups').doc('group1');
+            const bobRef = testEnv.authenticatedContext('bob')
+                .firestore().collection('groups').doc('group1');
+            await assertSucceeds(aliceRef.update({ name: 'After' }));
+            await assertFails(aliceRef.update({ creatorID: 'bob' }));
+            await assertFails(bobRef.update({ creatorID: 'bob', name: 'Takeover' }));
+        });
+    });
+
+    // MARK: - Group Memberships
+    describe('Group Memberships', () => {
+        it('should accept lowercase ownership aliases', async () => {
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('groupMemberships').doc('membership1');
+            await assertSucceeds(ref.set({
+                userId: 'alice',
+                groupId: 'group1',
+                joinedAt: new Date(),
+            }));
+        });
+
+        it('should reject conflicting ownership aliases', async () => {
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('groupMemberships').doc('membership1');
+            await assertFails(ref.set({
+                userID: 'alice',
+                userId: 'bob',
+                groupID: 'group1',
+            }));
+        });
+
+        it('should reject conflicting group aliases', async () => {
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('groupMemberships').doc('membership1');
+            await assertFails(ref.set({
+                userID: 'alice',
+                groupID: 'group1',
+                groupId: 'group2',
+            }));
+        });
+
+        it('should let an owner edit membership details without allowing transfer or takeover', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('groupMemberships').doc('membership1')
+                    .set({ userID: 'alice', groupID: 'group1' });
+            });
+
+            const aliceRef = testEnv.authenticatedContext('alice')
+                .firestore().collection('groupMemberships').doc('membership1');
+            const bobRef = testEnv.authenticatedContext('bob')
+                .firestore().collection('groupMemberships').doc('membership1');
+            await assertSucceeds(aliceRef.update({ groupID: 'group2' }));
+            await assertFails(aliceRef.update({ userID: 'bob' }));
+            await assertFails(bobRef.update({ userID: 'bob' }));
         });
     });
 

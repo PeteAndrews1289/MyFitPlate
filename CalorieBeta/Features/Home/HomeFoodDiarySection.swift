@@ -26,8 +26,8 @@ struct HomeFoodDiaryGroupedContent: View {
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                         }
 
-                        VStack(spacing: 8) {
-                            ForEach(meal.foodItems) { foodItem in
+                        VStack(spacing: 0) {
+                            ForEach(Array(meal.foodItems.enumerated()), id: \.element.id) { index, foodItem in
                                 SwipeableFoodItemView(
                                     initialFoodItem: foodItem,
                                     dailyLog: $dailyLogService.currentDailyLog,
@@ -35,6 +35,11 @@ struct HomeFoodDiaryGroupedContent: View {
                                     onLogUpdated: { },
                                     date: selectedDate
                                 )
+
+                                if index < meal.foodItems.count - 1 {
+                                    Divider()
+                                        .padding(.leading, 50)
+                                }
                             }
                         }
                     }
@@ -60,6 +65,13 @@ struct HomeFoodDiarySection: View {
     var onDeleteFood: (String) -> Void
     var onDeleteExercise: (String) -> Void
 
+    private var hasDailyEntries: Bool {
+        guard let log = currentLogForDisplay else { return false }
+        return !log.meals.flatMap(\.foodItems).isEmpty
+            || !(log.exercises?.isEmpty ?? true)
+            || (log.waterTracker?.totalOunces ?? 0) > 0
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -68,7 +80,7 @@ struct HomeFoodDiarySection: View {
                         .appFont(size: 19, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Food, activity, and edits for this day.")
+                    Text("Food, hydration, activity, and edits for this day.")
                         .appFont(size: 13)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -76,17 +88,16 @@ struct HomeFoodDiarySection: View {
                 Spacer()
             }
 
-            if let currentLogForDisplay,
-               currentLogForDisplay.meals.flatMap({ $0.foodItems }).isEmpty,
-               currentLogForDisplay.exercises?.isEmpty ?? true {
+            if !hasDailyEntries {
                 EmptyDailyLogView(isToday: isToday)
-            } else {
-                if let currentLogForDisplay {
-                    HomeDailyLogSummaryStrip(log: currentLogForDisplay)
-                    HomeFoodDiaryGroupedContent(meals: currentLogForDisplay.meals, selectedDate: selectedDate, onDeleteFood: onDeleteFood)
-                }
+            } else if let currentLogForDisplay {
+                HomeDailyLogSummaryStrip(log: currentLogForDisplay)
 
-                let dedupedExercises = (currentLogForDisplay?.exercises ?? []).dedupedAgainstHealthKit()
+                Divider()
+
+                HomeFoodDiaryGroupedContent(meals: currentLogForDisplay.meals, selectedDate: selectedDate, onDeleteFood: onDeleteFood)
+
+                let dedupedExercises = (currentLogForDisplay.exercises ?? []).dedupedAgainstHealthKit()
                 if !dedupedExercises.isEmpty {
                     Divider().padding(.vertical, 8)
                     HomeActivityWidget(exercises: dedupedExercises, showingAddExerciseView: $showingAddExerciseView, selectedExerciseForDetail: $selectedExerciseForDetail, showingWorkoutDetail: $showingWorkoutDetail, onDeleteExercise: onDeleteExercise)
@@ -94,7 +105,7 @@ struct HomeFoodDiarySection: View {
             }
         }
         .frame(maxWidth: 520)
-        .asCard()
+        .appSurface(.emphasized)
         .featureSpotlight(isActive: isDailyLogSpotlightActive)
     }
 }
@@ -106,9 +117,9 @@ struct EmptyDailyLogView: View {
         VStack(spacing: 12) {
             Image(systemName: "plus.viewfinder")
                 .appFont(size: 28, weight: .semibold)
-                .foregroundColor(.blue)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 56, height: 56)
-                .background(Color(UIColor.secondarySystemFill), in: Circle())
+                .background(AppPalette.brand.opacity(0.10), in: Circle())
 
             Text(isToday ? "Ready for your first log" : "Nothing logged on this day")
                 .appFont(size: 17, weight: .semibold)
@@ -123,6 +134,5 @@ struct EmptyDailyLogView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 22)
         .padding(.horizontal, 18)
-        .background(Color.backgroundSecondary.opacity(0.58), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }

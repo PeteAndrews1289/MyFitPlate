@@ -2,13 +2,15 @@ import Foundation
 public struct ChallengeType: RawRepresentable, Codable, Hashable {
     public var rawValue: String
     public init?(rawValue: String) { self.rawValue = rawValue }
+
+    private init(knownRawValue: String) { self.rawValue = knownRawValue }
 }
 
 public extension ChallengeType {
-    static let loggingStreak = ChallengeType(rawValue: "loggingStreak")!
-    static let proteinGoalHit = ChallengeType(rawValue: "proteinGoalHit")!
-    static let workoutLogged = ChallengeType(rawValue: "workoutLogged")!
-    static let calorieRange = ChallengeType(rawValue: "calorieRange")!
+    static let loggingStreak = ChallengeType(knownRawValue: "loggingStreak")
+    static let proteinGoalHit = ChallengeType(knownRawValue: "proteinGoalHit")
+    static let workoutLogged = ChallengeType(knownRawValue: "workoutLogged")
+    static let calorieRange = ChallengeType(knownRawValue: "calorieRange")
 }
 
 public struct Challenge: Identifiable, Codable {

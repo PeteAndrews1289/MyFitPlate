@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 public class MockCrashManager: CrashManagerProtocol {
@@ -28,3 +29,4 @@ public class MockCrashManager: CrashManagerProtocol {
         logs.append(message)
     }
 }
+#endif

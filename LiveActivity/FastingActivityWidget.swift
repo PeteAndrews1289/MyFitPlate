@@ -11,7 +11,7 @@ struct FastingActivityWidget: Widget {
             VStack {
                 HStack {
                     Image(systemName: "flame.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(LiveActivityPalette.caution)
                     Text("Fasting")
                         .font(.headline)
                         .foregroundColor(.white)
@@ -29,7 +29,7 @@ struct FastingActivityWidget: Widget {
                         Text(timerInterval: context.state.startTime...Date().addingTimeInterval(86400 * 7), countsDown: false)
                             .font(.system(size: 32, weight: .bold))
                             .monospacedDigit()
-                            .foregroundColor(.orange)
+                            .foregroundStyle(LiveActivityPalette.caution)
                     }
 
                     Spacer()
@@ -53,8 +53,8 @@ struct FastingActivityWidget: Widget {
                             .fontWeight(.semibold)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(Color.orange.opacity(0.2))
-                            .foregroundColor(.orange)
+                            .background(LiveActivityPalette.caution.opacity(0.2))
+                            .foregroundStyle(LiveActivityPalette.caution)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -71,7 +71,7 @@ struct FastingActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading) {
                         HStack {
-                            Image(systemName: "flame.fill").foregroundColor(.orange)
+                            Image(systemName: "flame.fill").foregroundStyle(LiveActivityPalette.caution)
                             Text("Fasting").font(.caption).foregroundColor(.secondary)
                         }
                     }
@@ -81,7 +81,7 @@ struct FastingActivityWidget: Widget {
                     Text(timerInterval: Date()...context.state.targetEndTime, countsDown: true)
                         .font(.title2)
                         .monospacedDigit()
-                        .foregroundColor(.orange)
+                        .foregroundStyle(LiveActivityPalette.caution)
                         .multilineTextAlignment(.trailing)
                 }
 
@@ -94,8 +94,8 @@ struct FastingActivityWidget: Widget {
                                 .fontWeight(.semibold)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
-                                .background(Color.orange.opacity(0.2))
-                                .foregroundColor(.orange)
+                                .background(LiveActivityPalette.caution.opacity(0.2))
+                                .foregroundStyle(LiveActivityPalette.caution)
                                 .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -104,14 +104,14 @@ struct FastingActivityWidget: Widget {
                 }
 
             } compactLeading: {
-                Image(systemName: "flame.fill").foregroundColor(.orange)
+                Image(systemName: "flame.fill").foregroundStyle(LiveActivityPalette.caution)
             } compactTrailing: {
                 Text(timerInterval: Date()...context.state.targetEndTime, countsDown: true)
                     .monospacedDigit()
                     .frame(width: 45)
-                    .foregroundColor(.orange)
+                    .foregroundStyle(LiveActivityPalette.caution)
             } minimal: {
-                Image(systemName: "flame.fill").foregroundColor(.orange)
+                Image(systemName: "flame.fill").foregroundStyle(LiveActivityPalette.caution)
             }
         }
     }

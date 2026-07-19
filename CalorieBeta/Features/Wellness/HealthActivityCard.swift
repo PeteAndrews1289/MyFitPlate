@@ -1,22 +1,26 @@
-import SwiftUI
 import HealthKit
+import MyFitPlateCore
+import SwiftUI
 
 struct HealthActivityCard: View {
     @EnvironmentObject var healthViewModel: HealthKitViewModel
     @AppStorage("hasRequestedAppleHealthAccess") private var hasRequestedAppleHealthAccess = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    // Default goal, could be customizable later
-    private let stepGoal: Double = 10000
+    private let stepGoal: Double = 10_000
 
     var body: some View {
         Group {
             if healthViewModel.hasSyncedHealthData {
                 connectedContent
+            } else if hasRequestedAppleHealthAccess || healthViewModel.isAuthorized {
+                awaitingDataContent
             } else {
                 connectContent
             }
         }
-        .asCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("apple_health_summary")
         .onAppear {
             if healthViewModel.isAuthorized {
                 healthViewModel.fetchTodayPassiveData()
@@ -25,124 +29,192 @@ struct HealthActivityCard: View {
     }
 
     private var connectedContent: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "figure.walk")
-                        .foregroundColor(.blue)
-                    Text("Steps")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(.secondary)
-                }
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(title: "Apple Health", subtitle: "Today's device activity") {
+                Image(systemName: "heart.text.square.fill")
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundStyle(AppPalette.recovery)
+                    .accessibilityHidden(true)
+            }
 
-                HStack(alignment: .lastTextBaseline, spacing: 4) {
-                    Text(Int(healthViewModel.todaySteps.rounded()).formatted())
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.primary)
-                    Text("/ \(Int(stepGoal).formatted()) steps")
-                        .appFont(size: 12)
-                        .foregroundColor(.secondary)
-                }
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.blue.opacity(0.12))
-                            .frame(height: 6)
-
-                        Capsule()
-                            .fill(Color.blue)
-                            .frame(width: max(0, min(geometry.size.width * CGFloat(healthViewModel.todaySteps / stepGoal), geometry.size.width)), height: 6)
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                AppFreshnessLabel(healthFreshness)
+                Spacer(minLength: 0)
+                if healthFreshness.state == .aging || healthFreshness.state == .stale {
+                    Button("Refresh") {
+                        healthViewModel.fetchTodayPassiveData()
                     }
+                    .appTextRole(.caption)
+                    .accessibilityHint("Reads today's Apple Health activity again")
                 }
-                .frame(height: 6)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            Divider()
-                .frame(height: 50)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "flame.fill")
-                        .foregroundColor(.orange)
-                    Text("Active")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(.secondary)
-                }
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Steps",
+                    value: Int(healthViewModel.todaySteps.rounded()).formatted(),
+                    accent: AppPalette.effort
+                ),
+                AppMetricItem(
+                    label: "Active Calories",
+                    value: "\(Int(healthViewModel.todayActiveEnergy.rounded()).formatted()) cal",
+                    accent: AppPalette.energy
+                )
+            ])
 
-                HStack(alignment: .lastTextBaseline, spacing: 4) {
-                    Text(Int(healthViewModel.todayActiveEnergy.rounded()).formatted())
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.primary)
-                    Text("cal")
-                        .appFont(size: 12)
-                        .foregroundColor(.secondary)
-                }
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                ProgressView(value: min(max(healthViewModel.todaySteps / stepGoal, 0), 1))
+                    .tint(AppPalette.effort)
 
-                Text("Burned today")
-                    .appFont(size: 11, weight: .medium)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 2)
+                Text("\(Int(healthViewModel.todaySteps.rounded()).formatted()) of \(Int(stepGoal).formatted()) daily steps")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var awaitingDataContent: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Apple Health",
+                subtitle: "Access was requested, but MyFitPlate has not received readable activity yet."
+            ) {
+                Image(systemName: "heart.text.square")
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundStyle(AppPalette.recovery)
+                    .accessibilityHidden(true)
+            }
+
+            AppListRow(
+                icon: AppDataAvailabilityReason.notSynced.icon,
+                iconColor: AppPalette.caution,
+                title: AppDataAvailabilityReason.notSynced.title,
+                subtitle: "There may be no activity yet, a permission may be off, or Health is still syncing."
+            )
+            .appSurface(.quiet, padding: 0)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppSpacing.row) {
+                    refreshButton
+                    reviewAccessButton
+                }
+                VStack(spacing: AppSpacing.row) {
+                    refreshButton
+                    reviewAccessButton
+                }
+            }
+
+            if let authError = healthViewModel.authError, !authError.isEmpty {
+                Text(authError)
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.critical)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
     private var connectContent: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "heart.text.square.fill")
-                .appFont(size: 20, weight: .bold)
-                .foregroundColor(.red)
-                .frame(width: 46, height: 46)
-                .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Apple Health",
+                subtitle: "Optional context for activity, sleep, and recovery"
+            )
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Add Apple Health context")
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.textPrimary)
-
-                Text("Bring steps, activity, sleep, and recovery into your dashboard.")
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 4)
-
-            Button(hasRequestedAppleHealthAccess ? "Review access" : "Connect") {
-                if hasRequestedAppleHealthAccess,
-                   let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(settingsURL)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
+                        connectionDescription
+                        connectionButton
+                            .buttonStyle(AppActionButtonStyle(.secondary))
+                    }
                 } else {
-                    hasRequestedAppleHealthAccess = true
-                    healthViewModel.authError = nil
-                    healthViewModel.requestAuthorization()
+                    HStack(spacing: AppSpacing.group) {
+                        connectionDescription
+                        Spacer(minLength: AppSpacing.compact)
+                        connectionButton
+                            .buttonStyle(AppActionButtonStyle(.secondary, fillsWidth: false))
+                    }
                 }
             }
-            .appFont(size: 12, weight: .bold)
-            .buttonStyle(.bordered)
-            .tint(.brandPrimary)
-            .accessibilityHint(
-                hasRequestedAppleHealthAccess
-                    ? "Opens Settings so you can review Apple Health access"
-                    : "Shows Apple's Health access request"
-            )
         }
-        .accessibilityElement(children: .contain)
         .onChange(of: healthViewModel.isAuthorized) { _, isAuthorized in
             if isAuthorized {
                 healthViewModel.fetchTodayPassiveData()
             }
         }
     }
+
+    private var connectionDescription: some View {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            Image(systemName: "heart.text.square.fill")
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(AppPalette.recovery)
+                .frame(width: 40, height: 40)
+                .background(AppPalette.recovery.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
+
+            Text("Bring your device activity into the same daily view as nutrition and training.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var connectionButton: some View {
+        Button(hasRequestedAppleHealthAccess ? "Review Access" : "Connect") {
+            if hasRequestedAppleHealthAccess,
+               let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(settingsURL)
+            } else {
+                hasRequestedAppleHealthAccess = true
+                healthViewModel.authError = nil
+                healthViewModel.requestAuthorization()
+            }
+        }
+        .accessibilityHint(
+            hasRequestedAppleHealthAccess
+                ? "Opens Settings so you can review Apple Health access"
+                : "Shows Apple's Health access request"
+        )
+        .accessibilityIdentifier("apple_health_connect_button")
+    }
+
+    private var refreshButton: some View {
+        Button {
+            healthViewModel.syncAllHealthData()
+        } label: {
+            Label("Try Sync Again", systemImage: "arrow.clockwise")
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .accessibilityIdentifier("apple_health_retry_sync")
+    }
+
+    private var reviewAccessButton: some View {
+        Button {
+            guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(settingsURL)
+        } label: {
+            Label("Review Access", systemImage: "gear")
+        }
+        .buttonStyle(AppActionButtonStyle(.ghost))
+        .accessibilityIdentifier("apple_health_review_access")
+    }
+
+    private var healthFreshness: AppDataFreshness {
+        AppDataFreshness(
+            updatedAt: healthViewModel.lastSyncedAt,
+            currentFor: 15 * 60,
+            staleAfter: 2 * 60 * 60
+        )
+    }
 }
 
 #Preview {
-    let vm = HealthKitViewModel()
-    
+    let viewModel = HealthKitViewModel()
+
     HealthActivityCard()
-        .environmentObject(vm)
+        .environmentObject(viewModel)
         .padding()
-        .background(Color(UIColor.secondarySystemBackground))
+        .background(AppPalette.canvas)
 }

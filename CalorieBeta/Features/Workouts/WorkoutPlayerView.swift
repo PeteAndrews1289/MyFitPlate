@@ -239,6 +239,7 @@ struct WorkoutPlayerView: View {
                 )
             }
         }
+        .accessibilityIdentifier("workout_player")
         .navigationBarHidden(true)
         .onAppear {
             totalWorkoutTimer.start()

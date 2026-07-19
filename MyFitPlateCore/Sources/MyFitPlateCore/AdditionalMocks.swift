@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import Combine
 
@@ -8,6 +9,7 @@ public final class MockDatabaseService: DatabaseServiceProtocol, @unchecked Send
     public var saveDarkModePreferenceError: Error?
     public var recordLastLoginError: Error?
     public var deleteUserDataError: Error?
+    public var loadDarkModePreferenceHandler: ((String) async throws -> Bool)?
     public var loadedDarkModeUserIDs: [String] = []
     public var savedDarkModePreferences: [(userID: String, isEnabled: Bool)] = []
     public var recordedLastLoginUserIDs: [String] = []
@@ -16,6 +18,9 @@ public final class MockDatabaseService: DatabaseServiceProtocol, @unchecked Send
     public func loadDarkModePreference(userID: String) async throws -> Bool {
         if let loadDarkModePreferenceError { throw loadDarkModePreferenceError }
         loadedDarkModeUserIDs.append(userID)
+        if let loadDarkModePreferenceHandler {
+            return try await loadDarkModePreferenceHandler(userID)
+        }
         return darkModePreference
     }
 
@@ -101,17 +106,30 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
     private let lock = NSLock()
     
     public var mockProfilePublisher = PassthroughSubject<(points: Int, level: Int)?, Never>()
+    public var mockUserProfile: (points: Int, level: Int)?
     public func userProfilePublisher(userID: String) -> AnyPublisher<(points: Int, level: Int)?, Never> {
+        if let mockUserProfile {
+            let profile: (points: Int, level: Int)? = mockUserProfile
+            return Just(profile).eraseToAnyPublisher()
+        }
         return mockProfilePublisher.eraseToAnyPublisher()
     }
     
     public var mockStatusesPublisher = PassthroughSubject<[UserAchievementStatus], Error>()
+    public var mockUserStatuses: [UserAchievementStatus]?
     public func userStatusesPublisher(userID: String) -> AnyPublisher<[UserAchievementStatus], Error> {
+        if let mockUserStatuses {
+            return Just(mockUserStatuses).setFailureType(to: Error.self).eraseToAnyPublisher()
+        }
         return mockStatusesPublisher.eraseToAnyPublisher()
     }
     
     public var mockChallengesPublisher = PassthroughSubject<[Challenge], Error>()
+    public var mockChallenges: [Challenge]?
     public func activeChallengesPublisher(userID: String) -> AnyPublisher<[Challenge], Error> {
+        if let mockChallenges {
+            return Just(mockChallenges).setFailureType(to: Error.self).eraseToAnyPublisher()
+        }
         return mockChallengesPublisher.eraseToAnyPublisher()
     }
     
@@ -178,9 +196,21 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
 public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecked Sendable {
     public init() {}
     public var mockFetchUserGoalsResult: [String: Any]?
+    public var shouldDeferFetchUserGoals = false
+    public var fetchUserGoalsCallbacks: [String: ([String: Any]?) -> Void] = [:]
+    public var fetchedUserGoalIDs: [String] = []
     public var mockWeightHistory: [(id: String, date: Date, weight: Double)] = []
     public var savedUserGoals: [String: Any]?
-    public func fetchUserGoals(userID: String, completion: @escaping ([String: Any]?) -> Void) { completion(mockFetchUserGoalsResult) }
+    public func fetchUserGoals(userID: String, completion: @escaping ([String: Any]?) -> Void) {
+        fetchedUserGoalIDs.append(userID)
+        fetchUserGoalsCallbacks[userID] = completion
+        if !shouldDeferFetchUserGoals {
+            completion(mockFetchUserGoalsResult)
+        }
+    }
+    public func emitUserGoals(_ data: [String: Any]?, for userID: String) {
+        fetchUserGoalsCallbacks[userID]?(data)
+    }
     
     public var onSave: (() -> Void)?
     
@@ -223,7 +253,9 @@ public final class MockAccountDeletionService: AccountDeletionServicing {
 public final class MockAIService: AIServiceProtocol, @unchecked Sendable {
     public var mockResult: Result<String, AIError> = .success("Mock response")
     public var mockResults: [Result<String, AIError>] = []
+    public var responseDelayNanoseconds: UInt64 = 0
     public private(set) var lastMessages: [[String: Any]] = []
+    public private(set) var lastRequestKind: AIRequestKind = .general
     
     public init() {}
     public func performRequest(
@@ -232,12 +264,18 @@ public final class MockAIService: AIServiceProtocol, @unchecked Sendable {
         maxTokens: Int,
         temperature: Double,
         responseFormat: [String: Any]?,
+        requestKind: AIRequestKind,
         retryCount: Int
     ) async -> Result<String, AIError> {
         lastMessages = messages
+        lastRequestKind = requestKind
+        if responseDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: responseDelayNanoseconds)
+        }
         if !mockResults.isEmpty {
             return mockResults.removeFirst()
         }
         return mockResult
     }
 }
+#endif

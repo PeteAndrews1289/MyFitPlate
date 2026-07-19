@@ -147,7 +147,9 @@ public enum CommunityBarcodeRules {
                 reviewStatus: .unreviewed,
                 sourceName: sourceName,
                 sourceID: "community_\(normalized)",
-                barcode: normalized
+                barcode: normalized,
+                sourceObservedAt: Date(),
+                evidenceLineage: .communityConsensus
             )
         )
     }

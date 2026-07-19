@@ -36,6 +36,8 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     @Published var repeatMealStatus: String?
     @Published var repeatMealQueued = false
     @Published private(set) var lastSyncDate: Date?
+    @Published private(set) var isPhoneReachable = false
+    @Published private(set) var isSyncRequestPending = false
 
     private var accountScope: String?
     
@@ -48,6 +50,9 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     }
     
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        DispatchQueue.main.async {
+            self.isPhoneReachable = activationState == .activated && session.isReachable
+        }
         if activationState == .activated {
             watchConnectivityLog.debug("Watch session activated.")
             let receivedContext = session.receivedApplicationContext
@@ -60,6 +65,9 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
+        DispatchQueue.main.async {
+            self.isPhoneReachable = session.isReachable
+        }
         if session.isReachable {
             requestSyncIfPossible(session)
         }
@@ -111,20 +119,48 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
             )
             self.repeatMealStatus = nil
             self.repeatMealQueued = false
+            self.isSyncRequestPending = false
         }
     }
 
+    func requestSync() {
+        requestSyncIfPossible()
+    }
+
     private func requestSyncIfPossible(_ session: WCSession = .default) {
-        guard session.activationState == .activated, session.isReachable else { return }
+        let canReachPhone = session.activationState == .activated && session.isReachable
+        DispatchQueue.main.async {
+            self.isPhoneReachable = canReachPhone
+        }
+        guard canReachPhone else {
+            DispatchQueue.main.async {
+                self.isSyncRequestPending = false
+            }
+            return
+        }
+
+        let requestDate = Date()
+        DispatchQueue.main.async {
+            self.isSyncRequestPending = true
+        }
         session.sendMessage(
             [WatchQuickActionPayload.syncRequest: true],
             replyHandler: nil,
             errorHandler: { error in
+                DispatchQueue.main.async {
+                    self.isSyncRequestPending = false
+                    self.isPhoneReachable = session.isReachable
+                }
                 watchConnectivityLog.error(
                     "Watch sync request failed: \(error.localizedDescription, privacy: .public)"
                 )
             }
         )
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            if let lastSyncDate = self.lastSyncDate, lastSyncDate >= requestDate { return }
+            self.isSyncRequestPending = false
+        }
     }
 
     /// Logs water optimistically on the watch and queues it for the phone. transferUserInfo
@@ -182,6 +218,7 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
         repeatMealQueued = false
         accountScope = nil
         lastSyncDate = nil
+        isSyncRequestPending = false
     }
 
     private static func decode<Value: Decodable>(_ type: Value.Type, from value: Any?) -> Value? {

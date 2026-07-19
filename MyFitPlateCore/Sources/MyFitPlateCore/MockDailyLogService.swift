@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 @MainActor
@@ -109,3 +110,4 @@ public class MockDailyLogService: DailyLogServicing {
         completion?(true)
     }
 }
+#endif

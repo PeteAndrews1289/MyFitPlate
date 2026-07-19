@@ -14,7 +14,10 @@ struct EndRestIntent: LiveActivityIntent {
             var newState = activity.content.state
             newState.restEndTime = Date() // Set to now
             
-            let updatedContent = ActivityContent(state: newState, staleDate: nil)
+            let updatedContent = ActivityContent(
+                state: newState,
+                staleDate: Date().addingTimeInterval(8 * 60 * 60)
+            )
             await activity.update(updatedContent)
         }
         

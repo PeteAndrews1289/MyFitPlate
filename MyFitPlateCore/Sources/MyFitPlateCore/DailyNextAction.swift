@@ -35,6 +35,44 @@ public struct DailyNextAction: Codable, Equatable, Sendable {
     }
 }
 
+/// A short, rules-bound coaching note for the current deterministic action. The note carries
+/// no diary names, account data, Health samples, or generated content, and never changes goals.
+public struct DailyNextActionAnnotation: Equatable, Sendable {
+    public let actionKind: DailyNextAction.Kind
+    public let text: String
+    public let deepLink: String
+
+    public init(actionKind: DailyNextAction.Kind, text: String, deepLink: String) {
+        self.actionKind = actionKind
+        self.text = text
+        self.deepLink = deepLink
+    }
+}
+
+public enum DailyNextActionAnnotationRules {
+    public static func make(for action: DailyNextAction) -> DailyNextActionAnnotation {
+        let text: String
+        switch action.kind {
+        case .preWorkoutFuel:
+            text = "A little fuel now can make the session feel steadier without changing today's target."
+        case .recoveryMeal:
+            text = "You've done the work. This target keeps recovery inside what is left today."
+        case .proteinCatchUp:
+            text = "This does not need to be a perfect meal. One practical protein choice moves the day forward."
+        case .trustReview:
+            text = "Check this first so today's totals stay useful instead of confidently wrong."
+        case .steadyDay:
+            text = "Nothing needs rescuing right now. Keep logging and let the day unfold."
+        }
+
+        return DailyNextActionAnnotation(
+            actionKind: action.kind,
+            text: text,
+            deepLink: action.deepLink
+        )
+    }
+}
+
 public enum DailyNextActionRules {
     public static let proteinCatchUpMinimumGrams = 20
     public static let proteinCatchUpMinimumCalories = 150
@@ -64,11 +102,15 @@ public enum DailyNextActionRules {
 
         let reviewCount = today?.meals
             .flatMap(\.foodItems)
-            .compactMap(\.sourceMetadata)
-            .filter {
-                $0.reviewStatus != .notRequired &&
-                    $0.reviewStatus != .userConfirmed &&
-                    $0.reviewStatus != .userEdited
+            .filter { food in
+                let reviewStatus = food.sourceMetadata?.reviewStatus
+                let sourceNeedsReview = reviewStatus != nil &&
+                    reviewStatus != .notRequired &&
+                    reviewStatus != .userConfirmed &&
+                    reviewStatus != .userEdited
+                let nutritionNeedsCorrection = FoodDataSanity.findings(for: food)
+                    .contains { $0.severity == .warning }
+                return sourceNeedsReview || nutritionNeedsCorrection
             }
             .count ?? 0
         if reviewCount > 0 {
@@ -91,7 +133,7 @@ public enum DailyNextActionRules {
            consumedProtein.isFinite,
            consumedProtein >= 0 {
             let caloriesRemaining = goals.calories - consumedCalories
-            let proteinRemaining = Int(ceil(max(0, goals.protein - consumedProtein)))
+            let proteinRemaining = Int(max(0, goals.protein - consumedProtein).rounded())
             if caloriesRemaining >= Double(proteinCatchUpMinimumCalories),
                proteinRemaining >= proteinCatchUpMinimumGrams {
                 return DailyNextAction(

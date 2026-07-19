@@ -1,14 +1,32 @@
 import SwiftUI
 import ActivityKit
+import MyFitPlateCore
 
+@MainActor
 class TotalWorkoutTimer: ObservableObject {
+    static let maximumRestorableDuration: TimeInterval = 12 * 60 * 60
+
     @Published var totalTimeElapsed: TimeInterval = 0
     private var timer: Timer?
     private var startTime: Date?
-    private let userDefaultsKey: String
+    private let userDefaults: UserDefaults
+    private let legacyUserDefaultsKey: String
+    private let userDefaultsKey: String?
 
-    init(routineId: String) {
-        self.userDefaultsKey = "totalWorkoutTimer_\(routineId)"
+    init(
+        routineId: String,
+        userDefaults: UserDefaults = .standard,
+        userID: String? = nil
+    ) {
+        let resolvedUserID = userID ?? DIContainer.shared.authService?.currentUserID
+        let legacyKey = "totalWorkoutTimer_\(routineId)"
+        self.userDefaults = userDefaults
+        self.legacyUserDefaultsKey = legacyKey
+        self.userDefaultsKey = AccountScopedStorageKey.make(
+            prefix: legacyKey,
+            userID: resolvedUserID
+        )
+        migrateLegacyStorageIfNeeded()
         loadTimerState()
     }
 
@@ -18,7 +36,9 @@ class TotalWorkoutTimer: ObservableObject {
             startTime = Date().addingTimeInterval(-totalTimeElapsed)
         }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.updateTotalTime()
+            Task { @MainActor in
+                self?.updateTotalTime()
+            }
         }
         saveTimerState()
     }
@@ -37,20 +57,43 @@ class TotalWorkoutTimer: ObservableObject {
     }
 
     private func saveTimerState() {
-        guard let startTime = startTime else { return }
-        UserDefaults.standard.set(startTime, forKey: userDefaultsKey)
+        guard let startTime, let userDefaultsKey else { return }
+        userDefaults.set(startTime, forKey: userDefaultsKey)
     }
 
     private func loadTimerState() {
-        if let savedStartTime = UserDefaults.standard.object(forKey: userDefaultsKey) as? Date {
-            self.startTime = savedStartTime
-            updateTotalTime()
-            start()
+        guard let userDefaultsKey,
+              let savedStartTime = userDefaults.object(forKey: userDefaultsKey) as? Date else {
+            return
         }
+
+        guard Self.isRestorable(startTime: savedStartTime) else {
+            clearTimerState()
+            return
+        }
+
+        self.startTime = savedStartTime
+        updateTotalTime()
+        start()
     }
 
     private func clearTimerState() {
-        UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+        guard let userDefaultsKey else { return }
+        userDefaults.removeObject(forKey: userDefaultsKey)
+    }
+
+    private func migrateLegacyStorageIfNeeded() {
+        guard let userDefaultsKey else { return }
+        if userDefaults.object(forKey: userDefaultsKey) == nil,
+           let legacyStart = userDefaults.object(forKey: legacyUserDefaultsKey) {
+            userDefaults.set(legacyStart, forKey: userDefaultsKey)
+        }
+        userDefaults.removeObject(forKey: legacyUserDefaultsKey)
+    }
+
+    static func isRestorable(startTime: Date, now: Date = Date()) -> Bool {
+        let elapsed = now.timeIntervalSince(startTime)
+        return elapsed >= 0 && elapsed <= maximumRestorableDuration
     }
 
     func formattedTime() -> String {

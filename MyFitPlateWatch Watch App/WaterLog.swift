@@ -144,7 +144,7 @@ struct WaterBottleView: View {
                     } label: {
                         Text("Log \(Int(pendingOunces)) oz")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.black.opacity(0.86))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                             .background(WatchPalette.brandPrimary, in: Capsule())

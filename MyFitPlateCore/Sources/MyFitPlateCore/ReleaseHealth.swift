@@ -34,7 +34,7 @@ public struct ReleaseHealthBuildContext: Equatable, Sendable {
         let version = info["CFBundleShortVersionString"] as? String ?? "unknown"
         let build = info["CFBundleVersion"] as? String ?? "unknown"
         let bundleID = bundle.bundleIdentifier ?? "unknown"
-        let testing = isUITesting ?? processInfo.arguments.contains("-ui-testing")
+        let testing = isUITesting ?? (isDebugBuild && AppRuntime.isUITesting(arguments: processInfo.arguments))
 
         return ReleaseHealthBuildContext(
             appVersion: version,

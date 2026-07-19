@@ -4,32 +4,56 @@ struct FoodDetailHeroCard: View {
     let foodName: String
     let servingDescription: String
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(FoodEmojiMapper.getEmoji(for: foodName))
-                .appFont(size: 34)
-                .frame(width: 62, height: 62)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text(foodName)
-                    .appFont(size: 24, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label(servingDescription, systemImage: "scalemass.fill")
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(2)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    foodEmoji
+                    foodIdentity
+                }
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    foodEmoji
+                    foodIdentity
+                    Spacer(minLength: 0)
+                }
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface(.quiet, radius: AppRadius.hero)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("food_detail_identity")
+    }
+
+    private var foodEmoji: some View {
+        Text(FoodEmojiMapper.getEmoji(for: foodName))
+            .font(.system(size: 30))
+            .frame(width: 54, height: 54)
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator.opacity(0.55), lineWidth: 0.5)
+            }
+            .accessibilityHidden(true)
+    }
+
+    private var foodIdentity: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(foodName)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Label(servingDescription, systemImage: "scalemass.fill")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -40,36 +64,30 @@ struct FoodDetailMacroGrid: View {
     let fats: Double
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            FoodDetailMacroTile(
-                title: "Calories",
-                value: Int(calories.rounded()).formatted(),
-                unit: "cal",
-                icon: "flame.fill",
-                color: .orange
+        AppMetricStrip(items: [
+            AppMetricItem(
+                label: "Calories",
+                value: "\(Int(calories.rounded()).formatted()) cal",
+                accent: AppPalette.energy
+            ),
+            AppMetricItem(
+                label: "Protein",
+                value: "\(macroValue(protein)) g",
+                accent: .accentProtein
+            ),
+            AppMetricItem(
+                label: "Carbs",
+                value: "\(macroValue(carbs)) g",
+                accent: .accentCarbs
+            ),
+            AppMetricItem(
+                label: "Fat",
+                value: "\(macroValue(fats)) g",
+                accent: .accentFats
             )
-            FoodDetailMacroTile(
-                title: "Protein",
-                value: macroValue(protein),
-                unit: "g",
-                icon: "bolt.fill",
-                color: .accentProtein
-            )
-            FoodDetailMacroTile(
-                title: "Carbs",
-                value: macroValue(carbs),
-                unit: "g",
-                icon: "leaf.fill",
-                color: .accentCarbs
-            )
-            FoodDetailMacroTile(
-                title: "Fat",
-                value: macroValue(fats),
-                unit: "g",
-                icon: "drop.fill",
-                color: .accentFats
-            )
-        }
+        ])
+        .appSurface(.quiet)
+        .accessibilityIdentifier("food_detail_macro_summary")
     }
 
     private func macroValue(_ value: Double) -> String {
@@ -81,54 +99,510 @@ struct FoodDetailMacroGrid: View {
     }
 }
 
-struct FoodDetailMacroTile: View {
-    let title: String
-    let value: String
-    let unit: String
-    let icon: String
-    let color: Color
+struct FoodTrustSummaryCard: View {
+    let item: FoodItem
+    let descriptor: FoodSourceDescriptor
+    let evaluation: FoodTrustEvaluation
+    let metadata: FoodSourceMetadata?
+    let isSavingCorrection: Bool
+    let resolution: FoodTrustResolution?
+    let onOpenReceipt: () -> Void
+    let onAction: (() -> Void)?
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var passport: FoodTrustPassport {
+        FoodTrustPassport.evaluate(item: item, descriptor: descriptor, metadata: metadata)
+    }
+
+    private var tint: Color {
+        switch evaluation.level {
+        case .excellent, .strong: .accentPositiveText
+        case .review: AppPalette.caution
+        case .low: evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
+        }
+    }
+
+    private var agreementText: String {
+        let evidenceCount = metadata?.validatedCrossVerificationEvidence.count ?? 0
+        guard evidenceCount > 0 else { return "No independent comparison" }
+        return "\(evidenceCount + 1) sources agree"
+    }
+
+    private var nutrientCoverageText: String {
+        "\(item.reportedVitaminMineralCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) nutrients reported"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(color)
-                    .frame(width: 30, height: 30)
-                    .background(color.opacity(0.12), in: Circle())
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Button(action: onOpenReceipt) {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            summaryIdentity
+                            summaryEvidence
+                        }
+                    } else {
+                        HStack(alignment: .center, spacing: AppSpacing.row) {
+                            summaryIdentity
+                            Spacer(minLength: AppSpacing.compact)
+                            summaryEvidence
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("food_trust_summary")
+            .accessibilityLabel("Food Trust, \(evaluation.label)")
+            .accessibilityHint("Opens the complete evidence receipt")
 
-                Spacer()
+            if let resolution {
+                Label(resolution.title, systemImage: "checkmark.circle.fill")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.brandText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value)
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-
-                    Text(unit)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+            if let actionTitle = evaluation.action, let onAction {
+                Button(action: onAction) {
+                    HStack(spacing: AppSpacing.compact) {
+                        if isSavingCorrection {
+                            ProgressView()
+                        } else {
+                            Image(systemName: actionTitle == "Fix data" ? "pencil" : "slider.horizontal.3")
+                        }
+                        Text(isSavingCorrection ? "Saving correction" : actionTitle)
+                    }
                 }
-
-                Text(title)
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                .buttonStyle(AppActionButtonStyle(
+                    evaluation.requiresCorrection ? .destructive : .secondary
+                ))
+                .disabled(isSavingCorrection)
+                .accessibilityIdentifier("food_trust_action")
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet)
     }
+
+    private var summaryIdentity: some View {
+        HStack(alignment: .center, spacing: AppSpacing.row) {
+            Image(systemName: "checkmark.shield.fill")
+                .appFont(size: 18, weight: .bold)
+                .foregroundStyle(tint)
+                .frame(width: 42, height: 42)
+                .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Food Trust")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                Text(evaluation.label)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(tint)
+            }
+        }
+    }
+
+    private var summaryEvidence: some View {
+        HStack(alignment: .center, spacing: AppSpacing.compact) {
+            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
+                Text(passport.coreNutrition.state.label)
+                    .appTextRole(.caption)
+                    .foregroundStyle(tint)
+                Text("\(agreementText) · \(nutrientCoverageText)")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Image(systemName: "chevron.right")
+                .appFont(size: 12, weight: .bold)
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+struct FoodNutrientProfileCard: View {
+    let nutrients: AdjustedServingNutrition
+    let onOpenProfile: () -> Void
+    let onScanLabel: () -> Void
+
+    private let previewLimit = 6
+
+    private var reportedKeys: [MicronutrientKey] {
+        MicronutrientKey.vitaminAndMineralKeys
+            .filter { nutrients.micronutrientValue(for: $0) != nil }
+            .sorted { lhs, rhs in
+                percentDailyValue(for: lhs) > percentDailyValue(for: rhs)
+            }
+    }
+
+    private var previewKeys: [MicronutrientKey] {
+        Array(reportedKeys.prefix(previewLimit))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                AppSectionHeader(title: "Micronutrients")
+                Spacer(minLength: AppSpacing.compact)
+                Text("\(reportedKeys.count)/\(MicronutrientKey.vitaminAndMineralKeys.count) reported")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("food_nutrient_profile_summary")
+
+            if previewKeys.isEmpty {
+                missingDataState
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(previewKeys.enumerated()), id: \.element) { index, key in
+                        nutrientRow(for: key)
+                        if index < previewKeys.count - 1 {
+                            Divider().padding(.leading, 36)
+                        }
+                    }
+                }
+
+                Button(action: onOpenProfile) {
+                    HStack(spacing: AppSpacing.compact) {
+                        Text("Explore nutrient profile")
+                        Spacer()
+                        Text("\(reportedKeys.count) reported")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .appFont(size: 12, weight: .bold)
+                    }
+                }
+                .buttonStyle(AppActionButtonStyle(.secondary))
+                .accessibilityIdentifier("food_nutrient_profile_open")
+
+                Text("Missing values are unknown, not zero. % Daily Value is a general label reference, not a personal target.")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .appSurface(.quiet)
+    }
+
+    private var missingDataState: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                Image(systemName: "circle.dotted")
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundStyle(AppPalette.caution)
+                    .frame(width: 38, height: 38)
+                    .background(AppPalette.caution.opacity(0.10), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("No vitamin or mineral detail reported")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+                    Text("This source supplied calories and macros only. MyFitPlate will not treat missing nutrients as zero.")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button("Scan Nutrition Label", action: onScanLabel)
+                .buttonStyle(AppActionButtonStyle(.secondary))
+        }
+        .accessibilityIdentifier("food_nutrient_profile_missing")
+    }
+
+    private func nutrientRow(for key: MicronutrientKey) -> some View {
+        let amount = nutrients.micronutrientValue(for: key) ?? 0
+        let percent = key.percentDailyValue(for: amount) ?? 0
+        let tint = nutrientTint(for: key)
+
+        return HStack(spacing: AppSpacing.row) {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                    Text(key.displayName)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                    Spacer(minLength: AppSpacing.compact)
+                    Text("\(formattedAmount(amount)) \(key.unit)")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(AppPalette.text)
+                    Text(formattedPercent(percent))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 48, alignment: .trailing)
+                }
+
+                ProgressView(value: min(percent / 100, 1))
+                    .tint(tint)
+            }
+            .padding(.vertical, AppSpacing.compact)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(key.displayName)
+        .accessibilityValue("\(formattedAmount(amount)) \(key.unit), \(formattedPercent(percent))")
+    }
+
+    private func percentDailyValue(for key: MicronutrientKey) -> Double {
+        guard let amount = nutrients.micronutrientValue(for: key) else { return 0 }
+        return key.percentDailyValue(for: amount) ?? 0
+    }
+}
+
+struct FoodNutrientProfileSheet: View {
+    private enum Filter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case vitamins = "Vitamins"
+        case minerals = "Minerals"
+
+        var id: String { rawValue }
+    }
+
+    let foodName: String
+    let servingDescription: String
+    let nutrients: AdjustedServingNutrition
+    let onScanLabel: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var filter: Filter = .all
+
+    private var reportedCount: Int {
+        MicronutrientKey.vitaminAndMineralKeys.filter {
+            nutrients.micronutrientValue(for: $0) != nil
+        }.count
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    coverageHeader
+
+                    Picker("Nutrient category", selection: $filter) {
+                        ForEach(Filter.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("food_nutrient_profile_filter")
+
+                    ForEach(visibleCategories, id: \.self) { category in
+                        categorySection(category)
+                    }
+
+                    missingCoverage
+
+                    Button {
+                        dismiss()
+                        onScanLabel()
+                    } label: {
+                        Label("Scan Nutrition Label", systemImage: "camera.viewfinder")
+                    }
+                    .buttonStyle(AppActionButtonStyle(.secondary))
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
+            }
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Nutrient profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var coverageHeader: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text(foodName)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+            Text(servingDescription)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: AppSpacing.group) {
+                ZStack {
+                    Circle()
+                        .stroke(AppPalette.separator, lineWidth: 7)
+                    Circle()
+                        .trim(
+                            from: 0,
+                            to: CGFloat(reportedCount) / CGFloat(MicronutrientKey.vitaminAndMineralKeys.count)
+                        )
+                        .stroke(
+                            AppPalette.brand,
+                            style: StrokeStyle(lineWidth: 7, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                    Text("\(reportedCount)")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+                }
+                .frame(width: 64, height: 64)
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(reportedCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) fields reported")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+                    Text("Reported values stay distinct from fields this source did not supply.")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .appSurface(.interpreted)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("food_nutrient_profile_coverage")
+    }
+
+    private var visibleCategories: [MicronutrientCategory] {
+        switch filter {
+        case .all: [.vitamin, .mineral]
+        case .vitamins: [.vitamin]
+        case .minerals: [.mineral]
+        }
+    }
+
+    private func keys(for category: MicronutrientCategory) -> [MicronutrientKey] {
+        switch category {
+        case .vitamin: MicronutrientKey.vitaminKeys
+        case .mineral: MicronutrientKey.mineralKeys
+        case .other: [.fiber]
+        }
+    }
+
+    private func categorySection(_ category: MicronutrientCategory) -> some View {
+        let reported = keys(for: category).filter {
+            nutrients.micronutrientValue(for: $0) != nil
+        }
+
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(category.displayName)
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+                Spacer()
+                Text("\(reported.count) reported")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if reported.isEmpty {
+                Text("No \(category.displayName.lowercased()) were reported by this source.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, AppSpacing.compact)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(reported.enumerated()), id: \.element) { index, key in
+                        detailedNutrientRow(for: key)
+                        if index < reported.count - 1 {
+                            Divider().padding(.leading, 36)
+                        }
+                    }
+                }
+            }
+        }
+        .appSurface(.quiet)
+    }
+
+    private func detailedNutrientRow(for key: MicronutrientKey) -> some View {
+        let amount = nutrients.micronutrientValue(for: key) ?? 0
+        let percent = key.percentDailyValue(for: amount) ?? 0
+        let tint = nutrientTint(for: key)
+
+        return HStack(spacing: AppSpacing.row) {
+            Image(systemName: key.category == .vitamin ? "sparkles" : "hexagon.fill")
+                .appFont(size: 12, weight: .bold)
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.10), in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                    Text(key.displayName)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                    Spacer(minLength: AppSpacing.compact)
+                    Text("\(formattedAmount(amount)) \(key.unit)")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(AppPalette.text)
+                    Text(formattedPercent(percent))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 48, alignment: .trailing)
+                }
+                ProgressView(value: min(percent / 100, 1))
+                    .tint(tint)
+            }
+            .padding(.vertical, AppSpacing.compact)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(key.displayName)
+        .accessibilityValue("\(formattedAmount(amount)) \(key.unit), \(formattedPercent(percent))")
+    }
+
+    private var missingCoverage: some View {
+        let missing = visibleCategories.flatMap(keys).filter {
+            nutrients.micronutrientValue(for: $0) == nil
+        }
+
+        return VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text("Not reported")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+            Text(missing.isEmpty ? "Every field in this view has reported data." : missing.map(\.displayName).joined(separator: " · "))
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Missing means the source did not provide a value; MyFitPlate does not count it as zero. % Daily Value uses the general U.S. label reference.")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .appSurface(.interpreted)
+    }
+}
+
+private func nutrientTint(for key: MicronutrientKey) -> Color {
+    if key == .sodium { return AppPalette.caution }
+    switch key.category {
+    case .vitamin: return AppPalette.effort
+    case .mineral: return AppPalette.recovery
+    case .other: return AppPalette.brandText
+    }
+}
+
+private func formattedAmount(_ value: Double) -> String {
+    value.formatted(.number.precision(.fractionLength(0...2)))
+}
+
+private func formattedPercent(_ value: Double) -> String {
+    "\(Int(value.rounded()).formatted())% DV"
 }
 
 struct FoodDetailLoadingCard: View {
     var body: some View {
         VStack(spacing: 13) {
             ProgressView()
-                .tint(.blue)
+                .tint(AppPalette.effort)
 
             Text("Loading serving options")
                 .appFont(size: 17, weight: .bold)
@@ -154,9 +628,9 @@ struct FoodDetailNoticeCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 34, height: 34)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -170,7 +644,39 @@ struct FoodDetailNoticeCard: View {
             }
         }
         .padding(14)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(AppPalette.caution.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+struct LabelScanFailureCard: View {
+    let retry: () -> Void
+    let continueManually: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("Label details were not clear enough", systemImage: "doc.text.viewfinder")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+
+            Text("Try a flatter, brighter photo with the full Nutrition Facts panel visible. Your current serving and nutrient values have not been changed.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: AppSpacing.compact) {
+                Button("Try Another Photo", action: retry)
+                    .buttonStyle(AppActionButtonStyle(.secondary, fillsWidth: false))
+                Button("Edit Manually", action: continueManually)
+                    .buttonStyle(AppActionButtonStyle(.ghost, fillsWidth: false))
+            }
+        }
+        .appSurface(.quiet)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.caution.opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("label_scan_failure")
     }
 }
 
@@ -182,9 +688,9 @@ struct FoodDetailLabelScanCard: View {
             HStack(spacing: 12) {
                 Image(systemName: "camera.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppPalette.effort)
                     .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(AppPalette.effort.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Nutrition label looks different?")
@@ -209,366 +715,522 @@ struct FoodDetailLabelScanCard: View {
     }
 }
 
-struct FoodDetailBarcodeCorrectionCard: View {
-    let fixAction: () -> Void
+struct FoodDetailBarcodeMemoryAction: View {
     let rememberAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        Button(action: rememberAction) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "barcode.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundColor(AppPalette.effort)
+                    .frame(width: 38, height: 38)
+                    .background(AppPalette.effort.opacity(0.10), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Barcode match")
+                    Text("Use for future scans")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Fix the match or save this version for future scans.")
+                    Text("Save this reviewed entry as the match for this barcode.")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
+                Image(systemName: "bookmark")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(AppPalette.effort)
             }
-
-            HStack(spacing: 10) {
-                Button(action: fixAction) {
-                    Label("Fix", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-
-                Button(action: rememberAction) {
-                    Label("Remember", systemImage: "bookmark.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .blue, isFilled: false))
-                .accessibilityHint("Saves this food as the match for this barcode.")
-            }
-        }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct FoodDetailCorrectionButtonStyle: ButtonStyle {
-    let tint: Color
-    let isFilled: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .appFont(size: 13, weight: .bold)
-            .foregroundColor(isFilled ? .white : tint)
             .padding(.vertical, 10)
-            .background(
-                (isFilled ? tint : tint.opacity(0.12)),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-            )
-            .opacity(configuration.isPressed ? 0.72 : 1)
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) { Divider() }
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityHint("Saves this food as the match for this barcode.")
     }
 }
 
-struct FoodDetailAIRefineCard: View {
-    let refineAction: () -> Void
+final class FoodDetailCorrectionDraft: ObservableObject {
+    let originalName: String
+    let serving: ServingSizeOption
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "sparkles")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.orange)
-                    .frame(width: 42, height: 42)
-                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    @Published var name: String
+    @Published var servingDescription: String
+    @Published var servingWeight: String
+    @Published var calories: String
+    @Published var protein: String
+    @Published var carbs: String
+    @Published var fats: String
+    @Published var saturatedFat: String
+    @Published var fiber: String
+    @Published var micronutrientValues: [MicronutrientKey: String]
+    @Published var isMicronutrientsExpanded = false
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("This is an AI estimate")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Portions and hidden ingredients vary. A 30-second refine makes it yours.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
+    init(foodName: String, serving: ServingSizeOption) {
+        self.originalName = foodName
+        self.serving = serving
+        self.name = foodName
+        self.servingDescription = serving.description
+        self.servingWeight = FoodDetailCorrectionSheet.text(for: serving.servingWeightGrams)
+        self.calories = FoodDetailCorrectionSheet.requiredText(for: serving.calories)
+        self.protein = FoodDetailCorrectionSheet.requiredText(for: serving.protein)
+        self.carbs = FoodDetailCorrectionSheet.requiredText(for: serving.carbs)
+        self.fats = FoodDetailCorrectionSheet.requiredText(for: serving.fats)
+        self.saturatedFat = FoodDetailCorrectionSheet.text(for: serving.saturatedFat)
+        self.fiber = FoodDetailCorrectionSheet.text(for: serving.fiber)
+        self.micronutrientValues = Dictionary(
+            uniqueKeysWithValues: MicronutrientKey.vitaminAndMineralKeys.map {
+                ($0, FoodDetailCorrectionSheet.text(for: FoodDetailCorrectionSheet.value(for: $0, in: serving)))
             }
-
-            Button(action: refineAction) {
-                Label("Refine estimate", systemImage: "slider.horizontal.3")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-            .accessibilityHint("Opens an editor to adjust this estimate's name, serving, and macros.")
-        }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-struct FoodDataSanityCard: View {
-    let findings: [FoodDataSanity.Finding]
-    let fixAction: () -> Void
-
-    private var hasWarning: Bool {
-        findings.contains { $0.severity == .warning }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: hasWarning ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(hasWarning ? .orange : .blue)
-                    .frame(width: 42, height: 42)
-                    .background((hasWarning ? Color.orange : Color.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(hasWarning ? "This data looks off" : "Worth a quick look")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("MyFitPlate checks every food against nutrition math.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(findings) { finding in
-                    HStack(alignment: .top, spacing: 7) {
-                        Image(systemName: finding.severity == .warning ? "exclamationmark.circle.fill" : "info.circle")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(finding.severity == .warning ? .orange : Color(UIColor.secondaryLabel))
-                            .padding(.top, 1)
-
-                        Text(finding.message)
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-
-            if hasWarning {
-                Button(action: fixAction) {
-                    Label("Fix this data", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-                .accessibilityHint("Opens an editor to correct this food's nutrition data.")
-            }
-        }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        )
     }
 }
 
 struct FoodDetailCorrectionSheet: View {
+    private struct CorrectionChange: Identifiable {
+        let id: String
+        let title: String
+        let before: String
+        let after: String
+    }
+
     let serving: ServingSizeOption
     let barcode: String?
+    let onCancel: () -> Void
     let onSave: (String, ServingSizeOption) -> Void
+    private let originalName: String
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    @State private var servingDescription: String
-    @State private var servingWeight: String
-    @State private var calories: String
-    @State private var protein: String
-    @State private var carbs: String
-    @State private var fats: String
-    @State private var saturatedFat: String
-    @State private var fiber: String
+    @ObservedObject private var draft: FoodDetailCorrectionDraft
+
+    init(
+        draft: FoodDetailCorrectionDraft,
+        barcode: String?,
+        onCancel: @escaping () -> Void,
+        onSave: @escaping (String, ServingSizeOption) -> Void
+    ) {
+        self.serving = draft.serving
+        self.barcode = barcode
+        self.onCancel = onCancel
+        self.onSave = onSave
+        self.originalName = draft.originalName
+        self._draft = ObservedObject(wrappedValue: draft)
+    }
 
     init(
         foodName: String,
         serving: ServingSizeOption,
         barcode: String?,
+        onCancel: @escaping () -> Void,
         onSave: @escaping (String, ServingSizeOption) -> Void
     ) {
-        self.serving = serving
-        self.barcode = barcode
-        self.onSave = onSave
-        self._name = State(initialValue: foodName)
-        self._servingDescription = State(initialValue: serving.description)
-        self._servingWeight = State(initialValue: Self.text(for: serving.servingWeightGrams))
-        self._calories = State(initialValue: Self.requiredText(for: serving.calories))
-        self._protein = State(initialValue: Self.requiredText(for: serving.protein))
-        self._carbs = State(initialValue: Self.requiredText(for: serving.carbs))
-        self._fats = State(initialValue: Self.requiredText(for: serving.fats))
-        self._saturatedFat = State(initialValue: Self.text(for: serving.saturatedFat))
-        self._fiber = State(initialValue: Self.text(for: serving.fiber))
+        self.init(
+            draft: FoodDetailCorrectionDraft(foodName: foodName, serving: serving),
+            barcode: barcode,
+            onCancel: onCancel,
+            onSave: onSave
+        )
     }
 
     private var trimmedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var trimmedServingDescription: String {
-        servingDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.servingDescription.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var canSave: Bool {
         !trimmedName.isEmpty &&
             !trimmedServingDescription.isEmpty &&
-            doubleValue(calories) != nil &&
-            doubleValue(protein) != nil &&
-            doubleValue(carbs) != nil &&
-            doubleValue(fats) != nil &&
-            isValidOptionalNumber(servingWeight) &&
-            isValidOptionalNumber(saturatedFat) &&
-            isValidOptionalNumber(fiber) &&
+            doubleValue(draft.calories) != nil &&
+            doubleValue(draft.protein) != nil &&
+            doubleValue(draft.carbs) != nil &&
+            doubleValue(draft.fats) != nil &&
+            isValidOptionalNumber(draft.servingWeight) &&
+            isValidOptionalNumber(draft.saturatedFat) &&
+            isValidOptionalNumber(draft.fiber) &&
+            draft.micronutrientValues.values.allSatisfy(isValidOptionalNumber) &&
             saturatedFatValidationMessage == nil
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: AppSpacing.group) {
                     correctionHeader
                     identityFields
                     macroFields
+                    micronutrientFields
+                    if !correctionChanges.isEmpty {
+                        changeSummary
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 24)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("Fix food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel", action: onCancel)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         guard let correctedServing else { return }
                         onSave(trimmedName, correctedServing)
-                        dismiss()
                     }
                     .disabled(!canSave)
                 }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.connectedScenes
+                            .compactMap { $0 as? UIWindowScene }
+                            .flatMap(\.windows)
+                            .first(where: \.isKeyWindow)?
+                            .endEditing(true)
+                    }
+                    .accessibilityLabel("Hide keyboard")
+                    .accessibilityIdentifier("food_correction_keyboard_done")
+                }
             }
         }
+        .interactiveDismissDisabled()
+        .accessibilityIdentifier("food_correction_sheet")
     }
 
     private var correctionHeader: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: "pencil.and.scribble")
                 .appFont(size: 18, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .frame(width: 42, height: 42)
-                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(
+                    AppPalette.caution.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Correct barcode match")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.textPrimary)
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                Text("Correct food data")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
 
                 if let barcode {
                     Text("Barcode \(barcode)")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
             Spacer(minLength: 0)
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.interpreted)
     }
 
     private var identityFields: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Serving")
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Serving")
 
-            correctionTextField(title: "Food name", text: $name, keyboard: .default)
-            correctionTextField(title: "Serving size", text: $servingDescription, keyboard: .default)
-            correctionTextField(title: "Serving weight", text: $servingWeight, unit: "g", keyboard: .decimalPad)
+            correctionTextField(
+                title: "Food name",
+                text: $draft.name,
+                keyboard: .default,
+                identifier: "food_correction_name"
+            )
+            correctionTextField(
+                title: "Serving size",
+                text: $draft.servingDescription,
+                keyboard: .default,
+                identifier: "food_correction_serving"
+            )
+            correctionTextField(
+                title: "Serving weight",
+                text: $draft.servingWeight,
+                unit: "g",
+                keyboard: .decimalPad,
+                identifier: "food_correction_weight"
+            )
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet)
     }
 
     private var macroFields: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Nutrition")
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Core nutrition")
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                correctionTextField(title: "Calories", text: $calories, unit: "cal", keyboard: .decimalPad)
-                correctionTextField(title: "Protein", text: $protein, unit: "g", keyboard: .decimalPad)
-                correctionTextField(title: "Carbs", text: $carbs, unit: "g", keyboard: .decimalPad)
-                correctionTextField(title: "Total fat", text: $fats, unit: "g", keyboard: .decimalPad)
-                correctionTextField(title: "Saturated fat", text: $saturatedFat, unit: "g", keyboard: .decimalPad)
-                correctionTextField(title: "Fiber", text: $fiber, unit: "g", keyboard: .decimalPad)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppSpacing.row) {
+                correctionTextField(
+                    title: "Calories",
+                    text: $draft.calories,
+                    unit: "cal",
+                    keyboard: .decimalPad,
+                    identifier: "food_correction_calories"
+                )
+                correctionTextField(
+                    title: "Protein",
+                    text: $draft.protein,
+                    unit: "g",
+                    keyboard: .decimalPad,
+                    identifier: "food_correction_protein"
+                )
+                correctionTextField(
+                    title: "Carbs",
+                    text: $draft.carbs,
+                    unit: "g",
+                    keyboard: .decimalPad,
+                    identifier: "food_correction_carbs"
+                )
+                correctionTextField(
+                    title: "Total fat",
+                    text: $draft.fats,
+                    unit: "g",
+                    keyboard: .decimalPad,
+                    identifier: "food_correction_fat"
+                )
+                correctionTextField(
+                    title: "Saturated fat",
+                    text: $draft.saturatedFat,
+                    unit: "g",
+                    keyboard: .decimalPad,
+                    identifier: "food_correction_saturatedFat"
+                )
+                correctionTextField(
+                    title: "Fiber",
+                    text: $draft.fiber,
+                    unit: "g",
+                    keyboard: .decimalPad,
+                    identifier: "food_correction_fiber"
+                )
             }
 
             if let saturatedFatValidationMessage {
                 Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.red)
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.critical)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet)
+    }
+
+    private var micronutrientFields: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(AppMotion.standard) {
+                    draft.isMicronutrientsExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        AppSectionHeader(title: "Vitamins & minerals")
+                        Text("Optional detailed nutrition")
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: AppSpacing.compact)
+                    Text("\(reportedMicronutrientFieldCount)/\(MicronutrientKey.vitaminAndMineralKeys.count)")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.brandText)
+                        .rotationEffect(.degrees(draft.isMicronutrientsExpanded ? 180 : 0))
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("food_correction_micros")
+            .accessibilityLabel("Vitamins and minerals")
+            .accessibilityValue(draft.isMicronutrientsExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint("Shows optional detailed nutrition fields")
+
+            if draft.isMicronutrientsExpanded {
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    Text("Leave a field blank when the source does not report it. Enter 0 only when the label explicitly reports zero.")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    micronutrientCategoryFields(.vitamin)
+                    micronutrientCategoryFields(.mineral)
+                }
+                .padding(.top, AppSpacing.row)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .appSurface(.quiet)
+    }
+
+    private func micronutrientCategoryFields(_ category: MicronutrientCategory) -> some View {
+        let keys = category == .vitamin
+            ? MicronutrientKey.vitaminKeys
+            : MicronutrientKey.mineralKeys
+
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text(category.displayName)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppSpacing.row) {
+                ForEach(keys, id: \.self) { key in
+                    correctionTextField(
+                        title: key.displayName,
+                        text: micronutrientBinding(for: key),
+                        unit: key.unit,
+                        keyboard: .decimalPad,
+                        identifier: "food_correction_\(key.rawValue)"
+                    )
+                }
+            }
+        }
+    }
+
+    private var changeSummary: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(spacing: AppSpacing.compact) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundStyle(AppPalette.brandText)
+                Text("Changes to Save")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+            }
+
+            ForEach(correctionChanges) { change in
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(change.title)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(change.before)
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                        Image(systemName: "arrow.right")
+                            .appFont(size: 9, weight: .bold)
+                            .foregroundStyle(AppPalette.brandText)
+                            .accessibilityHidden(true)
+                        Text(change.after)
+                            .appTextRole(.caption)
+                            .foregroundStyle(AppPalette.text)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.vertical, 3)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(change.title), \(change.before), changed to \(change.after)")
+            }
+        }
+        .appSurface(.interpreted)
+    }
+
+    private var correctionChanges: [CorrectionChange] {
+        var changes: [CorrectionChange] = []
+
+        func addText(_ id: String, _ title: String, original: String, current: String) {
+            let old = original.trimmingCharacters(in: .whitespacesAndNewlines)
+            let new = current.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard old != new, !new.isEmpty else { return }
+            changes.append(CorrectionChange(
+                id: id,
+                title: title,
+                before: old.isEmpty ? "Not reported" : old,
+                after: new
+            ))
+        }
+
+        func addNumber(
+            _ id: String,
+            _ title: String,
+            original: Double?,
+            currentText: String,
+            unit: String
+        ) {
+            let current = doubleValue(currentText)
+            if let original, let current {
+                let tolerance = max(0.0001, abs(original) * 0.00001)
+                guard abs(original - current) > tolerance else { return }
+            } else if original == nil, current == nil {
+                return
+            }
+            let before = original.map { "\(Self.displayNumber($0)) \(unit)" } ?? "Not reported"
+            let after = current.map { "\(Self.displayNumber($0)) \(unit)" } ?? "Not reported"
+            changes.append(CorrectionChange(id: id, title: title, before: before, after: after))
+        }
+
+        addText("name", "Food name", original: originalName, current: draft.name)
+        addText("serving", "Serving", original: serving.description, current: draft.servingDescription)
+        addNumber("weight", "Serving weight", original: serving.servingWeightGrams, currentText: draft.servingWeight, unit: "g")
+        addNumber("calories", "Calories", original: serving.calories, currentText: draft.calories, unit: "cal")
+        addNumber("protein", "Protein", original: serving.protein, currentText: draft.protein, unit: "g")
+        addNumber("carbs", "Carbs", original: serving.carbs, currentText: draft.carbs, unit: "g")
+        addNumber("fat", "Total fat", original: serving.fats, currentText: draft.fats, unit: "g")
+        addNumber("saturated-fat", "Saturated fat", original: serving.saturatedFat, currentText: draft.saturatedFat, unit: "g")
+        addNumber("fiber", "Fiber", original: serving.fiber, currentText: draft.fiber, unit: "g")
+        for key in MicronutrientKey.vitaminAndMineralKeys {
+            addNumber(
+                key.rawValue,
+                key.displayName,
+                original: Self.value(for: key, in: serving),
+                currentText: draft.micronutrientValues[key] ?? "",
+                unit: key.unit
+            )
+        }
+        return changes
     }
 
     private var correctedServing: ServingSizeOption? {
         guard canSave,
-              let caloriesValue = doubleValue(calories),
-              let proteinValue = doubleValue(protein),
-              let carbsValue = doubleValue(carbs),
-              let fatsValue = doubleValue(fats) else {
+              let caloriesValue = doubleValue(draft.calories),
+              let proteinValue = doubleValue(draft.protein),
+              let carbsValue = doubleValue(draft.carbs),
+              let fatsValue = doubleValue(draft.fats) else {
             return nil
         }
 
         return ServingSizeOption(
             description: trimmedServingDescription,
-            servingWeightGrams: doubleValue(servingWeight),
+            servingWeightGrams: doubleValue(draft.servingWeight),
             calories: caloriesValue,
             protein: proteinValue,
             carbs: carbsValue,
             fats: fatsValue,
-            saturatedFat: doubleValue(saturatedFat),
+            saturatedFat: doubleValue(draft.saturatedFat),
             polyunsaturatedFat: serving.polyunsaturatedFat,
             monounsaturatedFat: serving.monounsaturatedFat,
-            fiber: doubleValue(fiber),
-            calcium: serving.calcium,
-            iron: serving.iron,
-            potassium: serving.potassium,
-            sodium: serving.sodium,
-            vitaminA: serving.vitaminA,
-            vitaminC: serving.vitaminC,
-            vitaminD: serving.vitaminD,
-            vitaminB12: serving.vitaminB12,
-            folate: serving.folate,
-            magnesium: serving.magnesium,
-            phosphorus: serving.phosphorus,
-            zinc: serving.zinc,
-            copper: serving.copper,
-            manganese: serving.manganese,
-            selenium: serving.selenium,
-            vitaminB1: serving.vitaminB1,
-            vitaminB2: serving.vitaminB2,
-            vitaminB3: serving.vitaminB3,
-            vitaminB5: serving.vitaminB5,
-            vitaminB6: serving.vitaminB6,
-            vitaminE: serving.vitaminE,
-            vitaminK: serving.vitaminK
+            fiber: doubleValue(draft.fiber),
+            calcium: micronutrientValue(.calcium),
+            iron: micronutrientValue(.iron),
+            potassium: micronutrientValue(.potassium),
+            sodium: micronutrientValue(.sodium),
+            vitaminA: micronutrientValue(.vitaminA),
+            vitaminC: micronutrientValue(.vitaminC),
+            vitaminD: micronutrientValue(.vitaminD),
+            vitaminB12: micronutrientValue(.vitaminB12),
+            folate: micronutrientValue(.folate),
+            magnesium: micronutrientValue(.magnesium),
+            phosphorus: micronutrientValue(.phosphorus),
+            zinc: micronutrientValue(.zinc),
+            copper: micronutrientValue(.copper),
+            manganese: micronutrientValue(.manganese),
+            selenium: micronutrientValue(.selenium),
+            vitaminB1: micronutrientValue(.vitaminB1),
+            vitaminB2: micronutrientValue(.vitaminB2),
+            vitaminB3: micronutrientValue(.vitaminB3),
+            vitaminB5: micronutrientValue(.vitaminB5),
+            vitaminB6: micronutrientValue(.vitaminB6),
+            vitaminE: micronutrientValue(.vitaminE),
+            vitaminK: micronutrientValue(.vitaminK)
         )
     }
 
@@ -576,37 +1238,99 @@ struct FoodDetailCorrectionSheet: View {
         title: String,
         text: Binding<String>,
         unit: String? = nil,
-        keyboard: UIKeyboardType
+        keyboard: UIKeyboardType,
+        identifier: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
 
             HStack(spacing: 6) {
                 TextField(title, text: text)
                     .keyboardType(keyboard)
-                    .appFont(size: 16, weight: .semibold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.body)
+                    .foregroundStyle(AppPalette.text)
+                    .accessibilityIdentifier(identifier)
 
                 if let unit {
                     Text(unit)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(12)
-            .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator.opacity(0.65), lineWidth: 0.5)
+            }
         }
     }
 
-    private static func text(for value: Double?) -> String {
-        guard let value, value > 0 else { return "" }
+    fileprivate static func text(for value: Double?) -> String {
+        guard let value, value.isFinite, value >= 0 else { return "" }
         return String(format: "%g", value)
     }
 
-    private static func requiredText(for value: Double) -> String {
+    private var reportedMicronutrientFieldCount: Int {
+        draft.micronutrientValues.values.filter {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.count
+    }
+
+    private func micronutrientBinding(for key: MicronutrientKey) -> Binding<String> {
+        Binding(
+            get: { draft.micronutrientValues[key] ?? "" },
+            set: { draft.micronutrientValues[key] = $0 }
+        )
+    }
+
+    private func micronutrientValue(_ key: MicronutrientKey) -> Double? {
+        doubleValue(draft.micronutrientValues[key] ?? "")
+    }
+
+    fileprivate static func value(for key: MicronutrientKey, in serving: ServingSizeOption) -> Double? {
+        switch key {
+        case .fiber: return serving.fiber
+        case .calcium: return serving.calcium
+        case .iron: return serving.iron
+        case .potassium: return serving.potassium
+        case .sodium: return serving.sodium
+        case .vitaminA: return serving.vitaminA
+        case .vitaminC: return serving.vitaminC
+        case .vitaminD: return serving.vitaminD
+        case .vitaminB12: return serving.vitaminB12
+        case .folate: return serving.folate
+        case .magnesium: return serving.magnesium
+        case .phosphorus: return serving.phosphorus
+        case .zinc: return serving.zinc
+        case .copper: return serving.copper
+        case .manganese: return serving.manganese
+        case .selenium: return serving.selenium
+        case .vitaminB1: return serving.vitaminB1
+        case .vitaminB2: return serving.vitaminB2
+        case .vitaminB3: return serving.vitaminB3
+        case .vitaminB5: return serving.vitaminB5
+        case .vitaminB6: return serving.vitaminB6
+        case .vitaminE: return serving.vitaminE
+        case .vitaminK: return serving.vitaminK
+        }
+    }
+
+    fileprivate static func requiredText(for value: Double) -> String {
         String(format: "%g", max(0, value))
+    }
+
+    private static func displayNumber(_ value: Double) -> String {
+        guard value.isFinite else { return "Invalid" }
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
     }
 
     private func doubleValue(_ text: String) -> Double? {
@@ -622,8 +1346,8 @@ struct FoodDetailCorrectionSheet: View {
     }
 
     private var saturatedFatValidationMessage: String? {
-        guard let saturatedFatValue = doubleValue(saturatedFat),
-              let totalFatValue = doubleValue(fats),
+        guard let saturatedFatValue = doubleValue(draft.saturatedFat),
+              let totalFatValue = doubleValue(draft.fats),
               !FoodDataSanity.saturatedFatFitsWithinTotalFat(
                   saturatedFat: saturatedFatValue,
                   totalFat: totalFatValue
@@ -640,19 +1364,17 @@ struct FoodDetailActionBar: View {
     let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button(title, action: action)
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!isEnabled)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.06))
-                .frame(height: 1)
-        }
+        Button(title, action: action)
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(!isEnabled)
+            .accessibilityIdentifier("food_detail_log_action")
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.row)
+            .background(AppPalette.canvas.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
+            }
     }
 }

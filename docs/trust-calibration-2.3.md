@@ -1,8 +1,8 @@
-# Trust Calibration Report Contract for Replacement 2.2
+# Trust Calibration Report Contract for Version 2.3
 
-This is the reproducible analysis plan for Trust model calibration. Instrumentation is ready in
-internal analytics schema `2.3.2`; the report itself remains open until enough real
-replacement 2.2 behavior exists. The filename retains the internal milestone label.
+This is the reproducible analysis plan for Trust model calibration. Version 2.3 instrumentation
+uses analytics schema `2.3.3`; the report itself remains open until enough real behavior exists.
+Schema `2.3.2` remains a historical pre-release cohort and must be analyzed separately.
 The goal is to learn whether lower Trust bands predict later corrections, not to make scores look
 higher.
 
@@ -10,7 +10,7 @@ higher.
 
 1. Do Review/Low entries produce more material corrections than Strong/Excellent entries?
 2. Within a Trust band, is one provider corrected more often than another?
-3. Does independent cross-verification predict fewer corrections than a single database?
+3. Does cross-database agreement predict fewer corrections than a single database record?
 4. Which coarse field groups are corrected: identity, serving, core nutrition, or detail
    nutrition?
 5. Does the correction flow resolve warnings, fail to save, or get abandoned?
@@ -57,6 +57,11 @@ Every Trust/correction event carries `source`, `trust_score`, `trust_level`,
 `sanity_finding_count`. Profiles are warning-first and length-bounded for stable ingestion; counts
 preserve the full number of findings.
 
+Current `evidence_class` values distinguish `cross_database_agreement`, `single_database`,
+`government_reference`, `manufacturer_label`, `community_consensus`, `personal_or_curated`,
+`user_confirmed`, `user_edited`, and `estimate`. A DSLD non-mass serving reports
+`serving_evidence=label_serving`; it is not grouped with missing gram evidence.
+
 Submitted/saved events also carry `correction_scope`. Its ordered values are any combination of
 `identity`, `serving`, `core_nutrition`, and `detail_nutrition`, or `no_material_change`. Successful
 saves add `resulting_sanity`, `resulting_sanity_profile`, and `resulting_review_status`.
@@ -69,7 +74,7 @@ saves add `resulting_sanity`, `resulting_sanity_profile`, and `resulting_review_
 3. Register `cross_verified_count`, `sanity_finding_count`, and
    `resulting_sanity_finding_count` as numeric metrics. `trust_score` is already part of the 2.3
    dashboard contract.
-4. Filter every report to `analytics_schema=2.3.2` and one `trust_model_version`. Never merge
+4. Filter every version 2.3 report to `analytics_schema=2.3.3` and one `trust_model_version`. Never merge
    score semantics across model versions.
 
 ## Primary correction-rate query
@@ -90,7 +95,7 @@ WITH trust_events AS (
   FROM `PROJECT.analytics_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN 'YYYYMMDD' AND 'YYYYMMDD'
     AND event_name IN ('food_trust_card_viewed', 'food_correction_action')
-    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.2'
+    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.3'
 )
 SELECT
   model_version,
@@ -125,7 +130,7 @@ WITH actions AS (
   FROM `PROJECT.analytics_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN 'YYYYMMDD' AND 'YYYYMMDD'
     AND event_name = 'food_correction_action'
-    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.2'
+    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.3'
 )
 SELECT
   source,
@@ -158,7 +163,7 @@ WITH saves AS (
   WHERE _TABLE_SUFFIX BETWEEN 'YYYYMMDD' AND 'YYYYMMDD'
     AND event_name = 'food_correction_action'
     AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'action') = 'correction_saved'
-    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.2'
+    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.3'
   GROUP BY user_pseudo_id
 ), reuse AS (
   SELECT DISTINCT event.user_pseudo_id AS reuse_user_pseudo_id
@@ -187,8 +192,8 @@ LEFT JOIN reuse ON saves.user_pseudo_id = reuse.reuse_user_pseudo_id;
   friction, unclear warnings, or low perceived value.
 - Do not count `correction_submitted` as success, and do not count `no_material_change` as a
   material correction.
-- Compare independent cross-verification with single-database evidence inside the same provider
-  and Trust band where possible.
+- Compare cross-database agreement with single-database evidence inside the same provider and
+  Trust band where possible. Do not infer independent upstream evidence from provider count.
 - Change a weight only when a repeated, adequately sized cohort shows the same direction. Record
   the evidence and increment `FoodTrustEvaluation.modelVersion` in the same release.
 

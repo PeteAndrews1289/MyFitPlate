@@ -66,6 +66,11 @@ final class AYCEPricingTests: XCTestCase {
 
         let nibble = AYCEPricingRules.heuristicPrices(calories: 40)
         XCTAssertEqual(nibble.restaurant, 2.0, accuracy: 0.001, "Nothing on a menu costs less than the floor")
+
+        let invalid = AYCEPricingRules.heuristicPrices(calories: .nan)
+        XCTAssertTrue(invalid.restaurant.isFinite)
+        XCTAssertTrue(invalid.home.isFinite)
+        XCTAssertEqual(invalid.restaurant, 2.0, accuracy: 0.001)
     }
 
     // MARK: Catalog item bridge
@@ -81,6 +86,66 @@ final class AYCEPricingTests: XCTestCase {
         XCTAssertEqual(item.emoji, "🍣")
         XCTAssertEqual(AYCEPricingRules.emoji(for: "Beef brisket plate"), "🥩")
         XCTAssertEqual(AYCEPricingRules.emoji(for: "Something unrecognizable"), "🍽️")
+    }
+
+    func testReviewedScannedItemRequiresCompleteFiniteValuesAndClampsPrices() throws {
+        let reviewed = try XCTUnwrap(AYCEPricingRules.reviewedCatalogItem(
+            name: "  Dragon roll  ", unit: "", cuisine: .sushi,
+            calories: 320, protein: 12, carbs: 40, fats: 11,
+            restaurantPrice: 12.5, homeCost: 20
+        ))
+        XCTAssertEqual(reviewed.name, "Dragon roll")
+        XCTAssertEqual(reviewed.unit, "serving")
+        XCTAssertEqual(reviewed.homeCost, 12.5 * 0.9, accuracy: 0.001)
+        XCTAssertTrue(reviewed.isAIEstimated)
+        XCTAssertTrue(reviewed.isLocallyPriced)
+
+        XCTAssertNil(AYCEPricingRules.reviewedCatalogItem(
+            name: " ", unit: "serving", cuisine: .sushi,
+            calories: 100, protein: 5, carbs: 10, fats: 2,
+            restaurantPrice: 8, homeCost: 2
+        ))
+        XCTAssertNil(AYCEPricingRules.reviewedCatalogItem(
+            name: "Mystery plate", unit: "serving", cuisine: .sushi,
+            calories: .infinity, protein: 5, carbs: 10, fats: 2,
+            restaurantPrice: 8, homeCost: 2
+        ))
+    }
+
+    func testCatalogBridgeSanitizesNonfiniteNutritionAndPrices() {
+        let item = AYCEPricingRules.catalogItem(
+            name: "Mystery plate", cuisine: .sushi,
+            calories: .nan, protein: .infinity, carbs: -.infinity, fats: -3,
+            restaurantPrice: .nan, homeCost: .infinity
+        )
+        XCTAssertEqual(item.calories, 0)
+        XCTAssertEqual(item.protein, 0)
+        XCTAssertEqual(item.carbs, 0)
+        XCTAssertEqual(item.fats, 0)
+        XCTAssertTrue(item.restaurantPrice.isFinite)
+        XCTAssertTrue(item.homeCost.isFinite)
+    }
+
+    func testUserEnteredLocalItemKeepsItsPriceAndHonestDiarySource() throws {
+        let item = try XCTUnwrap(AYCEPricingRules.reviewedCatalogItem(
+            name: "House special", unit: "plate", cuisine: .chinese,
+            calories: 500, protein: 30, carbs: 55, fats: 18,
+            restaurantPrice: 14, homeCost: 5,
+            isAIEstimated: false
+        ))
+        let session = AYCESession(
+            cuisine: .chinese,
+            buffetPrice: 30,
+            entries: [AYCESessionEntry(item: item, count: 1)],
+            citySlug: "nyc"
+        )
+        let prices = AYCERules.unitPrices(for: item, in: session)
+        XCTAssertEqual(prices.restaurant, 14, accuracy: 0.001)
+        XCTAssertEqual(prices.home, 5, accuracy: 0.001)
+        XCTAssertEqual(
+            AYCERules.foodItem(from: session.entries[0]).sourceMetadata?.sourceType,
+            .manual
+        )
     }
 
     func testAIEstimatedEntriesCarryHonestSourceMetadataIntoTheDiary() {

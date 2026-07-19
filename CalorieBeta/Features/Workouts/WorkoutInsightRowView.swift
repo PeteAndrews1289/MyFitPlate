@@ -1,8 +1,10 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct WorkoutInsightRowView: View {
     let insight: WorkoutAnalysisInsight
-    
+
     private var iconName: String {
         switch insight.category {
         case "Performance": return "chart.bar.xaxis"
@@ -15,22 +17,26 @@ struct WorkoutInsightRowView: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 15) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: iconName)
-                .font(.title2)
-                .foregroundColor(.brandPrimary)
-                .frame(width: 30)
-                .padding(.top, 2)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AppPalette.brandText)
+                .frame(width: 34, height: 34)
+                .background(AppPalette.brand.opacity(0.1), in: Circle())
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(insight.title)
-                    .appFont(size: 16, weight: .bold)
-                
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Text(insight.message)
-                    .appFont(size: 14)
-                    .foregroundColor(.secondary)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, AppSpacing.row)
     }
 }

@@ -194,10 +194,19 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
     
     func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay? {
         let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(dateString)
-        return try await planRef.getDocument(as: MealPlanDay.self)
+        let document = try await planRef.getDocument()
+        guard document.exists else { return nil }
+
+        let payload = try document.data(as: MealPlanPayload.self)
+        return MealPlanDay(
+            id: payload.id ?? document.documentID,
+            date: payload.date.dateValue(),
+            meals: payload.meals
+        )
     }
     
     private struct MealPlanPayload: Codable {
+        let id: String?
         let date: Timestamp
         let meals: [PlannedMeal]
     }
@@ -205,7 +214,11 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
     func saveMealPlan(userID: String, plan: MealPlanDay) async throws {
         let planID = plan.id
         let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(planID)
-        let data = try Firestore.Encoder().encode(MealPlanPayload(date: Timestamp(date: plan.date), meals: plan.meals))
+        let data = try Firestore.Encoder().encode(MealPlanPayload(
+            id: planID,
+            date: Timestamp(date: plan.date),
+            meals: plan.meals
+        ))
         try await planRef.setData(data, merge: true)
     }
     
@@ -215,10 +228,42 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
         
         for plan in plans {
             let dayId = plan.id
-            let data = try Firestore.Encoder().encode(MealPlanPayload(date: Timestamp(date: plan.date), meals: plan.meals))
+            let data = try Firestore.Encoder().encode(MealPlanPayload(
+                id: dayId,
+                date: Timestamp(date: plan.date),
+                meals: plan.meals
+            ))
             batch.setData(data, forDocument: collectionRef.document(dayId), merge: true)
         }
         
+        try await batch.commit()
+    }
+
+    func discardMealPlans(
+        userID: String,
+        dateStrings: [String],
+        retainingGroceryItems: [GroceryListItem]
+    ) async throws {
+        let batch = db.batch()
+        let userRef = db.collection(FirestoreCollection.users).document(userID)
+        let planCollection = userRef.collection(FirestoreCollection.mealPlans)
+        let groceryRef = userRef
+            .collection(FirestoreCollection.userSettings)
+            .document(FirestoreDocument.groceryList)
+        let groceryData = try retainingGroceryItems.map { try Firestore.Encoder().encode($0) }
+
+        for dateString in Set(dateStrings) where !dateString.isEmpty {
+            batch.deleteDocument(planCollection.document(dateString))
+        }
+        batch.setData(
+            [
+                "items": groceryData,
+                "lastUpdated": Timestamp(date: Date())
+            ],
+            forDocument: groceryRef,
+            merge: true
+        )
+
         try await batch.commit()
     }
     
@@ -298,11 +343,68 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
     
     func saveCustomFood(userID: String, foodItem: FoodItem) async throws {
         let ref = db.collection(FirestoreCollection.users).document(userID).collection("customFoods").document(foodItem.id)
-        try ref.setData(from: foodItem, merge: true)
+        // Custom-food edits are complete replacements. Merge would retain cleared optional fields
+        // such as saturated fat or barcode associations when Firestore.Encoder omits nil values.
+        try ref.setData(from: foodItem, merge: false)
+    }
+
+    func saveCustomFoodReplacingDuplicates(
+        userID: String,
+        foodItem: FoodItem,
+        removingFoodIDs: [String]
+    ) async throws {
+        let uniqueIDs = Array(Set(removingFoodIDs)).filter { $0 != foodItem.id }
+        guard uniqueIDs.count <= 498 else {
+            throw NSError(
+                domain: "MyFoodsLibrary",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Too many barcode corrections to replace at once."]
+            )
+        }
+
+        let collection = db.collection(FirestoreCollection.users)
+            .document(userID)
+            .collection("customFoods")
+        let batch = db.batch()
+        // The encoded set is a complete replacement so cleared optional nutrients do not survive.
+        try batch.setData(from: foodItem, forDocument: collection.document(foodItem.id))
+        for foodID in uniqueIDs {
+            batch.deleteDocument(collection.document(foodID))
+        }
+        try await batch.commit()
     }
     
     func deleteCustomFood(userID: String, foodItemID: String) async throws {
         try await db.collection(FirestoreCollection.users).document(userID).collection("customFoods").document(foodItemID).delete()
+    }
+
+    func removeCustomFoodBarcode(userID: String, foodItemID: String) async throws {
+        let ref = db.collection(FirestoreCollection.users)
+            .document(userID)
+            .collection("customFoods")
+            .document(foodItemID)
+        try await ref.updateData(["sourceMetadata.barcode": FieldValue.delete()])
+    }
+
+    func mergeCustomFoods(userID: String, keepingFoodID: String, removingFoodIDs: [String]) async throws {
+        let uniqueIDs = Array(Set(removingFoodIDs)).filter { $0 != keepingFoodID }
+        guard !uniqueIDs.isEmpty else { return }
+        guard uniqueIDs.count <= 499 else {
+            throw NSError(
+                domain: "MyFoodsLibrary",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Too many duplicate foods to merge at once."]
+            )
+        }
+
+        let collection = db.collection(FirestoreCollection.users)
+            .document(userID)
+            .collection("customFoods")
+        let batch = db.batch()
+        for foodID in uniqueIDs {
+            batch.deleteDocument(collection.document(foodID))
+        }
+        try await batch.commit()
     }
     
     func fetchCustomFoods(userID: String) async throws -> [FoodItem] {

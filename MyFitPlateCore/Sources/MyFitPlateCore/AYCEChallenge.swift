@@ -55,11 +55,15 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
     /// True for plate-scanned items whose nutrition and prices came from the AI —
     /// they carry AI-estimate source metadata into the diary instead of user-entered.
     public let isAIEstimated: Bool
+    /// True when the entered or scanned price already represents the session's market.
+    /// Curated national catalog prices are the only values scaled by the city index.
+    public let isLocallyPriced: Bool
 
     public init(
         id: String, cuisine: AYCECuisine, name: String, emoji: String, unit: String,
         calories: Double, protein: Double, carbs: Double, fats: Double,
-        restaurantPrice: Double, homeCost: Double, isAIEstimated: Bool = false
+        restaurantPrice: Double, homeCost: Double, isAIEstimated: Bool = false,
+        isLocallyPriced: Bool = false
     ) {
         self.id = id
         self.cuisine = cuisine
@@ -73,10 +77,12 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
         self.restaurantPrice = restaurantPrice
         self.homeCost = homeCost
         self.isAIEstimated = isAIEstimated
+        self.isLocallyPriced = isLocallyPriced
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, cuisine, name, emoji, unit, calories, protein, carbs, fats, restaurantPrice, homeCost, isAIEstimated
+        case id, cuisine, name, emoji, unit, calories, protein, carbs, fats
+        case restaurantPrice, homeCost, isAIEstimated, isLocallyPriced
     }
 
     public init(from decoder: Decoder) throws {
@@ -94,6 +100,8 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
         homeCost = try container.decode(Double.self, forKey: .homeCost)
         // Absent in drafts persisted before this field existed.
         isAIEstimated = try container.decodeIfPresent(Bool.self, forKey: .isAIEstimated) ?? false
+        // Old scanned drafts were already priced for their market.
+        isLocallyPriced = try container.decodeIfPresent(Bool.self, forKey: .isLocallyPriced) ?? isAIEstimated
     }
 }
 
@@ -144,6 +152,60 @@ public struct AYCESession: Codable, Identifiable, Equatable {
     public var city: AYCECity { AYCECityIndex.city(slug: citySlug) }
 }
 
+public enum AYCESessionInputRules {
+    public static func decimal(from text: String) -> Double? {
+        var candidate = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "\u{00A0}", with: "")
+
+        guard !candidate.isEmpty else { return nil }
+
+        let commaCount = candidate.filter { $0 == "," }.count
+        let periodCount = candidate.filter { $0 == "." }.count
+
+        if commaCount > 0, periodCount > 0 {
+            guard let lastComma = candidate.lastIndex(of: ","),
+                  let lastPeriod = candidate.lastIndex(of: ".") else {
+                return nil
+            }
+            if lastComma > lastPeriod {
+                candidate.removeAll { $0 == "." }
+                candidate = String(candidate.map { $0 == "," ? "." : $0 })
+            } else {
+                candidate.removeAll { $0 == "," }
+            }
+        } else if commaCount == 1 {
+            let parts = candidate.split(separator: ",", omittingEmptySubsequences: false)
+            guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+            if parts[1].count == 3, parts[0] != "0" {
+                candidate.removeAll { $0 == "," }
+            } else {
+                candidate = String(candidate.map { $0 == "," ? "." : $0 })
+            }
+        } else if commaCount > 1 {
+            let parts = candidate.split(separator: ",", omittingEmptySubsequences: false)
+            guard !parts.isEmpty,
+                  !parts[0].isEmpty,
+                  parts.dropFirst().allSatisfy({ $0.count == 3 }) else {
+                return nil
+            }
+            candidate.removeAll { $0 == "," }
+        }
+
+        guard let value = Double(candidate), value.isFinite else { return nil }
+        return value
+    }
+
+    /// Accepts the currency formats people commonly paste or type while keeping invalid,
+    /// negative, and non-finite values out of session math.
+    public static func buffetPrice(from text: String) -> Double? {
+        guard let value = decimal(from: text), value > 0 else { return nil }
+        return value
+    }
+}
+
 public enum AYCERules {
 
     public struct Totals: Equatable {
@@ -168,7 +230,7 @@ public enum AYCERules {
     /// AI-scanned items were priced FOR the city already and pass through untouched;
     /// curated catalog items scale by the city's multipliers.
     public static func unitPrices(for item: AYCECatalogItem, in session: AYCESession) -> (restaurant: Double, home: Double) {
-        guard !item.isAIEstimated else {
+        guard !item.isLocallyPriced else {
             return (item.restaurantPrice, item.homeCost)
         }
         let city = session.city
@@ -212,7 +274,7 @@ public enum AYCERules {
 
     /// Fraction of the buffet price eaten back, uncapped (1.4 = 140% of what you paid).
     public static func breakEvenProgress(session: AYCESession) -> Double {
-        guard session.buffetPrice > 0 else { return 0 }
+        guard session.buffetPrice.isFinite, session.buffetPrice > 0 else { return 0 }
         return totals(for: session).restaurantValue / session.buffetPrice
     }
 
@@ -283,7 +345,7 @@ public enum AYCERules {
     }
 
     public static func money(_ amount: Double) -> String {
-        String(format: "$%.2f", max(0, amount))
+        String(format: "$%.2f", max(0, amount.isFinite ? amount : 0))
     }
 
     /// Bridges a session entry into the daily food log. The whole count collapses into one

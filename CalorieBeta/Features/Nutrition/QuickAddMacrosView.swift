@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct QuickAddMacrosView: View {
-    @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var dailyLogService: DailyLogService
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var dailyLogService: DailyLogService
 
     let selectedMealType: String
     let targetDate: Date
@@ -15,65 +16,191 @@ struct QuickAddMacrosView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    init(selectedMealType: String, targetDate: Date) {
+        self.selectedMealType = selectedMealType
+        self.targetDate = targetDate
+
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled,
+           ScreenshotDemoData.requestedScreen == "quick-add-macros" {
+            _calories = State(initialValue: "485")
+            _protein = State(initialValue: "38")
+            _carbs = State(initialValue: "52")
+            _fats = State(initialValue: "14")
+        }
+        #endif
+    }
+
+    private var parsedCalories: Double { parsed(calories) }
+    private var parsedProtein: Double { parsed(protein) }
+    private var parsedCarbs: Double { parsed(carbs) }
+    private var parsedFats: Double { parsed(fats) }
+
+    private var calculatedCalories: Double {
+        parsedProtein * 4 + parsedCarbs * 4 + parsedFats * 9
+    }
+
+    private var finalCalories: Double {
+        parsedCalories > 0 ? parsedCalories : calculatedCalories
+    }
+
+    private var hasMacroEntry: Bool {
+        parsedProtein > 0 || parsedCarbs > 0 || parsedFats > 0
+    }
+
+    private var hasEntry: Bool {
+        parsedCalories > 0 || hasMacroEntry
+    }
+
+    private var inputColumns: [GridItem] {
+        dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible()), GridItem(.flexible())]
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Macros").appFont(size: 13, weight: .semibold)) {
-                    HStack {
-                        Text("Calories")
-                        Spacer()
-                        TextField("0", text: $calories)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    HStack {
-                        Text("Protein (g)")
-                        Spacer()
-                        TextField("0", text: $protein)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    HStack {
-                        Text("Carbs (g)")
-                        Spacer()
-                        TextField("0", text: $carbs)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    HStack {
-                        Text("Fats (g)")
-                        Spacer()
-                        TextField("0", text: $fats)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: selectedMealType,
+                        title: "Quick Add",
+                        subtitle: "Enter the nutrition you already know. Leave calories blank to calculate them from macros."
+                    )
+                    .accessibilityIdentifier("quick_add_header")
 
-                if let errorMessage = errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .appFont(size: 13)
+                    nutritionSection
+                    summarySection
+
+                    if let errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .appTextRole(.secondary)
+                            .foregroundStyle(AppPalette.critical)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .appSurface(.quiet)
+                            .accessibilityIdentifier("quick_add_error")
                     }
                 }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.group)
             }
-            .navigationTitle("Quick add macros")
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Quick Add")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        saveMacros()
-                    }
-                    .fontWeight(.bold)
-                    .disabled(isSaving || (calories.isEmpty && protein.isEmpty && carbs.isEmpty && fats.isEmpty))
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .tint(AppPalette.brand)
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: saveMacros) {
+                    if isSaving {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Label("Add to \(selectedMealType)", systemImage: "plus.circle.fill")
+                    }
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(isSaving || !hasEntry)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
+                .accessibilityIdentifier("quick_add_action")
+            }
         }
+        .accessibilityIdentifier("quick_add_macros")
+    }
+
+    private var nutritionSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Nutrition",
+                subtitle: "Use values for the full amount you want to log."
+            )
+
+            LazyVGrid(columns: inputColumns, alignment: .leading, spacing: AppSpacing.row) {
+                QuickMacroInputField(
+                    title: "Calories",
+                    unit: "cal",
+                    value: $calories,
+                    accent: AppPalette.energy,
+                    accessibilityIdentifier: "quick_add_calories"
+                )
+                QuickMacroInputField(
+                    title: "Protein",
+                    unit: "g",
+                    value: $protein,
+                    accent: .accentProtein,
+                    accessibilityIdentifier: "quick_add_protein"
+                )
+                QuickMacroInputField(
+                    title: "Carbs",
+                    unit: "g",
+                    value: $carbs,
+                    accent: .accentCarbs,
+                    accessibilityIdentifier: "quick_add_carbs"
+                )
+                QuickMacroInputField(
+                    title: "Fat",
+                    unit: "g",
+                    value: $fats,
+                    accent: .accentFats,
+                    accessibilityIdentifier: "quick_add_fat"
+                )
+            }
+        }
+        .appSurface(.quiet)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("quick_add_nutrition")
+    }
+
+    private var summarySection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Entry Summary",
+                subtitle: parsedCalories > 0
+                    ? "Using the calorie value you entered."
+                    : hasMacroEntry
+                        ? "Calories are calculated from protein, carbs, and fat."
+                        : "Your entry updates as you add nutrition values."
+            )
+
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Calories",
+                    value: "\(Int(finalCalories.rounded()).formatted()) cal",
+                    accent: AppPalette.energy
+                ),
+                AppMetricItem(
+                    label: "Protein",
+                    value: "\(formatted(parsedProtein)) g",
+                    accent: .accentProtein
+                ),
+                AppMetricItem(
+                    label: "Carbs",
+                    value: "\(formatted(parsedCarbs)) g",
+                    accent: .accentCarbs
+                ),
+                AppMetricItem(
+                    label: "Fat",
+                    value: "\(formatted(parsedFats)) g",
+                    accent: .accentFats
+                )
+            ])
+        }
+        .appSurface(.emphasized)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("quick_add_summary")
     }
 
     private func saveMacros() {
@@ -82,13 +209,9 @@ struct QuickAddMacrosView: View {
             return
         }
 
-        let cal = Double(calories) ?? 0
-        let p = Double(protein) ?? 0
-        let c = Double(carbs) ?? 0
-        let f = Double(fats) ?? 0
-
-        // If calories is 0 but macros exist, calculate them.
-        let finalCalories = cal > 0 ? cal : (p * 4 + c * 4 + f * 9)
+        let p = parsedProtein
+        let c = parsedCarbs
+        let f = parsedFats
 
         let newFood = FoodItem(
             id: UUID().uuidString,
@@ -130,6 +253,60 @@ struct QuickAddMacrosView: View {
             }
         }
     }
+
+    private func parsed(_ value: String) -> Double {
+        max(Double(value.replacingOccurrences(of: ",", with: ".")) ?? 0, 0)
+    }
+
+    private func formatted(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(value == floor(value) ? 0 : 1)))
+    }
+}
+
+private struct QuickMacroInputField: View {
+    let title: String
+    let unit: String
+    @Binding var value: String
+    let accent: Color
+    let accessibilityIdentifier: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 7, height: 7)
+                    .accessibilityHidden(true)
+
+                Text(title)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                TextField("0", text: $value)
+                    .keyboardType(.decimalPad)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .accessibilityLabel(title)
+                    .accessibilityIdentifier(accessibilityIdentifier)
+
+                Text(unit)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, AppSpacing.row)
+            .frame(minHeight: 48)
+            .background(
+                AppPalette.canvas,
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 0.5)
+            }
+        }
+    }
 }
 
 struct MenuScannerView: View {
@@ -157,7 +334,7 @@ struct MenuScannerView: View {
                     VStack(spacing: 24) {
                         Image(systemName: "menucard")
                             .appFont(size: 60)
-                            .foregroundColor(.blue)
+                            .foregroundColor(AppPalette.effort)
                         
                         Text("Menu matchmaker")
                             .font(.title2)
@@ -170,11 +347,11 @@ struct MenuScannerView: View {
                         
                         if let errorMessage {
                             Text(errorMessage)
-                                .foregroundColor(.red)
+                                .foregroundColor(AppPalette.critical)
                                 .font(.callout)
                                 .multilineTextAlignment(.center)
                                 .padding()
-                                .background(Color.red.opacity(0.1))
+                                .background(AppPalette.critical.opacity(0.1))
                                 .cornerRadius(8)
                         }
                         
@@ -183,7 +360,7 @@ struct MenuScannerView: View {
                         }) {
                             Label("Scan menu", systemImage: "camera")
                                 .font(.headline)
-                                .foregroundColor(.white)
+                                .foregroundColor(AppPalette.onBrand)
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.brandPrimary)
@@ -219,7 +396,7 @@ struct MenuScannerView: View {
         VStack(spacing: 18) {
             ProgressView()
                 .controlSize(.large)
-                .tint(.blue)
+                .tint(AppPalette.effort)
             Text("Reading the menu and matching your macros")
                 .appFont(size: 15, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
@@ -269,9 +446,9 @@ struct MenuScannerView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 14, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 30, height: 30)
-                .background(Color.orange.opacity(0.14), in: Circle())
+                .background(AppPalette.caution.opacity(0.14), in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text("All picks exceed your remaining \(Int(remaining).formatted()) cal")
                     .appFont(size: 13, weight: .bold)
@@ -284,7 +461,7 @@ struct MenuScannerView: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppPalette.caution.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     @ViewBuilder
@@ -292,9 +469,9 @@ struct MenuScannerView: View {
         HStack(spacing: 14) {
             Image(systemName: "fork.knife")
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(.blue)
+                .foregroundColor(AppPalette.effort)
                 .frame(width: 44, height: 44)
-                .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(AppPalette.effort.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(meal.name)
@@ -304,7 +481,7 @@ struct MenuScannerView: View {
                     .lineLimit(2)
 
                 HStack(spacing: 9) {
-                    Text("\(Int(meal.calories).formatted()) cal").foregroundColor(.orange)
+                    Text("\(Int(meal.calories).formatted()) cal").foregroundColor(AppPalette.energy)
                     Text("P \(Int(meal.protein).formatted()) g").foregroundColor(.accentProtein)
                     Text("C \(Int(meal.carbs).formatted()) g").foregroundColor(.accentCarbs)
                     Text("F \(Int(meal.fats).formatted()) g").foregroundColor(.accentFats)
@@ -325,7 +502,7 @@ struct MenuScannerView: View {
 
             Image(systemName: "plus.circle.fill")
                 .appFont(size: 26)
-                .foregroundColor(.blue)
+                .foregroundColor(AppPalette.brandText)
         }
         .padding(14)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))

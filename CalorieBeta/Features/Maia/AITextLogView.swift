@@ -1,155 +1,238 @@
 import SwiftUI
 
 struct AITextLogView: View {
-    @Environment(\.dismiss) var dismiss
-    
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var mealDescription = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
-    
     @State private var estimatedItems: [FoodItem]?
     @State private var showResults = false
-    
+    @FocusState private var descriptionIsFocused: Bool
+
     private let textLogService = AITextLogService()
+
+    init() {
+        #if DEBUG
+        guard ScreenshotDemoMode.isEnabled else { return }
+        let screen = ScreenshotDemoData.requestedScreen
+        if screen == "ai-text-log" || screen == "ai-text-results" {
+            _mealDescription = State(
+                initialValue: "A chicken burrito bowl with brown rice, black beans, fajita vegetables, guacamole, salsa, and a small handful of tortilla chips."
+            )
+        }
+        if screen == "ai-text-results" {
+            _estimatedItems = State(initialValue: ScreenshotDemoData.aiTextDemoFoods)
+            _showResults = State(initialValue: true)
+        }
+        #endif
+    }
+
+    private var trimmedDescription: String {
+        mealDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "text.bubble.fill")
-                                    .appFont(size: 18, weight: .bold)
-                                    .foregroundColor(.brandPrimary)
-                                    .frame(width: 42, height: 42)
-                                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        AppScreenHeader(
+                            eyebrow: "Maia Quick Log",
+                            title: "Describe a Meal",
+                            subtitle: "Write what you ate in your own words. Maia will separate it into foods for you to review."
+                        )
+                        .accessibilityIdentifier("ai_text_header")
 
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Describe Your Meal")
-                                        .appFont(size: 25, weight: .bold)
-                                        .foregroundColor(.textPrimary)
+                        descriptionSection
+                        detailGuidance
 
-                                    Text("Maia will estimate nutrition from plain language.")
-                                        .appFont(size: 13)
-                                        .foregroundColor(Color(UIColor.secondaryLabel))
-                                }
-                            }
+                        if let errorMessage {
+                            Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(AppPalette.critical)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .appSurface(.quiet)
+                                .accessibilityIdentifier("ai_text_error")
                         }
-                        .asCard()
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Meal Description")
-                                .appFont(size: 17, weight: .bold)
-                                .foregroundColor(.textPrimary)
-
-                            TextEditor(text: $mealDescription)
-                                .padding(12)
-                                .frame(minHeight: 170)
-                                .scrollContentBackground(.hidden)
-                                .background(Color.backgroundSecondary.opacity(0.74), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                                )
-
-                            if mealDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text("Example: A bowl of oatmeal with blueberries, peanut butter, and a coffee.")
-                                    .appFont(size: 13)
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
-                            }
-                        }
-                        .asCard()
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Good details help")
-                                .appFont(size: 17, weight: .bold)
-                                .foregroundColor(.textPrimary)
-
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                detailChip("portion")
-                                detailChip("brand")
-                                detailChip("sauce")
-                                detailChip("cooking method")
-                            }
-                        }
-                        .asCard()
-
-                        if let error = errorMessage {
-                            HStack(alignment: .top, spacing: 10) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                Text(error)
-                                    .appFont(size: 13)
-                                    .foregroundColor(.textPrimary)
-                            }
-                            .padding(12)
-                            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-
-                        Button(action: analyzeText) {
-                            Label("Analyze with Maia", systemImage: "sparkles")
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(isLoading || mealDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .padding()
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
+                    .padding(.bottom, AppSpacing.group)
                 }
+                .scrollDismissesKeyboard(.interactively)
+                .background(AppPalette.canvas.ignoresSafeArea())
                 .navigationTitle("Describe Meal")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }
+                            .tint(AppPalette.brand)
+                    }
+
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") { descriptionIsFocused = false }
                     }
                 }
+                .safeAreaInset(edge: .bottom) {
+                    Button(action: analyzeText) {
+                        Label("Review Estimate", systemImage: "sparkles")
+                    }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .disabled(isLoading || trimmedDescription.isEmpty)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.row)
+                    .padding(.bottom, AppSpacing.compact)
+                    .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(AppPalette.separator)
+                            .frame(height: 1)
+                    }
+                    .accessibilityIdentifier("ai_text_review_action")
+                }
                 .sheet(isPresented: $showResults) {
-                    if let items = estimatedItems {
-                        AITextResultsView(foodItems: .constant(items)) {
+                    if let estimatedItems {
+                        AITextResultsView(foodItems: estimatedItems) {
                             dismiss()
                         }
                     }
                 }
-                
+
                 if isLoading {
-                    Color.black.opacity(0.34).ignoresSafeArea()
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .tint(.brandPrimary)
-                        Text("Analyzing your meal...")
-                            .appFont(size: 16, weight: .semibold)
-                            .foregroundColor(.textPrimary)
-                    }
-                    .padding(24)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    loadingOverlay
                 }
             }
         }
+        .accessibilityIdentifier("ai_text_log")
     }
 
-    private func detailChip(_ text: String) -> some View {
-        Text(text)
-            .appFont(size: 12, weight: .semibold)
-            .foregroundColor(.brandPrimary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Color.brandPrimary.opacity(0.10), in: Capsule())
-    }
-    
-    private func analyzeText() {
-        isLoading = true
-        errorMessage = nil
-        
-        Task {
-            let result = await textLogService.estimateNutrition(from: mealDescription)
-            isLoading = false
-            
-            switch result {
-            case .success(let foodItems):
-                self.estimatedItems = foodItems
-                self.showResults = true
-            case .failure(let error):
-                self.errorMessage = error.localizedDescription
+    private var descriptionSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Meal Description",
+                subtitle: "One sentence is enough. Include amounts when you know them."
+            )
+
+            ZStack(alignment: .topLeading) {
+                if trimmedDescription.isEmpty {
+                    Text("Example: oatmeal with blueberries and peanut butter, plus a coffee with milk")
+                        .appTextRole(.body)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, AppSpacing.group)
+                        .padding(.vertical, AppSpacing.group + 2)
+                        .allowsHitTesting(false)
+                }
+
+                TextEditor(text: $mealDescription)
+                    .appTextRole(.body)
+                    .foregroundStyle(AppPalette.text)
+                    .focused($descriptionIsFocused)
+                    .padding(AppSpacing.compact)
+                    .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 250 : 190)
+                    .scrollContentBackground(.hidden)
+                    .accessibilityLabel("Meal description")
+                    .accessibilityIdentifier("ai_text_description")
+            }
+            .background(
+                AppPalette.canvas,
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 1)
             }
         }
+        .appSurface(.quiet)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ai_text_description_section")
+    }
+
+    private var detailGuidance: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Details That Help",
+                subtitle: "Add only what you remember. You can correct every item before logging."
+            )
+
+            AITextGuidanceRow(icon: "scalemass", text: "Portion or serving size")
+            Divider()
+            AITextGuidanceRow(icon: "tag", text: "Brand or restaurant")
+            Divider()
+            AITextGuidanceRow(icon: "drop", text: "Sauces, oils, and toppings")
+            Divider()
+            AITextGuidanceRow(icon: "frying.pan", text: "Cooking method")
+
+            Label(
+                "Maia provides an estimate, not a verified database match. Nothing is logged until you review it.",
+                systemImage: "checkmark.shield"
+            )
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, AppSpacing.compact)
+        }
+        .appSurface(.quiet)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ai_text_guidance")
+    }
+
+    private var loadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.28).ignoresSafeArea()
+
+            VStack(spacing: AppSpacing.row) {
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(AppPalette.brand)
+
+                Text("Building your review")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+
+                Text("Maia is separating foods and estimating portions.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .appSurface(.emphasized)
+            .padding(AppSpacing.screenHorizontal)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("ai_text_loading")
+        }
+    }
+
+    private func analyzeText() {
+        descriptionIsFocused = false
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            let result = await textLogService.estimateNutrition(from: trimmedDescription)
+            isLoading = false
+
+            switch result {
+            case .success(let foodItems):
+                estimatedItems = foodItems
+                showResults = true
+            case .failure(let error):
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+private struct AITextGuidanceRow: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: icon)
+            .appTextRole(.body)
+            .foregroundStyle(AppPalette.text)
+            .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
     }
 }

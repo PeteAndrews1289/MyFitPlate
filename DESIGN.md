@@ -34,33 +34,50 @@ Everything else is neutral: card backgrounds are `backgroundSecondary` (no green
 (protein blue, warning orange), info chips are gray. Test: squint at the screen — if more
 than ~3 green elements survive, the screen fails.
 
-Semantic accents stay semantic: `accentProtein` blue = protein, orange = warnings/AI,
-red = destructive, `accentPositive` = success. Never decorate with them.
-`accentPositiveText` is the accessibility-contrast foreground variant of that same success
-hue, not an additional palette role; use it for small positive text/icons on light surfaces.
+Semantic accents stay semantic. Use `AppSignalRole` for state and interpretation, and use the
+domain colors only when the color represents nutrition or hydration data. Never use either family
+as decoration. Color always supports a label, icon, number, or pattern; it never carries meaning
+alone.
 
-### 2a. The palette (closed — decided 2026-07-05)
+### 2a. The palette (closed - revised 2026-07-15)
 
-Two-tone brand + five semantic accents + neutrals. Every color has exactly one job;
-the box never grows. Tuned as one family (muted, matched lightness) — never revert to
-stock system hues.
+Two-tone brand + semantic signals + stable data colors + system neutrals. Every color has a job;
+the box does not grow per feature. The source guard rejects direct spectrum colors on ordinary
+release-reachable surfaces.
 
-| Color | Hex | Job |
+| Role | Token | Job |
 |---|---|---|
-| Deep green | `#173829` | Brand at full strength: app icon, share cards, App Store canvas |
-| Brand green (`brandPrimary`) | `#43AD6F` | Action + success + now. The one filled CTA |
-| Protein (`AccentProtein`) | `#4F86BF` | Protein data, info, selection |
-| Carbs (`AccentCarbs`) | `#D6A83E` | Carb data only |
-| Fats (`AccentFats`) | `#966DAC` | Fat data only |
-| Water (`AccentWater`) | `#4AA9BD` | Hydration only (replaces inline `.cyan`) |
-| Signal (`AccentSignal`) | `#E08A4B` | AI estimates, warnings, streak flame (replaces inline `.orange`) |
-| Neutrals | system | Everything else — the stage |
+| Deep green | `#173829` | App icon, share cards, and App Store canvas |
+| Current | `AppSignalRole.current` / `brandPrimary` | Primary action, current selection, today, ready-now state |
+| Positive | `AppSignalRole.positive` | Improving or healthy evidence that is not an action |
+| Effort | `AppSignalRole.effort` | Work performed, training load, and active effort |
+| Recovery | `AppSignalRole.recovery` | Rest, sleep, hydration, and near-ready recovery |
+| Caution | `AppSignalRole.caution` | Estimate, warning, incomplete evidence, or attention needed |
+| Critical | `AppSignalRole.critical` | Destructive action, invalid data, or fatigued/high-risk state |
+| Achievement | `AppSignalRole.achievement` | Milestone, record, streak, or earned result |
+| Neutral | `AppSignalRole.neutral` | Unknown, unavailable, inactive, or no recent signal |
 
-- **Per-screen budget:** neutrals + brand green + at most two semantic accents visible.
-  The macro trio counts as one unit when shown together as data.
-- Inline `.cyan` / `.orange` usages migrate to `AccentWater` / `AccentSignal` tokens as
-  screens get touched — no new inline system colors.
-- Widget/extension literals (`WidgetPalette`) mirror these values and move with them.
+The data palette is stable across every chart, ring, receipt, and diary surface:
+
+| Data | Token | Color family |
+|---|---|---|
+| Energy | `AppPalette.energy` | Coral |
+| Protein | `AppPalette.protein` | Blue |
+| Carbohydrate | `AppPalette.carbohydrate` | Gold |
+| Fat | `AppPalette.fat` | Purple |
+| Hydration | `AppPalette.hydration` | Teal |
+
+- **Per-screen budget:** neutrals + brand green + at most two semantic or domain accents visible.
+  The macro set and a labeled status legend each count as one data unit.
+- A signal may share a tuned hue with a domain color, but the call site still names its meaning.
+  For example, blue protein data uses `AppPalette.protein`; blue training load uses `.effort`.
+- Full semantic spectra are reserved for measured charts and labeled status fields such as Recovery
+  Field. Physical plate colors, cycle phases, celebration art, and exported run art are documented
+  exceptions.
+- `accentPositiveText` remains the contrast-safe foreground for small positive text on light
+  surfaces. Widget and extension literals mirror the same roles.
+- Do not introduce direct `.green`, `.orange`, `.blue`, `.purple`, or similar colors into ordinary
+  feature UI. Add or reuse a semantic role instead.
 
 ## 3. Numbers are typography
 

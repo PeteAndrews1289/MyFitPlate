@@ -53,7 +53,7 @@ struct SpotlightTourScaffold<Content: View>: View {
 
     private func startIfNeeded() {
         guard !ScreenshotDemoMode.isEnabled,
-              !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+              !AppRuntime.isUITesting() else { return }
         let needed = steps.map(\.id).filter { !spotlightManager.isShown(id: $0) }
         guard !needed.isEmpty else { return }
         activeIDs = needed

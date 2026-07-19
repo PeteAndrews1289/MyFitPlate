@@ -87,7 +87,7 @@ struct WaterBottleShape: Shape {
 struct WaterBottleView: View {
     var body: some View {
         WaterBottleShape()
-            .stroke(Color.blue, lineWidth: 4)
+            .stroke(AppPalette.hydration, lineWidth: 4)
             .frame(width: 150, height: 300)
             .padding()
     }

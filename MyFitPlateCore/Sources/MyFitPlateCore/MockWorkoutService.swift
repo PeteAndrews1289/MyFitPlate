@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 @MainActor
@@ -79,3 +80,4 @@ public class MockWorkoutService: WorkoutServicing {
         return selectedProgram
     }
 }
+#endif

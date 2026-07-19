@@ -78,12 +78,74 @@ final class AnalyticsContractTests: XCTestCase {
         }
     }
 
+    func testLibraryAndWeekAggregateDimensionsSurvivePrivacySanitizer() {
+        let parameters = ProductAnalytics.firebaseParameters([
+            "saved_count": 12,
+            "personal_match_count": 3,
+            "needs_review_count": 2,
+            "duplicate_group_count": 1,
+            "days_logged": 6,
+            "training_days": 4,
+            "recovery_eligible": 2,
+            "trust_eligible": 3,
+            "observation_kind": "recovery",
+            "observation_tone": "attention",
+            "barcode": "0044000087579",
+            "food_name": "Private food"
+        ])
+
+        XCTAssertEqual(parameters["saved_count"] as? Int, 12)
+        XCTAssertEqual(parameters["personal_match_count"] as? Int, 3)
+        XCTAssertEqual(parameters["needs_review_count"] as? Int, 2)
+        XCTAssertEqual(parameters["duplicate_group_count"] as? Int, 1)
+        XCTAssertEqual(parameters["days_logged"] as? Int, 6)
+        XCTAssertEqual(parameters["training_days"] as? Int, 4)
+        XCTAssertEqual(parameters["recovery_eligible"] as? Int, 2)
+        XCTAssertEqual(parameters["trust_eligible"] as? Int, 3)
+        XCTAssertEqual(parameters["observation_kind"] as? String, "recovery")
+        XCTAssertEqual(parameters["observation_tone"] as? String, "attention")
+        XCTAssertNil(parameters["barcode"])
+        XCTAssertNil(parameters["food_name"])
+    }
+
+    func testNutrientProfileAnalyticsPreserveOnlyCoarseProductContext() {
+        let parameters = ProductAnalytics.firebaseParameters([
+            "action": "profile_opened",
+            "panel_bucket": "medium",
+            "source": "health_canada_cnf",
+            "food_name": "Private food",
+            "vitamin_a": 900,
+            "nutrient_values": "Private nutrition details"
+        ])
+
+        XCTAssertEqual(parameters["action"] as? String, "profile_opened")
+        XCTAssertEqual(parameters["panel_bucket"] as? String, "medium")
+        XCTAssertEqual(parameters["source"] as? String, "health_canada_cnf")
+        XCTAssertNil(parameters["food_name"])
+        XCTAssertNil(parameters["vitamin_a"])
+        XCTAssertNil(parameters["nutrient_values"])
+    }
+
     func testDurationBucketsAreStable() {
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: -1), "under_500ms")
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: 700), "500ms_to_1s")
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: 1_500), "1s_to_2s")
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: 3_000), "2s_to_4s")
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: 6_000), "over_4s")
+    }
+
+    func testMockAnalyticsRecordsConcurrentEventsSafely() async {
+        let analytics = MockAnalyticsManager()
+
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<40 {
+                group.addTask {
+                    analytics.logEvent("concurrent_event_\(index)", parameters: nil)
+                }
+            }
+        }
+
+        XCTAssertEqual(Set(analytics.loggedEvents.map(\.name)).count, 40)
     }
 
     func testActiveLoggerEventFiresOncePerLocalDay() throws {

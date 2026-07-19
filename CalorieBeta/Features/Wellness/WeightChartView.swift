@@ -26,7 +26,7 @@ struct WeightChartView: View {
                     x: .value("Date", item.date),
                     y: .value("Weight", item.weight)
                 )
-                .foregroundStyle(LinearGradient(colors: [Color.brandPrimary, Color.teal], startPoint: .leading, endPoint: .trailing))
+                .foregroundStyle(AppPalette.brand)
                 .interpolationMethod(.monotone)
                 .lineStyle(StrokeStyle(lineWidth: 3))
 
@@ -38,15 +38,10 @@ struct WeightChartView: View {
                 
                 AreaMark(
                     x: .value("Date", item.date),
-                    y: .value("Weight", item.weight)
+                    yStart: .value("Chart baseline", max(0, minWeight - padding)),
+                    yEnd: .value("Weight", item.weight)
                 )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.brandPrimary.opacity(0.3), Color.clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(AppPalette.brand.opacity(0.12))
                 .interpolationMethod(.monotone)
             }
         }
@@ -88,5 +83,6 @@ struct WeightChartView: View {
                     }
             }
         }
+        .clipped()
     }
 }

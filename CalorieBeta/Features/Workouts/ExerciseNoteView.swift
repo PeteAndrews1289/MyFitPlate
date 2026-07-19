@@ -26,10 +26,10 @@ struct ExerciseNoteView: View {
 
             HStack(spacing: 12) {
                 Button("Cancel", role: .cancel, action: onCancel)
-                    .buttonStyle(SecondaryButtonStyle())
+                    .buttonStyle(AppActionButtonStyle(.secondary))
 
                 Button("OK", action: onSave)
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(AppActionButtonStyle(.primary))
             }
         }
         .padding()

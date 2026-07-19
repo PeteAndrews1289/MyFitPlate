@@ -43,7 +43,7 @@ struct PreBuiltProgramsView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 44)
-                    .asCard()
+                    .appSurface(.emphasized)
                 } else {
                     if let selectionError {
                         ProgramSelectionErrorCard(message: selectionError)
@@ -152,7 +152,7 @@ struct PreBuiltProgramsView: View {
 
             HStack(spacing: 10) {
                 PreBuiltMetric(title: "Routines", value: "\(program.routines.count)", color: .brandPrimary)
-                PreBuiltMetric(title: "Days/wk", value: "\(program.daysOfWeek?.count ?? 0)", color: .blue)
+                PreBuiltMetric(title: "Days/wk", value: "\(program.daysOfWeek?.count ?? 0)", color: AppPalette.effort)
                 PreBuiltMetric(title: "Sets", value: "\(profile.setCount)", color: .accentPositive)
             }
 
@@ -172,10 +172,10 @@ struct PreBuiltProgramsView: View {
                         .appFont(size: 12, weight: .bold)
                 }
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(AppActionButtonStyle(.primary))
             .disabled(isSelecting)
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 
     private func selectPreBuiltProgram(_ program: WorkoutProgram, startDate: Date) {
@@ -237,7 +237,7 @@ struct PreBuiltProgramsView: View {
                 equipment: "Minimal Equipment",
                 summary: "A low-impact reset for mobility, core control, easy conditioning, and better recovery between harder sessions.",
                 icon: "heart.fill",
-                color: .blue,
+                color: AppPalette.recovery,
                 tags: ["Mobility", "Core", "Recovery", "Low Impact"],
                 setCount: setCount
             )
@@ -250,7 +250,7 @@ struct PreBuiltProgramsView: View {
                 equipment: name.contains("kettlebell") ? "Kettlebell + Bodyweight" : "Flexible",
                 summary: "A higher-movement plan for strength maintenance, conditioning, energy expenditure, and work capacity.",
                 icon: "flame.fill",
-                color: .red,
+                color: AppPalette.caution,
                 tags: ["Conditioning", "Cardio", "Work Capacity", "Flexible"],
                 setCount: setCount
             )
@@ -263,7 +263,7 @@ struct PreBuiltProgramsView: View {
                 equipment: "Machines",
                 summary: "A straightforward gym-machine path for users who want low-friction setup, stable movements, and easy progression.",
                 icon: "rectangle.grid.2x2.fill",
-                color: .blue,
+                color: AppPalette.effort,
                 tags: ["Machines", "Gym", "Low Setup", "Repeatable"],
                 setCount: setCount
             )
@@ -276,7 +276,7 @@ struct PreBuiltProgramsView: View {
                 equipment: usesBarbell ? "Barbell + Accessories" : "Flexible",
                 summary: "A muscle-building split with enough weekly volume to train hard while keeping the structure easy to follow.",
                 icon: "dumbbell.fill",
-                color: .orange,
+                color: AppPalette.achievement,
                 tags: ["Hypertrophy", "Muscle Growth", "Volume", "\(program.daysOfWeek?.count ?? 0) Days"],
                 setCount: setCount
             )
@@ -289,7 +289,7 @@ struct PreBuiltProgramsView: View {
                 equipment: "Dumbbells",
                 summary: "A focused dumbbell plan for users training at home, in a small gym, or without consistent barbell access.",
                 icon: "dumbbell.fill",
-                color: .orange,
+                color: AppPalette.achievement,
                 tags: ["Dumbbell", "Home Friendly", "Flexible", "\(program.daysOfWeek?.count ?? 0) Days"],
                 setCount: setCount
             )
@@ -327,7 +327,7 @@ struct PreBuiltProgramsView: View {
             equipment: "Flexible",
             summary: "A structured plan with enough variety to support steady weekly training.",
             icon: "figure.strengthtraining.traditional",
-            color: .blue,
+                color: AppPalette.effort,
             tags: ["Balanced", "Flexible", "12 Weeks"],
             setCount: setCount
         )
@@ -432,13 +432,14 @@ private struct ProgramCatalogSearchCard: View {
 
 private struct ProgramCatalogFilterBar: View {
     @Binding var selectedFilter: ProgramCatalogFilter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(ProgramCatalogFilter.allCases) { filter in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.18)) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                             selectedFilter = filter
                         }
                     } label: {
@@ -448,7 +449,7 @@ private struct ProgramCatalogFilterBar: View {
                             Text(filter.rawValue)
                                 .appFont(size: 12, weight: .bold)
                         }
-                        .foregroundColor(selectedFilter == filter ? .white : .brandPrimary)
+                        .foregroundColor(selectedFilter == filter ? AppPalette.onBrand : .brandForeground)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedFilter == filter ? Color.brandPrimary : Color.brandPrimary.opacity(0.10), in: Capsule())
@@ -466,7 +467,7 @@ private struct ProgramCatalogEmptyState: View {
         VStack(spacing: 12) {
             Image(systemName: "slider.horizontal.3")
                 .appFont(size: 28, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .frame(width: 58, height: 58)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
@@ -483,7 +484,7 @@ private struct ProgramCatalogEmptyState: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .padding(.horizontal, 18)
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 
@@ -494,9 +495,9 @@ private struct ProgramSelectionErrorCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 17, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 38, height: 38)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             Text(message)
                 .appFont(size: 13, weight: .semibold)
@@ -532,7 +533,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "calendar.badge.clock")
                             .appFont(size: 18, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                             .frame(width: 44, height: 44)
                             .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
 
@@ -556,7 +557,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                         .padding(14)
                         .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .asCard()
+                .appSurface(.emphasized)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text(program.name)
@@ -566,7 +567,7 @@ private struct PreBuiltProgramStartDateSheet: View {
 
                     HStack(spacing: 10) {
                         PreBuiltMetric(title: "Routines", value: "\(program.routines.count)", color: .brandPrimary)
-                        PreBuiltMetric(title: "Days/wk", value: "\(trainingDayCount)", color: .blue)
+                        PreBuiltMetric(title: "Days/wk", value: "\(trainingDayCount)", color: AppPalette.effort)
                     }
 
                     Text("The weekly rhythm is preserved, and the first workout is aligned to your chosen start date.")
@@ -574,7 +575,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .asCard()
+                .appSurface(.emphasized)
 
                 Spacer(minLength: 0)
             }
@@ -648,7 +649,7 @@ private struct PreBuiltProgramsHeader: View {
                 VStack(spacing: 0) {
                     Text("\(filteredCount)")
                         .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
 
                     Text("of \(programCount)")
                         .appFont(size: 10, weight: .semibold)
@@ -658,7 +659,7 @@ private struct PreBuiltProgramsHeader: View {
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
             }
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 

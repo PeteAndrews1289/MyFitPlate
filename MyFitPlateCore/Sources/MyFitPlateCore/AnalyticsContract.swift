@@ -1,11 +1,10 @@
 import Foundation
 
-/// Stable event names and dimensions used by the replacement 2.2 acquisition and
-/// release-health dashboards. The schema keeps its internal 2.3 label. Values describe
-/// product behavior only; nutrition,
+/// Stable event names and dimensions used by acquisition and release-health dashboards.
+/// Values describe product behavior only; nutrition,
 /// body, workout-detail, location, and account identifiers remain excluded.
 public enum ProductAnalytics {
-    public static let schemaVersion = "2.3.2"
+    public static let schemaVersion = "2.3.3"
 
     public enum Event: String, CaseIterable, Sendable {
         case appSessionStarted = "app_session_started"
@@ -26,6 +25,7 @@ public enum ProductAnalytics {
         case trustCardViewed = "food_trust_card_viewed"
         case trustAction = "food_trust_action"
         case correctionAction = "food_correction_action"
+        case nutrientProfileAction = "food_nutrient_profile_action"
         case trustHubViewed = "trust_hub_viewed"
         case deepLinkOpened = "deep_link_opened"
         case trainingFuelPlannerOpened = "training_fuel_planner_opened"
@@ -35,6 +35,23 @@ public enum ProductAnalytics {
         case trainingFuelNotificationScheduled = "training_fuel_notification_scheduled"
         case trainingFuelNotificationOpened = "training_fuel_notification_opened"
         case watchMealRepeatResult = "watch_meal_repeat_result"
+        case myFoodsLibraryViewed = "my_foods_library_viewed"
+        case myFoodsLibraryFilter = "my_foods_library_filter"
+        case myFoodsLibraryAction = "my_foods_library_action"
+        case weekInMotionViewed = "week_in_motion_viewed"
+        case weekInMotionDetailOpened = "week_in_motion_detail_opened"
+        case weeklyRecapViewed = "weekly_recap_viewed"
+        case weeklyReportShareOpened = "weekly_report_share_opened"
+        case weeklyReportShareOptionsOpened = "weekly_report_share_options_opened"
+        case weeklyReportShareImageOpened = "weekly_report_share_image_opened"
+        case livingDayViewed = "living_day_viewed"
+        case livingDayEventOpened = "living_day_event_opened"
+        case livingDayActionOpened = "living_day_action_opened"
+        case livingDayTransitionPresented = "living_day_transition_presented"
+        case livingDayMaiaAnnotationOpened = "living_day_maia_annotation_opened"
+        case livingDayDensityChanged = "living_day_density_changed"
+        case livingDayShareOptionsOpened = "living_day_share_options_opened"
+        case livingDayShareOpened = "living_day_share_opened"
         case accountDeletionStarted = "account_deletion_started"
         case accountDeletionCompleted = "account_deletion_completed"
         case accountDeletionFailed = "account_deletion_failed"

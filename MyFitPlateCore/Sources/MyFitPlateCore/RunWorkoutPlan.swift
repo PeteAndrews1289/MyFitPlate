@@ -225,22 +225,39 @@ public struct RunWorkoutPlan: Codable, Identifiable, Equatable {
 
 public final class RunWorkoutPlanStore: ObservableObject {
     private let userDefaults: UserDefaults
-    private let storageKey = "myfitplate.run_workout_plans"
+    private let authService: AuthServiceProtocol
+    private let legacyStorageKey = "myfitplate.run_workout_plans"
+    private var activeUserID: String?
+    private var isRestoring = false
 
-    @Published public private(set) var customPlans: [RunWorkoutPlan] = [] {
+    @Published private var storedCustomPlans: [RunWorkoutPlan] = [] {
         didSet {
-            saveToDefaults()
+            if !isRestoring { saveToDefaults() }
         }
     }
 
-    public init(userDefaults: UserDefaults = .standard) {
+    public var customPlans: [RunWorkoutPlan] {
+        synchronizeAccountIfNeeded()
+        return storedCustomPlans
+    }
+
+    public init(userDefaults: UserDefaults, authService: AuthServiceProtocol) {
         self.userDefaults = userDefaults
+        self.authService = authService
+        activeUserID = authService.currentUserID
         loadFromDefaults()
     }
 
+    @MainActor
+    public convenience init(userDefaults: UserDefaults = .standard) {
+        self.init(userDefaults: userDefaults, authService: DIContainer.shared.authService)
+    }
+
     public func addPlan(_ plan: RunWorkoutPlan) {
+        synchronizeAccountIfNeeded()
+        guard activeUserID != nil else { return }
         var uniquePlan = plan
-        if customPlans.contains(where: { $0.id == uniquePlan.id }) {
+        if storedCustomPlans.contains(where: { $0.id == uniquePlan.id }) {
             uniquePlan = RunWorkoutPlan(
                 id: UUID().uuidString,
                 name: plan.name,
@@ -248,30 +265,62 @@ public final class RunWorkoutPlanStore: ObservableObject {
                 steps: plan.steps
             )
         }
-        customPlans.insert(uniquePlan, at: 0)
+        storedCustomPlans.insert(uniquePlan, at: 0)
     }
 
     public func updatePlan(_ plan: RunWorkoutPlan) {
-        guard let index = customPlans.firstIndex(where: { $0.id == plan.id }) else {
+        synchronizeAccountIfNeeded()
+        guard activeUserID != nil else { return }
+        guard let index = storedCustomPlans.firstIndex(where: { $0.id == plan.id }) else {
             addPlan(plan)
             return
         }
-        customPlans[index] = plan
+        storedCustomPlans[index] = plan
     }
 
     public func deletePlan(id: String) {
-        customPlans.removeAll { $0.id == id }
+        synchronizeAccountIfNeeded()
+        guard activeUserID != nil else { return }
+        storedCustomPlans.removeAll { $0.id == id }
     }
 
     private func loadFromDefaults() {
+        isRestoring = true
+        defer { isRestoring = false }
+        storedCustomPlans = []
+        guard let storageKey else { return }
+        migrateLegacyStorageIfNeeded(to: storageKey)
         guard let data = userDefaults.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([RunWorkoutPlan].self, from: data) else { return }
-        customPlans = decoded
+        storedCustomPlans = decoded
     }
 
     private func saveToDefaults() {
-        guard let data = try? JSONEncoder().encode(customPlans) else { return }
+        guard let storageKey,
+              let data = try? JSONEncoder().encode(storedCustomPlans) else { return }
         userDefaults.set(data, forKey: storageKey)
+    }
+
+    private var storageKey: String? {
+        AccountScopedStorageKey.make(
+            prefix: legacyStorageKey,
+            userID: activeUserID
+        )
+    }
+
+    private func synchronizeAccountIfNeeded() {
+        let currentUserID = authService.currentUserID
+        guard currentUserID != activeUserID else { return }
+        activeUserID = currentUserID
+        loadFromDefaults()
+    }
+
+    private func migrateLegacyStorageIfNeeded(to storageKey: String) {
+        if userDefaults.data(forKey: storageKey) == nil,
+           let legacyData = userDefaults.data(forKey: legacyStorageKey) {
+            userDefaults.set(legacyData, forKey: storageKey)
+        }
+        userDefaults.removeObject(forKey: legacyStorageKey)
     }
 }
 
@@ -478,37 +527,75 @@ public struct RunWorkoutResult: Codable, Identifiable, Equatable {
 
 public final class RunWorkoutResultStore {
     private let userDefaults: UserDefaults
-    private let storageKey = "myfitplate.run_workout_results"
+    private let authService: AuthServiceProtocol
+    private let legacyStorageKey = "myfitplate.run_workout_results"
+    private let lock = NSLock()
 
-    public init(userDefaults: UserDefaults = .standard) {
+    public init(userDefaults: UserDefaults, authService: AuthServiceProtocol) {
         self.userDefaults = userDefaults
+        self.authService = authService
+    }
+
+    @MainActor
+    public convenience init(userDefaults: UserDefaults = .standard) {
+        self.init(userDefaults: userDefaults, authService: DIContainer.shared.authService)
     }
 
     public func result(forRunID runID: String) -> RunWorkoutResult? {
-        loadResults()[runID]
+        lock.lock()
+        defer { lock.unlock() }
+        return loadResults()[runID]
     }
 
     public func save(_ result: RunWorkoutResult) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard storageKey != nil else { return }
         var results = loadResults()
         results[result.runID] = result
         saveResults(results)
     }
 
     public func deleteResult(forRunID runID: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard storageKey != nil else { return }
         var results = loadResults()
         results.removeValue(forKey: runID)
         saveResults(results)
     }
 
     private func loadResults() -> [String: RunWorkoutResult] {
+        guard let storageKey else { return [:] }
+        migrateLegacyStorageIfNeeded(to: storageKey)
         guard let data = userDefaults.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([String: RunWorkoutResult].self, from: data) else { return [:] }
         return decoded
     }
 
     private func saveResults(_ results: [String: RunWorkoutResult]) {
-        guard let data = try? JSONEncoder().encode(results) else { return }
-        userDefaults.set(data, forKey: storageKey)
+        guard let storageKey,
+              let data = try? JSONEncoder().encode(results) else { return }
+        if results.isEmpty {
+            userDefaults.removeObject(forKey: storageKey)
+        } else {
+            userDefaults.set(data, forKey: storageKey)
+        }
+    }
+
+    private var storageKey: String? {
+        AccountScopedStorageKey.make(
+            prefix: legacyStorageKey,
+            userID: authService.currentUserID
+        )
+    }
+
+    private func migrateLegacyStorageIfNeeded(to storageKey: String) {
+        if userDefaults.data(forKey: storageKey) == nil,
+           let legacyData = userDefaults.data(forKey: legacyStorageKey) {
+            userDefaults.set(legacyData, forKey: storageKey)
+        }
+        userDefaults.removeObject(forKey: legacyStorageKey)
     }
 }
 

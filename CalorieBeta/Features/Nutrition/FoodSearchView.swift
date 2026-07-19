@@ -18,6 +18,7 @@ struct FoodSearchView: View {
 
     @StateObject private var viewModel: FoodSearchViewModel
     @StateObject private var voiceLoggingService = VoiceLoggingService(engine: SpeechCaptureEngine())
+    @State private var foodDetailPresentationState = FoodDetailPresentationState()
 
     @State private var showingAddFoodManually = false
     @State private var showingQuickAddMacros = false
@@ -27,11 +28,14 @@ struct FoodSearchView: View {
     @State private var showingAITextLog = false
     @State private var showingValueRadar = false
     @State private var showingChainBuilder = false
+    @State private var showingMyFoodsLibrary = false
 
     @State private var selectedFoodItem: FoodItem?
     @State private var selectedFoodSource: String = "search_result"
 
     @State private var isProcessingImage = false
+    @State private var imageProcessingKind: ImageProcessingKind = .mealPhoto
+    @State private var imageAnalysisID: UUID?
     @State private var isSearchingAfterScan = false
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
     @State private var scannedBarcodeItemsWrapper: IdentifiableFoodItems?
@@ -72,9 +76,21 @@ struct FoodSearchView: View {
         _showingChainBuilder = State(
             initialValue: initialPresentation == .chainBuilder || screenshotScreen == "builder"
         )
-        _selectedFoodItem = State(
-            initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
-        )
+        _showingAddFoodManually = State(initialValue: screenshotScreen == "add-food")
+        _showingQuickAddMacros = State(initialValue: screenshotScreen == "quick-add-macros")
+        _showingMyFoodsLibrary = State(initialValue: screenshotScreen == "my-foods")
+        let screenshotFood: FoodItem?
+        switch screenshotScreen {
+        case "trust":
+            screenshotFood = ScreenshotDemoData.trustDemoFood
+        case "trust-sparse":
+            screenshotFood = ScreenshotDemoData.sparseTrustDemoFood
+        case "trust-correction":
+            screenshotFood = ScreenshotDemoData.correctionTrustDemoFood
+        default:
+            screenshotFood = nil
+        }
+        _selectedFoodItem = State(initialValue: screenshotFood)
         #else
         _viewModel = StateObject(wrappedValue: FoodSearchViewModel())
         _showingChainBuilder = State(initialValue: initialPresentation == .chainBuilder)
@@ -85,16 +101,16 @@ struct FoodSearchView: View {
         NavigationView {
             ZStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
                         if let trainingFuelTarget {
                             TrainingFuelTargetContextView(target: trainingFuelTarget)
                         }
                         mainActionContent
                         searchOrSavedContent
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
+                    .padding(.bottom, AppSpacing.section)
                 }
                 .background(Color.backgroundPrimary.ignoresSafeArea())
                 .scrollDismissesKeyboard(.interactively)
@@ -102,6 +118,16 @@ struct FoodSearchView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    if onFoodItemSelected == nil {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button {
+                                showingMyFoodsLibrary = true
+                            } label: {
+                                Image(systemName: "folder")
+                            }
+                            .accessibilityLabel("Manage My Foods")
+                        }
+                    }
                 }
                 .onAppear {
                     viewModel.setup(dailyLogService: dailyLogService)
@@ -114,18 +140,20 @@ struct FoodSearchView: View {
                     }
                 }
                 .sheet(isPresented: $showingAddFoodManually, onDismiss: { pendingManualBarcode = nil }) {
-                    AddFoodView(
-                        initialFoodItem: manualFoodSeed(),
-                        dailyLog: $dailyLogService.currentDailyLog,
-                        date: dailyLogService.activelyViewedDate,
-                        source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
-                        targetMealName: viewModel.selectedMeal,
-                        onLogUpdated: {
-                            showingAddFoodManually = false
-                            pendingManualBarcode = nil
-                            onFoodItemLogged?()
-                        }
-                    )
+                    NavigationStack {
+                        AddFoodView(
+                            initialFoodItem: manualFoodSeed(),
+                            dailyLog: $dailyLogService.currentDailyLog,
+                            date: dailyLogService.activelyViewedDate,
+                            source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
+                            targetMealName: viewModel.selectedMeal,
+                            onLogUpdated: {
+                                showingAddFoodManually = false
+                                pendingManualBarcode = nil
+                                onFoodItemLogged?()
+                            }
+                        )
+                    }
                 }
                 .sheet(isPresented: $showingQuickAddMacros) {
                     QuickAddMacrosView(
@@ -152,7 +180,7 @@ struct FoodSearchView: View {
                                 }
                                 self.isSearchingAfterScan = false
                                 self.presentBarcodeRecovery(
-                                    message: "No match found in FatSecret, USDA, or Open Food Facts.",
+                                    message: "No food or supplement label matched this barcode.",
                                     barcode: barcode
                                 )
                             }
@@ -183,23 +211,35 @@ struct FoodSearchView: View {
                     )
                 }
                 .imageSourceDialog(isPresented: $showingImagePicker) { image in
+                    let requestID = UUID()
+                    self.imageAnalysisID = requestID
+                    self.imageProcessingKind = .mealPhoto
                     self.isProcessingImage = true
                     DIContainer.shared.analyticsManager.aiFeatureUsed(.mealPhoto)
-                    imageModel.estimateNutritionFromImage(image: image) { result in
+                    imageModel.analyzeNutritionFromImage(image: image) { result in
+                        guard self.imageAnalysisID == requestID else { return }
+                        self.imageAnalysisID = nil
                         self.isProcessingImage = false
                         switch result {
-                        case .success(let foodItems):
-                            self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foodItems)
+                        case .success(let analysis):
+                            self.estimatedFoodItemsWrapper = IdentifiableFoodItems(
+                                items: analysis.items,
+                                photoReview: analysis.reviewContext
+                            )
                         case .failure(let error):
                             self.scanError = (true, "Could not analyze the image. Error: \(error.localizedDescription)")
                         }
                     }
                 }
-                .sheet(isPresented: $showingMenuImagePicker) {
-                    ImagePicker(sourceType: .camera) { image in
+                .imageSourceDialog(isPresented: $showingMenuImagePicker) { image in
+                        let requestID = UUID()
+                        self.imageAnalysisID = requestID
+                        self.imageProcessingKind = .menuPhoto
                         self.isProcessingImage = true
                         DIContainer.shared.analyticsManager.aiFeatureUsed(.menuPhoto)
                         imageModel.estimateMenuFromImage(image: image) { result in
+                            guard self.imageAnalysisID == requestID else { return }
+                            self.imageAnalysisID = nil
                             self.isProcessingImage = false
                             switch result {
                             case .success(let foodItems):
@@ -208,42 +248,45 @@ struct FoodSearchView: View {
                                 self.scanError = (true, "Could not analyze the menu. Error: \(error.localizedDescription)")
                             }
                         }
-                    }
                 }
                 .sheet(isPresented: $showingAITextLog) { AITextLogView() }
                 .sheet(isPresented: $showingValueRadar) { RestaurantValueRadarView() }
-                .sheet(item: $selectedFoodItem) { foodItem in
+                .fullScreenCover(item: $selectedFoodItem) { foodItem in
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
                         source: selectedFoodSource,
                         targetMealName: viewModel.selectedMeal,
+                        presentationState: foodDetailPresentationState,
                         onLogUpdated: {
                             selectedFoodItem = nil
                             onFoodItemLogged?()
                         }
                     )
+                    .id(foodItem.id)
                 }
-                .sheet(item: $scannedFoodItem) { foodItem in
+                .fullScreenCover(item: $scannedFoodItem) { foodItem in
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
                         source: scannedFoodSource,
                         targetMealName: viewModel.selectedMeal,
+                        presentationState: foodDetailPresentationState,
                         onLogUpdated: {
                             self.scannedFoodItem = nil
                             onFoodItemLogged?()
                         }
                     )
+                    .id(foodItem.id)
                 }
                 .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
-                     AISummaryView(estimatedItems: .constant(wrapper.items))
+                     AISummaryView(estimatedItems: wrapper.items, photoReview: wrapper.photoReview)
                 }
                 .sheet(item: $scannedBarcodeItemsWrapper) { wrapper in
                      AISummaryView(
-                        estimatedItems: .constant(wrapper.items),
+                        estimatedItems: wrapper.items,
                         mealName: viewModel.selectedMeal,
                         source: "barcode",
                         isAIEstimate: false,
@@ -262,6 +305,14 @@ struct FoodSearchView: View {
                         handleSelection(food: mealItem, source: "chain_builder")
                     }
                 }
+                .sheet(isPresented: $showingMyFoodsLibrary) {
+                    MyFoodsLibraryView(
+                        initialFoods: myFoodsInitialFoods,
+                        recentFoods: myFoodsRecentFoods,
+                        loadsRemoteData: myFoodsLoadsRemoteData,
+                        onLibraryChanged: refreshSavedFoods
+                    )
+                }
                 .sheet(isPresented: $showingBarcodeRecovery, onDismiss: handleBarcodeRecoveryDismissed) {
                     BarcodeMissRecoveryView(
                         message: barcodeRecoveryMessage,
@@ -278,9 +329,14 @@ struct FoodSearchView: View {
                     Text(scanError.1)
                 }
 
-                if isProcessingImage || isSearchingAfterScan {
+                if isProcessingImage {
+                    ImageProcessingView(kind: imageProcessingKind) {
+                        imageAnalysisID = nil
+                        isProcessingImage = false
+                    }
+                } else if isSearchingAfterScan {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
-                    ProgressView(isProcessingImage ? "Analyzing image" : "Searching barcode")
+                    ProgressView("Searching barcode")
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .foregroundColor(.white)
                         .padding(20)
@@ -309,6 +365,12 @@ struct FoodSearchView: View {
     }
 
     private func manualFoodSeed() -> FoodItem {
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled, ScreenshotDemoData.requestedScreen == "add-food" {
+            return ScreenshotDemoData.manualFoodDemoFood
+        }
+        #endif
+
         let metadata: FoodSourceMetadata?
         if let pendingManualBarcode, !pendingManualBarcode.isEmpty {
             metadata = FoodSourceMetadata(
@@ -334,6 +396,32 @@ struct FoodSearchView: View {
             servingWeight: 0,
             sourceMetadata: metadata
         )
+    }
+
+    private var myFoodsInitialFoods: [FoodItem] {
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled, ScreenshotDemoData.requestedScreen == "my-foods" {
+            return ScreenshotDemoData.myFoodsDemoFoods
+        }
+        #endif
+        return viewModel.savedFoods
+    }
+
+    private var myFoodsRecentFoods: [FoodItem] {
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled, ScreenshotDemoData.requestedScreen == "my-foods" {
+            return ScreenshotDemoData.myFoodsDemoRecentFoods
+        }
+        #endif
+        return viewModel.recentFoods
+    }
+
+    private var myFoodsLoadsRemoteData: Bool {
+        #if DEBUG
+        return !(ScreenshotDemoMode.isEnabled && ScreenshotDemoData.requestedScreen == "my-foods")
+        #else
+        return true
+        #endif
     }
 
     @ViewBuilder
@@ -396,26 +484,12 @@ struct FoodSearchView: View {
     @ViewBuilder
     private var fastRepeatContent: some View {
         if hasFastRepeatOptions {
-            VStack(alignment: .leading, spacing: 13) {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .appFont(size: 17, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Repeat faster")
-                            .appFont(size: 18, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
-                        Text("Your history is the fastest way to log today.")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-
-                    Spacer(minLength: 0)
-                }
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                AppSectionHeader(
+                    title: "Repeat faster",
+                    subtitle: "Your history is the fastest way to log today."
+                )
+                .accessibilityIdentifier("food_search_repeat_section")
 
                 if viewModel.hasYesterdayFoods {
                     YesterdayLogActions(
@@ -441,7 +515,9 @@ struct FoodSearchView: View {
                         emptyMessage: "",
                         onSelect: { handleSelection(food: $0, source: "custom_food") },
                         onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "saved_food_quick_log") } : nil,
-                        source: "custom_food"
+                        source: "custom_food",
+                        headerActionTitle: "Manage",
+                        headerAction: { showingMyFoodsLibrary = true }
                     )
                 }
 
@@ -470,7 +546,21 @@ struct FoodSearchView: View {
         }
         mealTargetContent
         fastRepeatContent
-        actionGridContent
+        alternateLoggingContent
+    }
+
+    @ViewBuilder
+    private var alternateLoggingContent: some View {
+        if onFoodItemSelected == nil && !viewModel.isSearching {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(
+                    title: "More ways to log",
+                    subtitle: "Scan, describe, or build a meal when search is not the fastest route."
+                )
+                actionGridContent
+            }
+            .accessibilityIdentifier("food_search_alternate_actions")
+        }
     }
 
     @ViewBuilder
@@ -497,9 +587,33 @@ struct FoodSearchView: View {
             )
         }
 
+        if !viewModel.isLoading, let message = viewModel.searchCoverageMessage {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                Image(systemName: "wifi.exclamationmark")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.caution)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Partial source coverage")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+                    Text(message)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .appSurface(.quiet)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("food_search_partial_coverage")
+        }
+
         if viewModel.isLoading {
             FoodSearchLoadingState(query: viewModel.searchText)
-        } else if let searchErrorMessage = viewModel.searchErrorMessage, viewModel.searchResults.isEmpty {
+        } else if let searchErrorMessage = viewModel.searchErrorMessage,
+                  viewModel.searchResults.isEmpty,
+                  viewModel.supplementResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "wifi.exclamationmark",
                 title: String(localized: "Search could not load"),
@@ -509,7 +623,9 @@ struct FoodSearchView: View {
                 secondaryActionTitle: onFoodItemSelected == nil ? String(localized: "Create food") : nil,
                 secondaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
-        } else if viewModel.searchResults.isEmpty && trustedResults.isEmpty {
+        } else if viewModel.searchResults.isEmpty &&
+                    viewModel.supplementResults.isEmpty &&
+                    trustedResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "magnifyingglass",
                 title: String(localized: "No foods found"),
@@ -531,6 +647,23 @@ struct FoodSearchView: View {
                 sourceForFood: { _ in "search_result" }
             )
         }
+
+        if !viewModel.isLoading && !viewModel.supplementResults.isEmpty {
+            FoodPickerSection(
+                title: "Supplements",
+                subtitle: "Current manufacturer label records from NIH DSLD. Amounts come from the product label, not laboratory testing.",
+                foods: viewModel.supplementResults,
+                quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
+                emptyTitle: "",
+                emptyMessage: "",
+                onSelect: { handleSelection(food: $0, source: "nih_dsld") },
+                onQuickLog: onFoodItemSelected == nil ? {
+                    viewModel.quickLog(food: $0, source: "nih_dsld_quick_log")
+                } : nil,
+                onDelete: nil,
+                sourceForFood: { _ in "nih_dsld" }
+            )
+        }
     }
 
     @ViewBuilder
@@ -544,7 +677,9 @@ struct FoodSearchView: View {
             emptyMessage: "Star foods from detail screens and they will appear here.",
             onSelect: { handleSelection(food: $0, source: "custom_food") },
             onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "saved_food_quick_log") } : nil,
-            source: "custom_food"
+            source: "custom_food",
+            headerActionTitle: onFoodItemSelected == nil ? "Manage" : nil,
+            headerAction: onFoodItemSelected == nil ? { showingMyFoodsLibrary = true } : nil
         )
 
         FoodHorizontalScroller(
@@ -594,6 +729,11 @@ struct FoodSearchView: View {
             selectedFoodSource = source
             self.selectedFoodItem = food
         }
+    }
+
+    private func refreshSavedFoods() {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        viewModel.fetchSavedFoods(userID: userID)
     }
 
     private func hideKeyboard() {
@@ -678,7 +818,7 @@ struct FoodSearchView: View {
     private var voiceRecordingBanner: some View {
         HStack(spacing: 12) {
             Image(systemName: voiceLoggingService.state == .recording ? "waveform.circle.fill" : "sparkles")
-                .foregroundColor(.white)
+                .foregroundColor(AppPalette.onSignal)
                 .font(.system(size: 18, weight: .bold))
                 .frame(width: 36, height: 36)
                 .background(Color.accentProtein, in: Circle())
@@ -701,7 +841,7 @@ struct FoodSearchView: View {
                 } label: {
                     Text("Done")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onSignal)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Color.accentProtein, in: Capsule())
@@ -776,7 +916,7 @@ struct BarcodeMissRecoveryView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Image(systemName: "barcode.viewfinder")
                         .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                         .frame(width: 54, height: 54)
                         .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
@@ -819,7 +959,7 @@ struct BarcodeMissRecoveryView: View {
                     recoveryButton(
                         icon: "magnifyingglass",
                         title: "Search by name",
-                        subtitle: "Try the brand, product name, or a simpler food description.",
+                        subtitle: "Try the brand and product name. Food and supplement package UPCs can change.",
                         tint: .accentSignal,
                         action: searchByName
                     )

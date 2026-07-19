@@ -20,10 +20,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Select latest stable Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@v1.7.0
         with:
           xcode-version: latest-stable
 
@@ -43,6 +43,12 @@ jobs:
 
       - name: Run SwiftLint
         run: swiftlint lint --strict --quiet
+
+      - name: Enforce visual-system boundaries
+        run: ./scripts/check_visual_system.sh
+
+      - name: Validate privacy metadata
+        run: bash ./scripts/check_privacy_metadata.sh
 
       - name: Resolve Swift packages
         run: |
@@ -90,7 +96,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: TestResults.xcresult
@@ -102,10 +108,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Select latest stable Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@v1.7.0
         with:
           xcode-version: latest-stable
 
@@ -119,14 +125,26 @@ jobs:
 
       - name: Run UI tests sequentially
         run: |
-          xcodebuild test -quiet \
+          set -o pipefail
+          xcodebuild test \
             -project MyFitPlate.xcodeproj \
             -scheme MyFitPlate \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -only-testing:MyFitPlateUITests \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1 \
-            CODE_SIGNING_ALLOWED=NO
+            -resultBundlePath UITestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO | tee UITestResults.log
+
+      - name: Upload UI test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-test-results
+          path: |
+            UITestResults.xcresult
+            UITestResults.log
+          if-no-files-found: ignore
 
   functions:
     name: Firebase Functions
@@ -134,10 +152,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -156,17 +174,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: tests/firebase-rules/package-lock.json
 
       - name: Set up Java for Firebase Emulator
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -188,12 +206,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Run migration-runner tests
         working-directory: tools/firestore-migrate

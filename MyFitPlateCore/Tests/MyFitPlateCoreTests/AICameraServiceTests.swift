@@ -24,8 +24,7 @@ final class AICameraServiceTests: XCTestCase {
     func testPrepareImageDataExceedsLimit() {
         let data = Data(repeating: 0, count: 1500)
         let prepared = service.prepareImageData(data, maxSizeBytes: 1000)
-        XCTAssertNotNil(prepared)
-        XCTAssertEqual(prepared?.count, 1000)
+        XCTAssertNil(prepared)
     }
 
     func testPrepareImageDataEmpty() {

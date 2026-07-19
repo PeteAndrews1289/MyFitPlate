@@ -277,6 +277,17 @@ final class WorkoutRulesTests: XCTestCase {
         }
     }
 
+    func testExerciseEquipmentFamiliesSupportDiscoveryWithoutOverclaiming() {
+        XCTAssertEqual(ExerciseList.equipment(for: "Dumbbell Bench Press"), .dumbbell)
+        XCTAssertEqual(ExerciseList.equipment(for: "Barbell Back Squat"), .barbell)
+        XCTAssertEqual(ExerciseList.equipment(for: "Triceps Pushdown (Cable)"), .cable)
+        XCTAssertEqual(ExerciseList.equipment(for: "Smith Machine Bench Press"), .machine)
+        XCTAssertEqual(ExerciseList.equipment(for: "Push-up"), .bodyweight)
+        XCTAssertEqual(ExerciseList.equipment(for: "Kettlebell Swing"), .kettlebell)
+        XCTAssertEqual(ExerciseList.equipment(for: "Romanian Deadlift"), .flexible)
+        XCTAssertEqual(ExerciseList.equipment(for: "Goblet Squat (Dumbbell/Kettlebell)"), .flexible)
+    }
+
     func testPreparePreBuiltProgramForUser() {
         let systemPrograms = WorkoutRules.generatePreBuiltPrograms()
         let original = systemPrograms.first!

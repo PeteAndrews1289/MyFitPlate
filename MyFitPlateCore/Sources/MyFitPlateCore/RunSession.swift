@@ -29,6 +29,15 @@ public final class RunSession {
         case finished
     }
 
+    public enum TimeAccounting: Equatable, Sendable {
+        /// Live pace ignores most of a long GPS outage so one sparse fix cannot ruin
+        /// audio cues or an in-progress split.
+        case moving
+        /// Historical replay retains the full interval between route fixes so displayed
+        /// splits reconcile with the HealthKit workout duration.
+        case elapsed
+    }
+
     /// Fixes with accuracy worse than this are noise (parking garages, city canyons).
     public static let accuracyCutoffMeters: Double = 30
     /// Faster than 2:00 min/km is not running — treat as a GPS teleport and drop it.
@@ -50,14 +59,16 @@ public final class RunSession {
     /// Meters per split boundary: 1000 (metric) or one mile.
     public let splitDistanceMeters: Double
 
+    private let timeAccounting: TimeAccounting
     private var lastAcceptedFix: RunLocationFix?
     private var distanceIntoCurrentSplit: Double = 0
     private var secondsIntoCurrentSplit: Double = 0
     private var pauseBegan: Date?
     private var recentSegments: [(meters: Double, seconds: Double, at: Date)] = []
 
-    public init(metric: Bool) {
+    public init(metric: Bool, timeAccounting: TimeAccounting = .moving) {
         self.splitDistanceMeters = metric ? 1000 : RunFormat.metersPerMile
+        self.timeAccounting = timeAccounting
     }
 
     // MARK: Lifecycle
@@ -156,7 +167,12 @@ public final class RunSession {
         lastAcceptedFix = fix
         routePointCount += 1
 
-        let countedSeconds = min(seconds, Self.movingTimeGapCapSeconds)
+        let countedSeconds = switch timeAccounting {
+        case .moving:
+            min(seconds, Self.movingTimeGapCapSeconds)
+        case .elapsed:
+            seconds
+        }
         distanceMeters += meters
         movingSeconds += countedSeconds
         recentSegments.append((meters: meters, seconds: countedSeconds, at: fix.timestamp))

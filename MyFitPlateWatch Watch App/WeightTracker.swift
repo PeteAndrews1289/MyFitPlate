@@ -41,7 +41,7 @@ struct WeightTracker: View {
                     if let gapLine {
                         Text(gapLine)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(gapLine == "At your goal" ? WatchPalette.brandPrimary : .primary)
+                            .foregroundStyle(gapLine == "At your goal" ? WatchPalette.brandForeground : .primary)
                     }
 
                     Text("Log weigh-ins on your phone.")

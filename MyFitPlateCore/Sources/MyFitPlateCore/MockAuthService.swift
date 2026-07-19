@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import Combine
 
@@ -12,10 +13,17 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
     public var deleteCurrentUserCalled = false
     public var deleteCurrentUserError: Error?
     public var removedObserverHandles: [Any] = []
+    private var authStateListener: ((String?) -> Void)?
     
     public func observeAuthState(listener: @escaping (String?) -> Void) -> Any {
+        authStateListener = listener
         listener(currentUserID)
         return UUID()
+    }
+
+    public func sendAuthState(_ userID: String?) {
+        currentUserID = userID
+        authStateListener?(userID)
     }
 
     public func removeObserver(_ handle: Any) {
@@ -43,3 +51,4 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
         return AuthUserSession(userID: "mock_user", email: email)
     }
 }
+#endif
