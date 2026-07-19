@@ -19,9 +19,13 @@ struct FoodSearchHeader: View {
                     .accessibilityHidden(true)
             }
 
-            TextField(dynamicTypeSize.isAccessibilitySize ? "Search" : placeholder, text: $searchText)
+            TextField(
+                dynamicTypeSize.isAccessibilitySize ? "Search" : placeholder,
+                text: $searchText,
+                axis: dynamicTypeSize.isAccessibilitySize ? .vertical : .horizontal
+            )
                 .appTextRole(.body)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? AppSpacing.row : 0)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.search)
