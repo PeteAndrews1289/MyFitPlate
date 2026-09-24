@@ -40,7 +40,6 @@ struct PlanRevealView: View {
             actions
         }
         .background(AppPalette.canvas.ignoresSafeArea())
-        .accessibilityIdentifier("plan_reveal_screen")
     }
 
     private var dailyTarget: some View {

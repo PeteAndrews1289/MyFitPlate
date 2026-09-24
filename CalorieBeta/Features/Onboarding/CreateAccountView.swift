@@ -6,6 +6,7 @@ struct CreateAccountView: View {
     let draft: OnboardingProfileDraft
 
     @ObservedObject private var accountSetup = AccountSetupCoordinator.shared
+    @Environment(\.dismiss) private var dismiss
 
     @State private var showsEmailForm = false
     @State private var name = ""
@@ -96,7 +97,6 @@ struct CreateAccountView: View {
         .sheet(isPresented: $showingSignIn) {
             LoginView()
         }
-        .accessibilityIdentifier("create_account_screen")
     }
 
     private var planSummary: some View {
@@ -199,6 +199,8 @@ struct CreateAccountView: View {
                 accountSetup.finishAuthentication(session: session, method: method, displayName: displayName)
                 let event: ProductAnalytics.Event = session.isNewUser ? .accountCreated : .signInCompleted
                 DIContainer.shared.analyticsManager?.logEvent(event.rawValue, parameters: ["method": method.rawValue])
+                // The root view takes over setup; close the onboarding cover like sign-up always has.
+                dismiss()
             } catch {
                 accountSetup.cancelAuthentication()
                 isWorking = false
