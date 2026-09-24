@@ -163,9 +163,18 @@ struct SettingsView: View {
         }
         .alert("Delete account", isPresented: $showingDeleteAccountAlert) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) { DispatchQueue.main.async { showingReauthForDelete = true } }
+            Button("Delete", role: .destructive) {
+                if usesSignInWithApple {
+                    // Let the alert finish dismissing before Apple's sheet presents.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { confirmWithAppleAndDelete() }
+                } else {
+                    DispatchQueue.main.async { showingReauthForDelete = true }
+                }
+            }
         } message: {
-            Text("After password confirmation, MyFitPlate will permanently remove your profile, logs, recipes, workouts, cloud data, and sign-in. Keep the app open until deletion finishes. This cannot be undone.")
+            usesSignInWithApple
+                ? Text("After you confirm with Apple, MyFitPlate will permanently remove your profile, logs, recipes, workouts, cloud data, and sign-in. Keep the app open until deletion finishes. This cannot be undone.")
+                : Text("After password confirmation, MyFitPlate will permanently remove your profile, logs, recipes, workouts, cloud data, and sign-in. Keep the app open until deletion finishes. This cannot be undone.")
         }
         .modifier(DeleteAccountAlerts(
             showingReauthForDelete: $showingReauthForDelete,
@@ -258,11 +267,46 @@ struct SettingsView: View {
         showingWaterGoalSheet = false
     }
 
+    private var usesSignInWithApple: Bool {
+        DIContainer.shared.authService.currentSignInMethod == .apple
+    }
+
     private func reauthenticateAndDelete() {
         guard let accountDeletionService = DIContainer.shared.accountDeletionService else { return }
         let password = reauthPassword
         reauthPassword = ""
 
+        performAccountDeletion(method: .email) {
+            try await accountDeletionService.deleteCurrentAccount(password: password)
+        }
+    }
+
+    /// Apple accounts have no password; Apple's sheet confirms the deletion and supplies the
+    /// single-use code needed to revoke the app's Sign in with Apple token.
+    private func confirmWithAppleAndDelete() {
+        guard let accountDeletionService = DIContainer.shared.accountDeletionService else { return }
+
+        Task { @MainActor in
+            let request = AppleReauthenticationRequest()
+            let credential: AppleIDCredential
+            do {
+                credential = try await request.perform()
+            } catch {
+                guard !AppleAuthorizationResult.isCancellation(error) else { return }
+                deleteErrorMessage = AppleAuthorizationResult.userFacingError(error).localizedDescription
+                return
+            }
+
+            performAccountDeletion(method: .apple) {
+                try await accountDeletionService.deleteCurrentAccount(appleCredential: credential)
+            }
+        }
+    }
+
+    private func performAccountDeletion(
+        method: AccountSignInMethod,
+        _ deletion: @escaping () async throws -> AccountDeletionOutcome
+    ) {
         isDeletingAccount = true
         DIContainer.shared.analyticsManager?.logEvent(
             ProductAnalytics.Event.accountDeletionStarted.rawValue,
@@ -270,12 +314,14 @@ struct SettingsView: View {
         )
         Task {
             do {
-                let outcome = try await accountDeletionService.deleteCurrentAccount(password: password)
+                let outcome = try await deletion()
                 await MainActor.run {
                     isDeletingAccount = false
                     DIContainer.shared.analyticsManager?.logEvent(
                         ProductAnalytics.Event.accountDeletionCompleted.rawValue,
-                        parameters: nil
+                        parameters: method == .apple
+                            ? ["apple_token": outcome.appleTokenRevocationFailed ? "revocation_failed" : "revoked"]
+                            : nil
                     )
                     clearLocalAccountData(userID: outcome.userID)
                     appState.isUserLoggedIn = false

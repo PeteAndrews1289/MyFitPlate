@@ -106,6 +106,9 @@ public class AppState: ObservableObject {
             if let userID {
                 TTSManager.shared.clearCachedSpeech(for: userID)
             }
+            // A quiz answered on this device belongs to the account that finished it, never to the
+            // next person who signs in here.
+            AccountSetupCoordinator.shared.store.clearAll()
             EcosystemSyncManager.shared.clearAccountWidgetData()
             identifyReleaseHealthUser(nil)
         } catch {

@@ -26,6 +26,15 @@ struct LoginView: View {
                         subtitle: "Continue with the same food history, goals, training, and Maia context."
                     )
 
+                    AppleSignInButton(
+                        label: .signIn,
+                        accessibilityIdentifier: "login_apple",
+                        onResult: handleAppleResult
+                    )
+                    .disabled(isLoading)
+
+                    AuthMethodDivider()
+
                     VStack(spacing: 0) {
                         AuthTextFieldRow(
                             label: "Email",
@@ -110,9 +119,51 @@ struct LoginView: View {
                     email: email.trimmingCharacters(in: .whitespacesAndNewlines),
                     password: password
                 )
+                DIContainer.shared.analyticsManager?.logEvent(
+                    ProductAnalytics.Event.signInCompleted.rawValue,
+                    parameters: ["method": AccountSignInMethod.email.rawValue]
+                )
                 isLoading = false
                 dismiss()
             } catch {
+                isLoading = false
+                loginError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Apple sign-in can also create an account, so the root view waits until this records
+    /// whether it did before it decides how to set the account up.
+    private func handleAppleResult(_ result: Result<AppleIDCredential, Error>) {
+        guard case .success(let credential) = result else {
+            if case .failure(let error) = result {
+                loginError = error.localizedDescription
+            }
+            return
+        }
+
+        isLoading = true
+        loginError = ""
+        let accountSetup = AccountSetupCoordinator.shared
+        accountSetup.beginAuthentication()
+
+        Task { @MainActor in
+            do {
+                let session = try await DIContainer.shared.authService.signInWithApple(credential)
+                accountSetup.finishAuthentication(
+                    session: session,
+                    method: .apple,
+                    displayName: credential.displayName
+                )
+                let event: ProductAnalytics.Event = session.isNewUser ? .accountCreated : .signInCompleted
+                DIContainer.shared.analyticsManager?.logEvent(
+                    event.rawValue,
+                    parameters: ["method": AccountSignInMethod.apple.rawValue]
+                )
+                isLoading = false
+                dismiss()
+            } catch {
+                accountSetup.cancelAuthentication()
                 isLoading = false
                 loginError = error.localizedDescription
             }

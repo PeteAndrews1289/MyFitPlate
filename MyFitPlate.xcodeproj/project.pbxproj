@@ -31,6 +31,9 @@
 		29C227F610BBC52E815064A8 /* FirebaseAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41836F4BD4377CDFE980FE6A /* FirebaseAuthService.swift */; };
 		2CFBA9D3390989A60CDD3A7E /* SetWaterGoalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54473EE46835F753086266F6 /* SetWaterGoalView.swift */; };
 		2D397DF84E83A05F6DD32254 /* OnBoardingSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1467352F4AC50FDB721F93 /* OnBoardingSurveyView.swift */; };
+		5525C4055166B0475D4EE13B /* AppleSignInComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FDC6EC477B7201CDBCE14C4 /* AppleSignInComponents.swift */; };
+		B8BB5E4F61BFA6B5A7292A6F /* PlanRevealView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1490F25385F380E67AA127A0 /* PlanRevealView.swift */; };
+		4D56EA98E912D9D1E52D5A40 /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCB731221ABFC56E705DAAE4 /* OnboardingFlowView.swift */; };
 		2E13A64ACA755EDE363631FF /* MealPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4168162E9FBE14F49512D988 /* MealPlannerView.swift */; };
 		2EEC3D0F82ADD3F34B0DDDD5 /* FoodSearchActionGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FED79A6764CD428B2D56264 /* FoodSearchActionGrid.swift */; };
 		324D0056F95353AE9FA4FDDE /* WorkoutAnalyticsCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EFD513D7B99942E92A800A /* WorkoutAnalyticsCardView.swift */; };
@@ -126,7 +129,7 @@
 		9B9FDCF8A32649902D48552F /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474B671A01476E32396D1127 /* UserProfileView.swift */; };
 		9D4B6C42B60F3D4A4CC5C341 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
 		9E72528672FD4636311C2A65 /* DetailedInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16452663171ACDF10A869684 /* DetailedInsightsView.swift */; };
-		9E8257A9AC4B76470C399A09 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E218C75A46BA3C1801F402D1 /* SignUpView.swift */; };
+		9E8257A9AC4B76470C399A09 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E218C75A46BA3C1801F402D1 /* CreateAccountView.swift */; };
 		9EC71A45F829ABC5064722EC /* GrocerySummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E821ADF0C6D2385596276242 /* GrocerySummaryCard.swift */; };
 		A04E0C77C078E6DFAF732FC5 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
 		A1B2C3D4E5F60718293A4B5C /* ShoeGearManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A60718293A4B5C /* ShoeGearManagerView.swift */; };
@@ -374,6 +377,9 @@
 		7A5C4F03C5EFECBA18FFB0E0 /* GroceryListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroceryListView.swift; sourceTree = "<group>"; };
 		7B066B44563BD41796195AA9 /* SettingsPreferencesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsPreferencesSection.swift; sourceTree = "<group>"; };
 		7C1467352F4AC50FDB721F93 /* OnBoardingSurveyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnBoardingSurveyView.swift; sourceTree = "<group>"; };
+		7FDC6EC477B7201CDBCE14C4 /* AppleSignInComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppleSignInComponents.swift; sourceTree = "<group>"; };
+		1490F25385F380E67AA127A0 /* PlanRevealView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanRevealView.swift; sourceTree = "<group>"; };
+		BCB731221ABFC56E705DAAE4 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
 		7C86E06F3EB1ED214C7F3328 /* SettingsComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		7CBFBC5442DFB2BEB233AE2D /* CycleTrackingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CycleTrackingView.swift; sourceTree = "<group>"; };
 		7D91CB07B29AF48775EC6D44 /* SpotlightTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTextView.swift; sourceTree = "<group>"; };
@@ -452,7 +458,7 @@
 		DDBF64359556D6DA0B848C78 /* GroceryListRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroceryListRows.swift; sourceTree = "<group>"; };
 		E0AC00A5C0C81C9E0D5DCD43 /* RoutineEditorComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineEditorComponents.swift; sourceTree = "<group>"; };
 		E177692C65003E9F6183CFE9 /* RunActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RunActivityAttributes.swift; sourceTree = "<group>"; };
-		E218C75A46BA3C1801F402D1 /* SignUpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
+		E218C75A46BA3C1801F402D1 /* CreateAccountView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
 		E512584F4E59DF851A405406 /* ChatBoxShape.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatBoxShape.swift; sourceTree = "<group>"; };
 		E7659EAD2E7A263BBC681565 /* MyFitPlateWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MyFitPlateWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E821ADF0C6D2385596276242 /* GrocerySummaryCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GrocerySummaryCard.swift; sourceTree = "<group>"; };
@@ -599,9 +605,12 @@
 			isa = PBXGroup;
 			children = (
 				37C6FCD392DAA594F53AE8C1 /* LoginView.swift */,
-				E218C75A46BA3C1801F402D1 /* SignUpView.swift */,
+				E218C75A46BA3C1801F402D1 /* CreateAccountView.swift */,
 				9F4F9AAB73ED0E3461738A51 /* WelcomeView.swift */,
 				7C1467352F4AC50FDB721F93 /* OnBoardingSurveyView.swift */,
+				7FDC6EC477B7201CDBCE14C4 /* AppleSignInComponents.swift */,
+				1490F25385F380E67AA127A0 /* PlanRevealView.swift */,
+				BCB731221ABFC56E705DAAE4 /* OnboardingFlowView.swift */,
 				4044A762387679644C2484F6 /* LandingPageView.swift */,
 				716F97A803CF1639AA991FE9 /* FeatureTourView.swift */,
 			);
@@ -1362,9 +1371,12 @@
 				0966FB9CE84C95C6486EC48C /* WellnessScoreCardView.swift in Sources */,
 				AFA341A4CED099669904ADBA /* WellnessScoreDetailView.swift in Sources */,
 				98A0E5D2C9F0D2CD9036A5BB /* LoginView.swift in Sources */,
-				9E8257A9AC4B76470C399A09 /* SignUpView.swift in Sources */,
+				9E8257A9AC4B76470C399A09 /* CreateAccountView.swift in Sources */,
 				C3E9913A884091879ED8B085 /* WelcomeView.swift in Sources */,
 				2D397DF84E83A05F6DD32254 /* OnBoardingSurveyView.swift in Sources */,
+				5525C4055166B0475D4EE13B /* AppleSignInComponents.swift in Sources */,
+				B8BB5E4F61BFA6B5A7292A6F /* PlanRevealView.swift in Sources */,
+				4D56EA98E912D9D1E52D5A40 /* OnboardingFlowView.swift in Sources */,
 				6C2450BA5DCED3451D15C9A3 /* LandingPageView.swift in Sources */,
 				8B2834452AB723BE4F45DA8F /* FeatureTourView.swift in Sources */,
 				8979696A6E9EA1AD8BF54366 /* CustomTabBar.swift in Sources */,

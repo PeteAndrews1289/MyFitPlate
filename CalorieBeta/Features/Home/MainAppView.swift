@@ -514,6 +514,10 @@ struct ContentView: View {
     @State private var isTransitioningFirstSessionChoice = false
     @State private var presentedDeepLinkRoute: Route?
     @State private var didQueueUITestDeepLink = false
+    @ObservedObject private var accountSetup = AccountSetupCoordinator.shared
+    @State private var accountSetupFailureMessage: String?
+    @State private var provisioningUserID: String?
+    @State private var onboardingPrefill: OnboardingProfileDraft?
     @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
     @AppStorage("firstSessionChoicePending") private var firstSessionChoicePending = false
     @AppStorage("firstSessionChoiceCompleted") private var firstSessionChoiceCompleted = false
@@ -533,6 +537,8 @@ struct ContentView: View {
             "welcome",
             "login",
             "signup",
+            "create-account",
+            "plan-reveal",
             "onboarding-baseline",
             "onboarding-lifestyle",
             "feature-tour"
@@ -578,6 +584,12 @@ struct ContentView: View {
             trainingFuelPlanStore.load(for: isLoggedIn ? currentUserID : nil)
             handleLoginStateChange(isLoggedIn: isLoggedIn)
             syncTrainingFuelNotificationsIfNeeded()
+        }
+        .onChange(of: accountSetup.isAuthenticationInFlight) { _, isInFlight in
+            // The auth screen has recorded whether it created the account; setup can decide now.
+            if !isInFlight && appState.isUserLoggedIn {
+                checkUserStatusAndFirstLogin()
+            }
         }
         .onChange(of: appCoordinator.pendingRoute) { _, _ in
             processPendingDeepLinkIfReady()
@@ -739,11 +751,17 @@ struct ContentView: View {
     @ViewBuilder
     private var standardMainContent: some View {
         if isLoadingUserState {
-            LandingPageView()
+            LandingPageView(
+                setupFailureMessage: accountSetupFailureMessage,
+                onRetrySetup: retryAccountSetup
+            )
         } else if appState.isUserLoggedIn {
             if shouldShowOnboardingSurvey {
-                OnboardingSurveyView(onComplete: handleOnboardingComplete)
-                    .environmentObject(goalSettings)
+                OnboardingFlowView(
+                    context: .signedIn,
+                    prefill: onboardingPrefill,
+                    onAcceptPlan: finishSignedInOnboarding
+                )
             } else {
                 NavigationView {
                     MainTabView()
@@ -764,22 +782,38 @@ struct ContentView: View {
             WelcomeView()
         case "login":
             LoginView()
-        case "signup":
-            SignUpView()
+        case "signup", "create-account":
+            OnboardingFlowView(context: .beforeAccount, prefill: Self.screenshotOnboardingDraft, startingPoint: .account)
+        case "plan-reveal":
+            OnboardingFlowView(context: .beforeAccount, prefill: Self.screenshotOnboardingDraft, startingPoint: .reveal)
         case "onboarding-baseline":
-            OnboardingSurveyView(initialStep: 0, onComplete: { })
-                .environmentObject(goalSettings)
+            OnboardingFlowView(context: .beforeAccount, startingPoint: .quiz(.goal), onClose: { })
         case "onboarding-lifestyle":
-            OnboardingSurveyView(initialStep: 3, onComplete: { })
-                .environmentObject(goalSettings)
+            OnboardingFlowView(
+                context: .beforeAccount,
+                prefill: Self.screenshotOnboardingDraft,
+                startingPoint: .quiz(.activity),
+                onClose: { }
+            )
         case "feature-tour":
             FeatureTourView(isPresented: .constant(true))
         default:
             WelcomeView()
         }
     }
+
+    private static let screenshotOnboardingDraft = OnboardingProfileDraft(
+        goal: .lose,
+        trainingIntent: "Strength",
+        sex: "Female",
+        age: 32,
+        heightCm: 168,
+        currentWeightLbs: 172,
+        targetWeightLbs: 160,
+        activityMultiplier: 1.55
+    )
     #endif
-    
+
     private func sendNutritionToWatchIfNeeded() {
         guard appState.isUserLoggedIn,
               let userID = currentUserID,
@@ -923,14 +957,18 @@ struct ContentView: View {
         }
         NotificationManager.shared.requestDailyLogReminderAuthorization()
         ActivationFunnel.logOnce(ActivationFunnel.onboardingCompleted)
+        accountSetup.store.clearAll()
+        onboardingPrefill = nil
     }
-    
+
     private func handleLoginStateChange(isLoggedIn: Bool) {
         if isLoggedIn {
             checkUserStatusAndFirstLogin()
             drainPendingWatchMealRepeats()
         } else {
             self.isLoadingUserState = false
+            self.accountSetupFailureMessage = nil
+            self.onboardingPrefill = nil
             self.shouldShowOnboardingSurvey = false
             self.shouldShowFirstSessionChoice = false
             self.shouldShowFirstSessionMFPImport = false
@@ -954,18 +992,18 @@ struct ContentView: View {
             }
             return
         }
+        // An auth screen is still recording whether this sign-in created the account. Deciding now
+        // could mistake a brand-new account's missing profile for an unreadable one, so wait; the
+        // `isAuthenticationInFlight` change runs this again.
+        if accountSetup.isAuthenticationInFlight { return }
         if let userID = currentUserID {
-             checkFirstLogin(userID: userID) { isFirstLogin in
-                 DispatchQueue.main.async {
-                     guard self.currentUserID == userID, self.appState.isUserLoggedIn else { return }
-                     self.shouldShowOnboardingSurvey = isFirstLogin
-                     self.isLoadingUserState = false
-                     if !isFirstLogin {
-                         self.loadMainUserData()
-                         self.presentFirstSessionChoiceIfNeeded()
-                     }
-                 }
-             }
+            accountSetupFailureMessage = nil
+            DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { profile in
+                DispatchQueue.main.async {
+                    guard self.currentUserID == userID, self.appState.isUserLoggedIn else { return }
+                    self.resolveAccountSetup(userID: userID, profile: profile)
+                }
+            }
         } else {
             DispatchQueue.main.async {
                 self.appState.isUserLoggedIn = false
@@ -975,11 +1013,102 @@ struct ContentView: View {
         }
     }
 
-     private func checkFirstLogin(userID: String, completion: @escaping (Bool) -> Void) {
-         DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
-             completion(OnboardingStateRules.requiresSetup(profile: data))
-         }
-     }
+    private func resolveAccountSetup(userID: String, profile: [String: Any]?) {
+        let store = accountSetup.store
+        let draft = store.loadDraft()
+        let action = AccountSetupRules.action(
+            profile: profile,
+            currentUserID: userID,
+            pendingAccount: store.loadPendingAccount(),
+            hasDraft: draft != nil
+        )
+
+        switch action {
+        case .none, .discardDraft:
+            store.clearAll()
+            shouldShowOnboardingSurvey = false
+            isLoadingUserState = false
+            loadMainUserData()
+            presentFirstSessionChoiceIfNeeded()
+        case .showSurvey:
+            onboardingPrefill = draft
+            shouldShowOnboardingSurvey = true
+            isLoadingUserState = false
+        case .applyDraft, .createProfileThenApplyDraft, .createProfileThenShowSurvey:
+            provisionAccount(userID: userID, action: action, draft: draft)
+        }
+    }
+
+    /// Creates the profile for a brand-new account and saves the accepted plan, in that order, so
+    /// the new-profile defaults can never land on top of the plan. One run per account at a time.
+    private func provisionAccount(userID: String, action: AccountSetupAction, draft: OnboardingProfileDraft?) {
+        guard provisioningUserID != userID else { return }
+        provisioningUserID = userID
+        accountSetupFailureMessage = nil
+        isLoadingUserState = true
+
+        let store = accountSetup.store
+        let pending = store.loadPendingAccount()
+        let createsProfile = action == .createProfileThenApplyDraft || action == .createProfileThenShowSurvey
+        let settings = goalSettings
+
+        Task { @MainActor in
+            defer {
+                if provisioningUserID == userID { provisioningUserID = nil }
+            }
+            do {
+                if createsProfile {
+                    try await BoundedOperation.run(seconds: 20) {
+                        try await DIContainer.shared.settingsRepository.createInitialUserData(
+                            userID: userID,
+                            email: pending?.email ?? "",
+                            username: pending?.displayName ?? ""
+                        )
+                    }
+                    store.clearPendingAccount()
+                }
+                guard currentUserID == userID, appState.isUserLoggedIn else { return }
+
+                guard let draft, action != .createProfileThenShowSurvey else {
+                    onboardingPrefill = nil
+                    shouldShowOnboardingSurvey = true
+                    isLoadingUserState = false
+                    return
+                }
+
+                try await BoundedOperation.run(seconds: 20) {
+                    try await settings.completeOnboarding(with: draft, userID: userID)
+                }
+                guard currentUserID == userID, appState.isUserLoggedIn else { return }
+                isLoadingUserState = false
+                handleOnboardingComplete()
+            } catch {
+                guard currentUserID == userID else { return }
+                accountSetupFailureMessage = "Your sign-in worked, but setup didn't finish. Check your connection and try again."
+                if let crashManager = DIContainer.shared.crashManager {
+                    ReleaseHealth.recordNonFatal(
+                        error,
+                        area: .authentication,
+                        operation: "account_setup",
+                        crashManager: crashManager,
+                        analyticsManager: DIContainer.shared.analyticsManager
+                    )
+                }
+            }
+        }
+    }
+
+    /// A signed-in account that never finished setup accepted its plan from the quiz.
+    private func finishSignedInOnboarding(_ draft: OnboardingProfileDraft) {
+        guard let userID = currentUserID else { return }
+        accountSetup.store.saveDraft(draft)
+        provisionAccount(userID: userID, action: .applyDraft, draft: draft)
+    }
+
+    private func retryAccountSetup() {
+        accountSetupFailureMessage = nil
+        checkUserStatusAndFirstLogin()
+    }
 
     private func loadMainUserData() {
         guard appState.isUserLoggedIn, !shouldShowOnboardingSurvey, !isLoadingUserState else { return }

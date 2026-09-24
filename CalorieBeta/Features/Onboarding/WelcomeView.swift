@@ -2,25 +2,38 @@ import SwiftUI
 
 struct WelcomeView: View {
     @State private var showLoginView = false
-    @State private var showSignUpView = false
+    @State private var onboardingPresentation: OnboardingPresentation?
+    @State private var savedDraft: OnboardingProfileDraft?
+
+    private enum OnboardingPresentation: Identifiable {
+        case start
+        case resume(OnboardingProfileDraft)
+
+        var id: String {
+            switch self {
+            case .start: return "start"
+            case .resume: return "resume"
+            }
+        }
+    }
 
     private let features = [
         WelcomeFeature(
-            icon: "square.and.arrow.down",
-            title: "Bring your history",
-            subtitle: "Import MyFitnessPal diary and weight data after setup.",
+            icon: "target",
+            title: "A plan built around you",
+            subtitle: "Answer a few questions and get calorie and protein targets in about a minute.",
             color: AppPalette.brand
         ),
         WelcomeFeature(
-            icon: "checkmark.seal.fill",
-            title: "Know what to trust",
-            subtitle: "Review food sources, correct nutrition, and keep the better match.",
+            icon: "barcode.viewfinder",
+            title: "Log in seconds",
+            subtitle: "Search, scan a barcode, or snap a meal. You review every estimate before it's saved.",
             color: .accentProtein
         ),
         WelcomeFeature(
-            icon: "figure.run",
-            title: "Fuel the work",
-            subtitle: "Connect meals, recovery, lifting, and runs in one daily view.",
+            icon: "square.and.arrow.down",
+            title: "Bring your history",
+            subtitle: "Import your MyFitnessPal diary and weight history after setup.",
             color: .accentSignal
         )
     ]
@@ -29,35 +42,32 @@ struct WelcomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
                 AppScreenHeader(
-                    eyebrow: "Nutrition you can inspect",
+                    eyebrow: "Nutrition for people who train",
                     title: "MyFitPlate",
-                    subtitle: "A food log you can trust, built for people who train."
+                    subtitle: "Hit your targets, fuel your training, and trust the numbers you log."
                 ) {
                     MyFitPlateLaunchMark()
                         .accessibilityHidden(true)
                 }
                 .padding(.top, AppSpacing.section)
 
-                VStack(alignment: .leading, spacing: AppSpacing.group) {
-                    AppSectionHeader(
-                        title: "Start with evidence",
-                        subtitle: "Your plan stays useful because every signal has a source."
-                    )
-
-                    VStack(spacing: 0) {
-                        ForEach(Array(features.enumerated()), id: \.element.title) { index, feature in
-                            WelcomeFeatureRow(feature: feature)
-
-                            if index < features.count - 1 {
-                                Divider()
-                                    .padding(.leading, 68)
-                            }
-                        }
-                    }
-                    .appSurface(.emphasized, padding: 0)
+                if let savedDraft {
+                    resumeCard(savedDraft)
                 }
 
-                Text("Your nutrition, training, and wellness data stay attached to your account so your plan follows you between devices.")
+                VStack(spacing: 0) {
+                    ForEach(Array(features.enumerated()), id: \.element.title) { index, feature in
+                        WelcomeFeatureRow(feature: feature)
+
+                        if index < features.count - 1 {
+                            Divider()
+                                .padding(.leading, 68)
+                        }
+                    }
+                }
+                .appSurface(.emphasized, padding: 0)
+
+                Text("No account needed until you save your plan. Your nutrition, training, and wellness data then stay with your account on every device.")
                     .appTextRole(.secondary)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -68,17 +78,51 @@ struct WelcomeView: View {
         }
         .safeAreaInset(edge: .bottom) {
             WelcomeActions(
-                createAccount: { showSignUpView = true },
+                getStarted: { onboardingPresentation = .start },
                 signIn: { showLoginView = true }
             )
         }
         .background(AppPalette.canvas.ignoresSafeArea())
+        .onAppear(perform: loadSavedDraft)
         .sheet(isPresented: $showLoginView) {
             LoginView()
         }
-        .sheet(isPresented: $showSignUpView) {
-            SignUpView()
+        .fullScreenCover(item: $onboardingPresentation, onDismiss: loadSavedDraft) { presentation in
+            switch presentation {
+            case .start:
+                OnboardingFlowView(context: .beforeAccount, onClose: { onboardingPresentation = nil })
+            case .resume(let draft):
+                OnboardingFlowView(
+                    context: .beforeAccount,
+                    prefill: draft,
+                    startingPoint: .reveal,
+                    onClose: { onboardingPresentation = nil }
+                )
+            }
         }
+    }
+
+    private func resumeCard(_ draft: OnboardingProfileDraft) -> some View {
+        let plan = OnboardingPlanRules.plan(for: draft)
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppListRow(
+                icon: "checkmark.seal.fill",
+                iconColor: AppPalette.brandText,
+                title: "Your plan is waiting",
+                subtitle: "\(Int(plan.dailyCalories.rounded()).formatted()) calories and \(Int(plan.proteinGrams.rounded()).formatted()) g protein a day"
+            )
+
+            Button("Continue where you left off") {
+                onboardingPresentation = .resume(draft)
+            }
+            .buttonStyle(AppActionButtonStyle(.secondary))
+            .accessibilityIdentifier("welcome_resume_plan")
+        }
+        .appSurface(.interpreted)
+    }
+
+    private func loadSavedDraft() {
+        savedDraft = AccountSetupCoordinator.shared.store.loadDraft()
     }
 }
 
@@ -109,48 +153,24 @@ private struct WelcomeFeatureRow: View {
 }
 
 private struct WelcomeActions: View {
-    let createAccount: () -> Void
+    let getStarted: () -> Void
     let signIn: () -> Void
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: AppSpacing.compact) {
-                    createButton
-                    signInButton
-                }
-            } else {
-                HStack(spacing: AppSpacing.row) {
-                    signInButton
-                    createButton
-                }
+        VStack(spacing: AppSpacing.compact) {
+            Button(action: getStarted) {
+                Label("Get started", systemImage: "arrow.right")
             }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .accessibilityIdentifier("welcome_get_started")
+
+            Button("I already have an account", action: signIn)
+                .buttonStyle(AppActionButtonStyle(.ghost))
+                .accessibilityIdentifier("welcome_sign_in")
         }
         .padding(.horizontal, AppSpacing.screenHorizontal)
         .padding(.vertical, AppSpacing.row)
         .background(AppPalette.canvas)
         .overlay(alignment: .top) { Divider() }
-    }
-
-    private var createButton: some View {
-        Button(action: createAccount) {
-            if dynamicTypeSize.isAccessibilitySize {
-                Text("Create account")
-            } else {
-                Label("Create account", systemImage: "person.badge.plus")
-            }
-        }
-        .buttonStyle(AppActionButtonStyle(.primary))
-        .accessibilityIdentifier("welcome_create_account")
-    }
-
-    private var signInButton: some View {
-        Button(action: signIn) {
-            Text("Sign in")
-        }
-        .buttonStyle(AppActionButtonStyle(.secondary))
-        .accessibilityIdentifier("welcome_sign_in")
     }
 }

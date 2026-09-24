@@ -3347,10 +3347,12 @@ final class MyFitPlateUITests: XCTestCase {
     func testOnboardingFamilyUsesUnifiedHierarchy() throws {
         let app = XCUIApplication()
         let screens = [
-            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
-            (name: "Sign In", route: "login", title: "Welcome back", action: "login_submit"),
-            (name: "Create Account", route: "signup", title: "Build your MyFitPlate", action: "signup_submit"),
+            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_get_started"),
+            (name: "Sign In", route: "login", title: "Welcome back", action: "login_apple"),
+            (name: "Goal", route: "onboarding-baseline", title: "What do you want to work toward?", action: "onboarding_goal_lose"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Plan Reveal", route: "plan-reveal", title: "Your plan is ready", action: "plan_reveal_continue"),
+            (name: "Create Account", route: "create-account", title: "Save your plan", action: "create_account_apple"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
         ]
 
@@ -3386,9 +3388,10 @@ final class MyFitPlateUITests: XCTestCase {
     func testOnboardingFamilySupportsDarkLargestAccessibilityText() throws {
         let app = XCUIApplication()
         let screens = [
-            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
-            (name: "Create Account", route: "signup", title: "Build your MyFitPlate", action: "Cancel"),
+            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_get_started"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Plan Reveal", route: "plan-reveal", title: "Your plan is ready", action: "plan_reveal_continue"),
+            (name: "Create Account", route: "create-account", title: "Save your plan", action: "create_account_back"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
         ]
 
