@@ -178,7 +178,7 @@ struct LivingDayHomeExperience: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Living Day")
+                Text("Day summary")
                     .appTextRole(.sectionTitle)
                     .foregroundStyle(AppPalette.text)
 
@@ -196,7 +196,7 @@ struct LivingDayHomeExperience: View {
                 Image(systemName: "square.and.arrow.up")
             }
             .buttonStyle(AppIconButtonStyle(.neutral))
-            .accessibilityLabel("Share Living Day")
+            .accessibilityLabel("Share my day")
             .accessibilityIdentifier("livingDayShareButton")
 
             Menu {
@@ -1164,7 +1164,7 @@ private extension DailyNextAction {
         switch kind {
         case .preWorkoutFuel, .recoveryMeal: return "Opens the current Training Fuel target"
         case .proteinCatchUp: return "Opens food search"
-        case .trustReview: return "Opens today's Food Trust review"
+        case .trustReview: return "Opens today's food data check"
         case .steadyDay:
             return deepLink.contains("meal-plan") ? "Opens Meal Plan" : "Moves to today's food diary"
         }

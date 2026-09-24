@@ -15,7 +15,7 @@ struct NutritionAuditLaunchButton: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Review Food Trust")
+                    Text("Check today's food data")
                         .appFont(size: 13, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -37,8 +37,8 @@ struct NutritionAuditLaunchButton: View {
             .background(AppPalette.caution.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Review Food Trust. Sources, cross-checks, and items to fix.")
-        .accessibilityHint("Opens the Trust Hub for today's foods.")
+        .accessibilityLabel("Check today's food data. Sources, cross-checks, and items to fix.")
+        .accessibilityHint("Opens the food data check for today's foods.")
     }
 }
 
@@ -110,7 +110,7 @@ struct NutritionAuditView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Trust Hub")
+                    Text("Food data check")
                         .appFont(size: 28, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -316,7 +316,7 @@ private struct NutritionEvidenceMap: View {
     }
 
     private var evidenceMapTitle: some View {
-        Text("Evidence Map")
+        Text("Where the numbers come from")
             .appFont(size: 18, weight: .bold)
             .foregroundStyle(AppPalette.text)
     }

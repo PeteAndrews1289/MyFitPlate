@@ -44,7 +44,7 @@ struct MuscleRecoveryMapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppSectionHeader(
-                title: "Recovery Field",
+                title: "Recovery map",
                 subtitle: dynamicTypeSize.isAccessibilitySize
                     ? nil
                     : "An estimate from recent working sets and sleep, shown by muscle region."

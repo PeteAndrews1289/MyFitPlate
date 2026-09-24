@@ -1990,7 +1990,7 @@ final class MyFitPlateUITests: XCTestCase {
         let date = app.staticTexts
             .matching(NSPredicate(format: "identifier == %@", "home_date_label"))
             .firstMatch
-        let livingDay = app.staticTexts["Living Day"]
+        let livingDay = app.staticTexts["Day summary"]
         let profile = app.buttons["Open profile"]
         let settings = app.buttons["Open settings"]
 
@@ -2034,7 +2034,7 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        let surface = app.staticTexts["Living Day"]
+        let surface = app.staticTexts["Day summary"]
         let action = app.descendants(matching: .any)["livingDayCurrentAction"]
         let maia = app.descendants(matching: .any)["livingDayMaiaAnnotation"]
         let firstEvent = app.descendants(matching: .any)
@@ -2112,7 +2112,7 @@ final class MyFitPlateUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [shareHittable], timeout: 5), .completed)
         refreshedShare.tap()
-        let shareNavigationBar = app.navigationBars["Share Living Day"]
+        let shareNavigationBar = app.navigationBars["Share my day"]
         if !shareNavigationBar.waitForExistence(timeout: 3) {
             XCTAssertTrue(
                 refreshedShare.exists,
@@ -2173,7 +2173,7 @@ final class MyFitPlateUITests: XCTestCase {
                 "Home"
             ))
             .firstMatch
-        let surface = app.staticTexts["Living Day"]
+        let surface = app.staticTexts["Day summary"]
         let action = app.descendants(matching: .any)["livingDayCurrentAction"]
         XCTAssertTrue(header.waitForExistence(timeout: 10))
         XCTAssertTrue(surface.waitForExistence(timeout: 10))
@@ -2201,7 +2201,7 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        let livingDay = app.staticTexts["Living Day"]
+        let livingDay = app.staticTexts["Day summary"]
         let homeHeader = app.staticTexts
             .matching(NSPredicate(
                 format: "identifier == %@ AND label == %@",
@@ -2472,7 +2472,7 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let trustButton = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "Review Food Trust"))
+            .matching(NSPredicate(format: "label CONTAINS %@", "Check today's food data"))
             .firstMatch
         XCTAssertTrue(trustButton.waitForExistence(timeout: 8), "Home should expose the food trust review")
         XCTAssertTrue(
@@ -2568,7 +2568,7 @@ final class MyFitPlateUITests: XCTestCase {
         let chooseImage = app.buttons["Choose summary image"]
         XCTAssertTrue(chooseImage.waitForExistence(timeout: 3))
         chooseImage.tap()
-        XCTAssertTrue(app.navigationBars["Share Week in Motion"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Share my week"].waitForExistence(timeout: 5))
 
         let rhythm = app.switches["weeklyShareRhythmToggle"]
         let evidence = app.switches["weeklyShareEvidenceToggle"]
@@ -3351,6 +3351,7 @@ final class MyFitPlateUITests: XCTestCase {
             (name: "Sign In", route: "login", title: "Welcome back", action: "login_apple"),
             (name: "Goal", route: "onboarding-baseline", title: "What do you want to work toward?", action: "onboarding_goal_lose"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Pace", route: "onboarding-pace", title: "How fast do you want to lose?", action: "onboarding_pace_1"),
             (name: "Plan Reveal", route: "plan-reveal", title: "Your plan is ready", action: "plan_reveal_continue"),
             (name: "Create Account", route: "create-account", title: "Save your plan", action: "create_account_apple"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
@@ -3390,6 +3391,7 @@ final class MyFitPlateUITests: XCTestCase {
         let screens = [
             (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_get_started"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Pace", route: "onboarding-pace", title: "How fast do you want to lose?", action: "onboarding_next"),
             (name: "Plan Reveal", route: "plan-reveal", title: "Your plan is ready", action: "plan_reveal_continue"),
             (name: "Create Account", route: "create-account", title: "Save your plan", action: "create_account_back"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
@@ -4157,7 +4159,7 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let destinations = [
             ("myfitplate://food-search", "Log food"),
-            ("myfitplate://trust", "Trust Hub"),
+            ("myfitplate://trust", "Food data check"),
             ("myfitplate://builder", "Fast Food"),
             ("myfitplate://runs", "Running"),
             ("myfitplate://meal-plan", "Meal Plan"),

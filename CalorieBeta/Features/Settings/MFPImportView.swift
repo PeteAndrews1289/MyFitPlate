@@ -407,7 +407,7 @@ struct MFPImportView: View {
                         conflicts: conflicts
                     )
                 ) {
-                    Label("Share Import Receipt", systemImage: "square.and.arrow.up")
+                    Label("Share import summary", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(AppActionButtonStyle(.secondary))
             }

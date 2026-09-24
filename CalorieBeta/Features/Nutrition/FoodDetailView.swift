@@ -542,7 +542,7 @@ struct FoodDetailView: View {
                 .padding(.vertical, AppSpacing.group)
             }
             .background(AppPalette.canvas.ignoresSafeArea())
-            .navigationTitle("Evidence")
+            .navigationTitle("Sources")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -1366,7 +1366,7 @@ struct FoodTrustReceipt: View {
 
     private var receiptIdentity: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("Trust Receipt")
+            Text("Source details")
                 .appFont(size: 20, weight: .bold)
                 .foregroundColor(.textPrimary)
                 .accessibilityIdentifier("food_trust_receipt")
@@ -1395,7 +1395,7 @@ struct FoodTrustReceipt: View {
 
     private var evidenceFingerprint: some View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            Text("Evidence Fingerprint")
+            Text("Source summary")
                 .appTextRole(.caption)
                 .foregroundStyle(.secondary)
 
@@ -1498,7 +1498,7 @@ struct FoodTrustReceipt: View {
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Field Evidence")
+                        Text("Nutrient sources")
                             .appTextRole(.control)
                             .foregroundStyle(AppPalette.text)
                         Text("Identity, serving, detailed nutrients, and ingredients")
@@ -1832,7 +1832,7 @@ struct FoodTrustReceipt: View {
 
             if showsScoreDetails {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("Evidence index")
+                    Text("Source index")
                         .appFont(size: 11, weight: .bold)
                         .foregroundColor(.textPrimary)
                     Spacer(minLength: 4)
