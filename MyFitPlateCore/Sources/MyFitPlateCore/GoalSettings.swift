@@ -58,6 +58,8 @@ public class GoalSettings: ObservableObject {
     @Published public var activityLevel: Double = 1.2
     @Published public var goal: String = "Maintain"
     @Published public var targetWeight: Double?
+    /// Planned weekly weight change in pounds for Lose and Gain goals.
+    @Published public var weeklyChangeLbs: Double = GoalSettingsRules.defaultWeeklyChangeLbs
     
     // Macro Split (%)
     @Published public var proteinPercentage: Double = 30.0
@@ -82,6 +84,12 @@ public class GoalSettings: ObservableObject {
             return false
         }
         return true
+    }
+
+    /// The formula's daily burn (Mifflin-St Jeor BMR x activity level) before any goal
+    /// adjustment. Adaptive targets replace this estimate with one measured from the user's data.
+    public var formulaMaintenanceCalories: Double {
+        calculateBMR() * activityLevel
     }
 
     // Micronutrient Goals
@@ -168,6 +176,7 @@ public class GoalSettings: ObservableObject {
         activityLevel = 1.2
         goal = "Maintain"
         targetWeight = nil
+        weeklyChangeLbs = GoalSettingsRules.defaultWeeklyChangeLbs
         proteinPercentage = 30
         carbsPercentage = 50
         fatsPercentage = 20
@@ -241,7 +250,8 @@ public class GoalSettings: ObservableObject {
             activityLevel: activityLevel,
             adaptiveTDEE: adaptiveGoalService?.calculatedTDEE,
             manualCaloriesBurned: manualCaloriesBurned,
-            currentCalories: calories
+            currentCalories: calories,
+            weeklyChangeLbs: weeklyChangeLbs
         )
         
         if self.calories == nil || abs((self.calories ?? 0) - finalCalculatedCalories) > 0.1 {
@@ -422,6 +432,7 @@ public class GoalSettings: ObservableObject {
         self.suggestionCarbs = goalsMap["suggestionCarbs"] as? [String] ?? self.suggestionCarbs
         self.suggestionVeggies = goalsMap["suggestionVeggies"] as? [String] ?? self.suggestionVeggies
         self.trainingIntent = goalsMap["trainingIntent"] as? String ?? self.trainingIntent
+        self.weeklyChangeLbs = goalsMap["weeklyChangeLbs"] as? Double ?? GoalSettingsRules.defaultWeeklyChangeLbs
         self.reminderStyle = goalsMap["reminderStyle"] as? String ?? self.reminderStyle
         self.maiaTone = goalsMap["maiaTone"] as? String ?? self.maiaTone
         self.cookingStyle = goalsMap["cookingStyle"] as? String ?? self.cookingStyle
@@ -571,28 +582,7 @@ public class GoalSettings: ObservableObject {
             self._recalculateCalorieGoal()
             self.calculateMicronutrientGoals()
             self.syncAnalyticsUserProperties()
-            let updatedAt = Date()
-            var goalsDict: [String: Any] = [
-                "calories": self.calories ?? 0, "protein": self.protein, "fats": self.fats, "carbs": self.carbs,
-                "proteinPercentage": self.proteinPercentage, "carbsPercentage": self.carbsPercentage, "fatsPercentage": self.fatsPercentage,
-                "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),
-                "calciumGoal": self.calciumGoal ?? NSNull(), "ironGoal": self.ironGoal ?? NSNull(), "potassiumGoal": self.potassiumGoal ?? NSNull(),
-                "sodiumGoal": self.sodiumGoal ?? NSNull(), "vitaminAGoal": self.vitaminAGoal ?? NSNull(), "vitaminCGoal": self.vitaminCGoal ?? NSNull(),
-                "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal, "vitaminB12Goal": self.vitaminB12Goal ?? NSNull(), "folateGoal": self.folateGoal ?? NSNull(),
-                // Saving AI Preferences
-                "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
-                "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies,
-                "trainingIntent": self.trainingIntent, "reminderStyle": self.reminderStyle, "maiaTone": self.maiaTone,
-                "cookingStyle": self.cookingStyle, "updatedAt": updatedAt
-            ]
-            if let lastDate = self.lastCheckInDate {
-                goalsDict["lastCheckInDate"] = lastDate
-            }
-            let userData: [String: Any] = [
-                "goals": goalsDict, "height": self.height, "weight": self.weight, "age": self.age, "gender": self.gender, "isFirstLogin": false,
-                "calorieGoalMethod": self.calorieGoalMethod.rawValue, "activityLevel": self.activityLevel, "goal": self.goal,
-                "calories": self.calories ?? 0, "goalSettingsUpdatedAt": updatedAt
-            ]
+            let userData = self.persistedGoalsPayload(updatedAt: Date())
             self.saveToLocalCache(userID: userID, data: userData)
             Task {
                 do {
@@ -604,6 +594,71 @@ public class GoalSettings: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Saves a completed onboarding draft for `userID` and waits for the profile write, so account
+    /// setup can finish before Home loads goals. The account is activated first because activating
+    /// a newly signed-in account resets every field to its defaults.
+    @MainActor
+    public func completeOnboarding(with draft: OnboardingProfileDraft, userID: String) async throws {
+        guard !userID.isEmpty else { return }
+        activateAccount(userID)
+        applyOnboardingDraft(draft)
+        loadedGoalUserIDs.insert(userID)
+        _recalculateCalorieGoal()
+        calculateMicronutrientGoals()
+        syncAnalyticsUserProperties()
+
+        let userData = persistedGoalsPayload(updatedAt: Date())
+        saveToLocalCache(userID: userID, data: userData)
+        try await DIContainer.shared.settingsRepository.saveUserGoals(userID: userID, data: userData)
+        try await DIContainer.shared.settingsRepository.saveWeightEntry(
+            userID: userID,
+            weight: draft.currentWeightLbs,
+            date: Date()
+        )
+    }
+
+    @MainActor
+    private func applyOnboardingDraft(_ draft: OnboardingProfileDraft) {
+        age = draft.age
+        height = draft.heightCm
+        weight = draft.currentWeightLbs
+        targetWeight = draft.targetWeightLbs
+        gender = draft.sex
+        activityLevel = draft.activityMultiplier
+        goal = draft.goal.rawValue
+        weeklyChangeLbs = draft.weeklyChangeLbs
+        trainingIntent = draft.trainingIntent
+        reminderStyle = draft.reminderStyle
+        maiaTone = draft.maiaTone
+    }
+
+    /// The profile document written by every goals save: the goals map plus the profile fields
+    /// the rest of the app reads directly. Writing it also marks onboarding as finished.
+    private func persistedGoalsPayload(updatedAt: Date) -> [String: Any] {
+        var goalsDict: [String: Any] = [
+            "calories": self.calories ?? 0, "protein": self.protein, "fats": self.fats, "carbs": self.carbs,
+            "proteinPercentage": self.proteinPercentage, "carbsPercentage": self.carbsPercentage, "fatsPercentage": self.fatsPercentage,
+            "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),
+            "weeklyChangeLbs": self.weeklyChangeLbs,
+            "calciumGoal": self.calciumGoal ?? NSNull(), "ironGoal": self.ironGoal ?? NSNull(), "potassiumGoal": self.potassiumGoal ?? NSNull(),
+            "sodiumGoal": self.sodiumGoal ?? NSNull(), "vitaminAGoal": self.vitaminAGoal ?? NSNull(), "vitaminCGoal": self.vitaminCGoal ?? NSNull(),
+            "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal, "vitaminB12Goal": self.vitaminB12Goal ?? NSNull(), "folateGoal": self.folateGoal ?? NSNull(),
+            // Saving AI Preferences
+            "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
+            "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies,
+            "trainingIntent": self.trainingIntent, "reminderStyle": self.reminderStyle, "maiaTone": self.maiaTone,
+            "cookingStyle": self.cookingStyle, "updatedAt": updatedAt
+        ]
+        if let lastDate = self.lastCheckInDate {
+            goalsDict["lastCheckInDate"] = lastDate
+        }
+        return [
+            "goals": goalsDict, "height": self.height, "weight": self.weight, "age": self.age, "gender": self.gender, "isFirstLogin": false,
+            "calorieGoalMethod": self.calorieGoalMethod.rawValue, "activityLevel": self.activityLevel, "goal": self.goal,
+            "calories": self.calories ?? 0, "goalSettingsUpdatedAt": updatedAt
+        ]
     }
     
     public func applyWeeklyCheckIn(userID: String, newCalories: Double) {
@@ -1022,7 +1077,8 @@ public class AdaptiveGoalService: ObservableObject {
         gender: String,
         proteinPercentage: Double,
         carbsPercentage: Double,
-        fatsPercentage: Double
+        fatsPercentage: Double,
+        weeklyChangeLbs: Double = GoalSettingsRules.defaultWeeklyChangeLbs
     ) -> WeeklyGoalProposal? {
         guard snapshot.isActionable,
               let calculatedTDEE = snapshot.calculatedTDEE,
@@ -1038,7 +1094,8 @@ public class AdaptiveGoalService: ObservableObject {
             activityLevel: 1.0,
             adaptiveTDEE: calculatedTDEE,
             manualCaloriesBurned: 0,
-            currentCalories: nil
+            currentCalories: nil,
+            weeklyChangeLbs: weeklyChangeLbs
         )
         let delta = proposedCalories - (currentCalories ?? proposedCalories)
         let shouldAdjust = abs(delta) >= 50
@@ -1088,7 +1145,8 @@ public class AdaptiveGoalService: ObservableObject {
         gender: String,
         proteinPercentage: Double,
         carbsPercentage: Double,
-        fatsPercentage: Double
+        fatsPercentage: Double,
+        weeklyChangeLbs: Double = GoalSettingsRules.defaultWeeklyChangeLbs
     ) -> WeeklyGoalProposal? {
         let snapshot = ExpenditureSnapshot(
             recentWeighInCount: recentWeighInCount,
@@ -1110,7 +1168,8 @@ public class AdaptiveGoalService: ObservableObject {
             gender: gender,
             proteinPercentage: proteinPercentage,
             carbsPercentage: carbsPercentage,
-            fatsPercentage: fatsPercentage
+            fatsPercentage: fatsPercentage,
+            weeklyChangeLbs: weeklyChangeLbs
         )
     }
 

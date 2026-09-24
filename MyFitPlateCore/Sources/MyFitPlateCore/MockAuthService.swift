@@ -13,6 +13,14 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
     public var deleteCurrentUserCalled = false
     public var deleteCurrentUserError: Error?
     public var removedObserverHandles: [Any] = []
+    public var currentSignInMethod: AccountSignInMethod? = .email
+    public var appleSignInSession: AuthUserSession?
+    public var appleSignInError: Error?
+    public private(set) var appleSignInCredentials: [AppleIDCredential] = []
+    public var appleReauthenticationError: Error?
+    public private(set) var appleReauthenticationCredentials: [AppleIDCredential] = []
+    public var revokeAppleTokenError: Error?
+    public private(set) var revokedAppleAuthorizationCodes: [String] = []
     private var authStateListener: ((String?) -> Void)?
     
     public func observeAuthState(listener: @escaping (String?) -> Void) -> Any {
@@ -48,7 +56,20 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
     }
     public func sendPasswordReset(email: String) async throws {}
     public func createUser(email: String, password: String) async throws -> AuthUserSession {
-        return AuthUserSession(userID: "mock_user", email: email)
+        return AuthUserSession(userID: "mock_user", email: email, isNewUser: true)
+    }
+    public func signInWithApple(_ credential: AppleIDCredential) async throws -> AuthUserSession {
+        appleSignInCredentials.append(credential)
+        if let appleSignInError { throw appleSignInError }
+        return appleSignInSession ?? AuthUserSession(userID: "mock_user", email: credential.email)
+    }
+    public func reauthenticateWithApple(_ credential: AppleIDCredential) async throws {
+        if let appleReauthenticationError { throw appleReauthenticationError }
+        appleReauthenticationCredentials.append(credential)
+    }
+    public func revokeAppleToken(authorizationCode: String) async throws {
+        if let revokeAppleTokenError { throw revokeAppleTokenError }
+        revokedAppleAuthorizationCodes.append(authorizationCode)
     }
 }
 #endif

@@ -21,6 +21,49 @@ public struct MacroGoals: Equatable {
 }
 
 public enum GoalSettingsRules {
+    /// Planned weekly weight change in pounds. 0.5 lb (250 calories a day) is the long-standing
+    /// default, so accounts without a saved pace keep their existing targets.
+    public static let defaultWeeklyChangeLbs = 0.5
+    public static let loseWeeklyChangeOptionsLbs: [Double] = [0.5, 1.0, 1.5]
+    public static let gainWeeklyChangeOptionsLbs: [Double] = [0.25, 0.5, 0.75]
+    public static let caloriesPerPound = 3500.0
+
+    public static func weeklyChangeOptions(forGoal goal: String) -> [Double] {
+        switch goal {
+        case "Lose": return loseWeeklyChangeOptionsLbs
+        case "Gain": return gainWeeklyChangeOptionsLbs
+        default: return []
+        }
+    }
+
+    /// Snaps a saved or requested pace to the nearest supported option for the goal, so an old
+    /// value or a goal change can never produce an unsupported deficit or surplus.
+    public static func normalizedWeeklyChange(_ lbs: Double?, forGoal goal: String) -> Double {
+        let options = weeklyChangeOptions(forGoal: goal)
+        guard !options.isEmpty else { return 0 }
+        guard let lbs, lbs.isFinite else { return defaultWeeklyChangeLbs }
+        return options.min { abs($0 - lbs) < abs($1 - lbs) } ?? defaultWeeklyChangeLbs
+    }
+
+    /// "0.5 lb a week" or "0.2 kg a week", in the person's unit. Pace uses the "lb" abbreviation
+    /// for every amount, so "1 lb a week" reads correctly.
+    public static func weeklyChangeText(lbs: Double, metric: Bool) -> String {
+        let value = BodyUnits.weightDisplayValue(lbs: lbs, metric: metric)
+        let precision = metric ? 1 : 2
+        let number = value.formatted(.number.precision(.fractionLength(0...precision)))
+        return "\(number) \(metric ? "kg" : "lb") a week"
+    }
+
+    /// Daily calorie change that produces the weekly pace, at about 3,500 calories per pound.
+    public static func dailyCalorieAdjustment(goal: String, weeklyChangeLbs: Double) -> Double {
+        let magnitude = normalizedWeeklyChange(weeklyChangeLbs, forGoal: goal) * caloriesPerPound / 7
+        switch goal {
+        case "Lose": return -magnitude
+        case "Gain": return magnitude
+        default: return 0
+        }
+    }
+
     public static func calculateBMR(age: Int, weightKg: Double, heightCm: Double, gender: String) -> Double {
         guard age > 0 else { return 1500 }
         if gender.lowercased() == "male" {
@@ -38,16 +81,11 @@ public enum GoalSettingsRules {
         activityLevel: Double,
         adaptiveTDEE: Double?,
         manualCaloriesBurned: Double,
-        currentCalories: Double?
+        currentCalories: Double?,
+        weeklyChangeLbs: Double = defaultWeeklyChangeLbs
     ) -> Double {
         var calculatedCalories: Double = 0
-        var calorieAdjustmentForWeightGoal: Double = 0
-        
-        switch goal {
-        case "Lose": calorieAdjustmentForWeightGoal = -250
-        case "Gain": calorieAdjustmentForWeightGoal = 250
-        default: break
-        }
+        let calorieAdjustmentForWeightGoal = dailyCalorieAdjustment(goal: goal, weeklyChangeLbs: weeklyChangeLbs)
         
         let minimumGoal: Double = (gender.lowercased() == "male") ? 1500 : 1200
         

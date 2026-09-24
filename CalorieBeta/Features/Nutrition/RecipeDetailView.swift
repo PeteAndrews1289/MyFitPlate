@@ -102,7 +102,7 @@ private struct RecipeIdentityHeader: View {
             CachedAsyncImage(url: url) { image in
                 image
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .frame(width: 68, height: 68)
                     .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
             } placeholder: {

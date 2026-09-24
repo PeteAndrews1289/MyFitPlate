@@ -408,7 +408,7 @@ final class GoalSettingsBehaviorTests: XCTestCase {
     }
 }
 
-private final class MockCoreHealthKitManager: HealthKitManaging {
+final class MockCoreHealthKitManager: HealthKitManaging {
     private(set) var savedWeightSamples: [(weight: Double, date: Date)] = []
     var recentWeightSamplesToReturn: [HKQuantitySample]? = []
     var latestWeightToReturn: HKQuantitySample? = nil

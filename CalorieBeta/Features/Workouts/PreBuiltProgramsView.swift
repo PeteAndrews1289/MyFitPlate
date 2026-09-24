@@ -551,7 +551,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                         Spacer(minLength: 0)
                     }
 
-                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                    AppDateField("Start Date", selection: $startDate)
                         .appFont(size: 15, weight: .semibold)
                         .tint(.brandPrimary)
                         .padding(14)

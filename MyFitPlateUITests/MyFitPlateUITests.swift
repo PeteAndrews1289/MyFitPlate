@@ -122,10 +122,15 @@ final class MyFitPlateUITests: XCTestCase {
         }
     }
 
+    /// Busy simulators sometimes cannot finish the audit in time (error -56). That is not a
+    /// finding, so retry once; real clipping issues still fail the test.
     @MainActor
-    private func performTextClippingAuditWithTimeoutRetry(on app: XCUIApplication) throws {
+    private func performTextClippingAuditWithTimeoutRetry(
+        on app: XCUIApplication,
+        _ issueHandler: ((XCUIAccessibilityAuditIssue) throws -> Bool)? = nil
+    ) throws {
         do {
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try app.performAccessibilityAudit(for: [.textClipped], issueHandler)
         } catch {
             let auditError = error as NSError
             guard auditError.domain == "com.apple.xcode.xctest.accessibilityAudit",
@@ -134,7 +139,7 @@ final class MyFitPlateUITests: XCTestCase {
             }
 
             RunLoop.current.run(until: Date().addingTimeInterval(0.75))
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try app.performAccessibilityAudit(for: [.textClipped], issueHandler)
         }
     }
 
@@ -332,7 +337,7 @@ final class MyFitPlateUITests: XCTestCase {
             ))
             .firstMatch
         XCTAssertTrue(repeatSection.waitForExistence(timeout: 5))
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let topScreenshot = XCTAttachment(screenshot: app.screenshot())
         topScreenshot.name = "Food Search - dark accessibility XXXL"
@@ -344,7 +349,7 @@ final class MyFitPlateUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(historyCard.waitForExistence(timeout: 5))
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let historyScreenshot = XCTAttachment(screenshot: app.screenshot())
         historyScreenshot.name = "Food Search history - dark accessibility XXXL"
@@ -496,7 +501,7 @@ final class MyFitPlateUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(library.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["All foods"].waitForExistence(timeout: 5))
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let topScreenshot = XCTAttachment(screenshot: app.screenshot())
         topScreenshot.name = "My Foods - dark accessibility XXXL summary"
@@ -510,7 +515,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(oats.isHittable)
         XCTAssertLessThanOrEqual(oats.frame.maxX, app.frame.maxX + 1)
         XCTAssertGreaterThanOrEqual(oats.frame.minX, app.frame.minX - 1)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let rowScreenshot = XCTAttachment(screenshot: app.screenshot())
         rowScreenshot.name = "My Foods - dark accessibility XXXL saved row"
@@ -605,7 +610,7 @@ final class MyFitPlateUITests: XCTestCase {
                 .map { cancelButtons.element(boundBy: $0) }
                 .first(where: \.isHittable)
         )
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let topScreenshot = XCTAttachment(screenshot: app.screenshot())
         topScreenshot.name = "Manual Food - dark accessibility XXXL nutrition"
@@ -623,7 +628,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(primaryAction.isHittable)
         XCTAssertGreaterThanOrEqual(details.frame.minY, visibleCancel.frame.maxY)
         XCTAssertLessThanOrEqual(details.frame.maxY, primaryAction.frame.minY)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let detailsScreenshot = XCTAttachment(screenshot: app.screenshot())
         detailsScreenshot.name = "Manual Food - dark accessibility XXXL details"
@@ -827,7 +832,7 @@ final class MyFitPlateUITests: XCTestCase {
         // SwiftUI exposes hidden visual children from combined accessibility elements to this audit.
         // Ignore only these manually verified summary strings; the semantic values are asserted above.
         let summaryVisualStrings: Set<String> = ["Saved", "3", "Avg Ingredients", "Avg Calories", "552 cal"]
-        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
             guard let element = issue.element else { return false }
             return summaryVisualStrings.contains(element.label)
         }
@@ -869,7 +874,7 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         // Rounded-font and combined-metric nodes report intrinsic glyph bounds as clipped.
         // Exact fixture strings are backed by frame and semantic assertions above.
-        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
             guard let element = issue.element else { return false }
             let normalizedLabel = element.label.trimmingCharacters(in: .whitespacesAndNewlines)
             return detailVerifiedVisualStrings.contains(normalizedLabel)
@@ -900,7 +905,7 @@ final class MyFitPlateUITests: XCTestCase {
             "Calories", "Protein", "Carbs", "Fat", "610 cal", "58 g", "66 g", "12 g"
         ]
         // Keep form controls and the sticky action unfiltered while excluding the verified identity/metric nodes.
-        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
             guard let element = issue.element else { return false }
             let normalizedLabel = element.label.trimmingCharacters(in: .whitespacesAndNewlines)
             return loggingVerifiedVisualStrings.contains(normalizedLabel)
@@ -1024,7 +1029,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(review.waitForExistence(timeout: 5))
         XCTAssertEqual(review.label, "Review order")
         XCTAssertLessThan(review.frame.height, app.frame.height * 0.20)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Fast Food Builder - dark accessibility XXXL"
@@ -1076,7 +1081,7 @@ final class MyFitPlateUITests: XCTestCase {
             "Excellent trust. Cross-database match. Evidence index 98 out of 99"
         )
         // SwiftUI reports one unresolvable decorative node here; the XXXL test below is unfiltered.
-        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
             issue.element == nil
         }
 
@@ -1110,7 +1115,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(trustSummary.waitForExistence(timeout: 5))
         XCTAssertTrue(logAction.waitForExistence(timeout: 5))
         XCTAssertTrue(logAction.isHittable)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Food Detail - dark accessibility XXXL"
@@ -1151,7 +1156,7 @@ final class MyFitPlateUITests: XCTestCase {
 
         filter.buttons["Minerals"].tap()
         XCTAssertTrue(app.staticTexts["Minerals"].waitForExistence(timeout: 3))
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Food Detail - micronutrient explorer"
@@ -1185,7 +1190,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(scanLabel.isHittable)
         // SwiftUI exposes one nameless internal node to the clipping audit. The visible
         // copy, scan action, and macro summary are asserted above and captured below.
-        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
             issue.element == nil
         }
 
@@ -1317,7 +1322,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertLessThan(start.frame.minY, week.frame.minY)
         XCTAssertLessThan(week.frame.minY, records.frame.minY)
         XCTAssertLessThan(records.frame.minY, history.frame.minY)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let historyScreenshot = XCTAttachment(screenshot: app.screenshot())
         historyScreenshot.name = "Running - unified history"
@@ -1372,7 +1377,7 @@ final class MyFitPlateUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(recoveryAction.isHittable)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let recoveryScreenshot = XCTAttachment(screenshot: app.screenshot())
         recoveryScreenshot.name = "Running - recovery and splits"
@@ -1410,7 +1415,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(week.waitForExistence(timeout: 5))
         XCTAssertLessThanOrEqual(start.frame.maxX, app.frame.maxX + 1)
         XCTAssertGreaterThanOrEqual(start.frame.minX, app.frame.minX - 1)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let topScreenshot = XCTAttachment(screenshot: app.screenshot())
         topScreenshot.name = "Running - dark accessibility XXXL summary"
@@ -1438,7 +1443,7 @@ final class MyFitPlateUITests: XCTestCase {
         historyScreenshot.name = "Running - dark accessibility XXXL history"
         historyScreenshot.lifetime = .keepAlways
         add(historyScreenshot)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
     }
 
     @MainActor
@@ -1457,7 +1462,7 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.buttons["quick_log_button"].waitForExistence(timeout: 8))
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let homeScrollView = app.scrollViews["home_scroll"]
         let dailyLog = app.staticTexts["Daily log"]
@@ -1495,7 +1500,7 @@ final class MyFitPlateUITests: XCTestCase {
             "Water", "72 / 64 oz", "Water\n72 / 64 oz",
             "Activity", "1 session", "Activity\n1 session"
         ]
-        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
             guard let element = issue.element else { return false }
             return element.identifier.hasPrefix("home_daily_metric_visual_")
                 || dailyMetricVisualStrings.contains(element.label)
@@ -1505,6 +1510,103 @@ final class MyFitPlateUITests: XCTestCase {
         screenshot.name = "Home - dark accessibility XXXL"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+    }
+
+    @MainActor
+    func testFirstWeekGuidanceSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-dark-mode",
+            "-screenshot-screen",
+            "home",
+            "-first-week-guidance-preview",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let homeScrollView = app.scrollViews["home_scroll"]
+        let offerTitle = app.staticTexts["adaptive_offer_title"]
+        XCTAssertTrue(homeScrollView.waitForExistence(timeout: 10))
+        XCTAssertTrue(offerTitle.waitForExistence(timeout: 10))
+        revealIncrementally(app.buttons["adaptive_offer_decline"], in: homeScrollView)
+        XCTAssertTrue(app.buttons["adaptive_offer_review"].exists)
+        try auditFirstWeekGuidanceText(in: app)
+
+        // Keep targets clear of the floating Quick Log button, which covers the scroll view's bottom.
+        let checklistTitle = app.staticTexts["setup_checklist_title"]
+        revealIncrementally(checklistTitle, in: homeScrollView, bottomInset: 80)
+        XCTAssertTrue(checklistTitle.isHittable)
+        XCTAssertTrue(app.buttons["setup_checklist_daily_reminder"].exists)
+        try auditFirstWeekGuidanceText(in: app)
+
+        let workoutStep = app.buttons["setup_checklist_first_workout"]
+        revealIncrementally(workoutStep, in: homeScrollView, bottomInset: 80)
+        XCTAssertTrue(workoutStep.exists)
+        try auditFirstWeekGuidanceText(in: app)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "First-week guidance - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFirstWeekGuidanceCardsCanBeSetAside() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "home",
+            "-first-week-guidance-preview"
+        ]
+        app.launch()
+
+        let homeScrollView = app.scrollViews["home_scroll"]
+        let decline = app.buttons["adaptive_offer_decline"]
+        XCTAssertTrue(decline.waitForExistence(timeout: 10))
+        tapAfterScrollSettles(decline, in: homeScrollView)
+        XCTAssertTrue(app.staticTexts["adaptive_offer_title"].waitForNonExistence(timeout: 5))
+
+        let firstMeal = app.buttons["setup_checklist_first_meal"]
+        revealIncrementally(firstMeal, in: homeScrollView)
+        XCTAssertEqual(firstMeal.value as? String, "Done")
+        XCTAssertFalse(firstMeal.isEnabled, "Finished steps are not actions")
+
+        tapAfterScrollSettles(app.buttons["setup_checklist_hide"], in: homeScrollView)
+        XCTAssertTrue(app.staticTexts["setup_checklist_title"].waitForNonExistence(timeout: 5))
+    }
+
+    /// A tap that lands while the scroll view is still decelerating only stops the scroll, so
+    /// let the reveal drag settle before tapping.
+    @MainActor
+    private func tapAfterScrollSettles(_ element: XCUIElement, in scrollable: XCUIElement) {
+        revealIncrementally(element, in: scrollable)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.75))
+        XCTAssertTrue(element.isHittable)
+        element.tap()
+    }
+
+    /// The same iOS 26 audit exception as the Home test: hidden visual children of the combined
+    /// daily-metric elements. Everything the guidance cards draw stays subject to the audit.
+    @MainActor
+    private func auditFirstWeekGuidanceText(in app: XCUIApplication) throws {
+        let dailyMetricVisualStrings: Set<String> = [
+            "Calories", "1,310 / 2,100 cal", "Calories\n1,310 / 2,100 cal",
+            "Protein", "98 / 160 g", "Protein\n98 / 160 g",
+            "Water", "72 / 64 oz", "Water\n72 / 64 oz",
+            "Activity", "1 session", "Activity\n1 session"
+        ]
+        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
+            guard let element = issue.element else { return false }
+            return element.identifier.hasPrefix("home_daily_metric_visual_")
+                || dailyMetricVisualStrings.contains(element.label)
+        }
     }
 
     @MainActor
@@ -1521,7 +1623,7 @@ final class MyFitPlateUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["visualSystemGallery"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any)["visualSystemHero"].exists)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Visual system gallery"
@@ -1582,7 +1684,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(nextStep.waitForExistence(timeout: 5))
         XCTAssertTrue(programWeek.waitForExistence(timeout: 5))
         XCTAssertLessThan(nextStep.frame.minY, programWeek.frame.minY)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Train - unified hierarchy"
@@ -1617,7 +1719,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(day.waitForExistence(timeout: 5))
         XCTAssertLessThan(week.frame.minY, summary.frame.minY)
         XCTAssertLessThan(summary.frame.minY, day.frame.minY)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Meal Plan - unified hierarchy"
@@ -1702,7 +1804,7 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertGreaterThan(primarySurface.frame.width, 0)
             XCTAssertGreaterThanOrEqual(primarySurface.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(primarySurface.frame.maxX, app.frame.maxX + 1)
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"
@@ -1740,7 +1842,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertLessThan(context.frame.minY, recommendation.frame.minY)
         XCTAssertLessThan(recommendation.frame.minY, composer.frame.minY)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Maia - unified recommendation hierarchy"
@@ -1794,7 +1896,7 @@ final class MyFitPlateUITests: XCTestCase {
         }
         XCTAssertTrue(overview.waitForExistence(timeout: 5))
         XCTAssertTrue(overview.isHittable)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Reports - detailed evidence hierarchy"
@@ -1867,7 +1969,7 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertGreaterThan(header.frame.width, 0)
             XCTAssertGreaterThanOrEqual(header.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(header.frame.maxX, app.frame.maxX + 1)
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"
@@ -1924,7 +2026,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(weight.frame.intersects(app.frame))
         XCTAssertGreaterThanOrEqual(weight.frame.minX, app.frame.minX - 1)
         XCTAssertLessThanOrEqual(weight.frame.maxX, app.frame.maxX + 1)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
     }
 
     @MainActor
@@ -1959,7 +2061,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(weight.frame.intersects(app.frame))
         XCTAssertGreaterThanOrEqual(weight.frame.minX, app.frame.minX - 1)
         XCTAssertLessThanOrEqual(weight.frame.maxX, app.frame.maxX + 1)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Maia action cards - dark accessibility XXXL"
@@ -1990,7 +2092,7 @@ final class MyFitPlateUITests: XCTestCase {
         let date = app.staticTexts
             .matching(NSPredicate(format: "identifier == %@", "home_date_label"))
             .firstMatch
-        let livingDay = app.staticTexts["Living Day"]
+        let livingDay = app.staticTexts["Day summary"]
         let profile = app.buttons["Open profile"]
         let settings = app.buttons["Open settings"]
 
@@ -2001,7 +2103,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(settings.isHittable)
         XCTAssertLessThan(header.frame.minY, date.frame.minY)
         XCTAssertLessThan(date.frame.minY, livingDay.frame.minY)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Living Day - shared Home shell"
@@ -2034,7 +2136,7 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        let surface = app.staticTexts["Living Day"]
+        let surface = app.staticTexts["Day summary"]
         let action = app.descendants(matching: .any)["livingDayCurrentAction"]
         let maia = app.descendants(matching: .any)["livingDayMaiaAnnotation"]
         let firstEvent = app.descendants(matching: .any)
@@ -2103,7 +2205,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(updatedDensity.waitForExistence(timeout: 5))
         XCTAssertTrue(targetDensityButton.waitForNonExistence(timeout: 5))
 
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let refreshedShare = app.buttons["livingDayShareButton"]
         let shareHittable = expectation(
@@ -2112,7 +2214,7 @@ final class MyFitPlateUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [shareHittable], timeout: 5), .completed)
         refreshedShare.tap()
-        let shareNavigationBar = app.navigationBars["Share Living Day"]
+        let shareNavigationBar = app.navigationBars["Share my day"]
         if !shareNavigationBar.waitForExistence(timeout: 3) {
             XCTAssertTrue(
                 refreshedShare.exists,
@@ -2173,14 +2275,14 @@ final class MyFitPlateUITests: XCTestCase {
                 "Home"
             ))
             .firstMatch
-        let surface = app.staticTexts["Living Day"]
+        let surface = app.staticTexts["Day summary"]
         let action = app.descendants(matching: .any)["livingDayCurrentAction"]
         XCTAssertTrue(header.waitForExistence(timeout: 10))
         XCTAssertTrue(surface.waitForExistence(timeout: 10))
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(action.frame.minX, app.frame.minX - 1)
         XCTAssertLessThanOrEqual(action.frame.maxX, app.frame.maxX + 1)
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Living Day accessibility XXXL"
@@ -2201,7 +2303,7 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        let livingDay = app.staticTexts["Living Day"]
+        let livingDay = app.staticTexts["Day summary"]
         let homeHeader = app.staticTexts
             .matching(NSPredicate(
                 format: "identifier == %@ AND label == %@",
@@ -2340,7 +2442,7 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
 
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             if !action.waitForExistence(timeout: 2) || !action.isHittable {
                 let scrollView = app.scrollViews.firstMatch
@@ -2350,7 +2452,7 @@ final class MyFitPlateUITests: XCTestCase {
                     scrollView.swipeUp()
                     remainingScrolls -= 1
                 }
-                try app.performAccessibilityAudit(for: [.textClipped])
+                try performTextClippingAuditWithTimeoutRetry(on: app)
             }
             XCTAssertTrue(action.isHittable)
 
@@ -2472,7 +2574,7 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let trustButton = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "Review Food Trust"))
+            .matching(NSPredicate(format: "label CONTAINS %@", "Check today's food data"))
             .firstMatch
         XCTAssertTrue(trustButton.waitForExistence(timeout: 8), "Home should expose the food trust review")
         XCTAssertTrue(
@@ -2568,7 +2670,7 @@ final class MyFitPlateUITests: XCTestCase {
         let chooseImage = app.buttons["Choose summary image"]
         XCTAssertTrue(chooseImage.waitForExistence(timeout: 3))
         chooseImage.tap()
-        XCTAssertTrue(app.navigationBars["Share Week in Motion"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Share my week"].waitForExistence(timeout: 5))
 
         let rhythm = app.switches["weeklyShareRhythmToggle"]
         let evidence = app.switches["weeklyShareEvidenceToggle"]
@@ -2766,7 +2868,7 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
         XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
 
-        try app.performAccessibilityAudit(for: [.textClipped])
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Grocery List - dark accessibility XXXL"
@@ -2923,7 +3025,7 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
 
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"
@@ -3040,7 +3142,7 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertTrue(close.isHittable)
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"
@@ -3135,7 +3237,7 @@ final class MyFitPlateUITests: XCTestCase {
                 XCTAssertTrue(done.isHittable)
             }
 
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"
@@ -3347,10 +3449,13 @@ final class MyFitPlateUITests: XCTestCase {
     func testOnboardingFamilyUsesUnifiedHierarchy() throws {
         let app = XCUIApplication()
         let screens = [
-            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
-            (name: "Sign In", route: "login", title: "Welcome back", action: "login_submit"),
-            (name: "Create Account", route: "signup", title: "Build your MyFitPlate", action: "signup_submit"),
+            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_get_started"),
+            (name: "Sign In", route: "login", title: "Welcome back", action: "login_apple"),
+            (name: "Goal", route: "onboarding-baseline", title: "What do you want to work toward?", action: "onboarding_goal_lose"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Pace", route: "onboarding-pace", title: "How fast do you want to lose?", action: "onboarding_pace_1"),
+            (name: "Plan Reveal", route: "plan-reveal", title: "Your plan is ready", action: "plan_reveal_continue"),
+            (name: "Create Account", route: "create-account", title: "Save your plan", action: "create_account_apple"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
         ]
 
@@ -3386,9 +3491,11 @@ final class MyFitPlateUITests: XCTestCase {
     func testOnboardingFamilySupportsDarkLargestAccessibilityText() throws {
         let app = XCUIApplication()
         let screens = [
-            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
-            (name: "Create Account", route: "signup", title: "Build your MyFitPlate", action: "Cancel"),
+            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_get_started"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Pace", route: "onboarding-pace", title: "How fast do you want to lose?", action: "onboarding_next"),
+            (name: "Plan Reveal", route: "plan-reveal", title: "Your plan is ready", action: "plan_reveal_continue"),
+            (name: "Create Account", route: "create-account", title: "Save your plan", action: "create_account_back"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
         ]
 
@@ -3866,7 +3973,7 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
 
             if configuration.accessibilityText {
-                try app.performAccessibilityAudit(for: [.textClipped])
+                try performTextClippingAuditWithTimeoutRetry(on: app)
             }
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -3915,7 +4022,7 @@ final class MyFitPlateUITests: XCTestCase {
 
             if configuration.accessibilityText {
                 container.swipeUp()
-                try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+                try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
                     issue.element == nil
                 }
 
@@ -4154,7 +4261,7 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let destinations = [
             ("myfitplate://food-search", "Log food"),
-            ("myfitplate://trust", "Trust Hub"),
+            ("myfitplate://trust", "Food data check"),
             ("myfitplate://builder", "Fast Food"),
             ("myfitplate://runs", "Running"),
             ("myfitplate://meal-plan", "Meal Plan"),

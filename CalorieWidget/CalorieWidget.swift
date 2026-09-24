@@ -1,7 +1,7 @@
 import WidgetKit
 import AppIntents
 import SwiftUI
-import MyFitPlateCore
+import MyFitPlateShared
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
@@ -260,7 +260,7 @@ struct MediumWidgetView: View {
         VStack(spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Living Day")
+                    Text("Today")
                         .font(.caption.weight(.bold))
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
                         .font(.system(.headline, design: .rounded, weight: .bold))
@@ -485,7 +485,7 @@ struct LargeWidgetView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Living Day")
+                    Text("Today")
                         .font(.headline)
                     if data.widgetFreshness.state == .stale {
                         WidgetFreshnessMark(data: data, compact: true)

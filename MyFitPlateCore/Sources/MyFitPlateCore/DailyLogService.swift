@@ -127,6 +127,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     private func recordFoodLoggingSuccess(source: String) {
         ProductEngagementTelemetry.recordFoodLoggingDay(source: source)
         ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+        AppReviewPromptQueue.shared.recordLoggingDay()
     }
 
     private func recordDailyLogMutationFailure(_ error: Error, stage: String) {

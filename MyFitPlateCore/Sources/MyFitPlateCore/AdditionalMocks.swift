@@ -213,19 +213,27 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
     }
     
     public var onSave: (() -> Void)?
-    
+    public var saveUserGoalsError: Error?
+    public private(set) var savedWeightEntries: [(userID: String, weight: Double)] = []
+    public private(set) var createdInitialUserData: [(userID: String, email: String, username: String)] = []
+
     public func saveUserGoals(userID: String, data: [String: Any]) async throws {
+        if let saveUserGoalsError { throw saveUserGoalsError }
         savedUserGoals = data
         onSave?()
     }
     public func weightHistoryPublisher(userID: String) -> AnyPublisher<[(id: String, date: Date, weight: Double)], Error> {
         return Just(mockWeightHistory).setFailureType(to: Error.self).eraseToAnyPublisher()
     }
-    public func saveWeightEntry(userID: String, weight: Double, date: Date) async throws {}
+    public func saveWeightEntry(userID: String, weight: Double, date: Date) async throws {
+        savedWeightEntries.append((userID: userID, weight: weight))
+    }
     public func deleteWeightEntry(userID: String, entryID: String) async throws {}
     public func fetchWeightHistory(userID: String) async throws -> [(id: String, date: Date, weight: Double)] { return mockWeightHistory }
     public func updateUserAsOnboarded(userID: String) async throws {}
-    public func createInitialUserData(userID: String, email: String, username: String) async throws {}
+    public func createInitialUserData(userID: String, email: String, username: String) async throws {
+        createdInitialUserData.append((userID: userID, email: email, username: username))
+    }
 }
 
 public final class MockReportsRepository: ReportsRepositoryProtocol {
@@ -248,6 +256,7 @@ public final class MockPostRepository: PostRepositoryProtocol {
 public final class MockAccountDeletionService: AccountDeletionServicing {
     public init() {}
     public func deleteCurrentAccount(password: String) async throws -> AccountDeletionOutcome { return AccountDeletionOutcome(userID: "") }
+    public func deleteCurrentAccount(appleCredential: AppleIDCredential) async throws -> AccountDeletionOutcome { return AccountDeletionOutcome(userID: "") }
 }
 
 public final class MockAIService: AIServiceProtocol, @unchecked Sendable {

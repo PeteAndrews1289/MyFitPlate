@@ -843,13 +843,13 @@ struct WeeklyRecapShareOptionsView: View {
                     if let shareImage {
                         ShareLink(
                             item: shareImage,
-                            subject: Text("My Week in Motion"),
+                            subject: Text("My week"),
                             message: Text(MyFitPlateLinks.shareMessage(
-                                "My training, fuel, recovery, and Trust story from this week."
+                                "My training, food, and recovery from this week."
                             )),
-                            preview: SharePreview("Week in Motion", image: shareImage)
+                            preview: SharePreview("My week", image: shareImage)
                         ) {
-                            Label("Share Week in Motion", systemImage: "square.and.arrow.up")
+                            Label("Share my week", systemImage: "square.and.arrow.up")
                                 .appFont(size: 16, weight: .bold)
                                 .foregroundStyle(AppPalette.onBrand)
                                 .frame(maxWidth: .infinity, minHeight: 50)
@@ -865,7 +865,7 @@ struct WeeklyRecapShareOptionsView: View {
                 .padding(20)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Share Week in Motion")
+            .navigationTitle("Share my week")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

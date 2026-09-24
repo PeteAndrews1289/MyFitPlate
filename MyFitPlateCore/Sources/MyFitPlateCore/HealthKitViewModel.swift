@@ -59,6 +59,11 @@ public class HealthKitViewModel: ObservableObject {
         lastSyncedAt != nil
     }
 
+    /// False on devices without Apple Health, such as some iPads.
+    public var isHealthDataAvailable: Bool {
+        manager.isHealthDataAvailable()
+    }
+
     private weak var dailyLogService: DailyLogService?
     public weak var goalSettings: GoalSettings?
 

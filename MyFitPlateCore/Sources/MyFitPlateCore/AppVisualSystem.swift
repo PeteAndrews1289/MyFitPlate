@@ -913,74 +913,6 @@ public struct AppEditorScaffold<Content: View, Actions: View>: View {
     }
 }
 
-public enum AppDataFreshnessState: CaseIterable, Equatable, Sendable {
-    case current
-    case aging
-    case stale
-    case unavailable
-}
-
-/// A shared, deterministic interpretation of when synchronized data should still be trusted.
-public struct AppDataFreshness: Equatable, Sendable {
-    public let state: AppDataFreshnessState
-    public let updatedAt: Date?
-    public let age: TimeInterval?
-
-    public init(
-        updatedAt: Date?,
-        now: Date = Date(),
-        currentFor: TimeInterval = 15 * 60,
-        staleAfter: TimeInterval = 2 * 60 * 60
-    ) {
-        self.updatedAt = updatedAt
-
-        guard let updatedAt else {
-            state = .unavailable
-            age = nil
-            return
-        }
-
-        let age = max(0, now.timeIntervalSince(updatedAt))
-        self.age = age
-
-        if age <= currentFor {
-            state = .current
-        } else if age <= staleAfter {
-            state = .aging
-        } else {
-            state = .stale
-        }
-    }
-
-    public var shortLabel: String {
-        guard let age else { return "Not synced" }
-
-        if age < 90 {
-            return "Updated now"
-        }
-        if age < 60 * 60 {
-            return "Updated \(max(1, Int(age / 60)))m ago"
-        }
-        if age < 24 * 60 * 60 {
-            return "Updated \(max(1, Int(age / (60 * 60))))h ago"
-        }
-        return "Updated \(max(1, Int(age / (24 * 60 * 60))))d ago"
-    }
-
-    public var accessibilityLabel: String {
-        switch state {
-        case .current:
-            shortLabel
-        case .aging:
-            "\(shortLabel). Recent data may still be syncing."
-        case .stale:
-            "\(shortLabel). Data may be out of date."
-        case .unavailable:
-            "Not synced. Open MyFitPlate on your phone to update this data."
-        }
-    }
-}
-
 public struct AppFreshnessLabel: View {
     public let freshness: AppDataFreshness
 
@@ -1040,6 +972,37 @@ public enum AppDataAvailabilityReason: Equatable, Sendable {
         case .permissionNeeded: "lock.circle"
         case .notSynced: "arrow.triangle.2.circlepath"
         case .insufficientEvidence: "questionmark.circle"
+        }
+    }
+}
+
+/// A date row that stays inside narrow columns at the largest text sizes. A compact picker's date
+/// cannot wrap, so at accessibility sizes the label moves above the picker and the picker caps
+/// its own text size; at every other size it is a standard labeled `DatePicker`.
+public struct AppDateField: View {
+    public let title: String
+    @Binding public var selection: Date
+    public let components: DatePickerComponents
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    public init(_ title: String, selection: Binding<Date>, displayedComponents: DatePickerComponents = .date) {
+        self.title = title
+        self._selection = selection
+        self.components = displayedComponents
+    }
+
+    public var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                Text(title)
+                DatePicker(title, selection: $selection, displayedComponents: components)
+                    .labelsHidden()
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            DatePicker(title, selection: $selection, displayedComponents: components)
         }
     }
 }

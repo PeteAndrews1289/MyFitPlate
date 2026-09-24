@@ -74,13 +74,13 @@ struct LivingDayShareOptionsView: View {
                     if let shareImage {
                         ShareLink(
                             item: shareImage,
-                            subject: Text("My Living Day"),
+                            subject: Text("My day"),
                             message: Text(MyFitPlateLinks.shareMessage(
-                                "How food and training fit together in my Living Day."
+                                "How food and training fit together in my day."
                             )),
-                            preview: SharePreview("My Living Day", image: shareImage)
+                            preview: SharePreview("My day", image: shareImage)
                         ) {
-                            Label("Share Living Day", systemImage: "square.and.arrow.up")
+                            Label("Share my day", systemImage: "square.and.arrow.up")
                                 .appFont(size: 16, weight: .bold)
                                 .foregroundStyle(AppPalette.onBrand)
                                 .frame(maxWidth: .infinity, minHeight: 50)
@@ -96,7 +96,7 @@ struct LivingDayShareOptionsView: View {
                 .padding(20)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Share Living Day")
+            .navigationTitle("Share my day")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -186,7 +186,7 @@ struct LivingDayShareCard: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("LIVING DAY")
+                Text("MY DAY")
                     .appFont(size: 11, weight: .bold)
                     .foregroundStyle(Color.brandForeground)
                 Text(snapshot.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))

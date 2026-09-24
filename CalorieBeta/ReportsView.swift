@@ -204,7 +204,7 @@ struct ReportsView: View {
                 .animation(.easeOut(duration: 0.18), value: weeklyRecapLoader.recap != nil)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Week in Motion is unavailable")
+                    Text("Your week isn't available yet")
                         .appTextRole(.control)
                         .foregroundStyle(AppPalette.text)
                     Text(weeklyRecapLoader.loadMessage ?? "Your detailed reports remain available below.")

@@ -6,7 +6,14 @@ final class FirebaseAuthService: AuthServiceProtocol {
     var currentUserID: String? {
         Auth.auth().currentUser?.uid
     }
-    
+
+    var currentSignInMethod: AccountSignInMethod? {
+        guard let providerIDs = Auth.auth().currentUser?.providerData.map(\.providerID) else { return nil }
+        if providerIDs.contains("apple.com") { return .apple }
+        if providerIDs.contains("password") { return .email }
+        return nil
+    }
+
     func observeAuthState(listener: @escaping (String?) -> Void) -> Any {
         return Auth.auth().addStateDidChangeListener { _, user in
             listener(user?.uid)
@@ -50,9 +57,77 @@ final class FirebaseAuthService: AuthServiceProtocol {
                     return
                 }
 
-                continuation.resume(returning: AuthUserSession(userID: user.uid, email: user.email))
+                continuation.resume(returning: AuthUserSession(userID: user.uid, email: user.email, isNewUser: true))
             }
         }
+    }
+
+    func signInWithApple(_ credential: AppleIDCredential) async throws -> AuthUserSession {
+        let firebaseCredential = OAuthProvider.appleCredential(
+            withIDToken: credential.identityToken,
+            rawNonce: credential.rawNonce,
+            fullName: Self.nameComponents(for: credential)
+        )
+        do {
+            let result = try await Auth.auth().signIn(with: firebaseCredential)
+            return AuthUserSession(
+                userID: result.user.uid,
+                email: result.user.email ?? credential.email,
+                isNewUser: result.additionalUserInfo?.isNewUser ?? false
+            )
+        } catch {
+            throw Self.appleUserFacingError(for: error)
+        }
+    }
+
+    func reauthenticateWithApple(_ credential: AppleIDCredential) async throws {
+        guard let user = Auth.auth().currentUser else { throw AuthServiceError.missingCurrentUser }
+
+        let firebaseCredential = OAuthProvider.appleCredential(
+            withIDToken: credential.identityToken,
+            rawNonce: credential.rawNonce,
+            fullName: nil
+        )
+        do {
+            _ = try await user.reauthenticate(with: firebaseCredential)
+        } catch {
+            throw Self.appleUserFacingError(for: error)
+        }
+    }
+
+    func revokeAppleToken(authorizationCode: String) async throws {
+        do {
+            try await Auth.auth().revokeToken(withAuthorizationCode: authorizationCode)
+        } catch {
+            throw Self.appleUserFacingError(for: error)
+        }
+    }
+
+    private static func nameComponents(for credential: AppleIDCredential) -> PersonNameComponents? {
+        guard credential.givenName != nil || credential.familyName != nil else { return nil }
+        var components = PersonNameComponents()
+        components.givenName = credential.givenName
+        components.familyName = credential.familyName
+        return components
+    }
+
+    /// Apple sign-in failures need their own wording: "email or password" means nothing to someone
+    /// who used their Apple ID, and a disabled provider should point them to email instead.
+    static func appleUserFacingError(for error: Error) -> AuthServiceError {
+        let nsError = error as NSError
+        if nsError.domain == AuthErrorDomain, let code = AuthErrorCode(rawValue: nsError.code) {
+            switch code {
+            case .accountExistsWithDifferentCredential, .credentialAlreadyInUse, .emailAlreadyInUse:
+                return .accountExistsWithDifferentSignIn
+            case .userMismatch:
+                return .appleAccountMismatch
+            case .invalidCredential, .missingOrInvalidNonce, .operationNotAllowed:
+                return .appleSignInUnavailable
+            default:
+                break
+            }
+        }
+        return userFacingError(for: error)
     }
 
     func sendPasswordReset(email: String) async throws {

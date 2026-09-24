@@ -26,7 +26,7 @@ struct WeekInMotionLoadingView: View {
             }
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Building Week in Motion")
+            .accessibilityLabel("Building your week")
             .accessibilityHint("Joining the last seven days of training, fuel, recovery, and Trust.")
             .accessibilityIdentifier("week_in_motion_loading")
     }
@@ -113,7 +113,7 @@ struct WeekInMotionView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Week in Motion")
+                Text("Your week")
                     .appFont(size: 13, weight: .bold)
                     .foregroundColor(.brandForeground)
                     .textCase(.uppercase)

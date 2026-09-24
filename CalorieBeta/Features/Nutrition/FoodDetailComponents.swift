@@ -155,7 +155,7 @@ struct FoodTrustSummaryCard: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("food_trust_summary")
             .accessibilityLabel("Food Trust, \(evaluation.label)")
-            .accessibilityHint("Opens the complete evidence receipt")
+            .accessibilityHint("Opens the full source details")
 
             if let resolution {
                 Label(resolution.title, systemImage: "checkmark.circle.fill")

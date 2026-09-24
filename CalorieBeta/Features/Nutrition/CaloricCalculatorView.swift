@@ -97,6 +97,12 @@ struct CaloricCalculatorView: View {
             }
             goalSettings.recalculateAllGoals()
         }
+        .onChange(of: goalSettings.weeklyChangeLbs) {
+            if goalSettings.calorieGoalMethod == .custom {
+                goalSettings.calorieGoalMethod = .mifflinWithActivity
+            }
+            goalSettings.recalculateAllGoals()
+        }
         .onChange(of: goalSettings.age) {
             if goalSettings.calorieGoalMethod == .custom {
                 goalSettings.calorieGoalMethod = .mifflinWithActivity
@@ -268,7 +274,23 @@ struct CaloricCalculatorView: View {
                        goalSettings.calorieGoalMethod == .custom {
                         goalSettings.calorieGoalMethod = .mifflinWithActivity
                     }
+                    if newValue != "Maintain" {
+                        goalSettings.weeklyChangeLbs = GoalSettingsRules.normalizedWeeklyChange(
+                            goalSettings.weeklyChangeLbs,
+                            forGoal: newValue
+                        )
+                    }
                     goalSettings.goal = newValue
+                }
+
+                if selectedGoal != "Maintain" {
+                    Picker("Weekly pace", selection: $goalSettings.weeklyChangeLbs) {
+                        ForEach(GoalSettingsRules.weeklyChangeOptions(forGoal: selectedGoal), id: \.self) { lbs in
+                            Text(GoalSettingsRules.weeklyChangeText(lbs: lbs, metric: useMetric)).tag(lbs)
+                        }
+                    }
+                    .appTextRole(.control)
+                    .accessibilityIdentifier("goal_weekly_pace")
                 }
             }
             .appSurface(.emphasized)
@@ -387,6 +409,12 @@ struct CaloricCalculatorView: View {
         }
         selectedActivityString = activityString(for: goalSettings.activityLevel)
         selectedGoal = goals.contains(goalSettings.goal) ? goalSettings.goal : "Maintain"
+        if selectedGoal != "Maintain" {
+            let supportedPace = GoalSettingsRules.normalizedWeeklyChange(goalSettings.weeklyChangeLbs, forGoal: selectedGoal)
+            if supportedPace != goalSettings.weeklyChangeLbs {
+                goalSettings.weeklyChangeLbs = supportedPace
+            }
+        }
     }
 
     private var hasValidCalorieInput: Bool {
@@ -410,7 +438,8 @@ struct CaloricCalculatorView: View {
             activityLevel: goalSettings.activityLevel,
             adaptiveTDEE: goalSettings.adaptiveGoalService?.calculatedTDEE,
             manualCaloriesBurned: manualBurn,
-            currentCalories: nil
+            currentCalories: nil,
+            weeklyChangeLbs: goalSettings.weeklyChangeLbs
         )
         if abs(calorieValue - mifflinCalories) <= 5 {
             goalSettings.calorieGoalMethod = .mifflinWithActivity

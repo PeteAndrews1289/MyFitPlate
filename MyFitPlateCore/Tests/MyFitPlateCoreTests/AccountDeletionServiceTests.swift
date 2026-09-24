@@ -99,6 +99,72 @@ final class AccountDeletionServiceTests: XCTestCase {
         }
     }
 
+    func testAppleDeletionReauthenticatesRevokesThenDeletesOnTheServer() async throws {
+        auth.currentSignInMethod = .apple
+        let credential = AppleIDCredential(identityToken: "token", rawNonce: "nonce", authorizationCode: "code-1")
+
+        let outcome = try await service.deleteCurrentAccount(appleCredential: credential)
+
+        XCTAssertEqual(outcome.userID, "user-1")
+        XCTAssertFalse(outcome.appleTokenRevocationFailed)
+        XCTAssertEqual(auth.appleReauthenticationCredentials, [credential])
+        XCTAssertEqual(auth.revokedAppleAuthorizationCodes, ["code-1"])
+        XCTAssertTrue(cloud.deleteUserDataCalled)
+        XCTAssertTrue(auth.signOutCalled)
+        XCTAssertTrue(auth.reauthenticatedPasswords.isEmpty)
+    }
+
+    func testAppleDeletionStillDeletesWhenRevocationFails() async throws {
+        auth.revokeAppleTokenError = URLError(.badServerResponse)
+        let credential = AppleIDCredential(identityToken: "token", rawNonce: "nonce", authorizationCode: "code-1")
+
+        let outcome = try await service.deleteCurrentAccount(appleCredential: credential)
+
+        XCTAssertTrue(outcome.appleTokenRevocationFailed)
+        XCTAssertTrue(cloud.deleteUserDataCalled, "a revocation failure must not strand a deletion request")
+        XCTAssertTrue(auth.signOutCalled)
+    }
+
+    func testAppleDeletionWithoutAnAuthorizationCodeIsReportedAsUnrevoked() async throws {
+        let credential = AppleIDCredential(identityToken: "token", rawNonce: "nonce", authorizationCode: nil)
+
+        let outcome = try await service.deleteCurrentAccount(appleCredential: credential)
+
+        XCTAssertTrue(outcome.appleTokenRevocationFailed)
+        XCTAssertTrue(auth.revokedAppleAuthorizationCodes.isEmpty)
+        XCTAssertTrue(cloud.deleteUserDataCalled)
+    }
+
+    func testAppleDeletionStopsWhenReauthenticationFails() async {
+        auth.appleReauthenticationError = AuthServiceError.appleAccountMismatch
+        let credential = AppleIDCredential(identityToken: "token", rawNonce: "nonce", authorizationCode: "code-1")
+
+        do {
+            _ = try await service.deleteCurrentAccount(appleCredential: credential)
+            XCTFail("expected reauthentication error")
+        } catch AccountDeletionError.reauthenticationFailed {
+            XCTAssertTrue(auth.revokedAppleAuthorizationCodes.isEmpty)
+            XCTAssertFalse(cloud.deleteUserDataCalled)
+            XCTAssertFalse(auth.signOutCalled)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
+    func testAppleDeletionRejectsMissingCurrentUser() async {
+        auth.currentUserID = nil
+        let credential = AppleIDCredential(identityToken: "token", rawNonce: "nonce", authorizationCode: "code-1")
+
+        do {
+            _ = try await service.deleteCurrentAccount(appleCredential: credential)
+            XCTFail("expected missing current user error")
+        } catch AccountDeletionError.missingCurrentUser {
+            XCTAssertTrue(auth.appleReauthenticationCredentials.isEmpty)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testAccountDeletionErrorDescriptionsAreActionable() {
         XCTAssertEqual(AccountDeletionError.emptyPassword.errorDescription, "Please enter your password to continue.")
         XCTAssertEqual(AccountDeletionError.missingCurrentUser.errorDescription, "We couldn't verify your account. Please sign out, sign back in, and try again.")

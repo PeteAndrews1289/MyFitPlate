@@ -99,6 +99,8 @@ flowchart TB
     App["iPhone app\nSwiftUI"] --> Core["MyFitPlateCore\nmodels, Trust, nutrition, training"]
     App <--> Watch["Apple Watch\nworkouts and quick logging"]
     App --> Extensions["Widgets and Live Activities"]
+    Extensions --> Shared["MyFitPlateShared\nwidget and Live Activity data"]
+    Core --> Shared
     App <--> Health["Apple Health and HealthKit"]
     App --> Firebase["Firebase Auth, Firestore, Analytics, App Check"]
     Core --> Food["Food provider adapters"]
@@ -111,7 +113,9 @@ flowchart TB
 ```
 
 The iOS app owns presentation and device integrations. Reusable models, validation, ranking,
-Trust, and deterministic planning logic live in `MyFitPlateCore`. Cloud Functions protect AI and
+Trust, and deterministic planning logic live in `MyFitPlateCore`. The widget and Live Activity
+extensions link only `MyFitPlateShared`, the few types they exchange with the app, so they stay
+small; Core re-exports it. Cloud Functions protect AI and
 provider credentials, enforce quotas, validate structured responses, and handle privileged data
 operations. Firestore rules, App Check, and server-owned deletion protect the shared data layer.
 
@@ -120,7 +124,7 @@ operations. Firestore rules, App Check, and server-owned deletion protect the sh
 | Path | Purpose |
 | --- | --- |
 | `CalorieBeta/` | Main iOS app, feature screens, infrastructure, resources, and design system |
-| `MyFitPlateCore/` | Reusable Swift package and deterministic unit-test suite |
+| `MyFitPlateCore/` | Reusable Swift package (`MyFitPlateCore` and the extension-sized `MyFitPlateShared`) and deterministic unit-test suite |
 | `MyFitPlateWatch Watch App/` | watchOS companion and workout experience |
 | `CalorieWidget/` | Home and Lock Screen widgets |
 | `LiveActivity/` | Workout and timer Live Activities |

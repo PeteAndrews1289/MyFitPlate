@@ -484,7 +484,7 @@ private struct TreadmillRunEntrySheet: View {
                         in: 1...360,
                         step: 1
                     )
-                    DatePicker("Ended", selection: $endedAt, displayedComponents: [.date, .hourAndMinute])
+                    AppDateField("Ended", selection: $endedAt, displayedComponents: [.date, .hourAndMinute])
                     }
                     .appTextRole(.control)
                     .appSurface(.emphasized)

@@ -1,15 +1,16 @@
 {
   "images" : [
     {
-      "filename" : "Gemini_Generated_Image_izw7ujizw7ujizw7.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "maia_avatar@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
+      "filename" : "maia_avatar@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
