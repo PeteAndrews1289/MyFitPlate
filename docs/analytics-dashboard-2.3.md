@@ -54,6 +54,14 @@ conversion as distinct `account_created` / `onboarding_plan_revealed`, split by 
 `apple_token` (`revoked` or `revocation_failed`) for Sign in with Apple accounts; any
 `revocation_failed` means the Firebase Apple provider's OAuth code-flow settings need attention.
 
+## App Store rating requests
+
+`app_review_prompt_requested` records that MyFitPlate asked StoreKit for a rating, with enum
+`moment` (`logging_day`, `weekly_check_in`, or `completed_session`). StoreKit decides whether the
+system prompt actually appears, so this event is an upper bound on prompts shown. Eligibility needs
+three distinct positive moments over at least three days, at most one request per app version,
+and a 120-day cooldown. Compare weekly counts with App Store Connect ratings by version.
+
 ## Training and fuel leading indicators
 
 These events evaluate the replacement 2.2 loop before waiting for D7 retention:
