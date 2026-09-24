@@ -20,6 +20,8 @@ public struct OnboardingProfileDraft: Codable, Equatable, Sendable {
     public var currentWeightLbs: Double
     public var targetWeightLbs: Double
     public var activityMultiplier: Double
+    /// Planned weekly weight change in pounds; ignored for a Maintain goal.
+    public var weeklyChangeLbs: Double
     public var reminderStyle: String
     public var maiaTone: String
     public var createdAt: Date
@@ -33,6 +35,7 @@ public struct OnboardingProfileDraft: Codable, Equatable, Sendable {
         currentWeightLbs: Double,
         targetWeightLbs: Double,
         activityMultiplier: Double,
+        weeklyChangeLbs: Double = GoalSettingsRules.defaultWeeklyChangeLbs,
         reminderStyle: String = "Gentle",
         maiaTone: String = "Balanced",
         createdAt: Date = Date()
@@ -45,6 +48,7 @@ public struct OnboardingProfileDraft: Codable, Equatable, Sendable {
         self.currentWeightLbs = currentWeightLbs
         self.targetWeightLbs = targetWeightLbs
         self.activityMultiplier = activityMultiplier
+        self.weeklyChangeLbs = weeklyChangeLbs
         self.reminderStyle = reminderStyle
         self.maiaTone = maiaTone
         self.createdAt = createdAt
@@ -52,6 +56,29 @@ public struct OnboardingProfileDraft: Codable, Equatable, Sendable {
 
     public var isComplete: Bool {
         OnboardingProfileRules.validationIssue(for: self) == nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case goal, trainingIntent, sex, age, heightCm, currentWeightLbs, targetWeightLbs
+        case activityMultiplier, weeklyChangeLbs, reminderStyle, maiaTone, createdAt
+    }
+
+    /// Drafts saved before the pace step existed decode with the long-standing 0.5 lb pace.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        goal = try container.decode(Goal.self, forKey: .goal)
+        trainingIntent = try container.decode(String.self, forKey: .trainingIntent)
+        sex = try container.decode(String.self, forKey: .sex)
+        age = try container.decode(Int.self, forKey: .age)
+        heightCm = try container.decode(Double.self, forKey: .heightCm)
+        currentWeightLbs = try container.decode(Double.self, forKey: .currentWeightLbs)
+        targetWeightLbs = try container.decode(Double.self, forKey: .targetWeightLbs)
+        activityMultiplier = try container.decode(Double.self, forKey: .activityMultiplier)
+        weeklyChangeLbs = try container.decodeIfPresent(Double.self, forKey: .weeklyChangeLbs)
+            ?? GoalSettingsRules.defaultWeeklyChangeLbs
+        reminderStyle = try container.decode(String.self, forKey: .reminderStyle)
+        maiaTone = try container.decode(String.self, forKey: .maiaTone)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 }
 
@@ -171,7 +198,8 @@ public enum OnboardingPlanRules {
             activityLevel: draft.activityMultiplier,
             adaptiveTDEE: nil,
             manualCaloriesBurned: 0,
-            currentCalories: nil
+            currentCalories: nil,
+            weeklyChangeLbs: draft.weeklyChangeLbs
         )
         let macros = GoalSettingsRules.updateMacros(
             calories: calories,
@@ -188,17 +216,11 @@ public enum OnboardingPlanRules {
             fatGrams: macros.fats,
             maintenanceCalories: maintenance,
             weeklyChangeLbs: weeklyChange,
-            isMinimumCalorieFloorApplied: calories > maintenance + intendedAdjustment(for: draft.goal) + 0.5,
+            isMinimumCalorieFloorApplied: calories > maintenance
+                + GoalSettingsRules.dailyCalorieAdjustment(goal: draft.goal.rawValue, weeklyChangeLbs: draft.weeklyChangeLbs)
+                + 0.5,
             projection: projection(for: draft, weeklyChangeLbs: weeklyChange, today: today, calendar: calendar)
         )
-    }
-
-    private static func intendedAdjustment(for goal: OnboardingProfileDraft.Goal) -> Double {
-        switch goal {
-        case .lose: return -250
-        case .gain: return 250
-        case .maintain: return 0
-        }
     }
 
     private static func projection(

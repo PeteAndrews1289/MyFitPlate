@@ -112,20 +112,19 @@ struct PlanRevealView: View {
     }
 
     private var projectionContent: (icon: String, title: String, detail: String) {
-        let pace = paceText
         switch plan.projection {
         case let .reachTarget(date, _):
             return (
                 "calendar",
                 "Reach \(weightText(draft.targetWeightLbs)) around \(date.formatted(.dateTime.month(.wide).year()))",
-                "That's about \(pace) a week, a steady pace most people can keep up. Your targets update as your weight changes."
+                "\(paceSentence) Your targets update as your weight changes."
             )
         case let .milestone(date, _, change):
             let direction = change < 0 ? "lighter" : "heavier"
             return (
                 "flag",
                 "About \(weightText(abs(change))) \(direction) by \(date.formatted(.dateTime.month(.abbreviated).day()))",
-                "That's about \(pace) a week. Reaching \(weightText(draft.targetWeightLbs)) takes longer, and your targets update as your weight changes."
+                "\(paceSentence) Reaching \(weightText(draft.targetWeightLbs)) takes longer, and your targets update as your weight changes."
             )
         case .maintain:
             return (
@@ -157,6 +156,15 @@ struct PlanRevealView: View {
                 subtitle: "Mifflin-St Jeor with your activity level: about \(Self.whole(plan.maintenanceCalories)) calories a day to maintain."
             )
             Divider().padding(.leading, 68)
+            if draft.goal != .maintain {
+                AppListRow(
+                    icon: "gauge.with.dots.needle.33percent",
+                    iconColor: AppPalette.brandText,
+                    title: "Your pace",
+                    subtitle: paceRowSubtitle
+                )
+                Divider().padding(.leading, 68)
+            }
             AppListRow(
                 icon: "chart.pie",
                 iconColor: AppPalette.brandText,
@@ -211,9 +219,31 @@ struct PlanRevealView: View {
         return "MyFitPlate never sets a target below \(floor) calories a day."
     }
 
-    private var paceText: String {
-        let weekly = BodyUnits.weightDisplayValue(lbs: abs(plan.weeklyChangeLbs), metric: useMetric)
-        return "\(weekly.formatted(.number.precision(.fractionLength(0...1)))) \(BodyUnits.weightUnit(metric: useMetric))"
+    /// Uses the achieved pace, which can be slower than the chosen one at the calorie floor.
+    private var paceSentence: String {
+        let weekly = abs(plan.weeklyChangeLbs)
+        let pace = GoalSettingsRules.weeklyChangeText(lbs: weekly, metric: useMetric)
+        switch (draft.goal, weekly) {
+        case (.gain, ..<0.4):
+            return "That's about \(pace), a lean pace that limits fat gain."
+        case (.gain, ...0.6):
+            return "That's about \(pace), a steady pace for building muscle."
+        case (.gain, _):
+            return "That's about \(pace), a fast pace that adds some extra fat."
+        case (_, ...0.6):
+            return "That's about \(pace), a steady pace most people can keep up."
+        case (_, ...1.1):
+            return "That's about \(pace), a common pace for steady progress."
+        default:
+            return "That's about \(pace), a fast pace. Watch your hunger, sleep, and training energy."
+        }
+    }
+
+    private var paceRowSubtitle: String {
+        let difference = Self.whole(abs(plan.dailyCalories - plan.maintenanceCalories))
+        let direction = draft.goal == .gain ? "above" : "below"
+        let chosen = GoalSettingsRules.weeklyChangeText(lbs: draft.weeklyChangeLbs, metric: useMetric)
+        return "\(chosen.prefix(1).uppercased() + chosen.dropFirst()): about \(difference) calories a day \(direction) maintenance. You can change it in Settings."
     }
 
     private func weightText(_ lbs: Double) -> String {

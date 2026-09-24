@@ -404,3 +404,107 @@ private extension OnboardingProfileDraft {
         createdAt: Date(timeIntervalSince1970: 1_790_000_000)
     )
 }
+
+final class WeeklyPaceRulesTests: XCTestCase {
+    func testDefaultPaceKeepsTheLongStandingTwoHundredFiftyCalorieAdjustment() {
+        XCTAssertEqual(GoalSettingsRules.dailyCalorieAdjustment(goal: "Lose", weeklyChangeLbs: 0.5), -250, accuracy: 0.001)
+        XCTAssertEqual(GoalSettingsRules.dailyCalorieAdjustment(goal: "Gain", weeklyChangeLbs: 0.5), 250, accuracy: 0.001)
+        XCTAssertEqual(GoalSettingsRules.dailyCalorieAdjustment(goal: "Maintain", weeklyChangeLbs: 1.5), 0)
+
+        let withDefault = GoalSettingsRules.calculateCalorieGoal(
+            bmr: 1_800, goal: "Lose", gender: "Male", calorieGoalMethod: .mifflinWithActivity,
+            activityLevel: 1.5, adaptiveTDEE: nil, manualCaloriesBurned: 0, currentCalories: nil
+        )
+        XCTAssertEqual(withDefault, 2_450, accuracy: 0.001)
+    }
+
+    func testFasterPacesScaleTheDailyAdjustment() {
+        XCTAssertEqual(GoalSettingsRules.dailyCalorieAdjustment(goal: "Lose", weeklyChangeLbs: 1.0), -500, accuracy: 0.001)
+        XCTAssertEqual(GoalSettingsRules.dailyCalorieAdjustment(goal: "Lose", weeklyChangeLbs: 1.5), -750, accuracy: 0.001)
+        XCTAssertEqual(GoalSettingsRules.dailyCalorieAdjustment(goal: "Gain", weeklyChangeLbs: 0.25), 125, accuracy: 0.001)
+
+        let faster = GoalSettingsRules.calculateCalorieGoal(
+            bmr: 1_800, goal: "Lose", gender: "Male", calorieGoalMethod: .mifflinWithActivity,
+            activityLevel: 1.5, adaptiveTDEE: nil, manualCaloriesBurned: 0, currentCalories: nil,
+            weeklyChangeLbs: 1.0
+        )
+        XCTAssertEqual(faster, 2_200, accuracy: 0.001)
+    }
+
+    func testUnsupportedPacesSnapToTheNearestOptionForTheGoal() {
+        XCTAssertEqual(GoalSettingsRules.normalizedWeeklyChange(2.0, forGoal: "Lose"), 1.5)
+        XCTAssertEqual(GoalSettingsRules.normalizedWeeklyChange(1.5, forGoal: "Gain"), 0.75)
+        XCTAssertEqual(GoalSettingsRules.normalizedWeeklyChange(nil, forGoal: "Lose"), 0.5)
+        XCTAssertEqual(GoalSettingsRules.normalizedWeeklyChange(.nan, forGoal: "Gain"), 0.5)
+        XCTAssertEqual(GoalSettingsRules.normalizedWeeklyChange(1.0, forGoal: "Maintain"), 0)
+    }
+
+    func testCalorieFloorStillWinsAtAnyPace() {
+        let calories = GoalSettingsRules.calculateCalorieGoal(
+            bmr: 1_100, goal: "Lose", gender: "Female", calorieGoalMethod: .mifflinWithActivity,
+            activityLevel: 1.2, adaptiveTDEE: nil, manualCaloriesBurned: 0, currentCalories: nil,
+            weeklyChangeLbs: 1.5
+        )
+        XCTAssertEqual(calories, 1_200, accuracy: 0.001)
+    }
+
+    func testPaceTextUsesThePersonsUnit() {
+        XCTAssertEqual(GoalSettingsRules.weeklyChangeText(lbs: 1.0, metric: false), "1 lb a week")
+        XCTAssertEqual(GoalSettingsRules.weeklyChangeText(lbs: 0.25, metric: false), "0.25 lb a week")
+        XCTAssertEqual(GoalSettingsRules.weeklyChangeText(lbs: 1.0, metric: true), "0.5 kg a week")
+    }
+
+    func testFasterPlanReachesTheTargetSooner() {
+        let steady = OnboardingProfileDraft(
+            goal: .lose, sex: "Male", age: 30, heightCm: 180,
+            currentWeightLbs: 200, targetWeightLbs: 180, activityMultiplier: 1.55
+        )
+        var faster = steady
+        faster.weeklyChangeLbs = 1.0
+
+        let steadyPlan = OnboardingPlanRules.plan(for: steady)
+        let fasterPlan = OnboardingPlanRules.plan(for: faster)
+
+        XCTAssertEqual(fasterPlan.dailyCalories, steadyPlan.dailyCalories - 250, accuracy: 0.001)
+        XCTAssertEqual(fasterPlan.weeklyChangeLbs, -1.0, accuracy: 0.0001)
+        guard case let .reachTarget(_, weeks) = fasterPlan.projection else {
+            return XCTFail("Expected a target date, got \(fasterPlan.projection)")
+        }
+        XCTAssertEqual(weeks, 20)
+    }
+
+    func testDraftsSavedBeforeThePaceStepDecodeWithTheDefault() throws {
+        let legacyJSON = """
+        {"goal":"Lose","trainingIntent":"Strength","sex":"Male","age":30,"heightCm":180,
+         "currentWeightLbs":200,"targetWeightLbs":180,"activityMultiplier":1.55,
+         "reminderStyle":"Gentle","maiaTone":"Balanced","createdAt":0}
+        """
+        let draft = try JSONDecoder().decode(OnboardingProfileDraft.self, from: Data(legacyJSON.utf8))
+        XCTAssertEqual(draft.weeklyChangeLbs, 0.5)
+
+        var paced = draft
+        paced.weeklyChangeLbs = 1.5
+        let roundTrip = try JSONDecoder().decode(OnboardingProfileDraft.self, from: JSONEncoder().encode(paced))
+        XCTAssertEqual(roundTrip, paced)
+    }
+
+    @MainActor
+    func testCompletingOnboardingSavesThePaceAndMissingPaceLoadsAsDefault() async throws {
+        let originalRepository = DIContainer.shared.settingsRepository
+        defer { DIContainer.shared.settingsRepository = originalRepository }
+        let repository = MockSettingsRepository()
+        DIContainer.shared.settingsRepository = repository
+        let settings = GoalSettings(healthKitManager: MockCoreHealthKitManager())
+        let draft = OnboardingProfileDraft(
+            goal: .lose, sex: "Male", age: 30, heightCm: 180,
+            currentWeightLbs: 200, targetWeightLbs: 180, activityMultiplier: 1.55,
+            weeklyChangeLbs: 1.0
+        )
+
+        try await settings.completeOnboarding(with: draft, userID: "paced-user")
+
+        let goals = try XCTUnwrap(repository.savedUserGoals?["goals"] as? [String: Any])
+        XCTAssertEqual(goals["weeklyChangeLbs"] as? Double, 1.0)
+        XCTAssertEqual(try XCTUnwrap(settings.calories), OnboardingPlanRules.plan(for: draft).dailyCalories, accuracy: 0.01)
+    }
+}

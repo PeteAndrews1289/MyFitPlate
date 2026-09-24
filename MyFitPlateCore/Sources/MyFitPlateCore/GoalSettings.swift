@@ -58,6 +58,8 @@ public class GoalSettings: ObservableObject {
     @Published public var activityLevel: Double = 1.2
     @Published public var goal: String = "Maintain"
     @Published public var targetWeight: Double?
+    /// Planned weekly weight change in pounds for Lose and Gain goals.
+    @Published public var weeklyChangeLbs: Double = GoalSettingsRules.defaultWeeklyChangeLbs
     
     // Macro Split (%)
     @Published public var proteinPercentage: Double = 30.0
@@ -168,6 +170,7 @@ public class GoalSettings: ObservableObject {
         activityLevel = 1.2
         goal = "Maintain"
         targetWeight = nil
+        weeklyChangeLbs = GoalSettingsRules.defaultWeeklyChangeLbs
         proteinPercentage = 30
         carbsPercentage = 50
         fatsPercentage = 20
@@ -241,7 +244,8 @@ public class GoalSettings: ObservableObject {
             activityLevel: activityLevel,
             adaptiveTDEE: adaptiveGoalService?.calculatedTDEE,
             manualCaloriesBurned: manualCaloriesBurned,
-            currentCalories: calories
+            currentCalories: calories,
+            weeklyChangeLbs: weeklyChangeLbs
         )
         
         if self.calories == nil || abs((self.calories ?? 0) - finalCalculatedCalories) > 0.1 {
@@ -422,6 +426,7 @@ public class GoalSettings: ObservableObject {
         self.suggestionCarbs = goalsMap["suggestionCarbs"] as? [String] ?? self.suggestionCarbs
         self.suggestionVeggies = goalsMap["suggestionVeggies"] as? [String] ?? self.suggestionVeggies
         self.trainingIntent = goalsMap["trainingIntent"] as? String ?? self.trainingIntent
+        self.weeklyChangeLbs = goalsMap["weeklyChangeLbs"] as? Double ?? GoalSettingsRules.defaultWeeklyChangeLbs
         self.reminderStyle = goalsMap["reminderStyle"] as? String ?? self.reminderStyle
         self.maiaTone = goalsMap["maiaTone"] as? String ?? self.maiaTone
         self.cookingStyle = goalsMap["cookingStyle"] as? String ?? self.cookingStyle
@@ -617,6 +622,7 @@ public class GoalSettings: ObservableObject {
         gender = draft.sex
         activityLevel = draft.activityMultiplier
         goal = draft.goal.rawValue
+        weeklyChangeLbs = draft.weeklyChangeLbs
         trainingIntent = draft.trainingIntent
         reminderStyle = draft.reminderStyle
         maiaTone = draft.maiaTone
@@ -629,6 +635,7 @@ public class GoalSettings: ObservableObject {
             "calories": self.calories ?? 0, "protein": self.protein, "fats": self.fats, "carbs": self.carbs,
             "proteinPercentage": self.proteinPercentage, "carbsPercentage": self.carbsPercentage, "fatsPercentage": self.fatsPercentage,
             "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),
+            "weeklyChangeLbs": self.weeklyChangeLbs,
             "calciumGoal": self.calciumGoal ?? NSNull(), "ironGoal": self.ironGoal ?? NSNull(), "potassiumGoal": self.potassiumGoal ?? NSNull(),
             "sodiumGoal": self.sodiumGoal ?? NSNull(), "vitaminAGoal": self.vitaminAGoal ?? NSNull(), "vitaminCGoal": self.vitaminCGoal ?? NSNull(),
             "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal, "vitaminB12Goal": self.vitaminB12Goal ?? NSNull(), "folateGoal": self.folateGoal ?? NSNull(),
@@ -1064,7 +1071,8 @@ public class AdaptiveGoalService: ObservableObject {
         gender: String,
         proteinPercentage: Double,
         carbsPercentage: Double,
-        fatsPercentage: Double
+        fatsPercentage: Double,
+        weeklyChangeLbs: Double = GoalSettingsRules.defaultWeeklyChangeLbs
     ) -> WeeklyGoalProposal? {
         guard snapshot.isActionable,
               let calculatedTDEE = snapshot.calculatedTDEE,
@@ -1080,7 +1088,8 @@ public class AdaptiveGoalService: ObservableObject {
             activityLevel: 1.0,
             adaptiveTDEE: calculatedTDEE,
             manualCaloriesBurned: 0,
-            currentCalories: nil
+            currentCalories: nil,
+            weeklyChangeLbs: weeklyChangeLbs
         )
         let delta = proposedCalories - (currentCalories ?? proposedCalories)
         let shouldAdjust = abs(delta) >= 50
@@ -1130,7 +1139,8 @@ public class AdaptiveGoalService: ObservableObject {
         gender: String,
         proteinPercentage: Double,
         carbsPercentage: Double,
-        fatsPercentage: Double
+        fatsPercentage: Double,
+        weeklyChangeLbs: Double = GoalSettingsRules.defaultWeeklyChangeLbs
     ) -> WeeklyGoalProposal? {
         let snapshot = ExpenditureSnapshot(
             recentWeighInCount: recentWeighInCount,
@@ -1152,7 +1162,8 @@ public class AdaptiveGoalService: ObservableObject {
             gender: gender,
             proteinPercentage: proteinPercentage,
             carbsPercentage: carbsPercentage,
-            fatsPercentage: fatsPercentage
+            fatsPercentage: fatsPercentage,
+            weeklyChangeLbs: weeklyChangeLbs
         )
     }
 

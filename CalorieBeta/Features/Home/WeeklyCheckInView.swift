@@ -14,7 +14,8 @@ struct WeeklyCheckInView: View {
             gender: goalSettings.gender,
             proteinPercentage: goalSettings.proteinPercentage,
             carbsPercentage: goalSettings.carbsPercentage,
-            fatsPercentage: goalSettings.fatsPercentage
+            fatsPercentage: goalSettings.fatsPercentage,
+            weeklyChangeLbs: goalSettings.weeklyChangeLbs
         )
     }
 

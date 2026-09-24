@@ -10,6 +10,7 @@ struct OnboardingSurveyView: View {
         case currentWeight
         case targetWeight
         case activity
+        case pace
     }
 
     let onDraftReady: (OnboardingProfileDraft) -> Void
@@ -28,6 +29,7 @@ struct OnboardingSurveyView: View {
     @State private var currentWeightInput: String
     @State private var targetWeightInput: String
     @State private var selectedActivityLevelKey: String?
+    @State private var selectedWeeklyChangeLbs: Double
 
     /// Preferences the quiz no longer asks about keep their prefilled values on a re-run.
     private let reminderStyle: String
@@ -83,6 +85,9 @@ struct OnboardingSurveyView: View {
         _selectedActivityLevelKey = State(initialValue: prefill.flatMap { draft in
             Self.activityLevelMap.first { abs($0.value - draft.activityMultiplier) < 0.001 }?.key
         })
+        _selectedWeeklyChangeLbs = State(initialValue: prefill.map {
+            GoalSettingsRules.normalizedWeeklyChange($0.weeklyChangeLbs, forGoal: $0.goal.rawValue)
+        } ?? GoalSettingsRules.defaultWeeklyChangeLbs)
 
         reminderStyle = prefill?.reminderStyle ?? "Gentle"
         maiaTone = prefill?.maiaTone ?? "Balanced"
@@ -101,7 +106,13 @@ struct OnboardingSurveyView: View {
         .onChange(of: useMetric) { _, metric in
             convertInputs(toMetric: metric)
         }
-        .onChange(of: selectedGoal) { _, _ in
+        .onChange(of: selectedGoal) { _, goal in
+            if let goal, goal != .maintain {
+                selectedWeeklyChangeLbs = GoalSettingsRules.normalizedWeeklyChange(
+                    selectedWeeklyChangeLbs,
+                    forGoal: goal.rawValue
+                )
+            }
             if !visibleSteps.contains(step) {
                 step = .activity
             }
@@ -111,7 +122,10 @@ struct OnboardingSurveyView: View {
     // MARK: - Steps
 
     private var visibleSteps: [Step] {
-        Step.allCases.filter { $0 != .targetWeight || selectedGoal != .maintain }
+        Step.allCases.filter { candidate in
+            guard selectedGoal == .maintain else { return true }
+            return candidate != .targetWeight && candidate != .pace
+        }
     }
 
     private var stepPosition: Int {
@@ -140,6 +154,8 @@ struct OnboardingSurveyView: View {
             return targetWeightHint == nil && parsedWeightLbs(targetWeightInput) != nil
         case .activity:
             return selectedActivityLevelKey != nil
+        case .pace:
+            return selectedGoal.map { GoalSettingsRules.weeklyChangeOptions(forGoal: $0.rawValue).contains(selectedWeeklyChangeLbs) } == true
         }
     }
 
@@ -228,6 +244,13 @@ struct OnboardingSurveyView: View {
                 subtitle: "Choose the closest baseline. Training can still vary from day to day.",
                 icon: "figure.walk"
             ) { activityStepView }
+        case .pace:
+            stepView(
+                eyebrow: "Your pace",
+                title: selectedGoal == .gain ? "How fast do you want to gain?" : "How fast do you want to lose?",
+                subtitle: "Slower paces are easier to keep up alongside training. You can change this later.",
+                icon: "gauge.with.dots.needle.33percent"
+            ) { paceStepView }
         }
     }
 
@@ -507,6 +530,48 @@ struct OnboardingSurveyView: View {
         .appSurface(.emphasized, padding: 0)
     }
 
+    private var paceStepView: some View {
+        let goal = selectedGoal ?? .lose
+        let options = GoalSettingsRules.weeklyChangeOptions(forGoal: goal.rawValue)
+        return VStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.element) { index, lbs in
+                OnboardingChoiceRow(
+                    icon: nil,
+                    title: GoalSettingsRules.weeklyChangeText(lbs: lbs, metric: useMetric).capitalizedFirstLetter,
+                    subtitle: paceSubtitle(for: lbs, goal: goal, optionIndex: index),
+                    isSelected: selectedWeeklyChangeLbs == lbs,
+                    accessibilityIdentifier: "onboarding_pace_\(index)"
+                ) {
+                    selectedWeeklyChangeLbs = lbs
+                }
+
+                if index < options.count - 1 {
+                    Divider().padding(.leading, AppSpacing.group)
+                }
+            }
+        }
+        .appSurface(.emphasized, padding: 0)
+    }
+
+    private func paceSubtitle(for lbs: Double, goal: OnboardingProfileDraft.Goal, optionIndex: Int) -> String {
+        let description: String
+        switch (goal, optionIndex) {
+        case (.gain, 0): description = "Lean: the least fat gain, slower progress"
+        case (.gain, 1): description = "Steady: a balanced pace for building muscle"
+        case (.gain, _): description = "Faster: quicker gains with more fat"
+        case (_, 0): description = "Steady: the easiest to keep up while training"
+        case (_, 1): description = "Moderate: a common pace for steady progress"
+        default: description = "Faster: expect more hunger and less training energy"
+        }
+
+        guard let draft = makeDraft(weeklyChangeLbs: lbs) else { return description }
+        let plan = OnboardingPlanRules.plan(for: draft)
+        let calories = Int(plan.dailyCalories.rounded()).formatted()
+        return plan.isMinimumCalorieFloorApplied
+            ? "\(description). About \(calories) calories a day, the minimum MyFitPlate sets."
+            : "\(description). About \(calories) calories a day."
+    }
+
     // MARK: - Validation hints
 
     private var ageHint: String? {
@@ -572,7 +637,7 @@ struct OnboardingSurveyView: View {
         return BodyUnits.weightToLbs(value, metric: useMetric)
     }
 
-    private func makeDraft() -> OnboardingProfileDraft? {
+    private func makeDraft(weeklyChangeLbs: Double? = nil) -> OnboardingProfileDraft? {
         guard let goal = selectedGoal,
               let sex = selectedSex,
               let age = parsedAge,
@@ -592,6 +657,9 @@ struct OnboardingSurveyView: View {
             currentWeightLbs: currentWeight,
             targetWeightLbs: targetWeight,
             activityMultiplier: activityMultiplier,
+            weeklyChangeLbs: goal == .maintain
+                ? GoalSettingsRules.defaultWeeklyChangeLbs
+                : weeklyChangeLbs ?? selectedWeeklyChangeLbs,
             reminderStyle: reminderStyle,
             maiaTone: maiaTone
         )
@@ -807,5 +875,11 @@ private struct OnboardingMenuRow: View {
         .pickerStyle(.menu)
         .tint(AppPalette.brand)
         .accessibilityIdentifier("onboarding_\(title.lowercased().replacingOccurrences(of: " ", with: "_"))")
+    }
+}
+
+private extension String {
+    var capitalizedFirstLetter: String {
+        prefix(1).uppercased() + dropFirst()
     }
 }

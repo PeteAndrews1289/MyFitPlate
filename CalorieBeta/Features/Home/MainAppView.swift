@@ -542,6 +542,7 @@ struct ContentView: View {
             "signup",
             "create-account",
             "plan-reveal",
+            "onboarding-pace",
             "onboarding-baseline",
             "onboarding-lifestyle",
             "feature-tour"
@@ -819,6 +820,13 @@ struct ContentView: View {
                 context: .beforeAccount,
                 prefill: Self.screenshotOnboardingDraft,
                 startingPoint: .quiz(.activity),
+                onClose: { }
+            )
+        case "onboarding-pace":
+            OnboardingFlowView(
+                context: .beforeAccount,
+                prefill: Self.screenshotOnboardingDraft,
+                startingPoint: .quiz(.pace),
                 onClose: { }
             )
         case "feature-tour":
