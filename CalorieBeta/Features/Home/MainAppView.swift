@@ -1,6 +1,7 @@
 import MyFitPlateCore
 
 import SwiftUI
+import StoreKit
 import Firebase
 #if ENABLE_APP_CHECK
 import FirebaseAppCheck
@@ -515,6 +516,8 @@ struct ContentView: View {
     @State private var presentedDeepLinkRoute: Route?
     @State private var didQueueUITestDeepLink = false
     @ObservedObject private var accountSetup = AccountSetupCoordinator.shared
+    @ObservedObject private var reviewPrompts = AppReviewPromptQueue.shared
+    @Environment(\.requestReview) private var requestReview
     @State private var accountSetupFailureMessage: String?
     @State private var provisioningUserID: String?
     @State private var onboardingPrefill: OnboardingProfileDraft?
@@ -591,6 +594,9 @@ struct ContentView: View {
                 checkUserStatusAndFirstLogin()
             }
         }
+        .task(id: reviewPrompts.pendingMoment) {
+            await presentReviewPromptWhenCalm()
+        }
         .onChange(of: appCoordinator.pendingRoute) { _, _ in
             processPendingDeepLinkIfReady()
         }
@@ -660,6 +666,26 @@ struct ContentView: View {
         .onOpenURL { url in
             appCoordinator.handle(url: url, appState: appState)
         }
+    }
+
+    /// Logging and check-ins finish inside sheets. Wait until nothing modal is on screen and the app
+    /// has stayed calm briefly, so the rating request never interrupts what the person is doing.
+    private func presentReviewPromptWhenCalm() async {
+        guard reviewPrompts.pendingMoment != nil else { return }
+
+        var calmChecks = 0
+        while calmChecks < 3 {
+            try? await Task.sleep(for: .milliseconds(500))
+            if Task.isCancelled { return }
+            calmChecks = !deferredDeepLinkIsBlocked && ReviewPromptPresentation.isScreenCalm ? calmChecks + 1 : 0
+        }
+
+        guard let moment = reviewPrompts.takePendingRequest() else { return }
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.appReviewPromptRequested.rawValue,
+            parameters: ["moment": moment.rawValue]
+        )
+        requestReview()
     }
 
     private var deferredDeepLinkIsBlocked: Bool {
@@ -1221,6 +1247,20 @@ private enum FirstSessionChoice: String {
     case importHistory = "import_history"
     case logFirstMeal = "log_first_meal"
     case explore
+}
+
+/// UIKit is the only reliable view of whether any sheet, cover, or alert is showing anywhere in
+/// the SwiftUI hierarchy: each one is presented from the key window's root controller.
+private enum ReviewPromptPresentation {
+    @MainActor
+    static var isScreenCalm: Bool {
+        guard UIApplication.shared.applicationState == .active else { return false }
+        let activeScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+        guard let rootController = activeScene?.keyWindow?.rootViewController else { return false }
+        return rootController.presentedViewController == nil
+    }
 }
 
 private struct FirstSessionChoiceView: View {

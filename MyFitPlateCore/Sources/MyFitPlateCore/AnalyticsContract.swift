@@ -56,6 +56,7 @@ public enum ProductAnalytics {
         case livingDayDensityChanged = "living_day_density_changed"
         case livingDayShareOptionsOpened = "living_day_share_options_opened"
         case livingDayShareOpened = "living_day_share_opened"
+        case appReviewPromptRequested = "app_review_prompt_requested"
         case accountDeletionStarted = "account_deletion_started"
         case accountDeletionCompleted = "account_deletion_completed"
         case accountDeletionFailed = "account_deletion_failed"

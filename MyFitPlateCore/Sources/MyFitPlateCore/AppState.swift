@@ -109,6 +109,7 @@ public class AppState: ObservableObject {
             // A quiz answered on this device belongs to the account that finished it, never to the
             // next person who signs in here.
             AccountSetupCoordinator.shared.store.clearAll()
+            AppReviewPromptQueue.shared.clearPending()
             EcosystemSyncManager.shared.clearAccountWidgetData()
             identifyReleaseHealthUser(nil)
         } catch {

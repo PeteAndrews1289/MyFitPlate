@@ -341,6 +341,7 @@ struct WeeklyCheckInView: View {
         if let userID = DIContainer.shared.authService.currentUserID {
             goalSettings.saveUserGoals(userID: userID)
         }
+        AppReviewPromptQueue.shared.recordWeeklyCheckIn()
         dismiss()
     }
     
@@ -351,6 +352,7 @@ struct WeeklyCheckInView: View {
         if let userID = DIContainer.shared.authService.currentUserID {
             goalSettings.saveUserGoals(userID: userID)
         }
+        AppReviewPromptQueue.shared.recordWeeklyCheckIn()
         dismiss()
     }
 

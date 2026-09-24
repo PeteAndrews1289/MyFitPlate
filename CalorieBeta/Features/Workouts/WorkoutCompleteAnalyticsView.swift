@@ -390,8 +390,8 @@ struct WorkoutCompleteAnalyticsView: View {
         dismiss()
 
         guard shouldRequestReview else { return }
-        DIContainer.shared.analyticsManager?.logEvent("app_review_prompt_requested", parameters: [
-            "moment": "completed_session"
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.appReviewPromptRequested.rawValue, parameters: [
+            "moment": AppReviewPromptCoordinator.Moment.completedSession.rawValue
         ])
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(450))
