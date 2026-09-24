@@ -57,6 +57,9 @@ struct HomeView: View {
     @State private var selectedExerciseForDetail: LoggedExercise?
     @State private var showingWorkoutDetail = false
     @State private var showingWeeklyCheckIn = false
+    @State private var weeklyCheckInMode: WeeklyCheckInView.Mode = .checkIn
+    @State private var showingSetupFoodSearch = false
+    @StateObject private var firstWeekGuidance = FirstWeekGuidanceModel()
     @State private var showingMenuScanner = false
     @State private var showingWeeklyRecap = false
     @State private var showingRecoveryFuelSearch = false
@@ -155,6 +158,12 @@ struct HomeView: View {
                                     .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
+                            if shouldShowAdaptiveOffer {
+                                adaptiveTargetsOfferCard
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                                    .transition(.opacity)
+                            }
+
                             Group {
                                 if isLivingDayHomeEnabled, isToday {
                                     LivingDayHomeExperience(
@@ -198,6 +207,12 @@ struct HomeView: View {
                                 switcherPromptCard
                                     .padding(.horizontal, AppSpacing.screenHorizontal)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
+
+                            if shouldShowSetupChecklist {
+                                setupChecklistCard
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                                    .transition(.opacity)
                             }
 
                             HomeQuickActionsView(
@@ -294,6 +309,7 @@ struct HomeView: View {
                         }
                     }
                     .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
+                        firstWeekGuidance.refresh(userID: DIContainer.shared.authService.currentUserID)
                         if isLoggedIn, let userId = DIContainer.shared.authService.currentUserID {
                             dailyLogService.loadSmartSuggestions(for: userId)
                             workoutService.fetchRoutinesAndPrograms()
@@ -434,6 +450,13 @@ struct HomeView: View {
                   menuScannerSheet
               }
           }
+          .sheet(isPresented: $showingSetupFoodSearch) {
+              FoodSearchView(
+                  dailyLog: $dailyLogService.currentDailyLog,
+                  onFoodItemLogged: { showingSetupFoodSearch = false },
+                  searchContext: "setup_checklist"
+              )
+          }
           .sheet(isPresented: $showingRecoveryFuelSearch) {
               FoodSearchView(
                   dailyLog: $dailyLogService.currentDailyLog,
@@ -503,6 +526,8 @@ struct HomeView: View {
               startSpotlightTourIfNeeded()
           }
           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+              // Notification permission may have changed in Settings while the app was away.
+              firstWeekGuidance.refresh(userID: DIContainer.shared.authService.currentUserID)
               // Check if we need to advance the day when app comes to foreground
               let today = Calendar.current.startOfDay(for: Date())
               if !Calendar.current.isDate(selectedDate, inSameDayAs: today) {
@@ -529,7 +554,10 @@ struct HomeView: View {
               }
           }
           .fullScreenCover(isPresented: $showingWeeklyCheckIn) {
-              WeeklyCheckInView()
+              WeeklyCheckInView(
+                  mode: weeklyCheckInMode,
+                  onDeclineOffer: { firstWeekGuidance.declineAdaptiveOffer(surface: "check_in") }
+              )
                   .environmentObject(goalSettings)
                   .environmentObject(adaptiveGoalService)
           }
@@ -570,6 +598,7 @@ struct HomeView: View {
     }
 
     private func onHomeViewAppear() {
+        firstWeekGuidance.refresh(userID: DIContainer.shared.authService.currentUserID)
         dailyLogService.activelyViewedDate = selectedDate
         workoutService.fetchRoutinesAndPrograms()
         trainingFuelPlanStore.load(for: DIContainer.shared.authService.currentUserID)
@@ -586,7 +615,7 @@ struct HomeView: View {
 
             // Adaptive TDEE loop: proactively recompute the metabolism estimate (throttled to once
             // per day) so the weekly check-in can fire on Home without requiring a Reports visit.
-            if goalSettings.calorieGoalMethod == .dynamicTDEE,
+            if shouldRefreshAdaptiveEstimate,
                let userID = DIContainer.shared.authService.currentUserID {
                 Task {
                     await adaptiveGoalService.fetchAndCalculateIfNeeded(
@@ -597,6 +626,7 @@ struct HomeView: View {
                     await MainActor.run {
                         guard DIContainer.shared.authService.currentUserID == userID else { return }
                         if goalSettings.isCheckInReady {
+                            self.weeklyCheckInMode = .checkIn
                             self.showingWeeklyCheckIn = true
                         }
                     }
@@ -881,6 +911,121 @@ struct HomeView: View {
         DIContainer.shared.analyticsManager?.logEvent("mfp_import_prompt_dismissed", parameters: [
             "surface": "home_empty_day"
         ])
+    }
+
+    // MARK: - First-week guidance
+
+    /// People on adaptive targets need a fresh estimate for the weekly check-in; people on the
+    /// formula need one so Home can offer adaptive targets once their data supports it.
+    private var shouldRefreshAdaptiveEstimate: Bool {
+        switch goalSettings.calorieGoalMethod {
+        case .dynamicTDEE:
+            return true
+        case .mifflinWithActivity:
+            return !ScreenshotDemoMode.isEnabled
+                && !AppRuntime.isUITesting()
+                && !firstWeekGuidance.isAdaptiveOfferSnoozed
+        case .custom:
+            return false
+        }
+    }
+
+    private var setupChecklistState: SetupChecklistState {
+        if FirstWeekGuidancePreview.isEnabled {
+            return FirstWeekGuidancePreview.checklistState
+        }
+        return firstWeekGuidance.checklistState(
+            hasLoggedFood: todayHasLoggedFood || !pastLoggedDays.isEmpty,
+            healthConnected: healthKitViewModel.isAuthorized,
+            healthAvailable: healthKitViewModel.isHealthDataAvailable
+        )
+    }
+
+    private var shouldShowSetupChecklist: Bool {
+        guard isToday else { return false }
+        if FirstWeekGuidancePreview.isEnabled {
+            return firstWeekGuidance.checklistDismissedAt == nil
+        }
+        guard !ScreenshotDemoMode.isEnabled,
+              !AppRuntime.isUITesting(),
+              hasCheckedSwitcherHistory else { return false }
+        return firstWeekGuidance.shouldShowChecklist(setupChecklistState)
+    }
+
+    private var shouldShowAdaptiveOffer: Bool {
+        guard isToday else { return false }
+        if FirstWeekGuidancePreview.isEnabled {
+            return firstWeekGuidance.adaptiveOfferDeclinedAt == nil
+        }
+        guard !ScreenshotDemoMode.isEnabled, !AppRuntime.isUITesting() else { return false }
+        return firstWeekGuidance.shouldOfferAdaptiveTargets(
+            goalSettings: goalSettings,
+            adaptiveGoalService: adaptiveGoalService
+        )
+    }
+
+    private var setupChecklistCard: some View {
+        let state = setupChecklistState
+        let completedCount = SetupChecklistRules.completedCount(for: state)
+        return SetupChecklistCard(
+            state: state,
+            reminderTime: firstWeekGuidance.reminderTimeText,
+            onSelect: handleSetupChecklistItem,
+            onDismiss: {
+                HapticManager.instance.feedback(.light)
+                withAnimation(AppMotion.visibility) {
+                    firstWeekGuidance.dismissChecklist(completedCount: completedCount)
+                }
+            }
+        )
+        .onAppear {
+            firstWeekGuidance.recordChecklistViewed(
+                completedCount: completedCount,
+                itemCount: SetupChecklistRules.items(for: state).count
+            )
+        }
+    }
+
+    private var adaptiveTargetsOfferCard: some View {
+        let isPreview = FirstWeekGuidancePreview.isEnabled
+        return AdaptiveTargetsOfferCard(
+            measuredBurn: isPreview ? FirstWeekGuidancePreview.measuredBurn : adaptiveGoalService.calculatedTDEE ?? 0,
+            formulaEstimate: isPreview ? FirstWeekGuidancePreview.formulaEstimate : goalSettings.formulaMaintenanceCalories,
+            onReview: openAdaptiveTargetsOffer,
+            onDecline: {
+                HapticManager.instance.feedback(.light)
+                withAnimation(AppMotion.visibility) {
+                    firstWeekGuidance.declineAdaptiveOffer(surface: "home_card")
+                }
+            }
+        )
+        .onAppear {
+            firstWeekGuidance.recordOfferViewed(confidence: adaptiveGoalService.dataConfidence)
+        }
+    }
+
+    private func handleSetupChecklistItem(_ item: SetupChecklistItem) {
+        HapticManager.instance.feedback(.light)
+        firstWeekGuidance.recordChecklistAction(item)
+        guard !FirstWeekGuidancePreview.isEnabled else { return }
+        switch item {
+        case .firstMeal:
+            showingSetupFoodSearch = true
+        case .dailyReminder:
+            firstWeekGuidance.requestDailyReminder()
+        case .appleHealth:
+            healthKitViewModel.requestAuthorization()
+        case .firstWorkout:
+            appState.selectedTab = 2
+        }
+    }
+
+    private func openAdaptiveTargetsOffer() {
+        HapticManager.instance.feedback(.light)
+        firstWeekGuidance.recordOfferOpened()
+        guard !FirstWeekGuidancePreview.isEnabled else { return }
+        weeklyCheckInMode = .adaptiveOffer
+        showingWeeklyCheckIn = true
     }
 
     private func refreshStreakHistory() {
@@ -1609,6 +1754,7 @@ struct HomeView: View {
     private var weeklyCheckInBanner: some View {
         Button(action: {
             HapticManager.instance.feedback(.light)
+            weeklyCheckInMode = .checkIn
             showingWeeklyCheckIn = true
         }) {
             HStack(spacing: 12) {

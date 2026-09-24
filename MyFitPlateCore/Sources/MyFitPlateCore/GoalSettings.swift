@@ -86,6 +86,12 @@ public class GoalSettings: ObservableObject {
         return true
     }
 
+    /// The formula's daily burn (Mifflin-St Jeor BMR x activity level) before any goal
+    /// adjustment. Adaptive targets replace this estimate with one measured from the user's data.
+    public var formulaMaintenanceCalories: Double {
+        calculateBMR() * activityLevel
+    }
+
     // Micronutrient Goals
     @Published public var calciumGoal: Double?
     @Published public var ironGoal: Double?

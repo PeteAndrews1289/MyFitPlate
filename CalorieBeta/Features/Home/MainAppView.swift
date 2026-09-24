@@ -989,7 +989,8 @@ struct ContentView: View {
         } else {
             self.shouldShowFeatureTour = true
         }
-        NotificationManager.shared.requestDailyLogReminderAuthorization()
+        // Notifications are requested from Home's setup checklist, after the first meal, when
+        // the reminder's value is clear.
         ActivationFunnel.logOnce(ActivationFunnel.onboardingCompleted)
         accountSetup.store.clearAll()
         onboardingPrefill = nil

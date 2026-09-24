@@ -1,11 +1,29 @@
 import SwiftUI
 
 struct WeeklyCheckInView: View {
+    /// The weekly check-in for people on adaptive targets, or the first offer to switch to them.
+    enum Mode {
+        case checkIn
+        case adaptiveOffer
+    }
+
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @Environment(\.dismiss) var dismiss
     @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
     @State private var hasLoggedProposalView = false
+
+    private let mode: Mode
+    private let onDeclineOffer: () -> Void
+
+    init(mode: Mode = .checkIn, onDeclineOffer: @escaping () -> Void = {}) {
+        self.mode = mode
+        self.onDeclineOffer = onDeclineOffer
+    }
+
+    private var analyticsSurface: String {
+        mode == .checkIn ? "weekly_check_in" : "adaptive_offer"
+    }
 
     private var goalProposal: AdaptiveGoalService.WeeklyGoalProposal? {
         adaptiveGoalService.currentWeeklyGoalProposal(
@@ -95,7 +113,7 @@ struct WeeklyCheckInView: View {
                 .padding()
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Weekly check-in")
+            .navigationTitle(mode == .checkIn ? "Weekly check-in" : "Adaptive targets")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear(perform: logProposalViewedIfNeeded)
             .toolbar {
@@ -112,11 +130,14 @@ struct WeeklyCheckInView: View {
                 .padding()
                 .background(Color(UIColor.secondarySystemFill), in: Circle())
             
-            Text("Time for your check-in")
+            Text(mode == .checkIn ? "Time for your check-in" : "Your adaptive targets are ready")
                 .appFont(size: 21, weight: .bold)
                 .foregroundColor(.textPrimary)
-            
-            Text("We've analyzed your weight and nutrition data from the past 3 weeks to adjust your metabolism estimate.")
+                .multilineTextAlignment(.center)
+
+            Text(mode == .checkIn
+                 ? "We've analyzed your weight and nutrition data from the past 3 weeks to adjust your metabolism estimate."
+                 : "You've logged enough food and weigh-ins to measure what you really burn. Adaptive targets use that number and update as it changes.")
                 .appFont(size: 15)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
@@ -161,7 +182,7 @@ struct WeeklyCheckInView: View {
             Divider()
             
             VStack(spacing: 8) {
-                Text("Calculated TDEE")
+                Text("Your daily burn")
                     .appFont(size: 14, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                 
@@ -194,8 +215,8 @@ struct WeeklyCheckInView: View {
             }
             .buttonStyle(.plain)
             
-            Button(action: skipCheckIn) {
-                Text("Keep current targets")
+            Button(action: mode == .checkIn ? skipCheckIn : declineOffer) {
+                Text(mode == .checkIn ? "Keep current targets" : "Not now")
                     .appFont(size: 15, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(maxWidth: .infinity)
@@ -239,7 +260,9 @@ struct WeeklyCheckInView: View {
                 proposalDetails(goalProposal)
             }
 
-            Text("Accepting keeps the app in adaptive mode. Keeping current targets simply delays the change; your data will keep updating.")
+            Text(mode == .checkIn
+                 ? "Accepting keeps the app in adaptive mode. Keeping current targets simply delays the change; your data will keep updating."
+                 : "You can switch back any time in Settings under Calorie goal method.")
                 .appFont(size: 12)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .fixedSize(horizontal: false, vertical: true)
@@ -318,7 +341,7 @@ struct WeeklyCheckInView: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
             
-            Button(action: skipCheckIn) {
+            Button(action: mode == .checkIn ? skipCheckIn : closeWithoutDecision) {
                 Text("Check back later")
                     .appFont(size: 17, weight: .bold)
                     .foregroundColor(.textPrimary)
@@ -342,10 +365,24 @@ struct WeeklyCheckInView: View {
         if let userID = DIContainer.shared.authService.currentUserID {
             goalSettings.saveUserGoals(userID: userID)
         }
-        AppReviewPromptQueue.shared.recordWeeklyCheckIn()
+        if mode == .checkIn {
+            AppReviewPromptQueue.shared.recordWeeklyCheckIn()
+        }
         dismiss()
     }
-    
+
+    private func declineOffer() {
+        HapticManager.instance.feedback(.light)
+        logProposalDecision("not_now")
+        onDeclineOffer()
+        dismiss()
+    }
+
+    private func closeWithoutDecision() {
+        HapticManager.instance.feedback(.light)
+        dismiss()
+    }
+
     private func skipCheckIn() {
         HapticManager.instance.feedback(.light)
         logProposalDecision("kept_current")
@@ -368,6 +405,7 @@ struct WeeklyCheckInView: View {
         guard !hasLoggedProposalView, let proposal = goalProposal else { return }
         hasLoggedProposalView = true
         DIContainer.shared.analyticsManager?.logEvent("weekly_goal_proposal_viewed", parameters: [
+            "surface": analyticsSurface,
             "confidence": proposal.confidence.rawValue,
             "should_adjust": proposal.shouldAdjust,
             "delta": Int(proposal.calorieDelta.rounded()),
@@ -378,6 +416,7 @@ struct WeeklyCheckInView: View {
     private func logProposalDecision(_ decision: String) {
         guard let proposal = goalProposal else { return }
         DIContainer.shared.analyticsManager?.logEvent("weekly_goal_proposal_decision", parameters: [
+            "surface": analyticsSurface,
             "decision": decision,
             "confidence": proposal.confidence.rawValue,
             "should_adjust": proposal.shouldAdjust,

@@ -1508,6 +1508,98 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testFirstWeekGuidanceSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-dark-mode",
+            "-screenshot-screen",
+            "home",
+            "-first-week-guidance-preview",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let homeScrollView = app.scrollViews["home_scroll"]
+        let offerTitle = app.staticTexts["adaptive_offer_title"]
+        XCTAssertTrue(homeScrollView.waitForExistence(timeout: 10))
+        XCTAssertTrue(offerTitle.waitForExistence(timeout: 10))
+        revealIncrementally(app.buttons["adaptive_offer_decline"], in: homeScrollView)
+        XCTAssertTrue(app.buttons["adaptive_offer_review"].exists)
+        try auditFirstWeekGuidanceText(in: app)
+
+        let reminderStep = app.buttons["setup_checklist_daily_reminder"]
+        revealIncrementally(app.staticTexts["setup_checklist_title"], in: homeScrollView)
+        revealIncrementally(reminderStep, in: homeScrollView)
+        XCTAssertTrue(reminderStep.isHittable)
+        XCTAssertTrue(app.buttons["setup_checklist_first_workout"].exists)
+        try auditFirstWeekGuidanceText(in: app)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "First-week guidance - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFirstWeekGuidanceCardsCanBeSetAside() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "home",
+            "-first-week-guidance-preview"
+        ]
+        app.launch()
+
+        let homeScrollView = app.scrollViews["home_scroll"]
+        let decline = app.buttons["adaptive_offer_decline"]
+        XCTAssertTrue(decline.waitForExistence(timeout: 10))
+        tapAfterScrollSettles(decline, in: homeScrollView)
+        XCTAssertTrue(app.staticTexts["adaptive_offer_title"].waitForNonExistence(timeout: 5))
+
+        let firstMeal = app.buttons["setup_checklist_first_meal"]
+        revealIncrementally(firstMeal, in: homeScrollView)
+        XCTAssertEqual(firstMeal.value as? String, "Done")
+        XCTAssertFalse(firstMeal.isEnabled, "Finished steps are not actions")
+
+        tapAfterScrollSettles(app.buttons["setup_checklist_hide"], in: homeScrollView)
+        XCTAssertTrue(app.staticTexts["setup_checklist_title"].waitForNonExistence(timeout: 5))
+    }
+
+    /// A tap that lands while the scroll view is still decelerating only stops the scroll, so
+    /// let the reveal drag settle before tapping.
+    @MainActor
+    private func tapAfterScrollSettles(_ element: XCUIElement, in scrollable: XCUIElement) {
+        revealIncrementally(element, in: scrollable)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.75))
+        XCTAssertTrue(element.isHittable)
+        element.tap()
+    }
+
+    /// The same iOS 26 audit exception as the Home test: hidden visual children of the combined
+    /// daily-metric elements. Everything the guidance cards draw stays subject to the audit.
+    @MainActor
+    private func auditFirstWeekGuidanceText(in app: XCUIApplication) throws {
+        let dailyMetricVisualStrings: Set<String> = [
+            "Calories", "1,310 / 2,100 cal", "Calories\n1,310 / 2,100 cal",
+            "Protein", "98 / 160 g", "Protein\n98 / 160 g",
+            "Water", "72 / 64 oz", "Water\n72 / 64 oz",
+            "Activity", "1 session", "Activity\n1 session"
+        ]
+        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+            guard let element = issue.element else { return false }
+            return element.identifier.hasPrefix("home_daily_metric_visual_")
+                || dailyMetricVisualStrings.contains(element.label)
+        }
+    }
+
+    @MainActor
     func testVisualSystemGalleryIsLegible() throws {
         let app = XCUIApplication()
         app.terminate()

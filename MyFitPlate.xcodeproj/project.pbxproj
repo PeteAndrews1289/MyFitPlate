@@ -87,6 +87,7 @@
 		56D7EE1ED85CC9D6EBF8717E /* FirestorePostRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4535A4444569CF0E8B854865 /* FirestorePostRepository.swift */; };
 		58EB00FC3E6953DCA20EB3CB /* GroceryListControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12FAB32CF1A7FB2A0228407 /* GroceryListControls.swift */; };
 		5B1F531DDD59042C77847EA3 /* WeeklyCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BA675162481E5C7BBA4B97 /* WeeklyCheckInView.swift */; };
+		07E71C19BADBEAD1B13CCFC3 /* FirstWeekGuidanceCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8451B45D5258E880A43419 /* FirstWeekGuidanceCards.swift */; };
 		5D2A65DB394C14A2479A6492 /* FoodSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BCA06C54344DFE69715093 /* FoodSearchView.swift */; };
 		5D83A18AB5012EBC7FABE6B7 /* ProgramListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 058FC8B017AE7CF8B2AF44E2 /* ProgramListView.swift */; };
 		5DB7BE161EF64ED7FD208198 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 9688BC4017F8B2E029447BD9 /* FirebaseRemoteConfig */; };
@@ -386,6 +387,7 @@
 		7E1848CAF90E79615BE2E987 /* ImageProcessingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageProcessingView.swift; sourceTree = "<group>"; };
 		7F1A21D7F1890DA3618B9092 /* AIChatbotView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatbotView.swift; sourceTree = "<group>"; };
 		82BA675162481E5C7BBA4B97 /* WeeklyCheckInView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyCheckInView.swift; sourceTree = "<group>"; };
+		4D8451B45D5258E880A43419 /* FirstWeekGuidanceCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirstWeekGuidanceCards.swift; sourceTree = "<group>"; };
 		87986B23D4D38936461F52E9 /* AIChatbotViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatbotViewModel.swift; sourceTree = "<group>"; };
 		8AC170DB70E226978987A0E6 /* HealthTrackingCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthTrackingCards.swift; sourceTree = "<group>"; };
 		8AFFFDC419292213E5D03F64 /* SuggestionPreferencesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionPreferencesView.swift; sourceTree = "<group>"; };
@@ -772,6 +774,7 @@
 				F10000000000000000000007 /* HomeSwipeableRows.swift */,
 				920C67B4059D00696E7BD7A9 /* CoachingDashboardView.swift */,
 				82BA675162481E5C7BBA4B97 /* WeeklyCheckInView.swift */,
+				4D8451B45D5258E880A43419 /* FirstWeekGuidanceCards.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -1414,6 +1417,7 @@
 				B23000000000000000000002 /* TrainingFuelTargetContextView.swift in Sources */,
 				74A84ACA5D2B3AEC03641AFE /* CoachingDashboardView.swift in Sources */,
 				5B1F531DDD59042C77847EA3 /* WeeklyCheckInView.swift in Sources */,
+				07E71C19BADBEAD1B13CCFC3 /* FirstWeekGuidanceCards.swift in Sources */,
 				1903E0AC163EFE5AE473D004 /* AIMenuSelectionView.swift in Sources */,
 				F7A965BF99A611A750911F55 /* AISummaryView.swift in Sources */,
 				D04C552A4E4566DCA755C10B /* AITextLogView.swift in Sources */,

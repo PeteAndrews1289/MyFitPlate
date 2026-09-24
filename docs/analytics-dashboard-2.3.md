@@ -62,6 +62,26 @@ system prompt actually appears, so this event is an upper bound on prompts shown
 three distinct positive moments over at least three days, at most one request per app version,
 and a 120-day cooldown. Compare weekly counts with App Store Connect ratings by version.
 
+## First-week guidance (next release)
+
+New accounts see a "Get set up" checklist on Home for up to 21 days after onboarding. Notification
+and Apple Health permission prompts appear only after a tap on its steps; onboarding no longer asks
+for notifications. People on the formula estimate see an adaptive-targets offer once their logs and
+weigh-ins give a medium- or high-confidence estimate. Events carry only enum and count values.
+
+| Question | Event and definition |
+|---|---|
+| Did new people see the checklist? | `setup_checklist_viewed` with `completed_count` and `item_count`, once per account per launch. |
+| Which steps did they start? | `setup_checklist_action` with `checklist_item` (`first_meal`, `daily_reminder`, `apple_health`, or `first_workout`). |
+| Did they hide it early? | `setup_checklist_dismissed` with `completed_count`. |
+| Did formula users see the offer? | `adaptive_targets_offer_viewed` with `confidence` (`high` or `medium`), once per account per launch. |
+| Did they open it? | `adaptive_targets_offer_opened` with `surface` (`home_card`). |
+| Did they put it off? | `adaptive_targets_offer_declined` with `surface` (`home_card` or `check_in`); the offer returns after 14 days. |
+
+Measure the notification change as distinct `setup_checklist_action` users with `daily_reminder`
+divided by distinct `first_food_logged` users. Acceptance comes from `weekly_goal_proposal_decision`,
+whose `surface` is `adaptive_offer` for the offer and `weekly_check_in` for the regular check-in.
+
 ## Training and fuel leading indicators
 
 These events evaluate the replacement 2.2 loop before waiting for D7 retention:
