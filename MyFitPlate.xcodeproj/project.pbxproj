@@ -45,7 +45,6 @@
 		3D61D8BDA7E88324F40DBB0B /* SettingsSupportSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08E2530D8B1786C5B6CD31B /* SettingsSupportSection.swift */; };
 		3D70A48A61E380FC0217298E /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E177692C65003E9F6183CFE9 /* RunActivityAttributes.swift */; };
 		3EB09F442CC7EB7C0088C849 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3EB09F432CC7EB7C0088C849 /* FirebaseCore */; };
-		3EB09F492CCBFA6D0088C849 /* DGCharts in Frameworks */ = {isa = PBXBuildFile; productRef = 3EB09F482CCBFA6D0088C849 /* DGCharts */; };
 		3EB2977E2CAEEDCA0093E1B9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3EB2977D2CAEEDCA0093E1B9 /* Assets.xcassets */; };
 		3EB297822CAEEDCA0093E1B9 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3EB297812CAEEDCA0093E1B9 /* Preview Assets.xcassets */; };
 		3EB297932CAEF1300093E1B9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB297922CAEF1300093E1B9 /* SettingsView.swift */; };
@@ -53,7 +52,6 @@
 		3EC693D62CB83700002222C6 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D52CB83700002222C6 /* FirebaseAuth */; };
 		3EC693D82CB83700002222C6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D72CB83700002222C6 /* FirebaseFirestore */; };
 		3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D92CB83700002222C6 /* FirebaseAppCheck */; };
-		3EC693DC2CB8387C002222C6 /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693DB2CB8387C002222C6 /* FirebaseFirestoreCombine-Community */; };
 		42DEE0ACB28F52825B84E044 /* ExerciseCardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC931BD6D999867A76E46B9 /* ExerciseCardViews.swift */; };
 		48BFE1337E2DCE2DF13B4861 /* WorkoutCompleteAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 517B4E7447CE20FDB3548868 /* WorkoutCompleteAnalyticsView.swift */; };
 		4A29B4703D532360B3801CCF /* MealPlanSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1CF52DA1681A7CD91E9EDA /* MealPlanSurveyView.swift */; };
@@ -182,7 +180,6 @@
 		C492B917130A45C906C4F13C /* PlateCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1477D10015907504DC152A4 /* PlateCalculatorView.swift */; };
 		CB45F16C1F80853956621A94 /* GroceryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5C4F03C5EFECBA18FFB0E0 /* GroceryListView.swift */; };
 		CC607331CC4E0A690F63A39F /* WeightChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9270182E8D31B92E9574DF3E /* WeightChartView.swift */; };
-		CDFCCD0944907B6FF8DEA012 /* WeightTrackingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE5409E4DA26163CD487DC6 /* WeightTrackingViewController.swift */; };
 		CE2BEB3B0D6AA1EEDA72ED8F /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24494F090F695D8EF543AD11 /* AIService.swift */; };
 		D04C552A4E4566DCA755C10B /* AITextLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994ACE6FC910CC9668464A21 /* AITextLogView.swift */; };
 		D1D72C2CFAC1AEF44E576A72 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
@@ -430,7 +427,6 @@
 		BAE041AFEC985C10C2CF5FC0 /* FastingActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FastingActivityAttributes.swift; sourceTree = "<group>"; };
 		BBC931BD6D999867A76E46B9 /* ExerciseCardViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExerciseCardViews.swift; sourceTree = "<group>"; };
 		BD119618968F9048E17B17C7 /* TodaysNextStepSlider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodaysNextStepSlider.swift; sourceTree = "<group>"; };
-		BFE5409E4DA26163CD487DC6 /* WeightTrackingViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeightTrackingViewController.swift; sourceTree = "<group>"; };
 		C05C9EC77D624D92FD222778 /* ProgramDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProgramDetailView.swift; sourceTree = "<group>"; };
 		C08E2530D8B1786C5B6CD31B /* SettingsSupportSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsSupportSection.swift; sourceTree = "<group>"; };
 		C1E1EB112828BB51ADA9159E /* RestaurantValueRadarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestaurantValueRadarView.swift; sourceTree = "<group>"; };
@@ -529,9 +525,7 @@
 				3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */,
 				3EC693D42CB83700002222C6 /* FirebaseAnalytics in Frameworks */,
 				3EB09F442CC7EB7C0088C849 /* FirebaseCore in Frameworks */,
-				3EC693DC2CB8387C002222C6 /* FirebaseFirestoreCombine-Community in Frameworks */,
 				3EC693D62CB83700002222C6 /* FirebaseAuth in Frameworks */,
-				3EB09F492CCBFA6D0088C849 /* DGCharts in Frameworks */,
 				4B6046A92DEE1F0E000B4A46 /* FirebaseCrashlytics in Frameworks */,
 				4BC927C32FF199C400C46AA9 /* MyFitPlateCore in Frameworks */,
 				3EC693D82CB83700002222C6 /* FirebaseFirestore in Frameworks */,
@@ -713,7 +707,6 @@
 				4FA9C3AA5D9F344C602ABC10 /* HealthDisclaimerView.swift */,
 				9270182E8D31B92E9574DF3E /* WeightChartView.swift */,
 				4593785C3CAC2D075553B720 /* WeightTrackingView.swift */,
-				BFE5409E4DA26163CD487DC6 /* WeightTrackingViewController.swift */,
 				48664E9634718D3D7CDAD50D /* CurrentWeightView.swift */,
 				D6F5898E5EF5725E4313005C /* SetHeightView.swift */,
 				2AC096F3FB820A7401466BB4 /* WellnessScore.swift */,
@@ -1019,9 +1012,7 @@
 				3EC693D32CB83700002222C6 /* FirebaseAnalytics */,
 				3EC693D52CB83700002222C6 /* FirebaseAuth */,
 				3EC693D72CB83700002222C6 /* FirebaseFirestore */,
-				3EC693DB2CB8387C002222C6 /* FirebaseFirestoreCombine-Community */,
 				3EB09F432CC7EB7C0088C849 /* FirebaseCore */,
-				3EB09F482CCBFA6D0088C849 /* DGCharts */,
 				4B6046A82DEE1F0E000B4A46 /* FirebaseCrashlytics */,
 				3214A6CEC049E175330F27DC /* FirebaseFunctions */,
 				9688BC4017F8B2E029447BD9 /* FirebaseRemoteConfig */,
@@ -1191,7 +1182,6 @@
 			mainGroup = 3EB2976D2CAEEDC80093E1B9;
 			packageReferences = (
 				3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-				3EB09F472CCBFA6D0088C849 /* XCRemoteSwiftPackageReference "Charts" */,
 				4BC927C12FF199C400C46AA9 /* XCLocalSwiftPackageReference "MyFitPlateCore" */,
 			);
 			productRefGroup = 3EB297772CAEEDC90093E1B9 /* Products */;
@@ -1367,7 +1357,6 @@
 				2454E657087EEFB0D4EECCD0 /* HealthDisclaimerView.swift in Sources */,
 				CC607331CC4E0A690F63A39F /* WeightChartView.swift in Sources */,
 				6C75413CF559C5DD1C80B1EF /* WeightTrackingView.swift in Sources */,
-				CDFCCD0944907B6FF8DEA012 /* WeightTrackingViewController.swift in Sources */,
 				A79130A2D5EECE475336E05F /* CurrentWeightView.swift in Sources */,
 				8BA755148CFCD9D4E9E6B4B6 /* SetHeightView.swift in Sources */,
 				296722F5BCA143F6691818D4 /* WellnessScore.swift in Sources */,
@@ -2147,14 +2136,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		3EB09F472CCBFA6D0088C849 /* XCRemoteSwiftPackageReference "Charts" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/danielgindi/Charts.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.1.0;
-			};
-		};
 		3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
@@ -2175,11 +2156,6 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = FirebaseCore;
 		};
-		3EB09F482CCBFA6D0088C849 /* DGCharts */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3EB09F472CCBFA6D0088C849 /* XCRemoteSwiftPackageReference "Charts" */;
-			productName = DGCharts;
-		};
 		3EC693D32CB83700002222C6 /* FirebaseAnalytics */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
@@ -2199,11 +2175,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAppCheck;
-		};
-		3EC693DB2CB8387C002222C6 /* FirebaseFirestoreCombine-Community */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = "FirebaseFirestoreCombine-Community";
 		};
 		4B6046A82DEE1F0E000B4A46 /* FirebaseCrashlytics */ = {
 			isa = XCSwiftPackageProductDependency;
