@@ -1,7 +1,7 @@
 import WidgetKit
 import AppIntents
 import SwiftUI
-import MyFitPlateCore
+import MyFitPlateShared
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {

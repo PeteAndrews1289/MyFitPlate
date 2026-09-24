@@ -1,7 +1,7 @@
 #if canImport(ActivityKit)
 import AppIntents
 import ActivityKit
-import MyFitPlateCore
+import MyFitPlateShared
 
 struct EndRestIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "End Rest"

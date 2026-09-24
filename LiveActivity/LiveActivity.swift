@@ -3,7 +3,7 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 import AppIntents
-import MyFitPlateCore
+import MyFitPlateShared
 
 enum LiveActivityPalette {
     static let brand = Color(red: 0.263, green: 0.678, blue: 0.435)

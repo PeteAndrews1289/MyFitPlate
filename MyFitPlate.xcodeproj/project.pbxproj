@@ -93,7 +93,7 @@
 		626E9EE01A1A3E975533826E /* FirestoreNutritionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A67B47A0D8FF8AEFB1F846CB /* FirestoreNutritionRepository.swift */; };
 		62992ECF038BF8DF15DC8249 /* QuickAddMacrosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 596F113E58BF96F6625FA145 /* QuickAddMacrosView.swift */; };
 		63DB67E365CDE275083400EB /* RoutineEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501AD9D6DBBB3CA36533605F /* RoutineEditorView.swift */; };
-		65F11F38EE30E5502678DC9D /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
+		65F11F38EE30E5502678DC9D /* MyFitPlateShared in Frameworks */ = {isa = PBXBuildFile; productRef = 12B1A6FB7423F1FCD680F8BB /* MyFitPlateShared */; };
 		674EB146C152810F3434476A /* AIChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F1A21D7F1890DA3618B9092 /* AIChatbotView.swift */; };
 		68E2441A105207BB3351550D /* RecipeLoggingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD84244101B704B064DC45EB /* RecipeLoggingView.swift */; };
 		6B6771AB322D548EE430A3CD /* ChatBoxShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = E512584F4E59DF851A405406 /* ChatBoxShape.swift */; };
@@ -130,7 +130,7 @@
 		9E72528672FD4636311C2A65 /* DetailedInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16452663171ACDF10A869684 /* DetailedInsightsView.swift */; };
 		9E8257A9AC4B76470C399A09 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E218C75A46BA3C1801F402D1 /* CreateAccountView.swift */; };
 		9EC71A45F829ABC5064722EC /* GrocerySummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E821ADF0C6D2385596276242 /* GrocerySummaryCard.swift */; };
-		A04E0C77C078E6DFAF732FC5 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
+		A04E0C77C078E6DFAF732FC5 /* MyFitPlateShared in Frameworks */ = {isa = PBXBuildFile; productRef = 12B1A6FB7423F1FCD680F8BB /* MyFitPlateShared */; };
 		A1B2C3D4E5F60718293A4B5C /* ShoeGearManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A60718293A4B5C /* ShoeGearManagerView.swift */; };
 		A4FA80369D7AD6ED7D0A222E /* AITextResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3B9DE39C974D30FB610AFA1 /* AITextResultsView.swift */; };
 		A5136E7AEEC91E84C8C8819F /* WaterBottleUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F205CCE1C9A9F38DEB82AD7 /* WaterBottleUI.swift */; };
@@ -538,7 +538,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A04E0C77C078E6DFAF732FC5 /* MyFitPlateCore in Frameworks */,
+				A04E0C77C078E6DFAF732FC5 /* MyFitPlateShared in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -570,7 +570,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				65F11F38EE30E5502678DC9D /* MyFitPlateCore in Frameworks */,
+				65F11F38EE30E5502678DC9D /* MyFitPlateShared in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1039,7 +1039,7 @@
 			);
 			name = CalorieWidgetExtension;
 			packageProductDependencies = (
-				4BC927C22FF199C400C46AA9 /* MyFitPlateCore */,
+				12B1A6FB7423F1FCD680F8BB /* MyFitPlateShared */,
 			);
 			productName = CalorieWidgetExtension;
 			productReference = 312D47B8BCD9351770BEB9B6 /* CalorieWidgetExtension.appex */;
@@ -1133,7 +1133,7 @@
 			);
 			name = LiveActivityExtension;
 			packageProductDependencies = (
-				4BC927C22FF199C400C46AA9 /* MyFitPlateCore */,
+				12B1A6FB7423F1FCD680F8BB /* MyFitPlateShared */,
 			);
 			productName = LiveActivityExtension;
 			productReference = 938C64A067981FDB86164AF5 /* LiveActivityExtension.appex */;
@@ -2180,6 +2180,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCrashlytics;
+		};
+		12B1A6FB7423F1FCD680F8BB /* MyFitPlateShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC927C12FF199C400C46AA9 /* XCLocalSwiftPackageReference "MyFitPlateCore" */;
+			productName = MyFitPlateShared;
 		};
 		4BC927C22FF199C400C46AA9 /* MyFitPlateCore */ = {
 			isa = XCSwiftPackageProductDependency;
