@@ -76,7 +76,7 @@ struct AddExerciseView: View {
                         }
                     }
 
-                    DatePicker("Activity date", selection: $selectedDate, displayedComponents: .date)
+                    AppDateField("Activity date", selection: $selectedDate)
                         .appTextRole(.control)
                         .padding(AppSpacing.group)
                         .background(

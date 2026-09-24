@@ -1043,3 +1043,34 @@ public enum AppDataAvailabilityReason: Equatable, Sendable {
         }
     }
 }
+
+/// A date row that stays inside narrow columns at the largest text sizes. A compact picker's date
+/// cannot wrap, so at accessibility sizes the label moves above the picker and the picker caps
+/// its own text size; at every other size it is a standard labeled `DatePicker`.
+public struct AppDateField: View {
+    public let title: String
+    @Binding public var selection: Date
+    public let components: DatePickerComponents
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    public init(_ title: String, selection: Binding<Date>, displayedComponents: DatePickerComponents = .date) {
+        self.title = title
+        self._selection = selection
+        self.components = displayedComponents
+    }
+
+    public var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                Text(title)
+                DatePicker(title, selection: $selection, displayedComponents: components)
+                    .labelsHidden()
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            DatePicker(title, selection: $selection, displayedComponents: components)
+        }
+    }
+}

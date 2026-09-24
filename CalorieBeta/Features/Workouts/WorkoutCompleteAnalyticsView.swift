@@ -737,7 +737,7 @@ private struct WorkoutSessionLogEditorSheet: View {
                         subtitle: "Changes update this MyFitPlate history record."
                     )
 
-                    DatePicker("Date", selection: $draft.date, displayedComponents: [.date, .hourAndMinute])
+                    AppDateField("Date", selection: $draft.date, displayedComponents: [.date, .hourAndMinute])
                         .appTextRole(.control)
                         .padding(AppSpacing.group)
                         .background(
