@@ -35,6 +35,25 @@ data is used to make product decisions.
 | Is logging becoming habitual? | Weekly active loggers | Distinct users with `logging_day_active` in a rolling seven-day window. The app emits at most one event per app instance and local day. |
 | Are users returning? | D1/D7 return | Firebase retention for the onboarding cohort, segmented by app version. Use Firebase's app-instance identity; MyFitPlate account IDs remain disabled. |
 
+## Onboarding and account creation (next release)
+
+The plan-first onboarding (PR #10) measures the steps before `onboarding_completed`. Each event
+carries at most the enum `method` (`apple` or `email`); quiz answers, targets, names, and email
+addresses are never sent.
+
+| Question | Event and definition |
+|---|---|
+| Did a visitor start the quiz? | `onboarding_started`: the pre-account quiz opened from Welcome. |
+| Did the quiz produce a plan? | `onboarding_plan_revealed`: a complete answer set reached the plan screen. |
+| Did the plan become an account? | `account_created` with `method`: authentication created a new account. |
+| Did a returning person sign in? | `sign_in_completed` with `method`: authentication reached an existing account. |
+
+Report quiz completion as distinct `onboarding_plan_revealed` / `onboarding_started`, and account
+conversion as distinct `account_created` / `onboarding_plan_revealed`, split by `method`. Register
+`method` as a custom dimension before analysis. `account_deletion_completed` also carries
+`apple_token` (`revoked` or `revocation_failed`) for Sign in with Apple accounts; any
+`revocation_failed` means the Firebase Apple provider's OAuth code-flow settings need attention.
+
 ## Training and fuel leading indicators
 
 These events evaluate the replacement 2.2 loop before waiting for D7 retention:
