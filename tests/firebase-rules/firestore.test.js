@@ -1,3 +1,4 @@
+const { describe, it, before, after, beforeEach } = require('node:test');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
 const fs = require('fs');
 const path = require('path');

@@ -109,9 +109,10 @@ if (require.main === module) {
     const dryRun = args.includes('--dry-run');
     const prod = args.includes('--prod');
 
-    let admin;
+    let initializeApp, getFirestore;
     try {
-      admin = require('firebase-admin');
+      ({ initializeApp } = require('firebase-admin/app'));
+      ({ getFirestore } = require('firebase-admin/firestore'));
     } catch {
       console.error('firebase-admin is not installed. Run `npm install firebase-admin` in tools/firestore-migrate.');
       process.exit(1);
@@ -126,15 +127,15 @@ if (require.main === module) {
         console.error('Refusing to run against prod without --yes-i-took-a-backup. Run scripts/firestore-backup.sh first.');
         process.exit(1);
       }
-      admin.initializeApp();
+      initializeApp();
       console.log('Target: PRODUCTION Firestore.');
     } else {
       process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
-      admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT || 'caloriebeta-d28de' });
+      initializeApp({ projectId: process.env.GCLOUD_PROJECT || 'caloriebeta-d28de' });
       console.log(`Target: Firestore emulator at ${process.env.FIRESTORE_EMULATOR_HOST}.`);
     }
 
-    const db = admin.firestore();
+    const db = getFirestore();
     const { ok, results } = await runMigrations(db, { dryRun, log: console.log });
 
     console.log('\nSummary:');

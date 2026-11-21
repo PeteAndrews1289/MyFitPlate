@@ -27,7 +27,7 @@ full health export, or another person's personal information.
 - **Change Apple Health access:** Open MyFitPlate Settings and choose **Review Health access**, or manage MyFitPlate in the iOS Health app.
 - **Change AI data sharing:** Open **Settings > AI data sharing**. Apple Health context is optional and controlled separately within that screen.
 - **Export data:** Open **Settings > Export your data**.
-- **Delete an account:** Open **Settings > Delete account** and verify your password. The app reports success only after account data and the login record have been deleted.
+- To **delete an account**, open **Settings > Delete account**. If you used Sign in with Apple, confirm in Apple’s prompt. If you signed up with email and password, enter your MyFitPlate password. The app reports success after the server deletes your account data and login record.
 - **Reset a password:** Use the password-reset option on the MyFitPlate sign-in screen.
 
 MyFitPlate does not provide emergency or medical services. Contact local emergency services or a qualified healthcare professional when appropriate.

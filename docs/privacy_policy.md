@@ -57,7 +57,7 @@ We use authenticated connections, platform security controls, Firebase security 
 
 ## 6. Account and Data Deletion
 
-You can delete your account from **Settings > Delete account**. After password verification, MyFitPlate's server deletes your Firebase user document and subcollections, associated social and community records, usage counters, and Firebase Authentication record before reporting success. The app then clears its local account data and shared widget data.
+You can delete your account from **Settings > Delete account**. Confirm with Apple if you used Sign in with Apple, or enter your password if you signed up with email and password. After verification, MyFitPlate's server deletes your Firebase user document and subcollections, associated social and community records, usage counters, and Firebase Authentication record before reporting success. The app then clears its local account data and shared widget data.
 
 Information already written to Apple Health is controlled by Apple Health. You can review or delete that information in Apple's Health app. Records that must be retained for security or legal obligations may be kept only for the required period.
 
