@@ -1,20 +1,25 @@
 import Foundation
 
 enum USDAFoodRequestBuilder {
-    static func searchURL(query: String, apiKey: String, requireAllWords: Bool = true) -> URL? {
+    private struct SearchCriteria: Encodable {
+        let query: String
+        let requireAllWords: Bool
+        let pageSize = 20
+        let dataType = ["Branded", "Foundation", "SR Legacy", "Survey (FNDDS)"]
+    }
+
+    static func searchRequest(query: String, apiKey: String, requireAllWords: Bool = true) -> URLRequest? {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty,
               var components = URLComponents(string: "https://api.nal.usda.gov/fdc/v1/foods/search") else { return nil }
-        components.queryItems = [
-            URLQueryItem(name: "query", value: String(query.prefix(160))),
-            URLQueryItem(name: "api_key", value: apiKey),
-            URLQueryItem(name: "pageSize", value: "20"),
-            URLQueryItem(name: "dataType", value: "Branded,Foundation,SR Legacy,Survey (FNDDS)"),
-            // USDA's default is an OR search: a named milk query can fill the entire
-            // response with unrelated generic milk before our ranker sees any brand.
-            URLQueryItem(name: "requireAllWords", value: requireAllWords ? "true" : "false")
-        ]
-        return components.url
+        components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
+        let criteria = SearchCriteria(query: String(query.prefix(160)), requireAllWords: requireAllWords)
+        guard let url = components.url, let body = try? JSONEncoder().encode(criteria) else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        return request
     }
 }
 
@@ -26,7 +31,7 @@ enum USDAFoodSearchPipeline {
     enum RequestError: Error { case rejectedQuery }
     static func search(query: String, apiKey: String, timeout: TimeInterval,
                        now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-                       load: (URL, TimeInterval) async throws -> Data) async throws -> [FoodItem] {
+                       load: (URLRequest, TimeInterval) async throws -> Data) async throws -> [FoodItem] {
         let deadline = now() + timeout
         var rejectedPhrase = false
         let words = query.split(whereSeparator: \.isWhitespace)
@@ -40,11 +45,11 @@ enum USDAFoodSearchPipeline {
                 words.last.map { (2...3).contains($0.count) && $0.allSatisfy(\.isLetter) } == true
             let lookup: String
             if rejectedPhrase { lookup = words.prefix(2).joined(separator: " ") } else if retryPrefix { lookup = words.dropLast().joined(separator: " ") } else { lookup = query }
-            guard let url = USDAFoodRequestBuilder.searchURL(query: lookup, apiKey: apiKey, requireAllWords: requireAllWords || retryPrefix || rejectedPhrase) else {
+            guard let request = USDAFoodRequestBuilder.searchRequest(query: lookup, apiKey: apiKey, requireAllWords: requireAllWords || retryPrefix || rejectedPhrase) else {
                 throw APIError.invalidURL
             }
             let data: Data
-            do { data = try await load(url, remaining) } catch RequestError.rejectedQuery where requireAllWords && words.count > 2 {
+            do { data = try await load(request, remaining) } catch RequestError.rejectedQuery where requireAllWords && words.count > 2 {
                 rejectedPhrase = true
                 continue
             }
@@ -87,8 +92,8 @@ public class USDAFoodAPIService {
     public func searchFoodsResult(query: String) async -> Result<[FoodItem], Error> {
         guard let apiKey else { return .failure(APIError.apiError("USDA search is not configured.")) }
         do {
-            return .success(try await USDAFoodSearchPipeline.search(query: query, apiKey: apiKey, timeout: requestTimeout) { url, timeout in
-                try await self.responseData(from: url, timeout: timeout)
+            return .success(try await USDAFoodSearchPipeline.search(query: query, apiKey: apiKey, timeout: requestTimeout) { request, timeout in
+                try await self.responseData(for: request, timeout: timeout)
             })
         } catch {
             return .failure(error)
@@ -110,19 +115,17 @@ public class USDAFoodAPIService {
         ]
         guard let url = components.url else { return nil }
         do {
-            let data = try await responseData(from: url)
+            let data = try await responseData(for: URLRequest(url: url))
             return try USDAFoodParser.foodItem(matchingBarcode: normalized, from: data)
         } catch {
             return nil
         }
     }
 
-    private func responseData(from url: URL, timeout: TimeInterval? = nil) async throws -> Data {
-        var request = URLRequest(
-            url: url,
-            cachePolicy: .reloadIgnoringLocalCacheData,
-            timeoutInterval: timeout ?? requestTimeout
-        )
+    private func responseData(for search: URLRequest, timeout: TimeInterval? = nil) async throws -> Data {
+        var request = search
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = timeout ?? requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         if (response as? HTTPURLResponse)?.statusCode == 400 { throw USDAFoodSearchPipeline.RequestError.rejectedQuery }

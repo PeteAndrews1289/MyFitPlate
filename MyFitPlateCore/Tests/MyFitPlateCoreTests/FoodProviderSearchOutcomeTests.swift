@@ -4,11 +4,11 @@ import XCTest
 
 private class SearchOutcomeURLProtocol: URLProtocol {
     static var response: Result<(Int, Data), Error> = .failure(URLError(.timedOut))
-    static var lastRequestURL: URL?
+    static var requests: [URLRequest] = []
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        Self.lastRequestURL = request.url
+        Self.requests.append(request)
         switch Self.response {
         case .failure(let error): client?.urlProtocol(self, didFailWithError: error)
         case .success(let (status, data)):
@@ -28,14 +28,15 @@ final class FoodProviderSearchOutcomeTests: XCTestCase {
         configuration.protocolClasses = [SearchOutcomeURLProtocol.self]
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
-        SearchOutcomeURLProtocol.lastRequestURL = nil
-        SearchOutcomeURLProtocol.response = .success((200, Data(#"{"foods":[]}"#.utf8)))
+        SearchOutcomeURLProtocol.requests = []
+        SearchOutcomeURLProtocol.response = .success((200, Data(#"{"foods":[{"fdcId":1,"description":"Yogurt","brandName":"Fage","foodNutrients":[]}]}"#.utf8)))
         let result = await USDAFoodAPIService(apiKey: "synthetic-test-key", session: session).searchFoodsResult(query: "yogurt")
-        XCTAssertEqual(try result.get().count, 0)
-        let url = try XCTUnwrap(SearchOutcomeURLProtocol.lastRequestURL)
-        let values = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
-        XCTAssertEqual(values.first { $0.name == "dataType" }?.value, "Branded,Foundation,SR Legacy,Survey (FNDDS)")
-        XCTAssertEqual(values.first { $0.name == "pageSize" }?.value, "20")
+        XCTAssertEqual(try result.get().first?.sourceMetadata?.brandName, "Fage")
+        XCTAssertEqual(SearchOutcomeURLProtocol.requests.count, 1)
+        let request = try XCTUnwrap(SearchOutcomeURLProtocol.requests.first)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/fdc/v1/foods/search")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
     }
     func testHTTPNetworkAndDecodeFailuresCannotBecomeSuccessfulEmptyUSDAOrOFFSearches() async {
         let configuration = URLSessionConfiguration.ephemeral

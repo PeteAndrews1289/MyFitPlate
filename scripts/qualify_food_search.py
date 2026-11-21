@@ -2,7 +2,7 @@
 """Opt-in, bounded catalog reads. Never reads account tokens or user food logs.
 
 USDA credentials come from USDA_API_KEY or the local ignored secrets.xcconfig;
-the app's api_key query transport is reproduced, but URLs/keys never enter output. Raw public responses
+the app's JSON search and api_key credential transport are reproduced. Raw public responses
 are compressed beside append-only request metadata for replay through Swift.
 This measures the named host/provider transport, not app UI or device latency.
 """
@@ -74,23 +74,27 @@ def main():
                 continue  # failures stay recorded; resume does not hide/retry them
             time.sleep(max(0, interval - (time.monotonic() - last_started)))
             headers = {"Accept": "application/json", "User-Agent": "MyFitPlate/2.4 (search QA; https://github.com/PeteAndrews1289/MyFitPlate)"}
+            payload = None
             if args.provider == "usda":
-                params = {"query": item["query"], "api_key": key, "pageSize": "20", "dataType": "Branded,Foundation,SR Legacy,Survey (FNDDS)"}
-                if variant == "all_words": params["requireAllWords"] = "true"
+                params = {"api_key": key}
+                criteria = {"query": item["query"], "pageSize": 20, "requireAllWords": variant == "all_words",
+                            "dataType": ["Branded", "Foundation", "SR Legacy", "Survey (FNDDS)"]}
+                payload = json.dumps(criteria).encode()
+                headers["Content-Type"] = "application/json"
                 endpoint = "https://api.nal.usda.gov/fdc/v1/foods/search"
             else:
                 params = {"search_terms": item["query"], "search_simple": "1", "action": "process", "json": "1", "page_size": "25"}
                 if variant == "fields": params["fields"] = OFF_FIELDS
                 endpoint = "https://world.openfoodfacts.org/cgi/search.pl"
             record = {"query_id": item["id"], "provider": args.provider, "variant": variant,
-                      "query": item["query"], "category": item["category"],
+                      "query": item["query"], "category": item["category"], "method": "POST" if payload else "GET",
                       "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                       "transport_scope": "host urllib; public catalog; no app auth, merge, rendering or device timing",
                       "timeout_seconds": 6, "credential_transport": "api_key query; URL never recorded" if key else "none"}
             started = last_started = time.monotonic()
             remaining = None
             try:
-                request = urllib.request.Request(endpoint + "?" + urllib.parse.urlencode(params), headers=headers)
+                request = urllib.request.Request(endpoint + "?" + urllib.parse.urlencode(params), data=payload, headers=headers)
                 with urllib.request.urlopen(request, timeout=6) as response:
                     body = response.read()
                     record["http_status"] = response.status

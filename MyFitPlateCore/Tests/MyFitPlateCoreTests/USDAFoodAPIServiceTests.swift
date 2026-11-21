@@ -2,23 +2,39 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class USDAFoodAPIServiceTests: XCTestCase {
+    private struct Criteria: Decodable {
+        let query: String
+        let requireAllWords: Bool
+        let dataType: [String]
+        let pageSize: Int
+    }
+
+    private static func criteria(_ request: URLRequest) throws -> Criteria {
+        try JSONDecoder().decode(Criteria.self, from: XCTUnwrap(request.httpBody))
+    }
+
     func testSearchRequiresEveryTypedTermBeforeBoundedResultsAreRanked() throws {
-        let url = try XCTUnwrap(USDAFoodRequestBuilder.searchURL(query: " Fairlife 2% milk ", apiKey: "test-key"))
-        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
-        XCTAssertEqual(items.first { $0.name == "query" }?.value, "Fairlife 2% milk")
-        XCTAssertEqual(items.first { $0.name == "requireAllWords" }?.value, "true")
-        XCTAssertEqual(items.first { $0.name == "pageSize" }?.value, "20")
-        XCTAssertEqual(items.first { $0.name == "dataType" }?.value, "Branded,Foundation,SR Legacy,Survey (FNDDS)")
+        let request = try XCTUnwrap(USDAFoodRequestBuilder.searchRequest(query: " Fairlife 2% milk ", apiKey: "test-key"))
+        let criteria = try Self.criteria(request)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(criteria.query, "Fairlife 2% milk")
+        XCTAssertTrue(criteria.requireAllWords)
+        XCTAssertEqual(criteria.pageSize, 20)
+        XCTAssertEqual(criteria.dataType, ["Branded", "Foundation", "SR Legacy", "Survey (FNDDS)"])
     }
 
     func testSearchBoundsInputAndDoesNotAllowQueryParameterInjection() throws {
-        let url = try XCTUnwrap(USDAFoodRequestBuilder.searchURL(query: "milk&requireAllWords=false", apiKey: "test-key"))
+        let request = try XCTUnwrap(USDAFoodRequestBuilder.searchRequest(query: "milk&requireAllWords=false", apiKey: "test-key"))
+        let url = try XCTUnwrap(request.url)
         let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
-        XCTAssertEqual(items.filter { $0.name == "requireAllWords" }.compactMap(\.value), ["true"])
-        XCTAssertEqual(items.first { $0.name == "query" }?.value, "milk&requireAllWords=false")
-        let long = try XCTUnwrap(USDAFoodRequestBuilder.searchURL(query: String(repeating: "x", count: 500), apiKey: "test-key"))
-        XCTAssertEqual(URLComponents(url: long, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "query" }?.value?.count, 160)
-        XCTAssertNil(USDAFoodRequestBuilder.searchURL(query: " \n ", apiKey: "test-key"))
+        XCTAssertEqual(items, [URLQueryItem(name: "api_key", value: "test-key")])
+        let criteria = try Self.criteria(request)
+        XCTAssertTrue(criteria.requireAllWords)
+        XCTAssertEqual(criteria.query, "milk&requireAllWords=false")
+        let long = try XCTUnwrap(USDAFoodRequestBuilder.searchRequest(query: String(repeating: "x", count: 500), apiKey: "test-key"))
+        XCTAssertEqual(try Self.criteria(long).query.count, 160)
+        XCTAssertNil(USDAFoodRequestBuilder.searchRequest(query: " \n ", apiKey: "test-key"))
     }
 
     func testBrandedGRMServingUsesTheLabelWeightForNutrition() throws {
@@ -31,9 +47,9 @@ final class USDAFoodAPIServiceTests: XCTestCase {
 
     func testSpecificNonemptySearchMakesOnlyOneRequest() async throws {
         var requests = 0
-        let foods = try await USDAFoodSearchPipeline.search(query: "Fairlife milk", apiKey: "test", timeout: 6) { url, timeout in
+        let foods = try await USDAFoodSearchPipeline.search(query: "Fairlife milk", apiKey: "test", timeout: 6) { request, timeout in
             requests += 1
-            XCTAssertTrue(url.absoluteString.contains("requireAllWords=true"))
+            XCTAssertTrue(try Self.criteria(request).requireAllWords)
             XCTAssertLessThanOrEqual(timeout, 6)
             return Data(#"{"foods":[{"fdcId":1,"description":"Milk","brandName":"Fairlife","foodNutrients":[]}]}"#.utf8)
         }
@@ -45,8 +61,8 @@ final class USDAFoodAPIServiceTests: XCTestCase {
         var elapsed = 10.0
         var attempts: [Bool] = []
         var budgets: [Double] = []
-        let foods = try await USDAFoodSearchPipeline.search(query: "100 g banana raw", apiKey: "test", timeout: 6, now: { elapsed }) { url, timeout in
-            let strict = url.absoluteString.contains("requireAllWords=true")
+        let foods = try await USDAFoodSearchPipeline.search(query: "100 g banana raw", apiKey: "test", timeout: 6, now: { elapsed }) { request, timeout in
+            let strict = try Self.criteria(request).requireAllWords
             attempts.append(strict); budgets.append(timeout)
             elapsed += 2
             return Data((strict ? #"{"foods":[]}"# : #"{"foods":[{"fdcId":2,"description":"Banana, raw","foodNutrients":[]}]}"#).utf8)
@@ -58,9 +74,8 @@ final class USDAFoodAPIServiceTests: XCTestCase {
 
     func testRejectedMultiwordQueryRetriesOnlyItsFamilyWithinTheSameBudget() async throws {
         var requests: [String] = []
-        let results = try await USDAFoodSearchPipeline.search(query: "Chobani vanilla greek yogurt", apiKey: "test", timeout: 6) { url, _ in
-            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "query" }?.value ?? ""
-            requests.append(query)
+        let results = try await USDAFoodSearchPipeline.search(query: "Chobani vanilla greek yogurt", apiKey: "test", timeout: 6) { request, _ in
+            requests.append(try Self.criteria(request).query)
             if requests.count == 1 { throw USDAFoodSearchPipeline.RequestError.rejectedQuery }
             return Data(#"{"foods":[{"fdcId":1,"description":"Vanilla Greek Yogurt","brandName":"Chobani","foodNutrients":[]}]}"#.utf8)
         }

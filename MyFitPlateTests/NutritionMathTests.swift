@@ -206,6 +206,13 @@ final class GoalCalorieMathTests: XCTestCase {
     }
 
     @MainActor
+    private func recalculateGoals() async {
+        await withCheckedContinuation { continuation in
+            goalSettings.recalculateAllGoals { continuation.resume() }
+        }
+    }
+
+    @MainActor
     func testMacroSplitFollowsPercentages() async throws {
         goalSettings.gender = "Male"
         goalSettings.calorieGoalMethod = .custom
@@ -213,8 +220,7 @@ final class GoalCalorieMathTests: XCTestCase {
         goalSettings.carbsPercentage = 50
         goalSettings.fatsPercentage = 20
         goalSettings.calories = 2000
-        goalSettings.recalculateAllGoals()
-        try await Task.sleep(nanoseconds: 400_000_000)
+        await recalculateGoals()
 
         XCTAssertEqual(goalSettings.protein, 0.30 * 2000 / 4, accuracy: 0.5) // 150g
         XCTAssertEqual(goalSettings.carbs, 0.50 * 2000 / 4, accuracy: 0.5)   // 250g
@@ -231,8 +237,7 @@ final class GoalCalorieMathTests: XCTestCase {
             goalSettings.activityLevel = 1.55
             goalSettings.calorieGoalMethod = .mifflinWithActivity
             goalSettings.goal = goal
-            goalSettings.recalculateAllGoals()
-            try await Task.sleep(nanoseconds: 300_000_000)
+            await recalculateGoals()
             return goalSettings.calories ?? 0
         }
 
@@ -254,24 +259,28 @@ final class GoalCalorieMathTests: XCTestCase {
         goalSettings.activityLevel = 1.2
         goalSettings.goal = "Lose"
         goalSettings.calorieGoalMethod = .mifflinWithActivity
-        goalSettings.recalculateAllGoals()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await recalculateGoals()
 
         XCTAssertEqual(goalSettings.calories ?? 0, 1500, accuracy: 0.5)
     }
 
     @MainActor
-    func testDynamicTDEEUsesAdaptiveExpenditure() async throws {
+    func testDynamicTDEESeedsAMissingGoalAndPreservesAnAcceptedGoal() async throws {
         let adaptive = AdaptiveGoalService()
         adaptive.calculatedTDEE = 2500
         goalSettings.adaptiveGoalService = adaptive
         goalSettings.gender = "Male"
         goalSettings.goal = "Maintain"
         goalSettings.calorieGoalMethod = .dynamicTDEE
-        goalSettings.recalculateAllGoals()
-        try await Task.sleep(nanoseconds: 300_000_000)
-
+        goalSettings.calories = nil
+        await recalculateGoals()
         XCTAssertEqual(goalSettings.calories ?? 0, 2500, accuracy: 1.0)
+
+        goalSettings.calories = 2300
+        adaptive.calculatedTDEE = 2600
+        await recalculateGoals()
+        XCTAssertEqual(adaptive.calculatedTDEE, 2600)
+        XCTAssertEqual(goalSettings.calories ?? 0, 2300, accuracy: 1.0)
     }
 }
 
