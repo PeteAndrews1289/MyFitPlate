@@ -15,7 +15,7 @@ jobs:
     runs-on: macos-15
     concurrency:
       group: ci-unit-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ !startsWith(github.head_ref, 'codex/release-') }}
 
     steps:
       - name: Checkout

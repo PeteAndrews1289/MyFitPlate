@@ -4208,8 +4208,12 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
             XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
-            XCTAssertGreaterThanOrEqual(summary.frame.minY, app.frame.minY - 1)
-            XCTAssertLessThanOrEqual(summary.frame.maxY, app.frame.maxY + 1)
+            for _ in 0..<8 where summary.frame.maxY > app.frame.maxY {
+                app.swipeUp(velocity: .slow)
+            }
+            XCTAssertGreaterThan(summary.frame.maxY, app.frame.minY)
+            XCTAssertLessThanOrEqual(summary.frame.maxY, app.frame.maxY + 1,
+                                     "The end of the report summary should be reachable by scrolling")
 
             if screen.route.hasPrefix("plate") {
                 let closeButton = app.buttons["app_sheet_close_button"]

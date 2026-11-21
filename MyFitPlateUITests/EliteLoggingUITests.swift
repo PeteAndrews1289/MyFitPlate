@@ -33,8 +33,10 @@ final class EliteLoggingUITests: XCTestCase {
         image.name = "Home - confirmed food-log day"; image.lifetime = .keepAlways; add(image)
         revealHomeControl(guidance, in: app)
         guidance.press(forDuration: 0.1)
-        let annotation = app.buttons["livingDayMaiaAnnotation"]
+        let annotation = app.descendants(matching: .any).matching(identifier: "livingDayMaiaAnnotation").firstMatch
         XCTAssertTrue(annotation.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertFalse(annotation.label.isEmpty)
+        XCTAssertEqual(guidance.value as? String, "Expanded")
     }
 
     @MainActor

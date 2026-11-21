@@ -943,11 +943,22 @@ struct TimerSetupView: View {
                     if asksForName {
                         VStack(alignment: .leading, spacing: AppSpacing.compact) {
                             Text("Timer name").appTextRole(.caption)
-                            TextField("Rice, oven, vegetables…", text: $name).textFieldStyle(.roundedBorder)
-                                .focused($nameIsFocused)
-                                .submitLabel(.done)
-                                .onSubmit { nameIsFocused = false }
-                                .accessibilityIdentifier("cooking_timer_name")
+                            HStack(spacing: AppSpacing.row) {
+                                TextField("Rice, oven, vegetables…", text: $name).textFieldStyle(.roundedBorder)
+                                    .focused($nameIsFocused)
+                                    .submitLabel(.done)
+                                    .onSubmit { nameIsFocused = false }
+                                    .accessibilityIdentifier("cooking_timer_name")
+                                if nameIsFocused {
+                                    Button("Start", action: startTimer)
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(AppPalette.brand)
+                                        .fixedSize()
+                                        .disabled(!canStart)
+                                        .accessibilityLabel("Start Timer")
+                                        .accessibilityIdentifier("meal_prep_timer_start")
+                                }
+                            }
                         }
                     }
                     VStack(alignment: .leading, spacing: AppSpacing.compact) {
@@ -981,28 +992,31 @@ struct TimerSetupView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("cooking_timer_form")
             .safeAreaInset(edge: .bottom) {
-                Button {
-                    nameIsFocused = false
-                    onStart(MealPrepTimerRules.clampedMinutes(minutes), name.trimmingCharacters(in: .whitespacesAndNewlines))
-                } label: {
-                    Label("Start Timer", systemImage: "timer")
+                if !nameIsFocused {
+                    Button(action: startTimer) { Label("Start Timer", systemImage: "timer") }
+                        .buttonStyle(AppActionButtonStyle(.primary))
+                        .disabled(!canStart)
+                        .padding(.horizontal, AppSpacing.screenHorizontal)
+                        .padding(.vertical, AppSpacing.compact)
+                        .background(AppPalette.canvas.ignoresSafeArea(edges: .bottom))
+                        .overlay(alignment: .top) { Divider() }
+                        .dynamicTypeSize(.xSmall ... .accessibility1)
+                        .accessibilityIdentifier("meal_prep_timer_start")
                 }
-                .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(asksForName && (name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.count > 80))
-                .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.vertical, AppSpacing.compact)
-                .background(AppPalette.canvas.ignoresSafeArea(edges: .bottom))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(AppPalette.separator)
-                        .frame(height: 1)
-                }
-                .dynamicTypeSize(.xSmall ... .accessibility1)
-                .accessibilityIdentifier("meal_prep_timer_start")
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meal_prep_timer_setup")
+    }
+
+    private var canStart: Bool {
+        !asksForName || (!name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 80)
+    }
+
+    private func startTimer() {
+        guard canStart else { return }
+        nameIsFocused = false
+        onStart(MealPrepTimerRules.clampedMinutes(minutes), name.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
 
