@@ -963,25 +963,28 @@ struct FoodSearchView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("food_search_loading_more")
-        } else if let message = viewModel.searchCoverageMessage {
-            HStack(alignment: .top, spacing: AppSpacing.row) {
-                Image(systemName: viewModel.isLoading ? "magnifyingglass" : "wifi.exclamationmark")
+        } else if !viewModel.isLoading, let message = viewModel.searchCoverageMessage {
+            HStack(spacing: AppSpacing.row) {
+                Image(systemName: "wifi.exclamationmark")
                     .appTextRole(.control)
-                    .foregroundStyle(viewModel.isLoading ? AppPalette.brandText : AppPalette.caution)
+                    .foregroundStyle(AppPalette.caution)
                     .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(viewModel.isLoading ? "More sources loading" : "Partial source coverage")
-                        .appTextRole(.control)
-                        .foregroundStyle(AppPalette.text)
-                    Text(message)
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                Text(message)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button(action: viewModel.retrySearchSources) {
+                    Text("Retry").appTextRole(.control)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Retry unavailable food sources")
+                .accessibilityIdentifier("food_search_retry_sources")
             }
             .appSurface(.quiet)
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("food_search_partial_coverage")
         }
 

@@ -45,6 +45,53 @@ final class USDAFoodAPIServiceTests: XCTestCase {
         XCTAssertEqual(oats.calories, 150)
     }
 
+    func testScannedEANFindsOnlyTheMatchingPaddedPackageInOneBrandedRequest() async throws {
+        var requests = 0
+        let item = try await USDAFoodSearchPipeline.barcode("0856312002795", apiKey: "test", includeEquivalentCodes: true, timeout: 6) { request, _ in
+            requests += 1
+            let criteria = try Self.criteria(request)
+            XCTAssertEqual(criteria.query, "0856312002795 856312002795 00856312002795")
+            XCTAssertFalse(criteria.requireAllWords)
+            XCTAssertEqual(criteria.dataType, ["Branded"])
+            XCTAssertEqual(criteria.pageSize, 5)
+            return Data(#"{"foods":[{"fdcId":1,"description":"Other pack","gtinUpc":"10856312002792","foodNutrients":[]},{"fdcId":2,"description":"Milk","gtinUpc":"00856312002795","foodNutrients":[]}]}"#.utf8)
+        }
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(item?.id, "usda_2")
+        XCTAssertEqual(item?.sourceMetadata?.barcode, "00856312002795")
+    }
+
+    func testGroupedBarcodeMissRetriesTheScannedSpellingWithRemainingTime() async throws {
+        var elapsed = 1.0
+        var queries: [String] = []
+        var budgets: [TimeInterval] = []
+        let item = try await USDAFoodSearchPipeline.barcode("0856312002795", apiKey: "test", includeEquivalentCodes: true, timeout: 6,
+                                                            now: { elapsed }) { request, budget in
+            queries.append(try Self.criteria(request).query)
+            budgets.append(budget)
+            elapsed += 2
+            if queries.count == 1 {
+                return Data(#"{"foods":[{"fdcId":1,"description":"Different item","gtinUpc":"9999999999994","foodNutrients":[]}]}"#.utf8)
+            }
+            return Data(#"{"foods":[{"fdcId":2,"description":"Milk","gtinUpc":"0856312002795","foodNutrients":[]}]}"#.utf8)
+        }
+        XCTAssertEqual(queries, ["0856312002795 856312002795 00856312002795", "0856312002795"])
+        XCTAssertEqual(budgets, [6, 4])
+        XCTAssertEqual(item?.id, "usda_2")
+    }
+
+    func testSubsequentBarcodeRoundsAndNonzeroPackagingIndicatorsStayExact() async throws {
+        for (code, includeEquivalents) in [("856312002795", false), ("10856312002792", true)] {
+            var queries: [String] = []
+            let item = try await USDAFoodSearchPipeline.barcode(code, apiKey: "test", includeEquivalentCodes: includeEquivalents, timeout: 6) { request, _ in
+                queries.append(try Self.criteria(request).query)
+                return Data(#"{"foods":[{"fdcId":1,"description":"Other pack","gtinUpc":"9999999999994","foodNutrients":[]}]}"#.utf8)
+            }
+            XCTAssertEqual(queries, [code])
+            XCTAssertNil(item)
+        }
+    }
+
     func testSpecificNonemptySearchMakesOnlyOneRequest() async throws {
         var requests = 0
         let foods = try await USDAFoodSearchPipeline.search(query: "Fairlife milk", apiKey: "test", timeout: 6) { request, timeout in

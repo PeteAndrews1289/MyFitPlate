@@ -25,11 +25,20 @@ final class FirebaseCloudFunctionService: CloudFunctionServiceProtocol, @uncheck
     }
 
     func callFunction(_ name: String, with data: [String: Any]) async throws -> Any? {
+        let catalogTimeout: TimeInterval? = switch name {
+        case "fatSecretProxy": 8
+        case "healthCanadaFoodSearch", "nihSupplementSearch", "nihSupplementBarcodeLookup": 12
+        default: nil
+        }
+        // These catalogs require an authenticated Firebase user on the server.
+        // Public catalogs can return while the user is signed out.
+        if catalogTimeout != nil, Auth.auth().currentUser == nil {
+            throw NSError(domain: FunctionsErrorDomain, code: FunctionsErrorCode.unauthenticated.rawValue,
+                          userInfo: [NSLocalizedDescriptionKey: "Sign in to search this food source."])
+        }
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any?, Error>) in
             let callable = Functions.functions().httpsCallable(name)
-            if name == "fatSecretProxy" {
-                callable.timeoutInterval = 8
-            }
+            if let catalogTimeout { callable.timeoutInterval = catalogTimeout }
             callable.call(data) { result, error in
                 if let error = error {
                     continuation.resume(throwing: error)

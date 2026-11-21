@@ -104,7 +104,8 @@ final class FoodSearchPipelineTests: XCTestCase {
         probe.finishAll(food: product("brand"))
         try await waitUntil { !self.model.isLoading }
         XCTAssertNotNil(model.searchCoverageMessage)
-        model.submitSearch()
+        model.retrySearchSources()
+        model.retrySearchSources()
         try await waitUntil { self.probe.calls.count == 6 }
         XCTAssertEqual(probe.calls.last?.provider, .usda)
         XCTAssertEqual(model.searchResults.first?.id, "brand")
@@ -116,6 +117,21 @@ final class FoodSearchPipelineTests: XCTestCase {
         model.searchText = "greek yogurt"
         XCTAssertFalse(model.isLoading)
         XCTAssertEqual(probe.calls.count, 6)
+    }
+
+    func testRetryWhileTypingKeepsAvailableRowsAndRetriesOnlyTheMissingPrimarySource() async throws {
+        model.searchText = "greek yogurt"
+        try await waitUntil { self.probe.calls.count == 3 }
+        probe.finish(provider: .healthCanada, query: "greek yogurt", result: .failure(ProbeError.unavailable))
+        probe.finishAll(food: product("available"))
+        try await waitUntil { !self.model.isLoading }
+        model.retrySearchSources()
+        try await waitUntil { self.probe.calls.count == 4 }
+        XCTAssertEqual(probe.calls.last?.provider, .healthCanada)
+        XCTAssertEqual(model.searchResults.first?.id, "available")
+        probe.finishAll()
+        try await waitUntil { !self.model.isLoading }
+        XCTAssertNil(model.searchCoverageMessage)
     }
 
     func testSameQueryOldGenerationCannotReplaceNewerResultsOrPoisonItsCache() async throws {

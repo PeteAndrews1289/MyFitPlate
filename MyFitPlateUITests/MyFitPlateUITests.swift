@@ -418,10 +418,7 @@ final class MyFitPlateUITests: XCTestCase {
         let supplementSearchField = app.textFields["food_search_field"]
         XCTAssertTrue(supplementSearchField.waitForExistence(timeout: 8))
         focusAndType("vitamin", into: supplementSearchField)
-        let searchKey = app.keyboards.buttons["Search"]
-        if searchKey.waitForExistence(timeout: 2) {
-            searchKey.tap()
-        }
+        supplementSearchField.typeText("\n")
 
         let supplementRow = app.buttons["food_picker_row_dsld_ui_42"]
         reveal(supplementRow, in: app.scrollViews.firstMatch, bottomInset: 24)

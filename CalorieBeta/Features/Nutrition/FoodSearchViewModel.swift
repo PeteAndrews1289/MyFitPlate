@@ -190,6 +190,12 @@ class FoodSearchViewModel: ObservableObject {
         searchByQuery(query: query, includeOpenFoodFacts: true)
     }
 
+    func retrySearchSources() {
+        guard !isLoading, !failedProviders.isEmpty, !activeSearchQuery.isEmpty,
+              searchOwnerID == DIContainer.shared.authService.currentUserID else { return }
+        searchByQuery(query: activeSearchQuery, includeOpenFoodFacts: requestedProviders.contains(.openFoodFacts))
+    }
+
     private func beginSearchQuery(_ query: String) {
         cancelSearchRequests()
         let owner = DIContainer.shared.authService.currentUserID
@@ -360,7 +366,7 @@ class FoodSearchViewModel: ObservableObject {
                 : String(localized: "Searching more food sources…")
         } else {
             searchCoverageMessage = !failedProviders.isEmpty && searchErrorMessage == nil
-                ? String(localized: "Showing matches from the sources that responded. Some food databases could not be reached.") : nil
+                ? String(localized: "Some food sources are unavailable.") : nil
         }
     }
 

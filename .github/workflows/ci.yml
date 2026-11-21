@@ -157,8 +157,14 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           set -o pipefail
+          device=$(xcrun simctl list devices available --json | jq -er '
+            [.devices | to_entries[] | select(.key | test("[.]iOS-[0-9-]+$"))
+             | (.key | split(".iOS-")[1] | split("-") | map(tonumber)) as $version
+             | .value[] | select(.name == "iPhone 16") | {version: $version, udid}]
+            | sort_by(.version) | last.udid')
+          xcrun simctl bootstatus "$device" -b
           common=(-project MyFitPlate.xcodeproj -scheme MyFitPlate
-                  -destination 'platform=iOS Simulator,name=iPhone 16'
+                  -destination "platform=iOS Simulator,id=$device"
                   -derivedDataPath "$RUNNER_TEMP/MyFitPlateUI" -parallel-testing-enabled NO)
           xcodebuild build-for-testing "${common[@]}" CODE_SIGN_IDENTITY=-
           # Simulator discovery can succeed with an empty inventory. Read the XCTest entry
@@ -180,6 +186,25 @@ jobs:
             cat "$RUNNER_TEMP/missing-ui-tests.txt"
             exit 1
           fi
+          if [[ "$test_status" != 0 ]]; then
+            xcrun xcresulttool get test-results summary --path UITestResults.xcresult > UIInitialSummary.json
+            python3 scripts/ui_launch_retries.py UIInitialSummary.json > UIRetryTests.txt
+            if [[ -s UIRetryTests.txt ]]; then
+              # XCTest never acquired the launch assertion. Keep that result, reboot the same
+              # simulator, and require actual passing receipts for each affected method.
+              retry_tests=()
+              while IFS= read -r method; do retry_tests+=("-only-testing:MyFitPlateUITests/${method%()}"); done < UIRetryTests.txt
+              xcrun simctl shutdown "$device"
+              xcrun simctl bootstatus "$device" -b
+              xcodebuild test-without-building "${common[@]}" "${retry_tests[@]}" \
+                -collect-test-diagnostics on-failure -resultBundlePath UIRetryResults.xcresult
+              xcrun xcresulttool get test-results tests --path UIRetryResults.xcresult \
+                | jq -r '.. | objects | select(.nodeType == "Test Case" and .result == "Passed") | .nodeIdentifier' \
+                | LC_ALL=C sort -u > UIRetryPassedTests.txt
+              diff -u UIRetryTests.txt UIRetryPassedTests.txt
+              test_status=0
+            fi
+          fi
           exit "$test_status"
 
       - name: Upload UI test evidence
@@ -192,6 +217,10 @@ jobs:
             UITestResults.log
             UIExpectedTests.txt
             UIExecutedTests.txt
+            UIInitialSummary.json
+            UIRetryTests.txt
+            UIRetryPassedTests.txt
+            UIRetryResults.xcresult
           if-no-files-found: ignore
 
   functions:

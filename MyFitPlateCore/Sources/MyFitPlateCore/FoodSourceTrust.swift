@@ -2043,7 +2043,7 @@ public final class BarcodeFoodLookupService {
         // GTIN. This avoids exhausting every FatSecret variant before accepting an exact USDA
         // or Open Food Facts hit, while preserving provider preference for the same identifier.
         for candidate in barcodeCandidates {
-            let matches = await providerMatches(for: candidate)
+            let matches = await providerMatches(for: candidate, includeUSDAEquivalents: candidate == trimmedBarcode)
 
             if let item = matches.fatSecret {
                 let primary = databaseSourcedItem(
@@ -2079,12 +2079,13 @@ public final class BarcodeFoodLookupService {
             }
 
             if let item = matches.usda {
+                let matchedCode = BarcodeCorrectionRules.normalizedBarcode(item.sourceMetadata?.barcode ?? candidate)
                 let primary = databaseSourcedItem(
                     item,
                     sourceType: .usda,
                     sourceName: "USDA FoodData Central",
                     scannedBarcode: trimmedBarcode,
-                    matchedBarcode: candidate
+                    matchedBarcode: matchedCode
                 )
                 let confirmationEvidence: [FoodVerificationEvidence]
                 if BarcodeCorrectionRules.isValidGTIN(candidate) {
@@ -2103,7 +2104,7 @@ public final class BarcodeFoodLookupService {
                     item: enriched.withCrossVerificationEvidence(confirmationEvidence),
                     source: "usda_barcode",
                     scannedBarcode: trimmedBarcode,
-                    matchedBarcode: candidate,
+                    matchedBarcode: matchedCode,
                     candidateCount: barcodeCandidates.count
                 )
             }
@@ -2160,9 +2161,9 @@ public final class BarcodeFoodLookupService {
         return nil
     }
 
-    private func providerMatches(for barcode: String) async -> ProviderMatches {
+    private func providerMatches(for barcode: String, includeUSDAEquivalents: Bool) async -> ProviderMatches {
         async let fatSecret = lookupFatSecret(barcode)
-        async let usda = usdaService.lookupBarcode(barcode)
+        async let usda = usdaService.lookupBarcode(barcode, includeEquivalentCodes: includeUSDAEquivalents)
         async let openFoodFacts = lookupOpenFoodFacts(barcode)
         return await ProviderMatches(
             fatSecret: fatSecret,

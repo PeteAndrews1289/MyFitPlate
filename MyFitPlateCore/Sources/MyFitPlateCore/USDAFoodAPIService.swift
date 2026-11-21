@@ -4,16 +4,25 @@ enum USDAFoodRequestBuilder {
     private struct SearchCriteria: Encodable {
         let query: String
         let requireAllWords: Bool
-        let pageSize = 20
-        let dataType = ["Branded", "Foundation", "SR Legacy", "Survey (FNDDS)"]
+        let pageSize: Int
+        let dataType: [String]
     }
 
     static func searchRequest(query: String, apiKey: String, requireAllWords: Bool = true) -> URLRequest? {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty,
-              var components = URLComponents(string: "https://api.nal.usda.gov/fdc/v1/foods/search") else { return nil }
+        guard !query.isEmpty else { return nil }
+        return request(SearchCriteria(query: String(query.prefix(160)), requireAllWords: requireAllWords,
+                                      pageSize: 20, dataType: ["Branded", "Foundation", "SR Legacy", "Survey (FNDDS)"]), apiKey: apiKey)
+    }
+
+    static func barcodeRequest(codes: [String], apiKey: String) -> URLRequest? {
+        request(SearchCriteria(query: codes.joined(separator: " "), requireAllWords: false,
+                               pageSize: 5, dataType: ["Branded"]), apiKey: apiKey)
+    }
+
+    private static func request(_ criteria: SearchCriteria, apiKey: String) -> URLRequest? {
+        guard var components = URLComponents(string: "https://api.nal.usda.gov/fdc/v1/foods/search") else { return nil }
         components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
-        let criteria = SearchCriteria(query: String(query.prefix(160)), requireAllWords: requireAllWords)
         guard let url = components.url, let body = try? JSONEncoder().encode(criteria) else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -23,12 +32,34 @@ enum USDAFoodRequestBuilder {
     }
 }
 
-/// Specific retrieval protects the small response window from unrelated generic foods.
-/// An empty successful response gets one broader attempt for portions, extra descriptors
-/// and typos. A rejected multiword query can retry a shorter family lookup.
-/// Both attempts share one budget; auth, rate-limit and transport failures return immediately.
 enum USDAFoodSearchPipeline {
     enum RequestError: Error { case rejectedQuery }
+
+    /// A retail scan and the catalog may use different zero padding for the same package.
+    /// Search those identifiers together first, and always verify the GTIN in the response.
+    static func barcode(_ scanned: String, apiKey: String, includeEquivalentCodes: Bool, timeout: TimeInterval,
+                        now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                        load: (URLRequest, TimeInterval) async throws -> Data) async throws -> FoodItem? {
+        let code = BarcodeCorrectionRules.normalizedBarcode(scanned)
+        guard (8...14).contains(code.count), code.allSatisfy(\.isNumber) else { return nil }
+        let equivalents = BarcodeCorrectionRules.lookupCandidates(for: code)
+        let searches = includeEquivalentCodes && equivalents.count > 1 ? [equivalents, [code]] : [[code]]
+        let deadline = now() + timeout
+        for codes in searches {
+            try Task.checkCancellation()
+            let remaining = deadline - now()
+            guard remaining > 0 else { throw URLError(.timedOut) }
+            guard let request = USDAFoodRequestBuilder.barcodeRequest(codes: codes, apiKey: apiKey) else { throw APIError.invalidURL }
+            do {
+                let data = try await load(request, remaining)
+                try Task.checkCancellation()
+                if let item = try USDAFoodParser.foodItem(matchingBarcode: code, from: data) { return item }
+            } catch RequestError.rejectedQuery where codes.count > 1 { continue }
+        }
+        return nil
+    }
+
+    /// Start with every typed term, then broaden an empty or rejected query within the same deadline.
     static func search(query: String, apiKey: String, timeout: TimeInterval,
                        now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
                        load: (URLRequest, TimeInterval) async throws -> Data) async throws -> [FoodItem] {
@@ -67,7 +98,6 @@ enum USDAFoodSearchPipeline {
 // https://fdc.nal.usda.gov/api-key-signup.html; the shared DEMO_KEY is intentionally not used.
 public class USDAFoodAPIService {
     private let apiKey: String?
-    private let baseURL = "https://api.nal.usda.gov/fdc/v1"
     private let requestTimeout: TimeInterval = 6
     private let session: URLSession
 
@@ -100,32 +130,22 @@ public class USDAFoodAPIService {
         }
     }
 
-    // Barcode (GTIN/UPC) lookup — searches Branded foods dataset by the UPC string.
     public func lookupBarcode(_ barcode: String) async -> FoodItem? {
+        await lookupBarcode(barcode, includeEquivalentCodes: true)
+    }
+
+    func lookupBarcode(_ barcode: String, includeEquivalentCodes: Bool) async -> FoodItem? {
         guard let apiKey else { return nil }
-        let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode)
-        guard (8...14).contains(normalized.count),
-              normalized.allSatisfy(\.isNumber) else { return nil }
-        guard var components = URLComponents(string: "\(baseURL)/foods/search") else { return nil }
-        components.queryItems = [
-            URLQueryItem(name: "query", value: normalized),
-            URLQueryItem(name: "api_key", value: apiKey),
-            URLQueryItem(name: "pageSize", value: "5"),
-            URLQueryItem(name: "dataType", value: "Branded")
-        ]
-        guard let url = components.url else { return nil }
-        do {
-            let data = try await responseData(for: URLRequest(url: url))
-            return try USDAFoodParser.foodItem(matchingBarcode: normalized, from: data)
-        } catch {
-            return nil
+        return try? await USDAFoodSearchPipeline.barcode(barcode, apiKey: apiKey, includeEquivalentCodes: includeEquivalentCodes,
+                                                        timeout: requestTimeout) { request, timeout in
+            try await self.responseData(for: request, timeout: timeout)
         }
     }
 
-    private func responseData(for search: URLRequest, timeout: TimeInterval? = nil) async throws -> Data {
+    private func responseData(for search: URLRequest, timeout: TimeInterval) async throws -> Data {
         var request = search
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = timeout ?? requestTimeout
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         if (response as? HTTPURLResponse)?.statusCode == 400 { throw USDAFoodSearchPipeline.RequestError.rejectedQuery }
