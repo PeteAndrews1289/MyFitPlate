@@ -11,7 +11,9 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Finish the running release qualification so failures from later UI suites remain visible.
+  # GitHub retains the latest pending revision for the next run in the same group.
+  cancel-in-progress: ${{ !startsWith(github.head_ref, 'codex/release-') }}
 
 jobs:
   unit-tests:

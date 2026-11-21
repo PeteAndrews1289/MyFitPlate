@@ -982,6 +982,7 @@ struct TimerSetupView: View {
             .accessibilityIdentifier("cooking_timer_form")
             .safeAreaInset(edge: .bottom) {
                 Button {
+                    nameIsFocused = false
                     onStart(MealPrepTimerRules.clampedMinutes(minutes), name.trimmingCharacters(in: .whitespacesAndNewlines))
                 } label: {
                     Label("Start Timer", systemImage: "timer")

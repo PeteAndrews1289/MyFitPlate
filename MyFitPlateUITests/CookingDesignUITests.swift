@@ -31,10 +31,12 @@ final class CookingDesignUITests: XCTestCase {
         let start = app.buttons["cooking_start_step_timer"]
         reveal(start, app: app); start.tap()
         let name = app.textFields["cooking_timer_name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Guided rice timer\n")
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
-        app.buttons["meal_prep_timer_start"].tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Guided rice timer")
+        let startTimer = app.buttons["meal_prep_timer_start"]
+        XCTAssertTrue(startTimer.isHittable)
+        startTimer.tap()
         XCTAssertTrue(name.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
 
         let timer = app.buttons["cooking_featured_timer_manage"]
         reveal(timer, app: app)

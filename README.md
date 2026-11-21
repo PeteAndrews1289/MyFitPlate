@@ -146,6 +146,7 @@ operations. Firestore rules, App Check, and server-owned deletion protect the sh
 - macOS with a current stable Xcode release
 - An iOS 17 or newer simulator or physical device
 - Node.js 22 for Firebase Functions (`nvm use` reads the repository pin)
+- Node.js 24.12 or newer for the Firestore rules tests and the combined diary persistence check
 - Java 21 when running Firestore emulator tests
 - SwiftLint for the same lint checks used by CI
 
