@@ -716,6 +716,16 @@ struct FoodDetailView: View {
                     .accessibilityIdentifier("food_detail_portion_total")
             }
 
+            let basis = ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize)
+            if let label = initialFoodItem.sourceMetadata?.labeledServing, !label.isEmpty, !basis.isEmpty,
+               label.caseInsensitiveCompare(basis) != .orderedSame {
+                Text("Package serving \(label) · nutrition per \(basis)")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("food_portion_package_serving")
+            }
+
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
                     quantityControl

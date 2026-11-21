@@ -5,10 +5,11 @@ import XCTest
 private class SearchOutcomeURLProtocol: URLProtocol {
     static var response: Result<(Int, Data), Error> = .failure(URLError(.timedOut))
     static var requests: [URLRequest] = []
+    private static let requestLock = NSLock()
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        Self.requests.append(request)
+        Self.requestLock.withLock { Self.requests.append(request) }
         switch Self.response {
         case .failure(let error): client?.urlProtocol(self, didFailWithError: error)
         case .success(let (status, data)):
@@ -23,6 +24,34 @@ private class SearchOutcomeURLProtocol: URLProtocol {
 
 @MainActor
 final class FoodProviderSearchOutcomeTests: XCTestCase {
+    func testRetailScanKeepsTheCatalogBrandAndPrintedVolumeWithNutritionPer100Grams() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [SearchOutcomeURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let cloud = DIContainer.shared.cloudFunctionService
+        DIContainer.shared.cloudFunctionService = MockCloudFunctionService()
+        defer { DIContainer.shared.cloudFunctionService = cloud }
+        let label = """
+        {"status":0,"foods":[{"fdcId":42,"description":"Chocolate Milk","brandName":"Fairlife","dataType":"Branded",
+        "gtinUpc":"00856312002795","servingSize":240,"servingSizeUnit":"MLT","foodNutrients":[{"nutrientNumber":"208","value":50}]}]}
+        """
+        SearchOutcomeURLProtocol.requests = []
+        SearchOutcomeURLProtocol.response = .success((200, Data(label.utf8)))
+        let scanner = BarcodeFoodLookupService(usdaService: USDAFoodAPIService(apiKey: "test", session: session),
+                                              openFoodFactsService: OpenFoodFactsAPIService(session: session), correctionStore: nil)
+        let lookup = await scanner.lookup("0856312002795")
+        let result = try XCTUnwrap(lookup)
+        XCTAssertEqual(result.source, "usda_barcode")
+        XCTAssertEqual(result.matchedBarcode, "00856312002795")
+        XCTAssertEqual(result.item.sourceMetadata?.barcode, "0856312002795")
+        XCTAssertEqual(result.item.sourceMetadata?.brandName, "Fairlife")
+        XCTAssertEqual(result.item.sourceMetadata?.labeledServing, "240 ml")
+        XCTAssertEqual(result.item.servingSize, "100 g")
+        XCTAssertEqual(result.item.calories, 50)
+        XCTAssertEqual(SearchOutcomeURLProtocol.requests.filter { $0.url?.path == "/fdc/v1/foods/search" }.count, 1)
+    }
+
     func testUSDATextRequestIncludesBrandedWithoutAnotherNetworkRequest() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [SearchOutcomeURLProtocol.self]

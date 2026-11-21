@@ -2186,13 +2186,14 @@ public final class BarcodeFoodLookupService {
             barcode: scannedBarcode,
             matchedFoodID: item.id
         )
-        if item.sourceMetadata?.sourceType == sourceType,
-           let sourceConfidence = item.sourceMetadata?.confidence {
-            metadata.confidence = sourceConfidence
-            metadata.evidenceLineage = item.sourceMetadata?.evidenceLineage
-            metadata.sourceObservedAt = item.sourceMetadata?.sourceObservedAt ?? metadata.sourceObservedAt
-            metadata.sourceUpdatedAt = item.sourceMetadata?.sourceUpdatedAt
-            metadata.notes = item.sourceMetadata?.notes
+        if let source = item.sourceMetadata, source.sourceType == sourceType {
+            metadata.brandName = source.brandName
+            metadata.labeledServing = source.labeledServing
+            metadata.confidence = source.confidence
+            metadata.evidenceLineage = source.evidenceLineage
+            metadata.sourceObservedAt = source.sourceObservedAt ?? metadata.sourceObservedAt
+            metadata.sourceUpdatedAt = source.sourceUpdatedAt
+            metadata.notes = source.notes
         }
         if scannedBarcode != matchedBarcode {
             let relatedBarcodeNote = "Matched using related barcode \(matchedBarcode)."

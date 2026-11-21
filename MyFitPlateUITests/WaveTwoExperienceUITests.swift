@@ -22,6 +22,13 @@ final class WaveTwoExperienceUITests: XCTestCase {
         XCTAssertFalse(app.buttons["food_picker_row_ui-strawberry-small"].exists)
         XCTAssertGreaterThan(search.frame.width, emptyFieldWidth)
         record(app, "Branded search - exact flavor and stated serving")
+        row.tap()
+        let package = app.staticTexts["food_portion_package_serving"]
+        XCTAssertTrue(package.waitForExistence(timeout: 5))
+        XCTAssertTrue(package.label.contains("5.3 oz"))
+        XCTAssertTrue(package.label.contains("100 g"))
+        app.navigationBars.buttons["Cancel"].firstMatch.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
         app.buttons["food_search_more_actions"].tap()
         XCTAssertTrue(app.buttons["Scan barcode"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Photograph food"].isHittable)

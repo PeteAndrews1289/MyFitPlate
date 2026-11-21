@@ -403,8 +403,10 @@ class FoodSearchViewModel: ObservableObject {
         }
         let variants = [("ui-vanilla-small", "Vanilla", "5.3 oz"), ("ui-vanilla-large", "Vanilla", "32 oz"),
                         ("ui-strawberry-small", "Strawberry", "5.3 oz")].map { id, flavor, size in
-            FoodItem(id: id, name: "Greek Yogurt, " + flavor, calories: 100, servingSize: size)
-                .withDatabaseSource(.usda, sourceName: "USDA", sourceID: id, brandName: "Chobani")
+            var metadata = FoodSourceMetadata.database(.usda, sourceName: "USDA", sourceID: id, brandName: "Chobani")
+            metadata.labeledServing = size
+            return FoodItem(id: id, name: "Greek Yogurt, " + flavor, calories: 100,
+                            servingSize: "100 g", servingWeight: 100, sourceMetadata: metadata)
         }
         let usda = ProcessInfo.processInfo.arguments.contains("-ui-testing-product-sizes") ? [generic] + variants : [generic]
         searchTask = Task { @MainActor [weak self] in

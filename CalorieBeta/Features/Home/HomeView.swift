@@ -224,15 +224,16 @@ struct HomeView: View {
 
     private func dashboardHeaderContent(proxy: ScrollViewProxy) -> AnyView {
         if isLivingDayHomeEnabled {
+            let hydrationTarget = goalSettings.hydrationTarget(for: selectedDate, recordedGoal: currentLogForSelectedDate?.waterTracker?.goalOunces)
             return AnyView(LivingDayHomeExperience(
                 snapshot: livingDaySnapshot,
                 transition: isToday ? livingDayTransition : nil,
                 hydration: LivingDayHydrationState(
                     consumed: currentWaterIntake,
-                    target: goalSettings.hydrationTarget(for: selectedDate, recordedGoal: dailyLogService.currentDailyLog?.waterTracker?.goalOunces) ?? 0,
+                    target: hydrationTarget ?? 0,
                     increment: goalSettings.hydrationPreferences.preferredContainer?.ounces ?? 8,
                     canAddWater: isToday,
-                    trackingOnly: goalSettings.hydrationTarget(for: selectedDate, recordedGoal: dailyLogService.currentDailyLog?.waterTracker?.goalOunces) == nil,
+                    trackingOnly: hydrationTarget == nil,
                     unit: goalSettings.hydrationPreferences.unit
                 ),
                 showsCurrentDayActions: isToday,
