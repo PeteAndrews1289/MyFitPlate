@@ -9,16 +9,13 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ci-${{ github.ref }}
-  # Finish the running release qualification so failures from later UI suites remain visible.
-  # GitHub retains the latest pending revision for the next run in the same group.
-  cancel-in-progress: ${{ !startsWith(github.head_ref, 'codex/release-') }}
-
 jobs:
   unit-tests:
     name: Unit tests
     runs-on: macos-15
+    concurrency:
+      group: ci-unit-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
@@ -122,6 +119,11 @@ jobs:
   ui-tests:
     name: UI tests · ${{ matrix.shard }}/4
     runs-on: macos-15
+    concurrency:
+      # Finish each running release shard so failures near its end remain visible.
+      # Other checks, and shards that are already free, can test the new revision.
+      group: ci-ui-${{ github.ref }}-${{ matrix.shard }}
+      cancel-in-progress: ${{ !startsWith(github.head_ref, 'codex/release-') }}
     strategy:
       fail-fast: false
       matrix:
@@ -175,6 +177,9 @@ jobs:
   functions:
     name: Firebase Functions
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-functions-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
@@ -197,6 +202,9 @@ jobs:
   firebase-rules:
     name: Firebase rules
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-rules-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
@@ -233,6 +241,9 @@ jobs:
   data-migrations:
     name: Data migrations
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-migrations-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
