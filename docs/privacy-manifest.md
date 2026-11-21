@@ -33,6 +33,8 @@ account content are linked for app functionality; coarse location and product in
 conservatively linked for Analytics; crash/performance/other diagnostics and device ID are
 declared unlinked. None are used for tracking.
 
+Version 2.4 links the FirebaseAnalyticsCore package product for product analytics. It omits the advertising identifier and on-device ad conversion measurement. [Firebase Analytics package products](https://github.com/firebase/firebase-ios-sdk/blob/13.2.0/FirebaseAnalytics/README.md)
+
 The `MyFitPlateShared` manifest declares only `NSPrivacyAccessedAPICategoryUserDefaults`, with
 reasons `CA92.1` and `1C8F.1`: widget data and water logged from the widget pass through the App
 Group's shared defaults. It declares no collected data.

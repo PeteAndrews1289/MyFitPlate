@@ -52,7 +52,7 @@
 		3EB2977E2CAEEDCA0093E1B9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3EB2977D2CAEEDCA0093E1B9 /* Assets.xcassets */; };
 		3EB297822CAEEDCA0093E1B9 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3EB297812CAEEDCA0093E1B9 /* Preview Assets.xcassets */; };
 		3EB297932CAEF1300093E1B9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB297922CAEF1300093E1B9 /* SettingsView.swift */; };
-		3EC693D42CB83700002222C6 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D32CB83700002222C6 /* FirebaseAnalytics */; };
+		3EC693D42CB83700002222C6 /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D32CB83700002222C6 /* FirebaseAnalyticsCore */; };
 		3EC693D62CB83700002222C6 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D52CB83700002222C6 /* FirebaseAuth */; };
 		3EC693D82CB83700002222C6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D72CB83700002222C6 /* FirebaseFirestore */; };
 		3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D92CB83700002222C6 /* FirebaseAppCheck */; };
@@ -690,7 +690,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */,
-				3EC693D42CB83700002222C6 /* FirebaseAnalytics in Frameworks */,
+				3EC693D42CB83700002222C6 /* FirebaseAnalyticsCore in Frameworks */,
 				3EB09F442CC7EB7C0088C849 /* FirebaseCore in Frameworks */,
 				3EC693D62CB83700002222C6 /* FirebaseAuth in Frameworks */,
 				4B6046A92DEE1F0E000B4A46 /* FirebaseCrashlytics in Frameworks */,
@@ -1233,7 +1233,7 @@
 			name = MyFitPlate;
 			packageProductDependencies = (
 				3EC693D92CB83700002222C6 /* FirebaseAppCheck */,
-				3EC693D32CB83700002222C6 /* FirebaseAnalytics */,
+				3EC693D32CB83700002222C6 /* FirebaseAnalyticsCore */,
 				3EC693D52CB83700002222C6 /* FirebaseAuth */,
 				3EC693D72CB83700002222C6 /* FirebaseFirestore */,
 				3EB09F432CC7EB7C0088C849 /* FirebaseCore */,
@@ -2422,7 +2422,7 @@
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 11.3.0;
+				minimumVersion = 13.2.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -2442,10 +2442,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = FirebaseCore;
 		};
-		3EC693D32CB83700002222C6 /* FirebaseAnalytics */ = {
+		3EC693D32CB83700002222C6 /* FirebaseAnalyticsCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalytics;
+			productName = FirebaseAnalyticsCore;
 		};
 		3EC693D52CB83700002222C6 /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
