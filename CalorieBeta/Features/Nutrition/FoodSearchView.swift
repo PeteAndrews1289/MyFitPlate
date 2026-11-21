@@ -917,10 +917,10 @@ struct FoodSearchView: View {
             .appFont(size: 13, weight: .medium).fixedSize(horizontal: false, vertical: true)
             .accessibilityLabel(message)
         if viewModel.canUndoQuickLog && dailyLogService.canUndoDiaryChange {
-            Button("Undo", action: viewModel.undoQuickLog)
+            Button(viewModel.lastLogSucceeded ? "Undo" : "Retry Undo", action: viewModel.undoQuickLog)
                 .appFont(size: 17, weight: .semibold)
                 .frame(minWidth: 44, minHeight: 44)
-                .accessibilityLabel("Undo last food change")
+                .accessibilityLabel(viewModel.lastLogSucceeded ? "Undo last food change" : "Retry undoing the last food change")
                 .accessibilityIdentifier("food_search_undo")
         } else if viewModel.canRetryLog {
             Button("Retry", action: viewModel.retryQuickLog)

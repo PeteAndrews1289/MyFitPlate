@@ -118,8 +118,12 @@ jobs:
           if-no-files-found: ignore
 
   ui-tests:
-    name: UI smoke tests
+    name: UI tests · ${{ matrix.shard }}/4
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Checkout
@@ -138,24 +142,29 @@ jobs:
           USDA_API_KEY =
           EOF
 
-      - name: Run UI tests sequentially
+      - name: Build and run the assigned UI suites sequentially
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           set -o pipefail
-          xcodebuild test \
-            -project MyFitPlate.xcodeproj \
-            -scheme MyFitPlate \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -only-testing:MyFitPlateUITests \
-            -parallel-testing-enabled NO \
-            -maximum-concurrent-test-simulator-destinations 1 \
-            -resultBundlePath UITestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO | tee UITestResults.log
+          common=(-project MyFitPlate.xcodeproj -scheme MyFitPlate
+                  -destination 'platform=iOS Simulator,name=iPhone 16'
+                  -derivedDataPath "$RUNNER_TEMP/MyFitPlateUI" -parallel-testing-enabled NO)
+          xcodebuild build-for-testing "${common[@]}" CODE_SIGN_IDENTITY=-
+          xcodebuild test-without-building "${common[@]}" -only-testing:MyFitPlateUITests \
+            -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
+            -test-enumeration-output-path "$RUNNER_TEMP/ui-tests.txt"
+          python3 scripts/ui_test_partition.py "$RUNNER_TEMP/ui-tests.txt" "$SHARD" 4 > "$RUNNER_TEMP/ui-suites.txt"
+          suites=()
+          while IFS= read -r suite; do suites+=("-only-testing:$suite"); done < "$RUNNER_TEMP/ui-suites.txt"
+          xcodebuild test-without-building "${common[@]}" "${suites[@]}" \
+            -collect-test-diagnostics on-failure -resultBundlePath UITestResults.xcresult | tee UITestResults.log
 
       - name: Upload UI test evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ui-test-results
+          name: ui-test-results-${{ matrix.shard }}
           path: |
             UITestResults.xcresult
             UITestResults.log

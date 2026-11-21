@@ -45,7 +45,7 @@ class FoodSearchViewModel: ObservableObject {
     }
 
     var canUndoQuickLog: Bool {
-        lastLogSucceeded && lastUndoID != nil && lastUndoID == dailyLogService?.undoChangeID
+        lastUndoID != nil && lastUndoID == dailyLogService?.undoChangeID
     }
 
     var usualFoods: [FoodItem] {
@@ -579,6 +579,8 @@ class FoodSearchViewModel: ObservableObject {
         let day = service.diaryDayContext(for: userID, date: service.activelyViewedDate)
         guard let pending = queue.begin(food: food, date: service.activelyViewedDate, mealName: selectedMeal, source: source,
                                         needsHydration: true, dayContext: day) else {
+            lastLogSucceeded = false
+            lastUndoID = nil
             lastLogMessage = queue.errorMessage
             return
         }
@@ -603,6 +605,8 @@ class FoodSearchViewModel: ObservableObject {
                       let hydrated = queue.operations.first(where: { $0.id == pending.id }) else {
                     self.loggingFoodIDs.remove(pending.sourceFoodID)
                     self.canRetryLog = true
+                    self.lastLogSucceeded = false
+                    self.lastUndoID = nil
                     self.lastLogMessage = queue.errorMessage ?? "Your pending food is kept. Retry to finish."
                     return
                 }
@@ -660,10 +664,10 @@ class FoodSearchViewModel: ObservableObject {
     }
 
     func undoQuickLog() {
-        guard canUndoQuickLog, let service = dailyLogService,
+        guard canUndoQuickLog, let receipt = lastUndoID, let service = dailyLogService, service.canUndoDiaryChange,
               let userID = DIContainer.shared.authService.currentUserID else { return }
         service.undoLastDiaryChange(for: userID) { [weak self] accepted in
-            guard let self, DIContainer.shared.authService.currentUserID == userID else { return }
+            guard let self, DIContainer.shared.authService.currentUserID == userID, self.lastUndoID == receipt else { return }
             if accepted {
                 self.lastLogMessage = nil
                 self.quickLoggedFoodIDs = []
@@ -671,6 +675,7 @@ class FoodSearchViewModel: ObservableObject {
                 self.repeatFeedbackID = nil
                 self.lastUndoID = nil
             } else {
+                self.lastLogSucceeded = false
                 self.lastLogMessage = service.undoErrorMessage ?? "Could not undo this food. Retry Undo."
             }
         }

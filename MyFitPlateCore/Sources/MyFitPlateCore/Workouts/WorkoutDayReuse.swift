@@ -25,10 +25,12 @@ public enum WorkoutDayReuseRules {
         }
         var targets = [copy(source, into: destination, slot: destinationSlot)]
         if mode == .swap { targets.append(copy(destination, into: source, slot: sourceSlot)) }
-        let summary = targets.map { target in
-            "Slot \(target.slotIndex + 1): \(target.routine.name) · " + target.routine.exercises.map {
-                $0.name + " [" + $0.sets.map { $0.prescription?.summary ?? $0.target ?? "Manual" }.joined(separator: ", ") + "]"
-            }.joined(separator: "; ")
+        let summary = targets.map { target -> String in
+            let exercises = target.routine.exercises.map { exercise -> String in
+                let sets = exercise.sets.map { set in set.prescription?.summary ?? set.target ?? "Manual" }
+                return "\(exercise.name) [\(sets.joined(separator: ", "))]"
+            }
+            return "Slot \(target.slotIndex + 1): \(target.routine.name) · " + exercises.joined(separator: "; ")
         }
         return WorkoutDayReuseReview(id: UUID().uuidString, sourceSlot: sourceSlot, destinationSlot: destinationSlot, mode: mode,
             summary: summary, fingerprint: try WorkoutBlockRules.structureFingerprint(program), targets: try JSONEncoder().encode(targets))

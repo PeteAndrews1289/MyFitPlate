@@ -394,6 +394,32 @@ final class FoodRepeatLoggingTests: XCTestCase {
         XCTAssertTrue(model.lastLogSucceeded)
     }
 
+    func testFailedUndoShowsFailureAndRetriesOnlyTheOriginalFood() async {
+        let saved = expectation(description: "Food saved")
+        model.$lastLogMessage.compactMap { $0 }.first().sink { _ in saved.fulfill() }.store(in: &subscriptions)
+        model.quickLog(food: FoodItem(id: "oats", name: "Oats", calories: 200))
+        await fulfillment(of: [saved], timeout: 3)
+        let receipt = service.undoChangeID
+        XCTAssertNotNil(receipt)
+
+        repository.updateLogSuccess = false
+        let failed = expectation(description: "Undo failure shown")
+        model.$lastLogMessage.dropFirst().compactMap { $0 }.first().sink { _ in failed.fulfill() }.store(in: &subscriptions)
+        model.undoQuickLog()
+        await fulfillment(of: [failed], timeout: 3)
+        XCTAssertFalse(model.lastLogSucceeded)
+        XCTAssertTrue(model.canUndoQuickLog)
+        XCTAssertEqual(service.undoChangeID, receipt)
+
+        repository.updateLogSuccess = true
+        let retried = expectation(description: "Original undo accepted")
+        model.$lastLogMessage.first { $0 == nil }.sink { _ in retried.fulfill() }.store(in: &subscriptions)
+        model.undoQuickLog()
+        await fulfillment(of: [retried], timeout: 3)
+        XCTAssertFalse(model.canUndoQuickLog)
+        XCTAssertEqual(repository.lastUpdatedLog?.meals.flatMap(\.foodItems).count, 0)
+    }
+
     func testSearchUndoCannotReverseAnUnrelatedLaterDiaryEdit() async {
         let saved = expectation(description: "saved")
         model.$lastLogMessage.compactMap { $0 }.prefix(1).sink { _ in saved.fulfill() }.store(in: &subscriptions)
