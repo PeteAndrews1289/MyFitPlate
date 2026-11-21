@@ -31,6 +31,7 @@ struct FoodSearchHeader: View {
                 .focused($isFocused)
                 .onChange(of: isFocused) { _, focused in onFocusChange?(focused) }
                 .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
                 .submitLabel(.search)
                 .onSubmit(onSubmit)
                 .accessibilityLabel("Search foods")

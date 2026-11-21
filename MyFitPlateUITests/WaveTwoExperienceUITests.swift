@@ -12,13 +12,19 @@ final class WaveTwoExperienceUITests: XCTestCase {
     func testBrandedFlavorAndPrintedSizeAreVisibleBeforeOpeningPortion() {
         let app = launch("food-search", flags: ["-ui-testing-branded-food-search", "-ui-testing-product-sizes"])
         let search = app.textFields["food_search_field"].firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 10)); search.tap(); search.typeText("Chobani vanilla 5.3oz\n")
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        let emptyFieldWidth = search.frame.width
+        search.tap(); search.typeText("Chobani vanilla 5.3oz\n")
         let row = app.buttons["food_picker_row_ui-vanilla-small"]
         reveal(row, app: app)
         for value in ["Chobani", "Vanilla", "5.3 oz"] { XCTAssertTrue(row.label.contains(value)) }
         XCTAssertFalse(app.buttons["food_picker_row_ui-vanilla-large"].exists)
         XCTAssertFalse(app.buttons["food_picker_row_ui-strawberry-small"].exists)
+        XCTAssertGreaterThan(search.frame.width, emptyFieldWidth)
         record(app, "Branded search - exact flavor and stated serving")
+        app.buttons["food_search_more_actions"].tap()
+        XCTAssertTrue(app.buttons["Scan barcode"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Photograph food"].isHittable)
     }
 
     @MainActor

@@ -586,10 +586,14 @@ struct FoodSearchView: View {
         viewModel.isBuildingMeal ? viewModel.mealDraft?.date ?? dailyLogService.activelyViewedDate : dailyLogService.activelyViewedDate
     }
 
+    private var showsCaptureShortcuts: Bool {
+        viewModel.searchText.isEmpty && (!dynamicTypeSize.isAccessibilitySize || !isSearchFocused)
+    }
+
     private var pinnedSearchHeader: some View {
         HStack(spacing: AppSpacing.compact) {
             searchHeaderContent
-            if onFoodItemSelected == nil && (!dynamicTypeSize.isAccessibilitySize || !isSearchFocused) {
+            if onFoodItemSelected == nil && showsCaptureShortcuts {
                 FoodCaptureButton(title: "Scan", symbol: "barcode.viewfinder", identifier: "food_search_action_barcode", action: openBarcode)
                 FoodCaptureButton(title: "Photo", symbol: "camera", identifier: "food_search_action_camera", action: openMealPhoto)
             }
@@ -723,6 +727,10 @@ struct FoodSearchView: View {
 
     private var moreActions: some View {
         Menu {
+            if !showsCaptureShortcuts {
+                Button("Scan barcode", systemImage: "barcode.viewfinder", action: openBarcode)
+                Button("Photograph food", systemImage: "camera", action: openMealPhoto)
+            }
             Button("My foods", systemImage: "folder") { showingMyFoodsLibrary = true }
             Button("Describe food", systemImage: "text.bubble") { showingAITextLog = true }
             Button("Quick macros", systemImage: "bolt") { showingQuickAddMacros = true }
