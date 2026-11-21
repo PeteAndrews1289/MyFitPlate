@@ -204,8 +204,7 @@ final class WaveTwoMealWorkspaceDepthUITests: XCTestCase {
     }
     @MainActor private func openCompositions(_ app: XCUIApplication) {
         select("Plan", app: app)
-        app.buttons["meal_plan_tools"].tap()
-        let add = app.buttons["Add meal"].firstMatch
+        let add = app.buttons["meal_plan_add_meal"]
         XCTAssertTrue(add.waitForExistence(timeout: 5), app.debugDescription); add.tap()
         let create = app.buttons["planner_create_menu"]
         XCTAssertTrue(create.waitForExistence(timeout: 5), app.debugDescription); create.tap()

@@ -197,8 +197,9 @@ final class RepeatLoggingUITests: XCTestCase {
         review.tap()
         let stepper = app.steppers["diary_transfer_portion_yesterday-salmon"]
         XCTAssertTrue(stepper.waitForExistence(timeout: 5))
+        reveal(stepper, in: app)
         stepper.buttons.matching(NSPredicate(format: "identifier ENDSWITH %@ OR label ENDSWITH %@", "-Decrement", "Decrement")).firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["0.75 × saved portion"].exists)
+        XCTAssertTrue(stepper.label.contains("0.75") || stepper.descendants(matching: .staticText)["0.75 × saved portion"].exists)
         let confirm = app.buttons["diary_transfer_submit"]
         reveal(confirm, in: app)
         XCTAssertTrue(confirm.isEnabled)

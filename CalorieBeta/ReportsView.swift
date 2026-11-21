@@ -324,6 +324,7 @@ struct ReportsView: View {
             }
             .appTextRole(.secondary).tint(AppPalette.text)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reports_nutrition_content")
     }
 
@@ -389,6 +390,7 @@ struct ReportsView: View {
                 CycleTrackingCard()
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reports_recovery_content")
     }
 

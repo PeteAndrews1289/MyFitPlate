@@ -498,6 +498,7 @@ struct ProgramDetailView: View {
                     .appFont(size: 13).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppPalette.text)

@@ -119,7 +119,7 @@ struct StrengthEquipmentSetupView: View {
                         Text("Added load").tag(StrengthEquipment.LoadingMeaning.added)
                         Text("Assistance · less is harder").tag(StrengthEquipment.LoadingMeaning.assistance)
                         Text("Bodyweight only").tag(StrengthEquipment.LoadingMeaning.bodyweightOnly)
-                    }.accessibilityIdentifier("equipment_meaning")
+                    }.pickerStyle(.menu).accessibilityIdentifier("equipment_meaning")
                     Text(meaningExplanation).appTextRole(.secondary).foregroundStyle(.secondary)
                 }
                 Section("Available equipment") {

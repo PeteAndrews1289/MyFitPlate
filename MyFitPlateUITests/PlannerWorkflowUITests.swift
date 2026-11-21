@@ -149,10 +149,19 @@ final class PlannerWorkflowUITests: XCTestCase {
         app.buttons["Reuse previous week"].tap()
         let use = app.buttons["planner_use_draft"]
         XCTAssertTrue(use.waitForExistence(timeout: 8))
+        let keep = app.staticTexts["Keeps your existing meals"]
+        XCTAssertTrue(keep.exists)
         let options = app.buttons["Plan options"]
-        reveal(options, in: app); options.tap()
+        let scroll = app.scrollViews.containing(.button, identifier: "Plan options").firstMatch
+        for _ in 0..<8 where options.frame.maxY >= keep.frame.minY - 8 { scroll.swipeUp() }
+        options.tap()
+        XCTAssertTrue(app.staticTexts["Your existing meals stay. This plan fills the remaining slots."].waitForExistence(timeout: 5))
         let replace = app.switches["planner_draft_replace"]
-        XCTAssertEqual(replace.value as? String, "0", "Keep existing meals by default")
+        if replace.exists {
+            XCTAssertEqual(replace.value as? String, "0", "Keep existing meals by default")
+        } else {
+            XCTAssertTrue(app.staticTexts["Existing meal slots are locked"].exists)
+        }
         XCTAssertTrue(use.isEnabled)
         attach(app, "Planner - reuse week review")
         use.tap()
@@ -168,6 +177,7 @@ final class PlannerWorkflowUITests: XCTestCase {
     @MainActor
     func testWorkoutUpcomingSessionPreviewAndScheduleAccess() {
         let app = launch("train")
+        openProgramOverview(in: app)
         let preview = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "training_preview_")).firstMatch
         reveal(preview, in: app)
         let original = preview.label
@@ -187,9 +197,14 @@ final class PlannerWorkflowUITests: XCTestCase {
     @MainActor
     func testGenerationFailureKeepsChoicesInsteadOfSavingAFallback() {
         let app = launch("meal-plan-survey-cooking")
-        let generate = app.buttons["Create draft"]
+        let ideas = app.segmentedControls["planner_generation_source"].buttons["Maia ideas"]
+        XCTAssertTrue(ideas.waitForExistence(timeout: 10)); ideas.tap()
+        let generate = app.buttons["meal_plan_generate_plan"]
         XCTAssertTrue(generate.waitForExistence(timeout: 10)); generate.tap()
-        XCTAssertTrue(app.staticTexts["Your draft isn't ready yet"].waitForExistence(timeout: 10))
+        let feedback = app.staticTexts["meal_plan_generation_error"]
+        XCTAssertTrue(feedback.waitForExistence(timeout: 10))
+        XCTAssertTrue(feedback.label.contains("choices are still here"))
+        XCTAssertTrue(ideas.isSelected)
         XCTAssertTrue(generate.isEnabled)
         XCTAssertFalse(app.buttons["planner_use_draft"].exists)
         attach(app, "Planner - generation failure retains choices")
@@ -279,6 +294,7 @@ final class PlannerWorkflowUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "train", "-ui-testing-reset-workout-draft"] + arguments
         app.launch()
+        openProgramOverview(in: app)
         let preview = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "training_preview_")).firstMatch
         reveal(preview, in: app); preview.tap()
         XCTAssertTrue(app.navigationBars["Session preview"].waitForExistence(timeout: 5))
@@ -292,9 +308,22 @@ final class PlannerWorkflowUITests: XCTestCase {
     }
 
     @MainActor
+    private func openProgramOverview(in app: XCUIApplication) {
+        let overview = app.buttons["train_program_overview"]
+        reveal(overview, in: app); overview.tap()
+        XCTAssertTrue(app.navigationBars["Program & schedule"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     private func selectDay(_ offset: Int, in app: XCUIApplication) {
         let mode = app.buttons["planner_view_mode"]
         reveal(mode, in: app); mode.tap()
+        let calendar = Calendar.current
+        let today = Date()
+        if let target = calendar.date(byAdding: .day, value: offset, to: today),
+           !calendar.isDate(target, equalTo: today, toGranularity: .weekOfYear) {
+            app.buttons[offset > 0 ? "planner_next_week" : "planner_previous_week"].tap()
+        }
         let day = app.buttons["planner_agenda_\(dayID(offset))"]
         reveal(day, in: app); day.tap()
     }

@@ -91,8 +91,11 @@ final class PersonalReportContinuityUITests: XCTestCase {
     }
     private func reveal(_ element: XCUIElement, app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         for _ in 0..<6 {
-            if element.exists && element.isHittable && element.frame.minY >= 85 && element.frame.maxY <= app.frame.maxY - 90 { return }
-            if element.exists && element.frame.minY < 85 { app.swipeDown() } else { app.swipeUp() }
+            let top = app.navigationBars.allElementsBoundByIndex.filter(\.isHittable).map { $0.frame.maxY }.max() ?? 85
+            let tab = app.buttons["tab_home"]
+            let bottom = tab.exists && tab.isHittable ? tab.frame.minY : app.frame.maxY
+            if element.exists && element.isHittable && element.frame.minY >= top && element.frame.maxY <= bottom { return }
+            if element.exists && element.frame.minY < top { app.swipeDown() } else { app.swipeUp() }
         }
         XCTFail("Control not reachable. \(app.debugDescription)", file: file, line: line)
     }

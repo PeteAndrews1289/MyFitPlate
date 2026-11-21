@@ -85,19 +85,24 @@ final class WorkoutDashboardUITests: XCTestCase {
     func testProgramSaveFailureKeepsEditsAndAllowsRetry() {
         app.terminate()
         app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "program-builder",
-                               "-ui-testing-workout-save-failure"]
+                               "-ui-testing-workout-save-failure", "-ui-testing-reset-editor-drafts"]
         app.launch()
         let save = app.buttons["program_builder_save"]
         XCTAssertTrue(save.waitForExistence(timeout: 10))
+        let name = app.textFields["program_builder_name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeKey("a", modifierFlags: .command)
+        name.typeText("Dumbbell Strength QA\n")
         XCTAssertTrue(save.isEnabled)
         save.tap()
         let feedback = app.staticTexts["program_builder_feedback"]
         XCTAssertTrue(feedback.waitForExistence(timeout: 5))
-        XCTAssertTrue(feedback.label.contains("Could not save"))
+        XCTAssertTrue(feedback.label.contains("This exact proposal is kept"), feedback.label)
         XCTAssertTrue(save.isEnabled)
-        let name = app.textFields.firstMatch
+        XCTAssertTrue(app.buttons["Check save status"].exists)
         for _ in 0..<6 where !name.exists { app.swipeDown() }
-        XCTAssertTrue((name.value as? String)?.contains("Dumbbell Strength") == true)
+        XCTAssertEqual(name.value as? String, "Dumbbell Strength QA")
         attach("Program save - recoverable failure")
     }
 

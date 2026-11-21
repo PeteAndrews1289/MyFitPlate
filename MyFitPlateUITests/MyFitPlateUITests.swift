@@ -1753,12 +1753,12 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let day = app.buttons["planner_view_mode"]
-        let add = app.buttons["meal_plan_add_meal"]
+        let addMeal = app.buttons["meal_plan_add_meal"]
         let workspace = app.segmentedControls["planner_workspace"]
         let meal = app.buttons["planner_edit_planned-0-0"]
         XCTAssertTrue(day.waitForExistence(timeout: 10))
         XCTAssertEqual(day.label, "Show week")
-        XCTAssertTrue(add.isHittable)
+        XCTAssertTrue(addMeal.isHittable)
         XCTAssertTrue(workspace.buttons["Plan"].isSelected)
         XCTAssertTrue(meal.waitForExistence(timeout: 5))
         XCTAssertLessThan(day.frame.minY, workspace.frame.minY)

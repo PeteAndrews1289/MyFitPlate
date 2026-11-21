@@ -95,6 +95,12 @@ final class WaveTwoContinuationUITests: XCTestCase {
         selectWorkspace("Plan", app: app)
         let mode = app.buttons["planner_view_mode"]
         reveal(mode, app: app); mode.tap()
+        let calendar = Calendar.current
+        let today = Date()
+        if let nextDay = calendar.date(byAdding: .day, value: 1, to: today),
+           !calendar.isDate(today, equalTo: nextDay, toGranularity: .weekOfYear) {
+            app.buttons["planner_next_week"].tap()
+        }
         let tomorrow = app.buttons["planner_agenda_\(dayID(1))"]
         reveal(tomorrow, app: app); tomorrow.tap()
         let names = app.staticTexts["Four-portion rice batch"]

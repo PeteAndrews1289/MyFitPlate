@@ -30,6 +30,7 @@ struct ReportNutritionSummary: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .appSurface(.quiet)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reports_overview")
     }
 }

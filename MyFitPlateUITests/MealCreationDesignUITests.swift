@@ -6,7 +6,7 @@ final class MealCreationDesignUITests: XCTestCase {
 
     @MainActor func testSharedSearchKeepsDateAndSlotAcrossRecipeMealReviewsAndCancellation() {
         let app = launch()
-        let date = app.buttons["planner_choose_date"].value as? String
+        let date = app.buttons["planner_view_mode"].value as? String
         XCTAssertNotNil(date, "The selected planner date must be available for the review check")
         openChooser(app)
         let compactDate = app.staticTexts["planner_choice_date"].label
@@ -115,8 +115,7 @@ final class MealCreationDesignUITests: XCTestCase {
     }
 
     @MainActor private func openChooser(_ app: XCUIApplication) {
-        app.buttons["meal_plan_tools"].tap()
-        let add = app.buttons["Add meal"].firstMatch
+        let add = app.buttons["meal_plan_add_meal"]
         XCTAssertTrue(add.waitForExistence(timeout: 5), app.debugDescription); add.tap()
         XCTAssertTrue(app.textFields["food_search_field"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.segmentedControls["planner_choice_scope"].exists, app.debugDescription)

@@ -412,18 +412,29 @@ struct GroceryListView: View {
             return
         }
         guard checklist.userID == userID else { groceryList = []; isLoading = false; return }
+        func requestIsCurrent() -> Bool {
+            loadRequestID == requestID && localEditRevision == revision && DIContainer.shared.authService.currentUserID == userID
+        }
         if checklist.pendingCount > 0 {
             await checklist.retry(using: DIContainer.shared.nutritionRepository)
+            guard requestIsCurrent() else { return }
             groceryList = projected(checklist.items)
             if checklist.pendingCount > 0 { isLoading = false; return }
         }
         if groceryList.isEmpty { isLoading = true }
         let result = await mealPlannerService.refreshGroceryListResult(for: userID, starting: planStartDate)
-        guard loadRequestID == requestID, localEditRevision == revision, DIContainer.shared.authService.currentUserID == userID else { return }
-        guard case .success(let fetchedList) = result else {
+        guard requestIsCurrent() else { return }
+        let fetchedList: [GroceryListItem]
+        switch result {
+        case .success(let refreshed):
+            fetchedList = refreshed
+            didFailToLoad = false
+        case .failure:
+            let saved = await mealPlannerService.fetchGroceryListResult(for: userID)
+            guard requestIsCurrent() else { return }
             didFailToLoad = true
-            isLoading = false
-            return
+            guard case .success(let items) = saved else { isLoading = false; return }
+            fetchedList = items
         }
         let preparedList = fetchedList.map { item -> GroceryListItem in
             var prepared = GroceryListBuilder.applyUnitSystem(item, system: unitSystem)
@@ -431,7 +442,6 @@ struct GroceryListView: View {
             return prepared
         }
         if checklist.installRemote(fetchedList) { self.groceryList = preparedList }
-        self.didFailToLoad = false
         self.isLoading = false
     }
     
@@ -517,11 +527,13 @@ struct GroceryListView: View {
             }
         } else if !groceryList.isEmpty {
             if didFailToLoad {
-                Label("Could not refresh. Showing the last loaded list.", systemImage: "exclamationmark.icloud")
-                    .appTextRole(.secondary)
-                    .foregroundStyle(AppPalette.caution)
-                    .appSurface(.quiet)
-                    .accessibilityIdentifier("grocery_refresh_warning")
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Label("Showing your saved list. Planned quantities couldn't refresh.", systemImage: "exclamationmark.icloud")
+                        .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                        .accessibilityIdentifier("grocery_refresh_warning")
+                    Button("Retry plan update") { Task { await loadList() } }
+                        .frame(minHeight: 44)
+                }.appSurface(.quiet)
             }
             GrocerySummaryCard(
                 items: groceryList,

@@ -372,6 +372,7 @@ struct WorkoutRoutinesView: View {
         .navigationTitle("Program & schedule")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("train_program_overview_screen")
         .workoutPresentationBoundary()
     }

@@ -290,14 +290,23 @@ public class MealPlannerService: ObservableObject {
         let changed = mergedItems.filter { item in existingItems.first(where: { $0.id == item.id }) != item }
         let removed = Set(existingItems.map(\.id)).subtracting(mergedItems.map(\.id))
         let touched = Set(changed.map(\.id)).union(removed)
-        let patch = GroceryListMutation(before: existingItems.filter { touched.contains($0.id) }, upserts: changed, removedIDs: removed)
         let committedItems: [GroceryListItem]
         do {
             guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
-            committedItems = try await DIContainer.shared.nutritionRepository.applyGroceryMutation(userID: userID, mutation: patch)
+            if touched.isEmpty {
+                if suppliedExistingItems != nil {
+                    committedItems = try await fetchGroceryListResult(for: userID).get()
+                } else {
+                    committedItems = existingItems
+                }
+            } else {
+                let patch = GroceryListMutation(before: existingItems.filter { touched.contains($0.id) }, upserts: changed, removedIDs: removed)
+                committedItems = try await DIContainer.shared.nutritionRepository.applyGroceryMutation(userID: userID, mutation: patch)
+            }
         } catch { return .failure(error) }
-        if let key = groceryRescueKey(userID) { userDefaults.set(rescueToken, forKey: key) }
+        guard DIContainer.shared.authService.currentUserID == userID else { return .failure(MealPlanEditError.accountChanged) }
         guard activeGroceryRescueToken(userID) == rescueToken else { return .failure(MealPlannerServiceError.planChanged) }
+        if let key = groceryRescueKey(userID) { userDefaults.set(rescueToken, forKey: key) }
         return .success(committedItems)
     }
 

@@ -170,7 +170,8 @@ final class WaveOneFoodLoggingUITests: XCTestCase {
         XCTAssertTrue(addApple.waitForExistence(timeout: 8))
         let undoAge = Date().timeIntervalSince(quickAddAcceptedAt)
         attach(app, "Food selection - live keyboard with pending meal and quick-add Undo")
-        let observations = XCTAttachment(string: "Search: \(search.frame), hittable \(search.isHittable)\nDestination: \(destination.frame), enabled \(destination.isEnabled)\nReview: \(review.frame), hittable \(review.isHittable)\nUndo: \(undo.frame), hittable \(undo.isHittable), quick-add age \(undoAge) seconds (Undo expires after 30)\nApple Add: \(addApple.frame), hittable \(addApple.isHittable)\nKeyboard: \(keyboard.frame)")
+        let undoVisible = undo.exists && undo.isHittable
+        let observations = XCTAttachment(string: "Search: \(search.frame), hittable \(search.isHittable)\nDestination: \(destination.frame), enabled \(destination.isEnabled)\nReview: \(review.frame), hittable \(review.isHittable)\nUndo visible: \(undoVisible), quick-add age \(undoAge) seconds (Undo expires after 30)\nApple Add: \(addApple.frame), hittable \(addApple.isHittable)\nKeyboard: \(keyboard.frame)")
         observations.name = "Mixed food search keyboard reachability"
         observations.lifetime = .keepAlways; add(observations)
         XCTAssertTrue(search.isHittable)

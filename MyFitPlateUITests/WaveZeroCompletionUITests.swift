@@ -60,7 +60,9 @@ final class WaveZeroCompletionUITests: XCTestCase {
         let original = age.value as? String
         replace(age, with: "41", app: app)
         app.buttons["app_sheet_close_button"].firstMatch.tap()
-        let reopen = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Calorie and macro goals'")).firstMatch
+        let category = app.buttons["settings_open_goals"]
+        reveal(category, app: app); category.tap()
+        let reopen = app.buttons["settings_calorie_goals"]
         reveal(reopen, app: app)
         reopen.tap()
         XCTAssertTrue(age.waitForExistence(timeout: 5))
@@ -96,6 +98,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         reveal(row, app: app)
         XCTAssertTrue(row.exists)
         XCTAssertTrue((row.value as? String)?.contains("checked") == true)
+        XCTAssertFalse((row.value as? String)?.contains("not checked") == true)
         let retry = app.buttons["Retry grocery changes"].firstMatch
         if retry.exists { reveal(retry, app: app); retry.tap() }
         expectGone(any(app, "grocery_save_status"), timeout: 10)
@@ -251,7 +254,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         XCTAssertTrue(any(app, "deep_link_unavailable").waitForExistence(timeout: 15))
         app.buttons["deep_link_unavailable_home"].firstMatch.tap()
         expectGone(any(app, "deep_link_unavailable"), timeout: 5)
-        XCTAssertTrue(app.staticTexts["home_screen_header"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -291,7 +294,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         XCTAssertTrue(any(app, "settings_screen").waitForExistence(timeout: 15))
         record(app, "Deep link - real Settings destination")
         app.buttons["Done"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["home_screen_header"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
         app.terminate()
         app.launchArguments = arguments("home", flags: ["-deep-link-url", "myfitplate://profile"])
         app.launch()
@@ -299,7 +302,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["profile_weekly_challenges_button"].exists)
         record(app, "Deep link - real Profile destination")
         app.buttons["Done"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["home_screen_header"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -334,11 +337,9 @@ final class WaveZeroCompletionUITests: XCTestCase {
     private func replace(_ field: XCUIElement, with value: String, app: XCUIApplication) {
         reveal(field, app: app)
         field.tap()
-        field.press(forDuration: 1)
-        let selectAll = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label IN %@", ["Select All", "Select all"])).firstMatch
-        if selectAll.waitForExistence(timeout: 2) { selectAll.tap() } else { field.tap(withNumberOfTaps: 3, numberOfTouches: 1) }
-        field.typeText(XCUIKeyboardKey.delete.rawValue + value)
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText(value)
+        XCTAssertEqual(field.value as? String, value)
     }
 
     private func expectGone(_ element: XCUIElement, timeout: TimeInterval) {

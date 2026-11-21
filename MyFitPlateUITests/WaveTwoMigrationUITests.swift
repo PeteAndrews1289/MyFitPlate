@@ -52,9 +52,11 @@ final class WaveTwoMigrationUITests: XCTestCase {
     }
     @MainActor private func reveal(_ element: XCUIElement, app: XCUIApplication) {
         for _ in 0..<22 {
-            if element.waitForExistence(timeout: 0.3), element.isHittable, app.frame.contains(element.frame) { return }
-            let top = (app.navigationBars.allElementsBoundByIndex.map { $0.frame.maxY }.max() ?? 90) + 10
-            let bottom = app.frame.maxY - 85
+            let top = (app.navigationBars.allElementsBoundByIndex.filter(\.isHittable).map { $0.frame.maxY }.max() ?? 90) + 5
+            let dock = app.buttons["tab_home"].firstMatch
+            let bottom = dock.exists && dock.isHittable ? dock.frame.minY - 5 : app.frame.maxY - 25
+            if element.waitForExistence(timeout: 0.3), element.isHittable,
+               element.frame.minY >= top, element.frame.maxY <= bottom { return }
             let offset: CGFloat = element.exists && element.frame.minY < top ? 120 : -120
             let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: app.frame.width * 0.9, dy: (top + bottom) / 2))
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: offset)), withVelocity: .slow, thenHoldForDuration: 0.2)

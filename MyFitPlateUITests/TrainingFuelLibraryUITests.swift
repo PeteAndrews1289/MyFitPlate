@@ -33,8 +33,11 @@ import XCTest
         let flags = ["-ui-testing", "-screenshot-mode", "-ui-testing-fuel-library"]
         app.launchArguments = flags + ["-ui-testing-reset-editor-drafts"]
         app.launch(); openFuel(app)
-        let newSession = app.buttons["fuel_new_session"]
-        reveal(newSession, app: app); newSession.tap()
+        if app.navigationBars["Review training fuel"].exists {
+            let newSession = app.buttons["fuel_new_session"]
+            reveal(newSession, app: app); newSession.tap()
+        }
+        XCTAssertTrue(app.navigationBars["Training fuel"].waitForExistence(timeout: 5))
         let personalize = app.buttons["Personalize this estimate"]
         reveal(personalize, app: app); personalize.tap()
         let enabled = app.switches["fuel_personalize"]

@@ -160,11 +160,8 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
     @MainActor private func replace(_ field: XCUIElement, with text: String, app: XCUIApplication) {
         reveal(field, app: app)
         field.tap()
-        field.press(forDuration: 1.2)
-        let selectAll = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label IN %@", ["Select All", "Select all"])).firstMatch
-        if selectAll.waitForExistence(timeout: 2) { selectAll.tap() } else { field.tap(withNumberOfTaps: 3, numberOfTouches: 1) }
-        field.typeText(XCUIKeyboardKey.delete.rawValue + text)
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText(text)
         XCTAssertEqual(field.value as? String, text)
     }
     @MainActor private func finishKeyboard(_ app: XCUIApplication) {

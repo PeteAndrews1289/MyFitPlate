@@ -67,10 +67,15 @@ final class FirstImpressionUITests: XCTestCase {
         XCTAssertEqual(app.textFields["create_account_email_field"].value as? String, "member@example.com")
         // Choose manual entry when iOS offers password generation. Typing through that
         // system panel bypasses the keyboard and does not represent a user entering text.
-        if app.buttons["GenerateStrongPasswordButton"].waitForExistence(timeout: 2) {
+        let suggestion = app.buttons["GenerateStrongPasswordButton"]
+        if suggestion.waitForExistence(timeout: 5) {
             app.buttons["Close"].tap()
+            XCTAssertTrue(suggestion.waitForNonExistence(timeout: 5))
         }
-        app.typeText("short")
+        let key = app.keyboards.keys["s"]
+        XCTAssertTrue(key.waitForExistence(timeout: 5) && key.isHittable)
+        key.tap()
+        app.typeText("hort")
         XCTAssertTrue(app.secureTextFields["create_account_password"].exists)
         XCTAssertFalse(app.buttons["create_account_submit"].isEnabled)
         app.typeText("er")

@@ -137,8 +137,6 @@ final class EliteWorkoutUITests: XCTestCase {
         replace(reps, with: "9", in: app)
         app.buttons["Done"].firstMatch.tap()
         let complete = firstComplete(app)
-        complete.tap()
-        XCTAssertEqual(complete.value as? String, "Completed")
         let setID = complete.identifier.replacingOccurrences(of: "set_complete_", with: "")
         let controls = app.buttons["set_details_" + setID]
         reveal(controls, app: app); controls.tap()
@@ -147,6 +145,8 @@ final class EliteWorkoutUITests: XCTestCase {
         reveal(effort, app: app)
         XCTAssertTrue(effort.waitForExistence(timeout: 5))
         app.buttons["Collapse set controls"].firstMatch.tap()
+        reveal(complete, app: app); complete.tap()
+        XCTAssertEqual(complete.value as? String, "Completed")
         let evidence = XCTAttachment(screenshot: app.screenshot())
         evidence.name = "Workout - compact set entry"
         evidence.lifetime = .keepAlways

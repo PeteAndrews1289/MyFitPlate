@@ -547,6 +547,21 @@ final class MealPlannerServiceTests: XCTestCase {
         XCTAssertTrue(mockRepo.savedGroceryLists.isEmpty)
     }
     
+    func testUnchangedGroceryRefreshReadsLatestManualRowsWithoutRequiringWriteAccess() async throws {
+        let earlier = GroceryListItem(name: "Oats", quantity: 1, unit: "box", category: "Pantry", source: "manual")
+        var latest = earlier
+        latest.isCompleted = true
+        mockRepo.mockFetchGroceryListResult = [latest]
+        mockRepo.groceryMutationError = CocoaError(.fileWriteUnknown)
+
+        let direct = try await service.refreshGroceryListResult(for: "user1").get()
+        let withSnapshot = try await service.refreshGroceryListResult(for: "user1", existingItems: [earlier]).get()
+
+        XCTAssertEqual(direct, [latest])
+        XCTAssertEqual(withSnapshot, [latest])
+        XCTAssertTrue(mockRepo.grocerySaveSnapshots.isEmpty)
+    }
+
     func testRefreshGroceryList() async {
         let date = Date()
         let meal = PlannedMeal(mealType: "Breakfast", ingredients: ["100g Oats", "1 cup Milk"])

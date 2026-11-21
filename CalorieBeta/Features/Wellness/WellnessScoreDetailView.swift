@@ -735,6 +735,7 @@ struct SleepHistoryDetailView: View {
             .background(AppPalette.canvas)
         }
         .navigationTitle("Sleep history").navigationBarTitleDisplayMode(.inline)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sleep_history_detail")
         .opacity(accountChanged ? 0 : 1)
         .accessibilityHidden(accountChanged)

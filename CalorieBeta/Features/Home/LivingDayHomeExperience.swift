@@ -615,6 +615,8 @@ private struct LivingDayBudgetView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(nutrient.accessibilitySummary)
+                    .accessibilityAddTraits(.isStaticText)
+                    .accessibilityIdentifier("living_day_nutrient_\(nutrient.kind.rawValue)")
                 }
             }
 
@@ -781,6 +783,8 @@ private struct LivingDayBudgetBar: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(nutrient.accessibilitySummary)
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityIdentifier("living_day_budget_bar_\(nutrient.kind.rawValue)")
     }
 }
 

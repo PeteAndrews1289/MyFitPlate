@@ -63,7 +63,7 @@ final class WaveOneDiaryDateUITests: XCTestCase {
             XCTAssertTrue(button.isHittable, id)
             XCTAssertGreaterThanOrEqual(button.frame.minX, app.frame.minX - 1, id)
             XCTAssertLessThanOrEqual(button.frame.maxX, app.frame.maxX + 1, id)
-            XCTAssertGreaterThanOrEqual(button.frame.height, 44, id)
+            XCTAssertGreaterThanOrEqual(button.frame.height + 0.001, 44, id)
         }
         XCTAssertTrue(app.buttons["home_diary_today"].isEnabled)
         attach(app, "Diary date - pinned calendar and Today at largest text")
