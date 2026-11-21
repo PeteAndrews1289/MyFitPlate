@@ -23,7 +23,7 @@ final class WaveTwoAuthoringDepthUITests: XCTestCase {
         reveal(use, app: app); use.tap()
         XCTAssertTrue(name.waitForNonExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Reviewed outline"].waitForExistence(timeout: 8), app.debugDescription)
-        XCTAssertTrue(app.buttons["Save Program"].exists, "Outline review returns to the unsaved proposal; final library acceptance is separate")
+        XCTAssertTrue(app.buttons["ai_program_save"].isEnabled, "Reviewing the outline must leave the final library save available")
         app.terminate()
         launch(app, reset: false)
         XCTAssertTrue(edit.waitForExistence(timeout: 15), app.debugDescription)

@@ -74,7 +74,7 @@ final class WaveZeroIntegrityUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "ai-text-results"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Restored your unfinished review."].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Unfinished review restored"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.staticTexts["ai_review_destination"].label, destination)
         let restoredItem = app.descendants(matching: .any)[originalItemID].firstMatch
         for _ in 0..<8 where !restoredItem.exists { app.collectionViews.firstMatch.swipeUp() }

@@ -7,7 +7,8 @@ final class WaveTwoPlatformDepthUITests: XCTestCase {
         let open = app.buttons["logging_habit_open"]
         XCTAssertTrue(open.waitForExistence(timeout: 15)); open.tap()
         XCTAssertTrue(app.navigationBars["Logging consistency"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Rule review · version 2"].exists)
+        XCTAssertTrue(app.buttons["logging_habit_rule"].exists)
+        XCTAssertTrue(app.buttons["How days are counted"].exists)
         let save = app.navigationBars["Logging consistency"].buttons["Save"]
         waitEnabled(save, app: app)
         let hide = app.switches["Hide consistency on Home"].firstMatch

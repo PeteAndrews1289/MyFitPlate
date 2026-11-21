@@ -161,14 +161,24 @@ jobs:
                   -destination 'platform=iOS Simulator,name=iPhone 16'
                   -derivedDataPath "$RUNNER_TEMP/MyFitPlateUI" -parallel-testing-enabled NO)
           xcodebuild build-for-testing "${common[@]}" CODE_SIGN_IDENTITY=-
-          xcodebuild test-without-building "${common[@]}" -only-testing:MyFitPlateUITests \
-            -enumerate-tests -test-enumeration-style flat -test-enumeration-format text \
-            -test-enumeration-output-path "$RUNNER_TEMP/ui-tests.txt"
-          python3 scripts/ui_test_partition.py "$RUNNER_TEMP/ui-tests.txt" "$SHARD" 4 > "$RUNNER_TEMP/ui-suites.txt"
+          # Simulator discovery can succeed with an empty inventory. Read the XCTest entry
+          # points from the built bundle, then verify that the runner executed every assigned case.
+          products="$RUNNER_TEMP/MyFitPlateUI/Build/Products/Debug-iphonesimulator"
+          bundle="$products/MyFitPlateUITests-Runner.app/PlugIns/MyFitPlateUITests.xctest"
+          xcrun nm -arch arm64 -U -j "$bundle/MyFitPlateUITests" | xcrun swift-demangle --compact > "$RUNNER_TEMP/ui-symbols.txt"
+          python3 scripts/ui_test_partition.py "$RUNNER_TEMP/ui-symbols.txt" "$SHARD" 4 \
+            --xcodebuild-arguments --expected UIExpectedTests.txt > "$RUNNER_TEMP/ui-suites.txt"
           suites=()
-          while IFS= read -r suite; do suites+=("-only-testing:$suite"); done < "$RUNNER_TEMP/ui-suites.txt"
+          while IFS= read -r argument; do suites+=("$argument"); done < "$RUNNER_TEMP/ui-suites.txt"
           xcodebuild test-without-building "${common[@]}" "${suites[@]}" \
             -collect-test-diagnostics on-failure -resultBundlePath UITestResults.xcresult | tee UITestResults.log
+          xcrun xcresulttool get test-results tests --path UITestResults.xcresult \
+            | jq -r '.. | objects | select(.nodeType == "Test Case") | .nodeIdentifier' | LC_ALL=C sort -u > UIExecutedTests.txt
+          LC_ALL=C comm -23 UIExpectedTests.txt UIExecutedTests.txt > "$RUNNER_TEMP/missing-ui-tests.txt"
+          if [[ -s "$RUNNER_TEMP/missing-ui-tests.txt" ]]; then
+            cat "$RUNNER_TEMP/missing-ui-tests.txt"
+            exit 1
+          fi
 
       - name: Upload UI test evidence
         if: always()
@@ -178,6 +188,8 @@ jobs:
           path: |
             UITestResults.xcresult
             UITestResults.log
+            UIExpectedTests.txt
+            UIExecutedTests.txt
           if-no-files-found: ignore
 
   functions:
