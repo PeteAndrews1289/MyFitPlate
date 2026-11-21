@@ -163,11 +163,8 @@ final class FoodPreferencesIntegrityTests: XCTestCase {
         do { try await live.saveFoodPreferencesDraft(draft, revision: revision); XCTFail("Expected account rejection") } catch {}
         XCTAssertTrue(repository.foodPreferencesSaveUserIDs.isEmpty)
         auth.currentUserID = owner
-        repository.goalEditorSaveDelayNanoseconds = 80_000_000
-        let pending = Task { try await live.saveFoodPreferencesDraft(draft, revision: revision) }
-        while repository.foodPreferencesSaveUserIDs.isEmpty { await Task.yield() }
-        auth.currentUserID = "other"; live.activateAccount("other")
-        do { try await pending.value; XCTFail("Expected account handoff rejection") } catch {}
+        repository.beforeNextGoalEditorCommit = { [auth] in auth?.currentUserID = "other"; live.activateAccount("other") }
+        do { try await live.saveFoodPreferencesDraft(draft, revision: revision); XCTFail("Expected account handoff rejection") } catch {}
         XCTAssertEqual(live.makeFoodPreferencesDraft(), .defaults)
         XCTAssertNil(repository.savedUserGoals)
     }

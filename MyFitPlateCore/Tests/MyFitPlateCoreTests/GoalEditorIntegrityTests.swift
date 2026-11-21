@@ -204,11 +204,8 @@ final class GoalEditorIntegrityTests: XCTestCase {
         do { try await live.saveGoalEditorDraft(baseline, baseline: baseline, userID: owner); XCTFail("Expected account rejection") } catch {}
         XCTAssertTrue(repo.goalEditorSaveUserIDs.isEmpty)
         auth.currentUserID = owner
-        repo.goalEditorSaveDelayNanoseconds = 40_000_000
-        let pending = Task { try await live.saveGoalEditorDraft(baseline, baseline: baseline, userID: owner) }
-        await waitForSave()
-        auth.currentUserID = "other"; live.activateAccount("other")
-        do { try await pending.value; XCTFail("Expected stale completion rejection") } catch {}
+        repo.beforeNextGoalEditorCommit = { [auth] in auth?.currentUserID = "other"; live.activateAccount("other") }
+        do { try await live.saveGoalEditorDraft(baseline, baseline: baseline, userID: owner); XCTFail("Expected stale completion rejection") } catch {}
         XCTAssertNil(live.calories)
         XCTAssertNil(repo.savedUserGoals)
     }
@@ -226,11 +223,10 @@ final class GoalEditorIntegrityTests: XCTestCase {
     func testRapidSecondSaveIsRejectedWhileFirstProposalIsPending() async throws {
         let live = model()
         let baseline = live.makeGoalEditorDraft()
-        repo.goalEditorSaveDelayNanoseconds = 40_000_000
-        let pending = Task { try await live.saveGoalEditorDraft(baseline, baseline: baseline, userID: owner) }
-        await waitForSave()
-        do { try await live.saveGoalEditorDraft(baseline, baseline: baseline, userID: owner); XCTFail("Expected duplicate guard") } catch {}
-        try await pending.value
+        repo.beforeNextGoalEditorCommit = { [owner] in
+            do { try await live.saveGoalEditorDraft(baseline, baseline: baseline, userID: owner); XCTFail("Expected duplicate guard") } catch {}
+        }
+        try await live.saveGoalEditorDraft(baseline, baseline: baseline, userID: owner)
         XCTAssertEqual(repo.goalEditorSaveUserIDs, [owner])
     }
 
@@ -296,13 +292,12 @@ final class GoalEditorIntegrityTests: XCTestCase {
 
     func testWaterGoalAccountChangeAndDuplicateSaveCannotPublishOrWriteAnotherAccount() async {
         let live = model()
-        repo.goalEditorSaveDelayNanoseconds = 40_000_000
-        let pending = Task { try await live.saveWaterGoal(100, baseline: 93, userID: owner) }
-        for _ in 0..<100 where repo.waterGoalSaveUserIDs.isEmpty { try? await Task.sleep(nanoseconds: 1_000_000) }
+        repo.beforeNextGoalEditorCommit = { [auth, owner] in
+            do { try await live.saveWaterGoal(120, baseline: 93, userID: owner); XCTFail("Expected duplicate rejection") } catch {}
+            auth?.currentUserID = "other"; live.activateAccount("other")
+        }
+        do { try await live.saveWaterGoal(100, baseline: 93, userID: owner); XCTFail("Expected account rejection") } catch {}
         XCTAssertEqual(repo.waterGoalSaveUserIDs, [owner])
-        do { try await live.saveWaterGoal(120, baseline: 93, userID: owner); XCTFail("Expected duplicate rejection") } catch {}
-        auth.currentUserID = "other"; live.activateAccount("other")
-        do { try await pending.value; XCTFail("Expected account rejection") } catch {}
         XCTAssertEqual(live.waterGoal, 64)
         XCTAssertNil(repo.savedUserGoals)
     }
@@ -319,8 +314,4 @@ final class GoalEditorIntegrityTests: XCTestCase {
         XCTAssertEqual(live.waterGoal, 93)
     }
 
-    private func waitForSave() async {
-        for _ in 0..<100 where repo.goalEditorSaveUserIDs.isEmpty { try? await Task.sleep(nanoseconds: 1_000_000) }
-        XCTAssertFalse(repo.goalEditorSaveUserIDs.isEmpty)
-    }
 }

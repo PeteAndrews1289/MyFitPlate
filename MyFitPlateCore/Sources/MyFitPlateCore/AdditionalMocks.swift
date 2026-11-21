@@ -306,7 +306,12 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
     
     public var onSave: (() -> Void)?
     public var saveUserGoalsError: Error?
-    public var goalEditorSaveDelayNanoseconds: UInt64 = 0
+    public var beforeNextGoalEditorCommit: (@MainActor () async -> Void)?
+    @MainActor private func prepareGoalEditorCommit() async {
+        let action = beforeNextGoalEditorCommit
+        beforeNextGoalEditorCommit = nil
+        await action?()
+    }
     public private(set) var goalEditorSaveUserIDs: [String] = []
     public private(set) var waterGoalSaveUserIDs: [String] = []
     public private(set) var foodPreferencesSaveUserIDs: [String] = []
@@ -338,7 +343,7 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
         if let current = mockFetchUserGoalsResult, !decision.proposal.matchesPersistedTargets(current) {
             throw WeeklyTargetReviewError.changed
         }
-        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        await prepareGoalEditorCommit()
         guard DIContainer.shared.authService.currentUserID == owner else { throw WeeklyTargetReviewError.accountChanged }
         if let saveUserGoalsError { throw saveUserGoalsError }
         if !decision.profilePatch.isEmpty {
@@ -366,7 +371,7 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
         guard DIContainer.shared.authService.currentUserID == userID else { throw GoalEditorError.accountChanged }
         if let current = mockFetchUserGoalsResult, !baseline.matchesPersistedInputs(current) { throw GoalEditorError.changed }
         goalEditorSaveUserIDs.append(userID)
-        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        await prepareGoalEditorCommit()
         guard DIContainer.shared.authService.currentUserID == userID else { throw GoalEditorError.accountChanged }
         try await saveUserGoals(userID: userID, data: data)
     }
@@ -378,7 +383,7 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
                   abs(value.doubleValue - baseline) < 0.0001 || abs(value.doubleValue - goal) < 0.0001 else { throw GoalEditorError.changed }
         }
         waterGoalSaveUserIDs.append(userID)
-        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        await prepareGoalEditorCommit()
         guard DIContainer.shared.authService.currentUserID == userID else { throw GoalEditorError.accountChanged }
         try await saveUserGoals(userID: userID, data: ["goals": ["waterGoal": goal]])
     }
@@ -388,7 +393,7 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
         if let current = mockFetchUserGoalsResult,
            !baseline.matchesPersistedPreferences(current), !draft.matchesPersistedPreferences(current) { throw FoodPreferencesError.changed }
         foodPreferencesSaveUserIDs.append(userID)
-        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        await prepareGoalEditorCommit()
         guard DIContainer.shared.authService.currentUserID == userID else { throw FoodPreferencesError.accountChanged }
         try await saveUserGoals(userID: userID, data: draft.profilePatch(updatedAt: Date()))
     }

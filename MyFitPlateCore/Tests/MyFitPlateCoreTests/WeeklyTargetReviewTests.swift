@@ -119,11 +119,11 @@ final class WeeklyTargetReviewTests: XCTestCase {
 
     func testLateAccountSwitchCannotPublishOrCommitDecision() async throws {
         let goals = model(); let frozen = try proposal(goals)
-        repository.goalEditorSaveDelayNanoseconds = 40_000_000
-        let task = Task { try await goals.saveWeeklyTargetDecision(WeeklyTargetDecision(proposal: frozen, choice: .accept)) }
-        try await Task.sleep(nanoseconds: 5_000_000)
-        auth.currentUserID = "another"
-        do { _ = try await task.value; XCTFail("Expected account guard") } catch {}
+        repository.beforeNextGoalEditorCommit = { [auth] in auth?.currentUserID = "another" }
+        do {
+            _ = try await goals.saveWeeklyTargetDecision(WeeklyTargetDecision(proposal: frozen, choice: .accept))
+            XCTFail("Expected account guard")
+        } catch { XCTAssertEqual(error as? WeeklyTargetReviewError, .accountChanged) }
         XCTAssertEqual(goals.calories, frozen.before.calories)
         XCTAssertEqual(repository.weeklyTargetCommitCount, 0)
     }
