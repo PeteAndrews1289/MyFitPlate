@@ -30,19 +30,19 @@ final class BrandedFoodSearchTests: XCTestCase {
         DIContainer.shared.cloudFunctionService = FirebaseCloudFunctionService()
         defer { DIContainer.shared.cloudFunctionService = priorCloud }
         let catalogs = FoodSearchViewModel(defaults: defaults)
-        var statuses: [String: String] = [:]
-        let loader: FoodSearchViewModel.SearchLoader = { provider, query in
-            let result = await catalogs.loadSearchProvider(provider, query: query)
-            switch result {
-            case .success(let foods): statuses[String(describing: provider)] = String(foods.count)
-            case .failure: statuses[String(describing: provider)] = "unavailable"
-            }
-            return result
-        }
         for (query, expected) in queries {
+            var statuses: [String: String] = [:]
+            let start = ProcessInfo.processInfo.systemUptime
+            let loader: FoodSearchViewModel.SearchLoader = { provider, lookup in
+                let result = await catalogs.loadSearchProvider(provider, query: lookup)
+                let elapsed = Int((ProcessInfo.processInfo.systemUptime - start) * 1000)
+                switch result {
+                case .success(let foods): statuses[String(describing: provider)] = "\(foods.count) at \(elapsed)ms"
+                case .failure: statuses[String(describing: provider)] = "unavailable at \(elapsed)ms"
+                }
+                return result
+            }
             let model = FoodSearchViewModel(defaults: defaults, searchLoader: loader)
-            statuses.removeAll()
-            let start = Date()
             model.searchText = query
             model.submitSearch()
             var firstMatchMS: Int?
@@ -61,13 +61,15 @@ final class BrandedFoodSearchTests: XCTestCase {
                     }
                     return expected.allSatisfy { description.contains($0) }
                 }.map { $0 + 1 }
-                if rank != nil && firstMatchMS == nil { firstMatchMS = Int(-start.timeIntervalSinceNow * 1000) }
+                if rank != nil && firstMatchMS == nil { firstMatchMS = Int((ProcessInfo.processInfo.systemUptime - start) * 1000) }
                 if !model.isLoading { break }
                 try await Task.sleep(for: .milliseconds(100))
-            } while -start.timeIntervalSinceNow < 30
+            } while ProcessInfo.processInfo.systemUptime - start < 30
             print("LIVE_BRAND query=\(query) rank=\(rank.map(String.init) ?? "miss") first_ms=\(firstMatchMS.map(String.init) ?? "none") settled=\(!model.isLoading) partial=\(model.searchCoverageMessage != nil || model.searchErrorMessage != nil) count=\(model.searchResults.count) sources=\(statuses)")
+            XCTAssertFalse(model.isLoading, "The submitted search for \(query) did not finish within 30 seconds.")
+            XCTAssertNotNil(rank, "The expected product did not appear in the first five results for \(query).")
             model.searchText = ""
-            let wait = max(0, 7 + start.timeIntervalSinceNow)
+            let wait = max(0, 7 - (ProcessInfo.processInfo.systemUptime - start))
             try await Task.sleep(for: .seconds(wait))
         }
     }

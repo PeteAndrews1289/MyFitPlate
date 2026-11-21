@@ -454,6 +454,21 @@ final class FoodSearchRankingTests: XCTestCase {
         XCTAssertTrue(merged.first?.sourceMetadata?.validatedCrossVerifiedBy.isEmpty ?? true)
     }
 
+    func testAgreementRecognizesPaddedGTINsAndRejectsConflictingStoreCodes() {
+        var primary = brandedFood(id: "primary", name: "Brand Greek Yogurt", brand: "Brand")
+        var other = brandedFood(id: "other", name: primary.name, brand: "Brand", source: .usda)
+        primary.sourceMetadata?.barcode = "012345678905"
+        other.sourceMetadata?.barcode = "00012345678905"
+        func sources() -> [String] {
+            FoodSearchRanking.mergedSearchResults(fatSecret: [primary], usda: [other], query: "greek yogurt")
+                .first?.sourceMetadata?.validatedCrossVerifiedBy ?? []
+        }
+        XCTAssertEqual(sources(), ["USDA"])
+        primary.sourceMetadata?.barcode = "41234"
+        other.sourceMetadata?.barcode = "45678"
+        XCTAssertTrue(sources().isEmpty)
+    }
+
     func testVisiblePresentationPromotesBrandsAboveGenericCatalogHistory() {
         let generic = FoodItem(id: "history", name: "Greek Yogurt, Nonfat", calories: 100)
             .withDatabaseSource(.usda, sourceName: "USDA")

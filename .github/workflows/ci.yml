@@ -170,8 +170,9 @@ jobs:
             --xcodebuild-arguments --expected UIExpectedTests.txt > "$RUNNER_TEMP/ui-suites.txt"
           suites=()
           while IFS= read -r argument; do suites+=("$argument"); done < "$RUNNER_TEMP/ui-suites.txt"
+          test_status=0
           xcodebuild test-without-building "${common[@]}" "${suites[@]}" \
-            -collect-test-diagnostics on-failure -resultBundlePath UITestResults.xcresult | tee UITestResults.log
+            -collect-test-diagnostics on-failure -resultBundlePath UITestResults.xcresult | tee UITestResults.log || test_status=$?
           xcrun xcresulttool get test-results tests --path UITestResults.xcresult \
             | jq -r '.. | objects | select(.nodeType == "Test Case") | .nodeIdentifier' | LC_ALL=C sort -u > UIExecutedTests.txt
           LC_ALL=C comm -23 UIExpectedTests.txt UIExecutedTests.txt > "$RUNNER_TEMP/missing-ui-tests.txt"
@@ -179,6 +180,7 @@ jobs:
             cat "$RUNNER_TEMP/missing-ui-tests.txt"
             exit 1
           fi
+          exit "$test_status"
 
       - name: Upload UI test evidence
         if: always()

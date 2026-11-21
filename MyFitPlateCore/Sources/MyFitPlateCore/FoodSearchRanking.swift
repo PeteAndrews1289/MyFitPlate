@@ -470,19 +470,31 @@ public enum FoodSearchRanking {
         return [normalized(food.name), brand, barcode, serving].joined(separator: "|")
     }
 
-    private static func canCompareProductIdentity(_ primary: FoodItem, _ candidate: FoodItem) -> Bool {
-        let primaryBrand = reportedBrandName(primary.sourceMetadata?.brandName).map(normalized)
-        let candidateBrand = reportedBrandName(candidate.sourceMetadata?.brandName).map(normalized)
-        if let first = primary.sourceMetadata?.barcode, let second = candidate.sourceMetadata?.barcode {
-            let firstCode = BarcodeCorrectionRules.normalizedBarcode(first)
-            let secondCode = BarcodeCorrectionRules.normalizedBarcode(second)
-            if BarcodeCorrectionRules.isValidGTIN(firstCode), BarcodeCorrectionRules.isValidGTIN(secondCode) {
-                return !Set(BarcodeCorrectionRules.lookupCandidates(for: firstCode)).isDisjoint(with: BarcodeCorrectionRules.lookupCandidates(for: secondCode))
-            }
-            if !firstCode.isEmpty, !secondCode.isEmpty, firstCode != secondCode { return false }
+    /// Normalize each catalog row once before checking agreement across providers.
+    private struct AgreementIdentity {
+        let name: String
+        let words: Set<String>
+        let brand: String?
+        let barcode: String
+        let equivalentGTINs: Set<String>
+
+        init(_ food: FoodItem) {
+            name = normalized(food.name)
+            words = Set(tokens(name))
+            brand = reportedBrandName(food.sourceMetadata?.brandName).map(normalized)
+            barcode = food.sourceMetadata?.barcode.map(BarcodeCorrectionRules.normalizedBarcode) ?? ""
+            equivalentGTINs = BarcodeCorrectionRules.isValidGTIN(barcode)
+                ? Set(BarcodeCorrectionRules.lookupCandidates(for: barcode)) : []
         }
-        guard primaryBrand != nil || candidateBrand != nil else { return true }
-        return primaryBrand != nil && primaryBrand == candidateBrand && normalized(primary.name) == normalized(candidate.name)
+
+        func isComparable(to other: Self) -> Bool {
+            if !equivalentGTINs.isEmpty, !other.equivalentGTINs.isEmpty {
+                return !equivalentGTINs.isDisjoint(with: other.equivalentGTINs)
+            }
+            if !barcode.isEmpty, !other.barcode.isEmpty, barcode != other.barcode { return false }
+            if brand == nil && other.brand == nil { return true }
+            return brand == other.brand && name == other.name
+        }
     }
 
     private static func attachingCrossSourceAgreement(
@@ -493,35 +505,22 @@ public enum FoodSearchRanking {
         let normalizedQuery = normalized(query)
         let queryTokens = tokens(normalizedQuery)
         let queryTokenSet = Set(queryTokens)
+        let sourceRows = candidates.compactMap { candidate -> (source: String, food: FoodItem, identity: AgreementIdentity)? in
+            guard let source = candidate.sourceMetadata?.sourceName else { return nil }
+            return (source, candidate, AgreementIdentity(candidate))
+        }
 
         return foods.map { primary in
-            let primaryName = normalized(primary.name)
-            let primaryTokens = Set(tokens(primaryName))
-            let eligibleCandidates = candidates.compactMap { candidate -> (String, FoodItem?)? in
-                guard candidate.id != primary.id,
-                      canCompareProductIdentity(primary, candidate),
-                      let sourceName = candidate.sourceMetadata?.sourceName else {
-                    return nil
-                }
-
-                let candidateName = normalized(candidate.name)
-                let namesMatch: Bool
-                if queryTokens.isEmpty {
-                    namesMatch = primaryName == candidateName
-                } else {
-                    let candidateTokens = Set(tokens(candidateName))
-                    let bothMatchQuery = queryTokenSet.isSubset(of: primaryTokens) &&
-                        queryTokenSet.isSubset(of: candidateTokens)
-                    let sharedDescriptors = primaryTokens
-                        .intersection(candidateTokens)
-                        .subtracting(queryTokenSet)
-                    namesMatch = bothMatchQuery && (
-                        queryTokens.count > 1 ||
-                        primaryName == candidateName ||
-                        !sharedDescriptors.isEmpty
-                    )
-                }
-                return namesMatch ? (sourceName, candidate) : nil
+            let identity = AgreementIdentity(primary)
+            guard queryTokenSet.isSubset(of: identity.words) else { return primary }
+            let descriptors = identity.words.subtracting(queryTokenSet)
+            let eligibleCandidates = sourceRows.compactMap { row -> (String, FoodItem?)? in
+                guard row.food.id != primary.id, identity.isComparable(to: row.identity),
+                      queryTokenSet.isSubset(of: row.identity.words) else { return nil }
+                let sameName = identity.name == row.identity.name
+                let namesMatch = sameName || queryTokens.count > 1 ||
+                    (!queryTokens.isEmpty && !descriptors.isDisjoint(with: row.identity.words))
+                return namesMatch ? (row.source, row.food) : nil
             }
 
             let newEvidence = FoodSourceAgreement.agreeingEvidence(

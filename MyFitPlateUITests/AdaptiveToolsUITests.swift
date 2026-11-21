@@ -19,8 +19,13 @@ final class AdaptiveToolsUITests: XCTestCase {
         var visibleBottom = app.frame.maxY - 65
         for _ in 0..<24 {
             // A presented Form is virtualized. Scroll it, not the page underneath its sheet.
-            let scroll = app.collectionViews.allElementsBoundByIndex.last(where: \.isHittable)
-                ?? app.scrollViews.allElementsBoundByIndex.last(where: \.isHittable) ?? app
+            let viewport = app.frame
+            let onScreen: (XCUIElement) -> Bool = { candidate in
+                let visible = candidate.frame.intersection(viewport)
+                return !visible.isNull && !visible.isEmpty && candidate.isHittable
+            }
+            let scroll = app.collectionViews.allElementsBoundByIndex.last(where: onScreen)
+                ?? app.scrollViews.allElementsBoundByIndex.last(where: onScreen) ?? app
             let bounds = scroll.frame.intersection(app.frame)
             let top = max(bounds.minY + 12, 110.0)
             // Forms use the whole visible collection and have no pinned footer.
@@ -221,6 +226,7 @@ final class AdaptiveToolsUITests: XCTestCase {
         reveal(save, in: app)
         XCTAssertTrue(save.isEnabled)
         save.tap()
+        XCTAssertTrue(app.navigationBars["Meal check-in"].waitForNonExistence(timeout: 5))
         let savedStatus = app.staticTexts["experiment_status"]
         reveal(savedStatus, in: app)
         XCTAssertTrue(savedStatus.waitForExistence(timeout: 5), app.debugDescription)
@@ -241,6 +247,7 @@ final class AdaptiveToolsUITests: XCTestCase {
         let saveCorrection = app.buttons["experiment_save_checkin"]
         reveal(saveCorrection, in: app)
         XCTAssertEqual(saveCorrection.label, "Save correction"); saveCorrection.tap()
+        XCTAssertTrue(app.navigationBars["Meal check-in"].waitForNonExistence(timeout: 5))
         let corrected = app.staticTexts["experiment_status"]
         reveal(corrected, in: app)
         XCTAssertTrue(corrected.label.contains("Check-in corrected"))
