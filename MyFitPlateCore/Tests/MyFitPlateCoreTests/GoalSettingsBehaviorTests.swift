@@ -4,6 +4,25 @@ import XCTest
 
 final class GoalSettingsBehaviorTests: XCTestCase {
     @MainActor
+    func testRecalculationCompletionSeesUpdatedCaloriesAndMacrosBeforeSaving() async {
+        let settings = makeSettings()
+        settings.calorieGoalMethod = .custom
+        settings.calories = 2400
+        settings.protein = 0
+        settings.carbs = 0
+        settings.fats = 0
+        await withCheckedContinuation { continuation in
+            settings.recalculateAllGoals {
+                XCTAssertEqual(settings.calories, 2400)
+                XCTAssertEqual(settings.protein, 180, accuracy: 0.001)
+                XCTAssertEqual(settings.carbs, 300, accuracy: 0.001)
+                XCTAssertEqual(settings.fats, 2400 * 0.2 / 9, accuracy: 0.001)
+                continuation.resume()
+            }
+        }
+    }
+
+    @MainActor
     func testMifflinCalculationForMaleMaintenanceGoal() async {
         let settings = makeSettings()
         settings.gender = "Male"
@@ -503,6 +522,49 @@ final class GoalSettingsAdditionalTests: XCTestCase {
     var mockRepo: MockSettingsRepository!
     private var mockHK: MockCoreHealthKitManager!
     private var mockAuth: MockAuthService!
+
+    @MainActor
+    func testRejectedWeightSavePreservesCurrentWeightAndHealthKitUntilRetry() async {
+        settings.weight = 180
+        mockRepo.saveWeightEntryError = NSError(domain: "WeightSaveTest", code: 1)
+        let rejected = await withCheckedContinuation { continuation in
+            settings.updateUserWeight(185) { continuation.resume(returning: $0) }
+        }
+        XCTAssertFalse(rejected)
+        XCTAssertEqual(settings.weight, 180)
+        XCTAssertTrue(mockHK.savedWeightSamples.isEmpty)
+        XCTAssertTrue(mockRepo.savedWeightEntries.isEmpty)
+        mockRepo.saveWeightEntryError = nil
+        let accepted = await withCheckedContinuation { continuation in
+            settings.updateUserWeight(185) { continuation.resume(returning: $0) }
+        }
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(settings.weight, 185)
+        XCTAssertEqual(mockHK.savedWeightSamples.count, 1)
+        XCTAssertEqual(mockRepo.savedWeightEntries.count, 1)
+    }
+
+    @MainActor
+    func testQueuedWeightSaveDoesNotFollowAnAccountSwitch() async {
+        let result = expectation(description: "account change rejected")
+        settings.updateUserWeight(185) { accepted in
+            XCTAssertFalse(accepted)
+            result.fulfill()
+        }
+        mockAuth.currentUserID = "different-user"
+        await fulfillment(of: [result], timeout: 2)
+        XCTAssertTrue(mockRepo.savedWeightEntries.isEmpty)
+        XCTAssertTrue(mockHK.savedWeightSamples.isEmpty)
+    }
+
+    @MainActor
+    func testInvalidWeightDoesNotReachPersistence() {
+        for invalid in [0.0, -1, .infinity, .nan] {
+            settings.updateUserWeight(invalid) { XCTAssertFalse($0) }
+        }
+        XCTAssertTrue(mockRepo.savedWeightEntries.isEmpty)
+        XCTAssertTrue(mockHK.savedWeightSamples.isEmpty)
+    }
 
     @MainActor
     override func setUp() {

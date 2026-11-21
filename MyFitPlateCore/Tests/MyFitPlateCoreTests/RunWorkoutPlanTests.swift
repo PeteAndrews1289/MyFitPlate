@@ -133,12 +133,112 @@ final class RunWorkoutPlanTests: XCTestCase {
         XCTAssertEqual(result.steps.count, 2)
         XCTAssertEqual(result.steps[0].step.id, "warm")
         XCTAssertTrue(result.steps[0].isComplete)
-        XCTAssertEqual(result.steps[0].elapsedSeconds, 12, accuracy: 0.001)
-        XCTAssertEqual(result.steps[0].distanceMeters, 40, accuracy: 0.001)
+        XCTAssertEqual(result.steps[0].elapsedSeconds, 10, accuracy: 0.001)
+        XCTAssertEqual(result.steps[0].distanceMeters, 100 / 3, accuracy: 0.001)
         XCTAssertEqual(result.steps[1].step.id, "fast")
         XCTAssertFalse(result.steps[1].isComplete)
-        XCTAssertEqual(result.steps[1].elapsedSeconds, 8, accuracy: 0.001)
-        XCTAssertEqual(result.steps[1].distanceMeters, 40, accuracy: 0.001)
+        XCTAssertEqual(result.steps[1].elapsedSeconds, 10, accuracy: 0.001)
+        XCTAssertEqual(result.steps[1].distanceMeters, 140 / 3, accuracy: 0.001)
+    }
+
+    func testDelayedObservationCarriesTimeAcrossEveryCompletedIntervalExactlyOnce() {
+        let plan = RunWorkoutPlan(id: "timed", name: "Timed", subtitle: "", steps: [
+            RunWorkoutStep(id: "one", kind: .warmup, title: "One", goal: .duration(seconds: 10)),
+            RunWorkoutStep(id: "two", kind: .hard, title: "Two", goal: .duration(seconds: 20)),
+            RunWorkoutStep(id: "three", kind: .cooldown, title: "Three", goal: .duration(seconds: 30))
+        ])
+        let tracker = RunWorkoutTracker(plan: plan)
+        XCTAssertEqual(tracker.advance(elapsedSeconds: 70, distanceMeters: 210).map(\.id), ["one", "two", "three"])
+        XCTAssertEqual(tracker.completedSteps.map(\.elapsedSeconds), [10, 20, 30])
+        XCTAssertEqual(tracker.completedSteps.map(\.distanceMeters), [30, 60, 90])
+        XCTAssertEqual(tracker.completedSteps.map(\.endedAtElapsedSeconds), [10, 30, 60])
+        XCTAssertTrue(tracker.progress(elapsedSeconds: 70, distanceMeters: 210).isWorkoutComplete)
+        XCTAssertTrue(tracker.advance(elapsedSeconds: 70, distanceMeters: 210).isEmpty)
+        XCTAssertEqual(tracker.completedSteps.count, 3)
+        XCTAssertEqual(tracker.plan, plan)
+    }
+
+    func testSparseGPSObservationInterpolatesMixedDistanceAndTimeBoundaries() throws {
+        let plan = RunWorkoutPlan(name: "Mixed", subtitle: "", steps: [
+            RunWorkoutStep(id: "fast", kind: .hard, title: "400", goal: .distance(meters: 400)),
+            RunWorkoutStep(id: "easy", kind: .recovery, title: "Easy", goal: .duration(seconds: 30)),
+            RunWorkoutStep(id: "fast2", kind: .hard, title: "200", goal: .distance(meters: 200)),
+            RunWorkoutStep(id: "cool", kind: .cooldown, title: "Cool", goal: .duration(seconds: 60))
+        ])
+        let tracker = RunWorkoutTracker(plan: plan)
+        let progress = tracker.progress(elapsedSeconds: 300, distanceMeters: 1_000)
+        XCTAssertTrue(progress.isWorkoutComplete)
+        XCTAssertEqual(tracker.completedSteps.map(\.step.id), ["fast", "easy", "fast2", "cool"])
+        for (actual, expected) in zip(tracker.completedSteps.map(\.elapsedSeconds), [120.0, 30, 60, 60]) {
+            XCTAssertEqual(actual, expected, accuracy: 0.001)
+        }
+        for (actual, expected) in zip(tracker.completedSteps.map(\.distanceMeters), [400.0, 100, 200, 200]) {
+            XCTAssertEqual(actual, expected, accuracy: 0.001)
+        }
+        let result = try XCTUnwrap(tracker.result(runID: "run", elapsedSeconds: 300, distanceMeters: 1_000))
+        XCTAssertEqual(result.steps.count, 4)
+        XCTAssertEqual(result.steps.last?.endedAtElapsedSeconds ?? 0, 270, accuracy: 0.001)
+    }
+
+    func testInvalidOrBackwardObservationsCannotResetOrCompleteAStage() {
+        let tracker = RunWorkoutTracker(plan: RunWorkoutPlan(name: "One", subtitle: "", steps: [
+            RunWorkoutStep(kind: .hard, title: "One", goal: .duration(seconds: 60))
+        ]))
+        _ = tracker.progress(elapsedSeconds: 50, distanceMeters: 150)
+        for (elapsed, distance) in [(Double.nan, 160.0), (.infinity, 160), (55, .infinity), (40, 160), (55, 140)] {
+            let progress = tracker.progress(elapsedSeconds: elapsed, distanceMeters: distance)
+            XCTAssertFalse(progress.isWorkoutComplete)
+            XCTAssertEqual(progress.stepElapsedSeconds, 50)
+            XCTAssertEqual(progress.stepDistanceMeters, 150)
+            XCTAssertEqual(progress.remainingSeconds, 10)
+        }
+        XCTAssertTrue(tracker.progress(elapsedSeconds: 60, distanceMeters: 180).isWorkoutComplete)
+        XCTAssertEqual(tracker.completedSteps.count, 1)
+    }
+
+    func testStructuredTrackerSnapshotResumesTheExactMixedStageAndPartialResult() throws {
+        let plan = RunWorkoutPlan(id: "mixed", name: "Mixed", subtitle: "", steps: [
+            RunWorkoutStep(id: "fast", kind: .hard, title: "400", goal: .distance(meters: 400)),
+            RunWorkoutStep(id: "easy", kind: .recovery, title: "Easy", goal: .duration(seconds: 30)),
+            RunWorkoutStep(id: "fast2", kind: .hard, title: "200", goal: .distance(meters: 200)),
+            RunWorkoutStep(id: "cool", kind: .cooldown, title: "Cool", goal: .duration(seconds: 60))
+        ])
+        let tracker = RunWorkoutTracker(plan: plan)
+        _ = tracker.progress(elapsedSeconds: 160, distanceMeters: 1_600 / 3)
+        let snapshot = tracker.snapshot()
+        let restoredSnapshot = try JSONDecoder().decode(RunWorkoutTracker.Snapshot.self, from: JSONEncoder().encode(snapshot))
+        let restored = try XCTUnwrap(RunWorkoutTracker(snapshot: restoredSnapshot))
+        XCTAssertEqual(restored.plan, plan)
+        XCTAssertEqual(restored.completedSteps, tracker.completedSteps)
+        let resumed = restored.progress(elapsedSeconds: 160, distanceMeters: 1_600 / 3)
+        XCTAssertEqual(resumed.currentStep?.id, "fast2")
+        XCTAssertEqual(resumed.stepElapsedSeconds, 10, accuracy: 0.001)
+        XCTAssertEqual(resumed.stepDistanceMeters, 100 / 3, accuracy: 0.001)
+        let result = try XCTUnwrap(restored.result(runID: "same-run", elapsedSeconds: 240, distanceMeters: 800))
+        XCTAssertEqual(result.steps.map(\.step.id), ["fast", "easy", "fast2", "cool"])
+        XCTAssertEqual(result.steps.map(\.isComplete), [true, true, true, false])
+        XCTAssertEqual(result.steps[2].elapsedSeconds, 60, accuracy: 0.001)
+        XCTAssertEqual(result.steps[3].elapsedSeconds, 30, accuracy: 0.001)
+        XCTAssertEqual(result.steps[3].distanceMeters, 100, accuracy: 0.001)
+    }
+
+    func testMalformedTrackerSnapshotCannotSkipStagesAndInvalidGoalDoesNotAutoComplete() throws {
+        let tracker = RunWorkoutTracker(plan: RunWorkoutPlan(name: "Invalid", subtitle: "", steps: [
+            RunWorkoutStep(kind: .hard, title: "Wait", goal: .duration(seconds: 60))
+        ]))
+        _ = tracker.progress(elapsedSeconds: 30, distanceMeters: 100)
+        let data = try JSONEncoder().encode(tracker.snapshot())
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object["currentStepIndex"] = 1
+        let snapshot = try JSONDecoder().decode(RunWorkoutTracker.Snapshot.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertNil(RunWorkoutTracker(snapshot: snapshot))
+        let invalid = RunWorkoutTracker(plan: RunWorkoutPlan(name: "Invalid", subtitle: "", steps: [
+            RunWorkoutStep(kind: .hard, title: "Wait", goal: .duration(seconds: .infinity))
+        ]))
+        let progress = invalid.progress(elapsedSeconds: 1_000, distanceMeters: 3_000)
+        XCTAssertFalse(progress.isWorkoutComplete)
+        XCTAssertEqual(progress.progressFraction, 0)
+        XCTAssertNil(progress.remainingSeconds)
     }
 
     func testStepGoalTextUsesRunFormatting() {

@@ -1,12 +1,13 @@
 import SwiftUI
 import MyFitPlateCore
 
+@MainActor
 struct SettingsAccountSection: View {
+    enum Scope { case goals, data }
+    var scope: Scope = .goals
+    @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits = Locale.current.measurementSystem != .us
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
-    // Owned, not environment: WorkoutService has no app-wide instance (same latent crash
-    // the Weekly Recap sheet hit on device).
-    @StateObject private var workoutService = WorkoutService()
 
     @Binding var showCaloricCalculator: Bool
     @Binding var feetInput: String
@@ -15,119 +16,106 @@ struct SettingsAccountSection: View {
     @Binding var waterGoalInput: String
     @Binding var showingWaterGoalSheet: Bool
 
-    @State private var isExporting = false
-    @State private var exportURLs: [URL] = []
+    @StateObject private var exportSession = LegacyDataExportSession()
     @State private var showingExportShare = false
     @State private var showingMFPImport = false
     @State private var didPresentScreenshotImport = false
 
     var body: some View {
-        SettingsSectionCard(title: "Goals & Data") {
-            Button { showCaloricCalculator = true } label: {
-                SettingsLabel(
-                    icon: "target",
-                    title: "Calorie and macro goals",
-                    subtitle: "Adjust targets and goal method.",
-                    showsDisclosure: true
-                )
+        SettingsSectionCard(title: scope == .goals ? "Targets & body" : "Your data") {
+            if scope == .goals {
+                Button { showCaloricCalculator = true } label: {
+                    SettingsLabel(
+                        icon: "target",
+                        title: "Calorie and macro goals",
+                        subtitle: "\(goalSettings.calories.map { "\(Int($0.rounded()).formatted()) cal" } ?? "No target set") · \(goalSettings.calorieGoalMethod.rawValue)",
+                        showsDisclosure: true
+                    )
+                }
+                .padding(AppSpacing.group)
+                .accessibilityIdentifier("settings_calorie_goals")
+
+                Divider().padding(.leading, 50)
+            
+                Button {
+                    let currentHeight = goalSettings.getHeightInFeetAndInches()
+                    feetInput = "\(currentHeight.feet)"
+                    inchesInput = "\(currentHeight.inches)"
+                    showHeightEditor = true
+                } label: {
+                    SettingsLabel(
+                        icon: "ruler",
+                        title: "Height",
+                        subtitle: heightDescription,
+                        showsDisclosure: true
+                    )
+                }
+                .padding(AppSpacing.group)
+            
+                Divider().padding(.leading, 50)
+            
+                Button {
+                    waterGoalInput = "\(Int(goalSettings.waterGoal.rounded()))"
+                    showingWaterGoalSheet = true
+                } label: {
+                    SettingsLabel(
+                        icon: "drop.fill",
+                        title: "Water preferences",
+                        subtitle: waterDescription,
+                        showsDisclosure: true
+                    )
+                }
+                .padding(AppSpacing.group)
+            
             }
-            .padding(AppSpacing.group)
-            
-            Divider().padding(.leading, 50)
-            
-            Button {
-                let currentHeight = goalSettings.getHeightInFeetAndInches()
-                feetInput = "\(currentHeight.feet)"
-                inchesInput = "\(currentHeight.inches)"
-                showHeightEditor = true
-            } label: {
-                SettingsLabel(
-                    icon: "ruler",
-                    title: "Height",
-                    subtitle: "Update your body metrics.",
-                    showsDisclosure: true
-                )
-            }
-            .padding(AppSpacing.group)
-            
-            Divider().padding(.leading, 50)
-            
-            Button {
-                waterGoalInput = "\(Int(goalSettings.waterGoal.rounded()))"
-                showingWaterGoalSheet = true
-            } label: {
-                SettingsLabel(
-                    icon: "drop.fill",
-                    title: "Daily water goal",
-                    subtitle: "\(Int(goalSettings.waterGoal.rounded()).formatted()) oz per day.",
-                    showsDisclosure: true
-                )
-            }
-            .padding(AppSpacing.group)
-            
-            Divider().padding(.leading, 50)
-            
-            Menu {
-                ForEach(CalorieGoalMethod.allCases) { method in
-                    Button {
-                        selectCalorieGoalMethod(method)
-                    } label: {
-                        if goalSettings.calorieGoalMethod == method {
-                            Label(method.rawValue, systemImage: "checkmark")
-                        } else {
-                            Text(method.rawValue)
+            if scope == .data {
+                Button {
+                    exportData()
+                } label: {
+                    HStack {
+                        SettingsLabel(
+                            icon: "square.and.arrow.up",
+                            title: exportSession.errorMessage == nil ? "Export diary and workouts" : "Retry export",
+                            subtitle: "Food diary and workout sets · past 10 years · CSV"
+                        )
+                        if exportSession.isExporting {
+                            Spacer()
+                            ProgressView()
                         }
                     }
                 }
-            } label: {
-                SettingsLabel(
-                    icon: "function",
-                    title: "Calorie goal method",
-                    subtitle: goalSettings.calorieGoalMethod.rawValue,
-                    showsDisclosure: true
-                )
-            }
-            .accessibilityLabel("Calorie goal method")
-            .accessibilityValue(goalSettings.calorieGoalMethod.rawValue)
-            .padding(AppSpacing.group)
-
-            Divider().padding(.leading, 50)
-
-            Button {
-                exportData()
-            } label: {
-                HStack {
-                    SettingsLabel(
-                        icon: "square.and.arrow.up",
-                        title: "Export your data",
-                        subtitle: "Food diary and workouts as CSV files."
-                    )
-                    if isExporting {
-                        Spacer()
-                        ProgressView()
-                    }
+                .disabled(exportSession.isExporting)
+                .padding(AppSpacing.group)
+                .accessibilityIdentifier("settings_export_start")
+                if exportSession.isExporting {
+                    Button("Cancel export") { exportSession.cancel() }
+                        .accessibilityIdentifier("settings_export_cancel").padding(.horizontal, AppSpacing.group)
                 }
-            }
-            .disabled(isExporting)
-            .padding(AppSpacing.group)
+                if let error = exportSession.errorMessage {
+                    Text(error).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                        .fixedSize(horizontal: false, vertical: true).padding(AppSpacing.group)
+                        .accessibilityIdentifier("settings_export_error")
+                }
 
-            Divider().padding(.leading, 50)
+                Divider().padding(.leading, 50)
 
-            Button {
-                showingMFPImport = true
-            } label: {
-                SettingsLabel(
-                    icon: "square.and.arrow.down",
-                    title: "Import from MyFitnessPal",
-                    subtitle: "Bring your diary and weight history with you.",
-                    showsDisclosure: true
-                )
+                Button {
+                    showingMFPImport = true
+                } label: {
+                    SettingsLabel(
+                        icon: "square.and.arrow.down",
+                        title: "Import from MyFitnessPal",
+                        subtitle: "Bring your diary and weight history with you.",
+                        showsDisclosure: true
+                    )
+                }
+                .padding(AppSpacing.group)
             }
-            .padding(AppSpacing.group)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings_goals_data")
         .sheet(isPresented: $showingExportShare, onDismiss: cleanupExportFiles) {
-            PDFShareView(activityItems: exportURLs)
+            PDFShareView(activityItems: exportSession.urls)
         }
         .sheet(isPresented: $showingMFPImport) {
             MFPImportView()
@@ -135,78 +123,41 @@ struct SettingsAccountSection: View {
                 .environmentObject(goalSettings)
         }
         .onAppear(perform: presentScreenshotImportIfNeeded)
-        .onDisappear(perform: cleanupExportFiles)
+        .onDisappear { if !showingExportShare { exportSession.cancel() } }
+    }
+
+    private var waterDescription: String {
+        let preferences = goalSettings.hydrationPreferences
+        if preferences.isTrackingOnly { return "Track water without a daily target" }
+        let amount = preferences.unit.amount(fromOunces: goalSettings.waterGoal)
+        return "\(Int(amount.rounded()).formatted()) \(preferences.unit.symbol) per day"
+    }
+
+    private var heightDescription: String {
+        if useMetricBodyUnits { return "\(Int(goalSettings.height.rounded()).formatted()) cm" }
+        let height = goalSettings.getHeightInFeetAndInches()
+        return "\(height.feet) ft \(height.inches) in"
     }
 
     private func presentScreenshotImportIfNeeded() {
         #if DEBUG
         guard ScreenshotDemoMode.isEnabled,
-              ScreenshotDemoData.requestedScreen == "settings-import",
+              ScreenshotDemoData.requestedScreen.hasPrefix("settings-import"),
               !didPresentScreenshotImport else { return }
         didPresentScreenshotImport = true
         showingMFPImport = true
         #endif
     }
 
-    private func selectCalorieGoalMethod(_ method: CalorieGoalMethod) {
-        guard goalSettings.calorieGoalMethod != method else { return }
-        goalSettings.calorieGoalMethod = method
-        if let userID = DIContainer.shared.authService.currentUserID {
-            goalSettings.saveUserGoals(userID: userID)
-        }
-    }
-
-    /// Fetches the user's full history, writes two CSVs to temp files, and hands them to
-    /// the share sheet. Best-effort: partial data still exports (an empty CSV has a header).
     private func exportData() {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
-        cleanupExportFiles()
-        isExporting = true
-
-        Task {
-            let logsResult = await dailyLogService.fetchDailyHistory(for: userID, startDate: nil, endDate: nil)
-            guard DIContainer.shared.authService.currentUserID == userID else {
-                isExporting = false
-                return
-            }
-            let sessions = await workoutService.fetchRecentSessionLogs(sinceDays: 3650)
-            guard DIContainer.shared.authService.currentUserID == userID else {
-                isExporting = false
-                return
-            }
-
-            let foodCSV = DataExporter.foodLogCSV(from: (try? logsResult.get()) ?? [])
-            let workoutCSV = DataExporter.workoutCSV(from: sessions)
-
-            let directory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("MyFitPlateExport-\(UUID().uuidString)", isDirectory: true)
-            let foodURL = directory.appendingPathComponent("myfitplate-food-diary.csv")
-            let workoutURL = directory.appendingPathComponent("myfitplate-workouts.csv")
-
-            do {
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                try Data(foodCSV.utf8).write(to: foodURL, options: [.atomic, .completeFileProtection])
-                try Data(workoutCSV.utf8).write(to: workoutURL, options: [.atomic, .completeFileProtection])
-                guard DIContainer.shared.authService.currentUserID == userID else {
-                    try? FileManager.default.removeItem(at: directory)
-                    isExporting = false
-                    return
-                }
-                exportURLs = [foodURL, workoutURL]
-                DIContainer.shared.analyticsManager?.logEvent("data_exported", parameters: nil)
+        Task { @MainActor in
+            if await exportSession.generate(for: userID), DIContainer.shared.authService.currentUserID == userID {
+                DIContainer.shared.analyticsManager?.logEvent("data_export_created", parameters: nil)
                 showingExportShare = true
-            } catch {
-                try? FileManager.default.removeItem(at: directory)
-                AppLog.app.error("Data export failed: \(error.localizedDescription, privacy: .public)")
             }
-
-            isExporting = false
         }
     }
 
-    private func cleanupExportFiles() {
-        let directories = Set(exportURLs.map { $0.deletingLastPathComponent() })
-        directories.forEach { try? FileManager.default.removeItem(at: $0) }
-        exportURLs = []
-    }
+    private func cleanupExportFiles() { exportSession.cleanup() }
 }

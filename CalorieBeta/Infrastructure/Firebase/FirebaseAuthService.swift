@@ -175,6 +175,12 @@ final class FirebaseAuthService: AuthServiceProtocol {
     func signOut() throws {
         do {
             try Auth.auth().signOut()
+            // This task outlives authentication-bound views and their weak observers.
+            Task { @MainActor in
+                let currentOwner = Auth.auth().currentUser?.uid
+                AYCESessionManager.invalidateActivities(outsideAccount: currentOwner)
+                await CookingNotificationCoordinator.shared.reconcile(userID: currentOwner)
+            }
         } catch {
             throw Self.userFacingError(for: error)
         }

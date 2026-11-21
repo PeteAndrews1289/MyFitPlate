@@ -16,11 +16,16 @@ public final class MockBiologicalSexObject: HKBiologicalSexObject, @unchecked Se
 }
 
 public final class MockHealthStore: HealthStoreScheduling, @unchecked Sendable {
+    public var sampleQueryDelay: TimeInterval = 0
     public init() {}
 
     public var isHealthDataAvailableResult: Bool = true
+    public var shareAuthorizationResult: HKAuthorizationStatus = .sharingAuthorized
+    public func authorizationStatus(for type: HKObjectType) -> HKAuthorizationStatus { shareAuthorizationResult }
     public var requestAuthorizationSuccess: Bool = true
     public var requestAuthorizationError: Error? = nil
+    public private(set) var requestedReadTypes: Set<HKObjectType> = []
+    public private(set) var requestedShareTypes: Set<HKSampleType> = []
     public var authorizationStatusResult: HKAuthorizationRequestStatus = .unnecessary
     public var authorizationStatusError: Error? = nil
     public var biologicalSexResult: HKBiologicalSexObject = MockBiologicalSexObject(sex: .notSet)
@@ -43,9 +48,14 @@ public final class MockHealthStore: HealthStoreScheduling, @unchecked Sendable {
     public var deleteCount: Int = 1
     public var deleteError: Error? = nil
     public var deletedObjectTypes: [HKObjectType] = []
+    public var deletedPredicates: [NSPredicate] = []
 
     public var saveWorkoutUUID: String? = UUID().uuidString
     public var saveWorkoutError: Error? = nil
+    public var saveWorkoutEventError: Error?
+    public var saveWorkoutMetadataError: Error?
+    public var savedWorkoutEvents: [[HKWorkoutEvent]] = []
+    public var savedWorkoutMetadata: [[String: Any]] = []
     public var savedWorkouts: [(configuration: HKWorkoutConfiguration, start: Date, end: Date, samples: [HKSample], locations: [CLLocation])] = []
 
     public var executedQueries: [HKQuery] = []
@@ -55,6 +65,8 @@ public final class MockHealthStore: HealthStoreScheduling, @unchecked Sendable {
     }
 
     public func requestAuthorization(toShare typesToShare: Set<HKSampleType>?, read typesToRead: Set<HKObjectType>?, completion: @escaping @Sendable (Bool, Error?) -> Void) {
+        requestedShareTypes = typesToShare ?? []
+        requestedReadTypes = typesToRead ?? []
         let success = requestAuthorizationSuccess
         let error = requestAuthorizationError
         DispatchQueue.main.async {
@@ -94,7 +106,7 @@ public final class MockHealthStore: HealthStoreScheduling, @unchecked Sendable {
             }
 
             // Invoke handler asynchronously or synchronously as HealthKit does
-            DispatchQueue.global().async {
+            DispatchQueue.global().asyncAfter(deadline: .now() + sampleQueryDelay) {
                 handler(sampleQuery, samples, error)
             }
         } else if let statQuery = query as? HKStatisticsQuery, let block = statQuery.value(forKey: "completionHandler") {
@@ -139,6 +151,7 @@ public final class MockHealthStore: HealthStoreScheduling, @unchecked Sendable {
 
     public func deleteObjects(of objectType: HKObjectType, predicate: NSPredicate, withCompletion completion: @escaping @Sendable (Bool, Int, Error?) -> Void) {
         deletedObjectTypes.append(objectType)
+        deletedPredicates.append(predicate)
         let success = deleteSuccess
         let count = deleteCount
         let error = deleteError
@@ -148,6 +161,26 @@ public final class MockHealthStore: HealthStoreScheduling, @unchecked Sendable {
     }
 
     public func saveWorkout(configuration: HKWorkoutConfiguration, start: Date, end: Date, samples: [HKSample], locations: [CLLocation], completion: @escaping @Sendable (String?, Error?) -> Void) {
+        saveWorkout(configuration: configuration, start: start, end: end, samples: samples, locations: locations,
+                    events: [], completion: completion)
+    }
+
+    public func saveWorkout(configuration: HKWorkoutConfiguration, start: Date, end: Date, samples: [HKSample], locations: [CLLocation], events: [HKWorkoutEvent], completion: @escaping @Sendable (String?, Error?) -> Void) {
+        saveWorkout(configuration: configuration, start: start, end: end, samples: samples, locations: locations,
+                    events: events, metadata: [:], completion: completion)
+    }
+
+    public func saveWorkout(configuration: HKWorkoutConfiguration, start: Date, end: Date, samples: [HKSample], locations: [CLLocation], events: [HKWorkoutEvent], metadata: [String: Any], completion: @escaping @Sendable (String?, Error?) -> Void) {
+        savedWorkoutEvents.append(events)
+        savedWorkoutMetadata.append(metadata)
+        if let error = saveWorkoutMetadataError, !metadata.isEmpty {
+            DispatchQueue.main.async { completion(nil, error) }
+            return
+        }
+        if let error = saveWorkoutEventError, !events.isEmpty {
+            DispatchQueue.main.async { completion(nil, error) }
+            return
+        }
         savedWorkouts.append((configuration, start, end, samples, locations))
         let uuid = saveWorkoutUUID
         let error = saveWorkoutError

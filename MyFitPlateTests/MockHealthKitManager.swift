@@ -4,6 +4,9 @@ import HealthKit
 
 class MockHealthKitManager: HealthKitManaging {
     var isAuthorizationRequested = false
+    var sleepSamples: [HKCategorySample] = []
+    var sleepError: Error?
+    var sleepRequestedRange: DateInterval?
     var savedWeightSamples: [(weight: Double, date: Date)] = []
     
     func requestAuthorization(completion: @escaping (Bool, Error?) -> Void) {
@@ -16,7 +19,8 @@ class MockHealthKitManager: HealthKitManaging {
     }
     
     func fetchSleepAnalysis(startDate: Date, endDate: Date, completion: @escaping ([HKCategorySample]?, Error?) -> Void) {
-        completion([], nil)
+        sleepRequestedRange = DateInterval(start: startDate, end: max(startDate, endDate))
+        completion(sleepError == nil ? sleepSamples : nil, sleepError)
     }
     
     func fetchHRVSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {

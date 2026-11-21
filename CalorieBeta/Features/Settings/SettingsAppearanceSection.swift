@@ -5,7 +5,7 @@ struct SettingsAppearanceSection: View {
     @Binding var useMetricBodyUnits: Bool
 
     var body: some View {
-        SettingsSectionCard(title: "Display & Units") {
+        SettingsSectionCard(title: "Display & units") {
             Toggle(isOn: $appState.isDarkModeEnabled.animation()) {
                 SettingsLabel(
                     icon: "moon.fill",

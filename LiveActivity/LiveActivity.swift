@@ -21,7 +21,7 @@ struct WorkoutActivityWidget: Widget {
                 HStack {
                     Image(systemName: context.state.isResting ? "timer" : "figure.strengthtraining.traditional")
                         .foregroundStyle(context.state.isResting ? LiveActivityPalette.recovery : LiveActivityPalette.effort)
-                    Text(context.state.isResting ? "Rest Timer" : "Working Out")
+                    Text(context.state.isResting ? "Rest" : "Workout in progress")
                         .font(.headline)
                         .foregroundColor(.white)
                     Spacer()
@@ -30,13 +30,15 @@ struct WorkoutActivityWidget: Widget {
                 HStack(alignment: .bottom) {
                     Text(context.attributes.routineName)
                         .font(.subheadline)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundColor(.secondary)
 
                     Spacer()
 
                     if context.state.isResting, let endTime = context.state.restEndTime {
                         // This automatically counts down
-                        Text(timerInterval: Date()...endTime, countsDown: true)
+                        Text(timerInterval: WorkoutActivityTimerRules.restInterval(endingAt: endTime), countsDown: true)
                             .font(.system(size: 40, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(LiveActivityPalette.recovery)
@@ -52,8 +54,8 @@ struct WorkoutActivityWidget: Widget {
                 if context.state.isResting {
                     HStack {
                         Spacer()
-                        Button(intent: EndRestIntent()) {
-                            Text("Skip Rest")
+                        Button(intent: EndRestIntent(restID: context.state.restID)) {
+                            Text("Skip rest")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                                 .padding(.horizontal, 16)
@@ -87,7 +89,7 @@ struct WorkoutActivityWidget: Widget {
 
                 DynamicIslandExpandedRegion(.trailing) {
                     if context.state.isResting, let endTime = context.state.restEndTime {
-                        Text(timerInterval: Date()...endTime, countsDown: true)
+                        Text(timerInterval: WorkoutActivityTimerRules.restInterval(endingAt: endTime), countsDown: true)
                             .font(.largeTitle)
                             .monospacedDigit()
                             .foregroundStyle(LiveActivityPalette.recovery)
@@ -111,8 +113,8 @@ struct WorkoutActivityWidget: Widget {
                     if context.state.isResting {
                         HStack {
                             Spacer()
-                            Button(intent: EndRestIntent()) {
-                                Text("Skip Rest")
+                            Button(intent: EndRestIntent(restID: context.state.restID)) {
+                                Text("Skip rest")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                                     .padding(.horizontal, 16)
@@ -134,7 +136,7 @@ struct WorkoutActivityWidget: Widget {
             } compactTrailing: {
                 // Collapsed (Right)
                 if context.state.isResting, let endTime = context.state.restEndTime {
-                    Text(timerInterval: Date()...endTime, countsDown: true)
+                    Text(timerInterval: WorkoutActivityTimerRules.restInterval(endingAt: endTime), countsDown: true)
                         .monospacedDigit()
                         .frame(width: 40)
                         .foregroundStyle(LiveActivityPalette.recovery)

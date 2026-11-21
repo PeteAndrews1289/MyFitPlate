@@ -92,14 +92,17 @@ public enum AYCEPricingRules {
         let nutrition = [calories, protein, carbs, fats]
         guard !cleanName.isEmpty,
               nutrition.allSatisfy({ $0.isFinite && $0 >= 0 }),
+              calories <= 10_000, [protein, carbs, fats].allSatisfy({ $0 <= 2_000 }),
               restaurantPrice.isFinite,
-              restaurantPrice > 0,
+              restaurantPrice >= 0, restaurantPrice <= 1_000_000,
               homeCost.isFinite,
-              homeCost >= 0 else {
+              homeCost >= 0, homeCost <= 1_000_000 else {
             return nil
         }
 
-        let prices = clampedPrices(restaurant: restaurantPrice, home: homeCost)
+        // Explicitly reviewed personal amounts do not inherit the model's heuristic
+        // minimum or the model's assumed restaurant/home relationship. Zero is unpriced.
+        let prices = (restaurant: restaurantPrice, home: homeCost)
         return AYCECatalogItem(
             id: "custom_\(UUID().uuidString)",
             cuisine: cuisine,
@@ -127,10 +130,10 @@ public enum AYCEPricingRules {
         restaurantPrice: Double,
         homeCost: Double
     ) -> AYCECatalogItem {
-        let safeCalories = calories.isFinite ? max(0, calories) : 0
-        let safeProtein = protein.isFinite ? max(0, protein) : 0
-        let safeCarbs = carbs.isFinite ? max(0, carbs) : 0
-        let safeFats = fats.isFinite ? max(0, fats) : 0
+        let safeCalories = calories.isFinite ? min(10_000, max(0, calories)) : 0
+        let safeProtein = protein.isFinite ? min(2_000, max(0, protein)) : 0
+        let safeCarbs = carbs.isFinite ? min(2_000, max(0, carbs)) : 0
+        let safeFats = fats.isFinite ? min(2_000, max(0, fats)) : 0
         let prices = clampedPrices(restaurant: restaurantPrice, home: homeCost)
         return AYCECatalogItem(
             id: "custom_\(UUID().uuidString)",
@@ -176,7 +179,7 @@ public final class AYCEPriceService {
 
         let result = await DIContainer.shared.aiService.performRequest(
             messages: [["role": "user", "content": AYCEPricingRules.prompt(for: foods.map(\.name), cuisine: cuisine, city: city)]],
-            model: "gpt-4o-mini",
+            model: "gpt-6-luna",
             temperature: 0.2,
             responseFormat: ["type": "json_object"]
         )

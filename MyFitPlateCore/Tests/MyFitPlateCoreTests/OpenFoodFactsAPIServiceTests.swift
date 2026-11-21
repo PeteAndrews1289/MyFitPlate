@@ -2,6 +2,13 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class OpenFoodFactsAPIServiceTests: XCTestCase {
+    func testSearchRequestsAllParserFieldsWithoutUnusedProductPayload() throws {
+        let url = try XCTUnwrap(OpenFoodFactsRequestBuilder.searchURL(query: "greek yogurt"))
+        let fields = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first { $0.name == "fields" }?.value)
+        XCTAssertEqual(Set(fields.split(separator: ",").map(String.init)),
+                       ["code", "product_name", "brands", "serving_size", "serving_quantity", "last_modified_t", "nutriments"])
+    }
 
     func testSearchRequestKeepsAmpersandInsideOneQueryValue() throws {
         let url = try XCTUnwrap(OpenFoodFactsRequestBuilder.searchURL(query: "mac & cheese"))

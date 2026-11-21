@@ -63,7 +63,7 @@ final class RunSessionTests: XCTestCase {
         XCTAssertEqual(session.distanceMeters, baseline, "Fixes worse than the accuracy cutoff must not move the odometer")
     }
 
-    func testTeleportIsRejectedButBecomesTheNewAnchor() {
+    func testTeleportIsRejectedAndTheNextValidFixReanchors() {
         let session = runningSession()
         for fix in steadyFixes(seconds: 10, metersPerSecond: 3, startingAt: start) { session.ingest(fix) }
         let baseline = session.distanceMeters
@@ -78,13 +78,16 @@ final class RunSessionTests: XCTestCase {
         session.ingest(teleport)
         XCTAssertEqual(session.distanceMeters, baseline, accuracy: 0.5, "The jump itself adds nothing")
 
-        // Continuing from the teleported position accrues normally again.
-        session.ingest(RunLocationFix(
-            latitude: teleport.latitude + 3 / metersPerLatDegree,
+        // A fresh point on the actual track re-anchors without drawing a return leg.
+        XCTAssertTrue(session.ingest(RunLocationFix(
+            latitude: 40 + 36 / metersPerLatDegree,
             longitude: -74,
             horizontalAccuracy: 5,
             timestamp: start.addingTimeInterval(12)
-        ))
+        )))
+        XCTAssertEqual(session.distanceMeters, baseline, accuracy: 0.5)
+        session.ingest(RunLocationFix(latitude: 40 + 39 / metersPerLatDegree, longitude: -74,
+                                      horizontalAccuracy: 5, timestamp: start.addingTimeInterval(13)))
         XCTAssertEqual(session.distanceMeters, baseline + 3, accuracy: 0.5)
     }
 
@@ -242,10 +245,10 @@ final class ManualRunEntryRulesTests: XCTestCase {
         XCTAssertEqual(run.endDate, start.addingTimeInterval(1_500))
     }
 
-    func testBuildIndoorRunRejectsFalseStarts() {
+    func testBuildIndoorRunRequiresReviewAtShortBoundaries() {
         XCTAssertNil(ManualRunEntryRules.buildIndoorRun(
             startDate: start,
-            distanceMeters: 99,
+            distanceMeters: 49,
             movingSeconds: 1_500,
             metric: true
         ))
@@ -322,6 +325,31 @@ final class RunImportRulesTests: XCTestCase {
         XCTAssertEqual(run.distanceMeters, 5000)
         XCTAssertEqual(run.movingSeconds, 1500)
         XCTAssertEqual(run.averageHeartRate, 152)
+    }
+
+    func testPausedWatchImportUsesActiveDurationWithoutChangingTheRecordedWindow() {
+        let workout = ImportedWorkoutSummary(
+            uuid: "paused-watch", activity: .running, startDate: noon, endDate: noon.addingTimeInterval(1_800),
+            distanceMeters: 5_000, sourceName: "Garmin Connect", sourceBundleID: "com.garmin.connect.mobile",
+            durationSeconds: 1_500
+        )
+        let run = RunImportRules.run(from: workout)
+        XCTAssertEqual(run.id, "paused-watch")
+        XCTAssertEqual(run.movingSeconds, 1_500)
+        XCTAssertEqual(run.averagePaceSecondsPerKm, 300)
+        XCTAssertEqual(run.startDate, noon)
+        XCTAssertEqual(run.endDate, noon.addingTimeInterval(1_800))
+        XCTAssertEqual(run.source, .imported(appName: "Garmin Connect"))
+    }
+
+    func testMissingOrInvalidImportedActiveDurationKeepsLegacyElapsedFallback() {
+        for duration in [nil, 0, -1, 1_801, Double.infinity, .nan] as [Double?] {
+            let workout = ImportedWorkoutSummary(
+                uuid: "legacy", activity: .running, startDate: noon, endDate: noon.addingTimeInterval(1_800),
+                distanceMeters: 5_000, sourceName: "Watch", sourceBundleID: "watch.app", durationSeconds: duration
+            )
+            XCTAssertEqual(RunImportRules.run(from: workout).movingSeconds, 1_800)
+        }
     }
 
     func testOwnRecordingsComeBackAsRecordedRuns() {

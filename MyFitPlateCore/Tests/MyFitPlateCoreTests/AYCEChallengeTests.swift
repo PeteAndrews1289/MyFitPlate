@@ -6,9 +6,9 @@ final class AYCEChallengeTests: XCTestCase {
     private func entry(_ id: String, count: Int) -> AYCESessionEntry {
         guard let item = AYCECatalog.item(id: id) else {
             XCTFail("Missing catalog item \(id)")
-            return AYCESessionEntry(item: AYCECatalog.all[0], count: count)
+            return AYCESessionEntry(item: AYCECatalog.all[0], count: Double(count))
         }
-        return AYCESessionEntry(item: item, count: count)
+        return AYCESessionEntry(item: item, count: Double(count))
     }
 
     private func sushiSession(buffetPrice: Double, entries: [AYCESessionEntry]) -> AYCESession {
@@ -103,13 +103,13 @@ final class AYCEChallengeTests: XCTestCase {
         let behindKitchen = sushiSession(buffetPrice: 30, entries: [entry("sushi_salmon_nigiri", count: 4)])
         XCTAssertEqual(AYCERules.kitchenDelta(session: behindKitchen), 0.95 * 0.7 * 4 - 30, accuracy: 0.001)
         XCTAssertFalse(AYCERules.hasBeatenKitchen(session: behindKitchen))
-        XCTAssertEqual(AYCERules.kitchenLine(session: behindKitchen), "Their kitchen has spent about $2.66 on you")
+        XCTAssertEqual(AYCERules.kitchenLine(session: behindKitchen), "Estimated ingredients: about $2.66")
 
         let kitchenLoss = sushiSession(buffetPrice: 20, entries: [entry("sushi_spicy_tuna_roll", count: 12)])
         XCTAssertTrue(AYCERules.hasBeatenKitchen(session: kitchenLoss))
         XCTAssertEqual(
             AYCERules.kitchenLine(session: kitchenLoss),
-            "Their kitchen has spent $21.84 on you — they're losing money"
+            "Estimated ingredients: $21.84 — above your buffet price"
         )
     }
 
@@ -120,8 +120,8 @@ final class AYCEChallengeTests: XCTestCase {
         XCTAssertEqual(bridged.name, "Salmon nigiri ×4")
         XCTAssertEqual(bridged.calories, 240, accuracy: 0.001)
         XCTAssertEqual(bridged.protein, 14, accuracy: 0.001)
-        XCTAssertEqual(bridged.servingSize, "4 piece")
-        XCTAssertEqual(bridged.sourceMetadata?.sourceName, "Beat the buffet")
+        XCTAssertEqual(bridged.servingSize, "4 pieces")
+        XCTAssertEqual(bridged.sourceMetadata?.sourceName, "Buffet meal")
 
         let single = AYCERules.foodItem(from: entry("sushi_miso_soup", count: 1))
         XCTAssertEqual(single.name, "Miso soup", "No ×1 noise on single items")

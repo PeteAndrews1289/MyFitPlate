@@ -1,5 +1,8 @@
+baseline: .swiftlint-baseline.json
+
 included:
   - CalorieBeta
+  - MyFitPlateCore/Sources
   - CalorieWidget
   - LiveActivity
   - MyFitPlateTests

@@ -64,25 +64,40 @@ jobs:
           CORE_COVERAGE_MINIMUM: "80.0"
         run: ./scripts/check_core_coverage.sh
 
+      - name: Set up Node for native persistence tests
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set up Java for native persistence tests
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Run unit tests
         run: |
           gem install xcpretty
           set -o pipefail
-          xcodebuild test \
+          npx -y firebase-tools emulators:exec \
+            --project myfitplate-test-project \
+            --only firestore,auth \
+            'xcodebuild test \
             -project MyFitPlate.xcodeproj \
             -scheme MyFitPlate \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
             -only-testing:MyFitPlateTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO \
-            OTHER_SWIFT_FLAGS="-D UI_TESTING" | xcpretty
+            MYFITPLATE_EMULATOR_TESTS=YES \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            OTHER_SWIFT_FLAGS="-D UI_TESTING"' | xcpretty
 
       - name: Check coverage floor
         env:
-          # Most logic now lives in the MyFitPlateCore package, which has its own coverage gate
-          # above. This floor only guards the thin app target against regressing to zero.
-          COVERAGE_MINIMUM: "1.0"
+          # Native persistence and app rendering tests establish 12.29% locally. Keep
+          # headroom for SDK differences while catching a meaningful regression.
+          COVERAGE_MINIMUM: "10.0"
         run: python3 scripts/check_xcode_coverage.py TestResults.xcresult --target MyFitPlate.app
 
       - name: Build Release configuration
@@ -193,12 +208,16 @@ jobs:
         working-directory: tests/firebase-rules
         run: npm ci
 
-      - name: Run Firestore rule tests
+      - name: Build callable handlers for compatibility tests
+        working-directory: functions
+        run: npm ci && npm run build
+
+      - name: Run Firestore rules and account compatibility tests
         run: |
           npx -y firebase-tools emulators:exec \
             --project myfitplate-test-project \
-            --only firestore \
-            "npm test --prefix tests/firebase-rules"
+            --only firestore,auth \
+            "npm test --prefix tests/firebase-rules && node --test functions/integration/accountDeletionCompatibility.test.js"
 
   data-migrations:
     name: Data migrations

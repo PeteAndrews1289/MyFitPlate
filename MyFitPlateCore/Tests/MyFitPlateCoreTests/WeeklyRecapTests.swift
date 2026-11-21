@@ -4,7 +4,7 @@ import XCTest
 final class WeeklyRecapTests: XCTestCase {
 
     private let calendar = Calendar.current
-    private let weekEnding = Date()
+    private let weekEnding = Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: Date())!
 
     private func day(_ offset: Int) -> Date {
         calendar.date(byAdding: .day, value: -offset, to: calendar.startOfDay(for: weekEnding))!
@@ -13,7 +13,7 @@ final class WeeklyRecapTests: XCTestCase {
 
     private func foodLog(daysAgo: Int, calories: Double, protein: Double) -> DailyLog {
         let item = FoodItem(name: "Meal", calories: calories, protein: protein, servingWeight: 100)
-        return DailyLog(date: day(daysAgo), meals: [Meal(name: "Lunch", foodItems: [item])])
+        return DailyLog(date: day(daysAgo), meals: [Meal(name: "Lunch", foodItems: [item])], nutritionDayStatus: .complete)
     }
 
     private func session(daysAgo: Int, exercise: String, weight: Double, reps: Int) -> WorkoutSessionLog {
@@ -50,7 +50,8 @@ final class WeeklyRecapTests: XCTestCase {
             proteinGoal: proteinGoal,
             heartRateZoneSeconds: heartRateZoneSeconds,
             runWorkoutResults: runWorkoutResults,
-            shoes: shoes
+            shoes: shoes,
+            now: weekEnding
         )
     }
 
@@ -196,8 +197,8 @@ final class WeeklyRecapTests: XCTestCase {
             sourceMetadata: .aiEstimate(.aiText, sourceName: "Test")
         ).markedUserConfirmed(sourceType: .aiText)
         let logs = [
-            DailyLog(date: day(0), meals: [Meal(name: "Lunch", foodItems: [unreviewed])]),
-            DailyLog(date: day(1), meals: [Meal(name: "Dinner", foodItems: [reviewed])])
+            DailyLog(date: day(0), meals: [Meal(name: "Lunch", foodItems: [unreviewed])], nutritionDayStatus: .complete),
+            DailyLog(date: day(1), meals: [Meal(name: "Dinner", foodItems: [reviewed])], nutritionDayStatus: .complete)
         ]
         let strength = session(daysAgo: 0, exercise: "Bench Press", weight: 100, reps: 5)
         let run = runEntry(daysAgo: 1, meters: 5_000)
@@ -447,6 +448,22 @@ final class WeeklyRecapTests: XCTestCase {
         ])
         XCTAssertEqual(recap.daysLogged, 1)
         XCTAssertEqual(recap.averageCalories, 2_000)
+    }
+
+    func testDateOnlyReportLabelsAndExportKeepSelectedCivilDayAcrossDST() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        for (month, day, expected) in [(11, 4, "2026-11-04"), (3, 8, "2026-03-08")] {
+            let ending = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: 12)))
+            let recap = WeeklyRecapBuilder.build(weekEnding: ending, calendar: calendar, dailyLogs: [], sessionLogs: [],
+                priorSessionLogs: [], weightHistory: [], calorieGoal: nil, now: ending)
+            XCTAssertEqual(recap.displayEndingDay(calendar: calendar), calendar.startOfDay(for: ending))
+            let endpoint = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: ending)))
+            XCTAssertLessThan(recap.weekEnd, endpoint, "Filtering retains the exact inclusive endpoint.")
+            XCTAssertLessThan(endpoint.timeIntervalSince(recap.weekEnd), 0.001)
+            let csv = WeeklyRecapCSVExporter.csvString(for: recap, metric: false, timeZoneID: calendar.timeZone.identifier)
+            XCTAssertTrue(csv.contains("Period,End,\(expected),date"), csv)
+        }
     }
 
     func testCSVExportsAggregatesWithoutPrivateSourceDetails() {

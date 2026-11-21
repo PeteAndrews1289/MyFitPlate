@@ -151,10 +151,12 @@ final class HealthKitViewModelTests: XCTestCase {
         
         let calendar = Calendar.current
         let now = Date()
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: now)!
-        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: now)!
+        // End every fixture night before today, even when this runs just after midnight.
+        let latestNight = calendar.date(byAdding: .day, value: -2, to: now)!
+        let middleNight = calendar.date(byAdding: .day, value: -3, to: now)!
+        let earliestNight = calendar.date(byAdding: .day, value: -4, to: now)!
         
-        // 3 nights of sleep samples (7 hours asleep, 0.5 hours awake per night)
+        // 3 completed nights (7 hours asleep, 0.5 hours awake per night)
         func makeSamples(for nightDate: Date) -> [HKCategorySample] {
             let start = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: nightDate)!
             let mid = start.addingTimeInterval(7 * 3600) // 7 hours asleep
@@ -166,9 +168,11 @@ final class HealthKitViewModelTests: XCTestCase {
         }
         
         var samples: [HKCategorySample] = []
-        samples.append(contentsOf: makeSamples(for: twoDaysAgo))
-        samples.append(contentsOf: makeSamples(for: yesterday))
-        samples.append(contentsOf: makeSamples(for: now))
+        samples.append(contentsOf: makeSamples(for: middleNight))
+        samples.append(contentsOf: makeSamples(for: latestNight))
+        samples.append(contentsOf: makeSamples(for: earliestNight))
+        let windowStart = calendar.date(byAdding: .day, value: -7, to: now)!
+        XCTAssertTrue(samples.allSatisfy { $0.startDate >= windowStart && $0.endDate <= now })
         
         mockManager.sleepResult = samples
         let exp = expectation(description: "Fetch sleep")
@@ -373,8 +377,10 @@ final class HealthKitViewModelTests: XCTestCase {
         let calendar = Calendar.current
         let base = Date()
         
+        // Keep evening fixtures before yesterday so their morning ends are already past.
+        // The two post-midnight fixtures below belong to the preceding evening's night.
         // Night 1: Overlapping asleep intervals & short sleep (<6 hrs) & high awake percentage (>20%)
-        let n1 = calendar.date(byAdding: .day, value: -1, to: base)!
+        let n1 = calendar.date(byAdding: .day, value: -2, to: base)!
         let start1 = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: n1)!
         let end1 = start1.addingTimeInterval(3 * 3600) // 3 hrs
         let start1Overlap = start1.addingTimeInterval(1 * 3600)
@@ -386,13 +392,13 @@ final class HealthKitViewModelTests: XCTestCase {
         let s3 = HKCategorySample(type: sleepType, value: HKCategoryValueSleepAnalysis.awake.rawValue, start: end1Overlap, end: awake1)
         
         // Night 2: Long sleep (>9 hrs) & bedtime 30 min different
-        let n2 = calendar.date(byAdding: .day, value: -2, to: base)!
+        let n2 = calendar.date(byAdding: .day, value: -3, to: base)!
         let start2 = calendar.date(bySettingHour: 22, minute: 30, second: 0, of: n2)!
         let end2 = start2.addingTimeInterval(10 * 3600) // 10 hrs
         let s4 = HKCategorySample(type: sleepType, value: HKCategoryValueSleepAnalysis.asleepREM.rawValue, start: start2, end: end2)
         
         // Night 3: Bedtime 60 min different & 15% awake
-        let n3 = calendar.date(byAdding: .day, value: -3, to: base)!
+        let n3 = calendar.date(byAdding: .day, value: -4, to: base)!
         let start3 = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: n3)!
         let end3 = start3.addingTimeInterval(7 * 3600)
         let awake3 = end3.addingTimeInterval(3600) // 1 hr awake out of 8 total (12.5% awake)
@@ -400,7 +406,7 @@ final class HealthKitViewModelTests: XCTestCase {
         let s6 = HKCategorySample(type: sleepType, value: HKCategoryValueSleepAnalysis.awake.rawValue, start: end3, end: awake3)
 
         // Night 4: Bedtime 90 min different
-        let n4 = calendar.date(byAdding: .day, value: -4, to: base)!
+        let n4 = calendar.date(byAdding: .day, value: -5, to: base)!
         let start4 = calendar.date(bySettingHour: 23, minute: 30, second: 0, of: n4)!
         let end4 = start4.addingTimeInterval(7 * 3600)
         let s7 = HKCategorySample(type: sleepType, value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: start4, end: end4)
@@ -417,7 +423,10 @@ final class HealthKitViewModelTests: XCTestCase {
         let end6 = start6.addingTimeInterval(7 * 3600)
         let s9 = HKCategorySample(type: sleepType, value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: start6, end: end6)
 
-        mockManager.sleepResult = [s1, s2, s3, s4, s5, s6, s7, s8, s9]
+        let samples = [s1, s2, s3, s4, s5, s6, s7, s8, s9]
+        let windowStart = calendar.date(byAdding: .day, value: -7, to: base)!
+        XCTAssertTrue(samples.allSatisfy { $0.startDate >= windowStart && $0.endDate <= base })
+        mockManager.sleepResult = samples
         let exp = expectation(description: "Fetch sleep variations")
         viewModel.fetchLastSevenDaysSleep()
         

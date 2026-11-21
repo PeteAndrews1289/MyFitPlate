@@ -6,6 +6,19 @@ import XCTest
 
 @MainActor
 final class TrainingFuelPlannerRenderingTests: XCTestCase {
+
+    func testIndividualReferenceViewRendersSeparateRangesAndPracticedDuringChoice() throws {
+        let now = date(hour: 8)
+        let input = TrainingFuelPersonalInputs(adultConfirmed: true,
+            bodyMass: .init(kilograms: 75, measurementID: "actual-weight", measuredAt: now.addingTimeInterval(-86_400), confirmedAt: now),
+            tolerance: .practicedDuringRun, duringCarbsPerHour: 45)
+        let candidate = TrainingFuelSessionAdapter.manualCandidate(kind: .run)
+        let draft = TrainingFuelPlanDraft(candidate: candidate, scheduledAt: date(hour: 10), durationMinutes: 90,
+            preference: .init(personalInputs: input))
+        let view = TrainingFuelIndividualInputsView(inputs: .constant(input), session: draft.session,
+            weightHistory: [(id: "actual-weight", date: now.addingTimeInterval(-86_400), weight: 75 / 0.45359237)], now: now, initiallyExpanded: true)
+        try render(AnyView(ScrollView { view.padding() }), frame: CGRect(x: 0, y: 0, width: 375, height: 667), attachmentName: "Individual fuel - disclosure")
+    }
     func testPlannerSheetRendersAtStandardAndAccessibilitySizes() throws {
         let now = date(hour: 10)
         let candidate = TrainingFuelSessionCandidate(
@@ -53,12 +66,12 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
         )
 
         try render(
-            AnyView(sheet.environment(\.sizeCategory, .large)),
+            AnyView(sheet.environmentObject(TrainingFuelPlanStore()).environment(\.sizeCategory, .large)),
             frame: CGRect(x: 0, y: 0, width: 430, height: 932),
             attachmentName: "Training fuel planner - standard"
         )
         try render(
-            AnyView(sheet.environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)),
+            AnyView(sheet.environmentObject(TrainingFuelPlanStore()).environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)),
             frame: CGRect(x: 0, y: 0, width: 320, height: 568),
             attachmentName: "Training fuel planner - accessibility"
         )
@@ -131,7 +144,7 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
         )
 
         try render(
-            AnyView(sheet.environment(\.sizeCategory, .large)),
+            AnyView(sheet.environmentObject(TrainingFuelPlanStore()).environment(\.sizeCategory, .large)),
             frame: CGRect(x: 0, y: 0, width: 430, height: 932),
             attachmentName: "Training fuel planner - awaiting outcome"
         )

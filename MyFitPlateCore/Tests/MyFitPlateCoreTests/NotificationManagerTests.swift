@@ -232,27 +232,11 @@ final class NotificationManagerSchedulingTests: XCTestCase {
 
     // MARK: Stored reminder time
 
-    @MainActor
-    func testScheduleIfAuthorizedUsesStoredTime() throws {
-        let auth = MockAuthService()
-        auth.currentUserID = "user1"
-        DIContainer.shared.authService = auth
-        DIContainer.shared.settingsRepository = MockSettingsRepository()
-        DIContainer.shared.nutritionRepository = MockNutritionRepository()
-
-        defaults.set(21, forKey: "notificationHour")
-        defaults.set(15, forKey: "notificationMinute")
-        center.status = .authorized
-
-        let added = expectation(description: "scheduled")
-        center.onAdd = { _ in added.fulfill() }
-
+    func testAutomaticDiaryRefreshRequestsReconciliationWithoutCreatingAnOptIn() {
+        let changed = expectation(forNotification: .reminderEvidenceChanged, object: nil)
         manager.scheduleDailyLogReminderIfAuthorized()
-        wait(for: [added], timeout: 3)
-
-        let trigger = try XCTUnwrap(center.addedRequests.first?.trigger as? UNCalendarNotificationTrigger)
-        XCTAssertEqual(trigger.dateComponents.hour, 21)
-        XCTAssertEqual(trigger.dateComponents.minute, 15)
+        wait(for: [changed], timeout: 2)
+        XCTAssertTrue(center.addedRequests.isEmpty, "Logging cannot create a fresh reminder opt-in.")
     }
 
     func testScheduleIfAuthorizedDoesNothingWhenDenied() {
@@ -364,8 +348,8 @@ final class NotificationManagerSchedulingTests: XCTestCase {
                 removed.contains($0.identifier)
             }
         )
-        XCTAssertFalse(removed.contains("weighInReminder"))
-        XCTAssertFalse(removed.contains("hydration_0"))
+        XCTAssertTrue(removed.contains("weighInReminder"))
+        XCTAssertTrue(removed.contains("hydration_0"))
     }
 
     private var utcCalendar: Calendar {

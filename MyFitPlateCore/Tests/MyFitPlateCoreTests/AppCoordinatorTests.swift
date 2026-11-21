@@ -112,4 +112,20 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.pendingRoute, .workouts)
         XCTAssertEqual(appState.selectedTab, 2)
     }
+
+    func testUnsupportedAndUndeliveredCommunityLinksQueueAnExplicitUnavailableDestination() throws {
+        let coordinator = AppCoordinator()
+        for url in ["myfitplate://not-a-feature", "myfitplate://community"] {
+            XCTAssertEqual(coordinator.handle(url: try XCTUnwrap(URL(string: url))), .unavailable)
+            XCTAssertEqual(coordinator.takePendingRoute(), .unavailable)
+        }
+    }
+
+    func testProfileAndSettingsRemainExactDeferredDestinations() throws {
+        let coordinator = AppCoordinator()
+        XCTAssertEqual(coordinator.handle(url: try XCTUnwrap(URL(string: "myfitplate://profile"))), .profile)
+        XCTAssertEqual(coordinator.takePendingRoute(), .profile)
+        XCTAssertEqual(coordinator.handle(url: try XCTUnwrap(URL(string: "myfitplate://settings"))), .settings)
+        XCTAssertEqual(coordinator.takePendingRoute(), .settings)
+    }
 }

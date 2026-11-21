@@ -5,6 +5,15 @@ final class OpenFoodFactsParserTests: XCTestCase {
 
     private func data(_ json: String) -> Data { Data(json.utf8) }
 
+    func testSeparateProductBrandIsRetainedAndVisibleWithoutDuplicatingName() throws {
+        let payload = #"{"products":[{"code":"brand","product_name":"Plain Greek Yogurt","brands":"Chobani","nutriments":{"energy-kcal_100g":100}},{"code":"named","product_name":"Fage Greek Yogurt","brands":"Fage","nutriments":{"energy-kcal_100g":100}},{"code":"generic","product_name":"Greek Yogurt","brands":"Generic","nutriments":{"energy-kcal_100g":100}}]}"#
+        let foods = try OpenFoodFactsParser.searchFoods(from: data(payload))
+        XCTAssertEqual(foods.map(\.name), ["Chobani Plain Greek Yogurt", "Fage Greek Yogurt", "Greek Yogurt"])
+        XCTAssertEqual(foods[0].sourceMetadata?.brandName, "Chobani")
+        XCTAssertEqual(foods[1].sourceMetadata?.brandName, "Fage")
+        XCTAssertNil(foods[2].sourceMetadata?.brandName)
+    }
+
     func testParsesValidProductWithMineralUnitConversion() throws {
         let json = """
         {

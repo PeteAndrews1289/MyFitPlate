@@ -2,6 +2,71 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class USDAFoodParserTests: XCTestCase {
+    func testFoundationGeneralEnergyIsRetainedInsteadOfBecomingZero() throws {
+        // Current Foundation search responses use2047/957 without legacy208.
+        let payload = #"{"foods":[{"fdcId":2257045,"description":"Almond milk, unsweetened, plain, refrigerated","dataType":"Foundation","servingSize":200,"servingSizeUnit":"g","foodNutrients":[{"nutrientId":2047,"nutrientNumber":"957","value":19.3},{"nutrientNumber":"203","value":0.66}]}]}"#
+        let milk = try XCTUnwrap(USDAFoodParser.foodItems(from: Data(payload.utf8)).first)
+        XCTAssertEqual(milk.calories, 38.6, accuracy: 0.0001)
+        XCTAssertEqual(milk.protein, 1.32, accuracy: 0.0001)
+        XCTAssertTrue(milk.sourceMetadata?.notes?.contains("general factors") == true)
+    }
+
+    func testSpecificEnergyFallbackSupportsNutrientIDWithoutLegacyNumber() throws {
+        let payload = #"{"foods":[{"fdcId":1,"description":"Foundation food","foodNutrients":[{"nutrientId":2048,"value":52.5}]}]}"#
+        let food = try XCTUnwrap(USDAFoodParser.foodItems(from: Data(payload.utf8)).first)
+        XCTAssertEqual(food.calories, 52.5)
+        XCTAssertTrue(food.sourceMetadata?.notes?.contains("specific factors") == true)
+    }
+
+    func testReportedLegacyEnergyIncludingZeroWinsOverAlternativeFactors() throws {
+        for value in [0, 125] {
+            let payload = "{\"foods\":[{\"fdcId\":1,\"description\":\"Reported food\",\"foodNutrients\":[{\"nutrientId\":1008,\"value\":\(value)},{\"nutrientNumber\":\"957\",\"value\":200},{\"nutrientNumber\":\"958\",\"value\":190}]}]}"
+            let food = try XCTUnwrap(USDAFoodParser.foodItems(from: Data(payload.utf8)).first)
+            XCTAssertEqual(food.calories, Double(value))
+            XCTAssertNil(food.sourceMetadata?.notes)
+        }
+    }
+
+    func testGeneralEnergyIsDefaultWhenBothAtwaterValuesAreReported() throws {
+        let payload = #"{"foods":[{"fdcId":1,"description":"Foundation food","foodNutrients":[{"nutrientNumber":"957","value":200},{"nutrientNumber":"958","value":190}]}]}"#
+        let food = try XCTUnwrap(USDAFoodParser.foodItems(from: Data(payload.utf8)).first)
+        XCTAssertEqual(food.calories, 200)
+        XCTAssertTrue(food.sourceMetadata?.notes?.contains("general factors") == true)
+    }
+
+    func testInvalidEnergyDoesNotOverrideAValidReportedFallback() throws {
+        let payload = #"{"foods":[{"fdcId":1,"description":"Foundation food","foodNutrients":[{"nutrientNumber":"208","value":-1},{"nutrientNumber":"957","value":19.3}]}]}"#
+        XCTAssertEqual(try XCTUnwrap(USDAFoodParser.foodItems(from: Data(payload.utf8)).first).calories, 19.3)
+    }
+
+    func testKilojoulesAreNeverRelabeledAsKilocalories() throws {
+        let payload = #"{"foods":[{"fdcId":1,"description":"Foundation food","foodNutrients":[{"nutrientId":1062,"nutrientNumber":"268","unitName":"kJ","value":418.4},{"nutrientId":1008,"nutrientNumber":"208","unitName":"kJ","value":418.4},{"nutrientId":2047,"nutrientNumber":"957","unitName":"KCAL","value":100}]}]}"#
+        let food = try XCTUnwrap(USDAFoodParser.foodItems(from: Data(payload.utf8)).first)
+        XCTAssertEqual(food.calories, 100)
+        XCTAssertTrue(food.sourceMetadata?.notes?.contains("general factors") == true)
+        let kjOnly = #"{"foods":[{"fdcId":2,"description":"Unusable energy","foodNutrients":[{"nutrientId":1062,"nutrientNumber":"268","unitName":"kJ","value":418.4}]}]}"#
+        XCTAssertEqual(try XCTUnwrap(USDAFoodParser.foodItems(from: Data(kjOnly.utf8)).first).calories, 0)
+    }
+
+    func testServingOverflowCannotPublishInfiniteEnergy() throws {
+        let payload = #"{"foods":[{"fdcId":1,"description":"Malformed serving","servingSize":1e308,"servingSizeUnit":"g","householdServingFullText":"provider portion","foodNutrients":[{"nutrientNumber":"957","value":1e308}]}]}"#
+        XCTAssertTrue(try XCTUnwrap(USDAFoodParser.foodItems(from: Data(payload.utf8)).first).calories.isFinite)
+    }
+
+    func testNonFiniteJSONEnergyIsRejectedBeforePublishingFood() {
+        let payload = #"{"foods":[{"fdcId":1,"description":"Invalid energy","foodNutrients":[{"nutrientNumber":"957","value":1e309}]}]}"#
+        XCTAssertThrowsError(try USDAFoodParser.foodItems(from: Data(payload.utf8)))
+    }
+
+    func testProductBrandNameTakesPrecedenceOverOwnerAndRemainsVisible() throws {
+        let payload = #"{"foods":[{"fdcId":81,"description":"GREEK YOGURT","dataType":"Branded","brandName":"Fage","brandOwner":"Fage USA","foodNutrients":[]},{"fdcId":82,"description":"GREEK YOGURT","dataType":"Branded","brandOwner":"Chobani","foodNutrients":[]},{"fdcId":83,"description":"YOGURT","brandOwner":"Generic","foodNutrients":[]}]}"#
+        let foods = try USDAFoodParser.foodItems(from: Data(payload.utf8))
+        XCTAssertEqual(foods.map(\.name), ["Fage Greek Yogurt", "Chobani Greek Yogurt", "Yogurt"])
+        XCTAssertEqual(foods[0].sourceMetadata?.brandName, "Fage")
+        XCTAssertEqual(foods[1].sourceMetadata?.brandName, "Chobani")
+        XCTAssertNil(foods[2].sourceMetadata?.brandName)
+        XCTAssertEqual(foods[0].sourceMetadata?.effectiveEvidenceLineage, .manufacturerLabel)
+    }
 
     private func data(_ json: String) -> Data { Data(json.utf8) }
 
@@ -72,7 +137,7 @@ final class USDAFoodParserTests: XCTestCase {
     }
 
     func testNonGramServingUnitDoesNotScale() throws {
-        // serving unit "ml" => grams fall back to 100 (scale 1.0), but label uses the declared size.
+        // Milliliters cannot scale per-100-g nutrition without a verified density.
         let json = """
         {"foods": [{"fdcId": 2, "description": "Juice", "servingSize": 240,
           "servingSizeUnit": "ml",
@@ -81,7 +146,8 @@ final class USDAFoodParserTests: XCTestCase {
         let item = try XCTUnwrap(try USDAFoodParser.foodItems(from: data(json)).first)
         XCTAssertEqual(item.calories, 45, accuracy: 0.001)   // not scaled
         XCTAssertEqual(item.servingWeight, 100, accuracy: 0.001)
-        XCTAssertEqual(item.servingSize, "240 ml")
+        XCTAssertEqual(item.servingSize, "100 g")
+        XCTAssertEqual(item.sourceMetadata?.labeledServing, "240 ml")
     }
 
     func testEmptyAndMultipleFoods() throws {

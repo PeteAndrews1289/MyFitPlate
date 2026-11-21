@@ -17,7 +17,7 @@ recovery decisions people make every day. Logging is designed to be fast, but no
 food record, estimate, or coaching suggestion affects the user's totals, the app should explain
 where it came from and how much confidence to place in it.
 
-The current App Store release is **2.2**. It combines a full nutrition diary with barcode and camera
+This checkout targets **2.4 (build 2)**. It combines a full nutrition diary with barcode and camera
 logging, the Maia AI coach, strength and running tools, Apple Health integration, meal planning,
 grocery and restaurant workflows, reports, widgets, Live Activities, and an Apple Watch companion.
 
@@ -46,6 +46,9 @@ quickly, see limitations, and repair questionable entries before those entries s
 ### Food and nutrition
 
 - Manual entry, recent and saved foods, meal reuse, and recipe logging
+- Search-first food logging with a compact meal destination, five repeat foods, and secondary capture tools under More
+- Multi-food meal drafts with portion review, interruption recovery, safe retry, and one undo
+- Planned meals and AI suggestions confirm accepted saves and retain failed actions for retry
 - Text, barcode, multi-barcode, nutrition-label, receipt, menu, pantry, and meal-photo workflows
 - Calories, macros, fiber, sodium, and detailed micronutrients
 - Food search across USDA FoodData Central, FatSecret, and Open Food Facts
@@ -54,6 +57,9 @@ quickly, see limitations, and repair questionable entries before those entries s
 ### Training and recovery
 
 - Strength programs, routines, supersets, RPE/RIR, set types, rest timers, and progression guidance
+- Reviewable per-set progression from recent working sets, editable equipment increments, lighter-session targets, and conditional Undo
+- Recoverable program/routine edits, compact set entry, and retained workout libraries during partial reads
+- One-action workout starts, confirmed skips, and retryable previous-workout loading without blocking set entry
 - Outdoor running with route, pace, splits, heart-rate zones, training fuel, and shoe mileage
 - Apple Watch workout capture and phone-to-watch synchronization
 - Apple Health context for workouts, heart rate, sleep, HRV, weight, and nutrition
@@ -62,14 +68,15 @@ quickly, see limitations, and repair questionable entries before those entries s
 ### Planning and coaching
 
 - Maia, an AI coach for questions, meal ideas, and reviewable logging actions
+- Confirmed weight saving and import progress that reflects accepted records
 - Seven-day meal plans, recipes, pantry tools, and generated grocery lists
 - Restaurant menu analysis, fast-food building, and buffet planning
 - Adaptive calorie and macro goals, hydration, fasting, body trends, and weekly reports
 - Widgets and Live Activities for useful information outside the main app
 
-## Version 2.3 In Development
+## Current Source
 
-Version 2.3 is the active development line. Its work is organized around one product language:
+The source in this repository is organized around one product language:
 **signal, evidence, action**.
 
 - A unified visual system across nutrition, training, planning, Maia, reports, and settings
@@ -80,17 +87,15 @@ Version 2.3 is the active development line. Its work is organized around one pro
 - Purpose-routed camera logging with database grounding and an explicit estimate review step
 - Broader accessibility, visual-regression, device, Watch, and release acceptance coverage
 
-These items describe active development, not promises in the currently published 2.2 binary.
+The [2.4 release notes](docs/release-notes-2.4.md) describe the changes to food logging, training, and cooking.
+
+The first version of **Rescue my week**, **One useful question**, and **What works for me?** is also implemented. These connect reversible workout/meal adjustments, focused photo review, and familiar-meal comparisons to the existing app.
 
 ## Release And Branch Policy
 
-| Ref | Role |
-| --- | --- |
-| `main` | Production baseline. The exact App Store 2.2 source is tagged `v2.2`. |
-| `codex/2.3-visual-unification` | The only active development branch for version 2.3. |
-
-Short-lived pull-request branches may be used for isolated release work, then deleted after merge.
-Unreleased 2.3 code does not move to `main` until its acceptance checks are complete.
+The historical 2.2 source is tagged `v2.2`. Use a short-lived `codex/` branch for new work and
+merge into `main` after the release checks pass. Branch names in older release notes describe
+the work at that time, not the current checkout.
 
 ## Architecture
 
@@ -140,7 +145,7 @@ operations. Firestore rules, App Check, and server-owned deletion protect the sh
 
 - macOS with a current stable Xcode release
 - An iOS 17 or newer simulator or physical device
-- Node.js 22 for Firebase Functions
+- Node.js 22 for Firebase Functions (`nvm use` reads the repository pin)
 - Java 21 when running Firestore emulator tests
 - SwiftLint for the same lint checks used by CI
 

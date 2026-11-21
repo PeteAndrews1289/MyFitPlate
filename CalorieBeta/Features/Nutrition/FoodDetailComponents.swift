@@ -22,7 +22,7 @@ struct FoodDetailHeroCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface(.quiet, radius: AppRadius.hero)
+        .padding(.vertical, AppSpacing.compact)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("food_detail_identity")
     }
@@ -282,7 +282,7 @@ struct FoodNutrientProfileCard: View {
                 .buttonStyle(AppActionButtonStyle(.secondary))
                 .accessibilityIdentifier("food_nutrient_profile_open")
 
-                Text("Missing values are unknown, not zero. % Daily Value is a general label reference, not a personal target.")
+                Text("Missing values are unknown. % Daily Value uses a general label reference.")
                     .appTextRole(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -608,7 +608,7 @@ struct FoodDetailLoadingCard: View {
                 .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
 
-            Text("Pulling the most accurate nutrition details for this food.")
+            Text("Checking this food’s reported serving and nutrition.")
                 .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
@@ -697,7 +697,7 @@ struct FoodDetailLabelScanCard: View {
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Take a label photo to replace these numbers.")
+                    Text("Scan the label, then review any changes.")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }

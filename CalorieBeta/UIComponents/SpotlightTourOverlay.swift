@@ -1,10 +1,8 @@
 import SwiftUI
 import MyFitPlateCore
 
-/// The tour overlay: dims the screen, punches a bright hole around the current target,
-/// and floats an explanation card next to it. Driven by a resolved target rect (from the
-/// `SpotlightBoundsKey` anchor) so the highlight and the copy always line up with what's
-/// actually on screen — a tap anywhere advances.
+/// Keeps the explanation inside the visible screen, even when the highlighted content is
+/// offscreen or Dynamic Type needs a scrolling card. Only explicit controls advance the tour.
 struct SpotlightTourOverlay: View {
     let targetRect: CGRect?
     let containerSize: CGSize
@@ -13,115 +11,112 @@ struct SpotlightTourOverlay: View {
     let total: Int
     let onNext: () -> Void
     let onSkip: () -> Void
+    var onBack: (() -> Void)?
 
-    @Environment(\.colorScheme) private var colorScheme
+    @State private var cardHeight: CGFloat = 240
+    @AccessibilityFocusState private var isTitleFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let margin: CGFloat = 16
 
-    private let holePadding: CGFloat = 12
-    private let gap: CGFloat = 18
+    private var visibleTarget: CGRect? {
+        guard let targetRect, targetRect.width > 0, targetRect.height > 0 else { return nil }
+        let visible = targetRect.intersection(CGRect(origin: .zero, size: containerSize))
+        return visible.isNull || visible.height < 24 || visible.width < 24 ? nil : visible
+    }
 
-    /// Put the card below the target when the target sits in the top half, otherwise above —
-    /// so the copy is next to what it describes and never covers it.
-    private var placeBelow: Bool {
-        guard let targetRect else { return true }
-        return targetRect.midY < containerSize.height * 0.5
+    private var cardY: CGFloat {
+        let height = min(cardHeight, max(0, containerSize.height - margin * 2))
+        let half = height / 2
+        guard let target = visibleTarget else { return containerSize.height / 2 }
+        if target.maxY + margin + height <= containerSize.height - margin {
+            return target.maxY + margin + half
+        }
+        if target.minY - margin - height >= margin {
+            return target.minY - margin - half
+        }
+        return max(margin + half, containerSize.height - margin - half)
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            dimWithHole
+            Rectangle().fill(Color.black.opacity(0.64))
+                .mask {
+                    Rectangle().overlay {
+                        if let target = visibleTarget {
+                            RoundedRectangle(cornerRadius: AppRadius.surface)
+                                .frame(width: target.width + 8, height: target.height + 8)
+                                .position(x: target.midX, y: target.midY)
+                                .blendMode(.destinationOut)
+                        }
+                    }.compositingGroup()
+                }
                 .contentShape(Rectangle())
-                .onTapGesture(perform: onNext)
+                .onTapGesture { }
+                .accessibilityHidden(true)
 
-            tooltipLayer
+            tooltipCard
+                .frame(width: max(0, containerSize.width - AppSpacing.screenHorizontal * 2))
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: SpotlightCardHeightKey.self, value: proxy.size.height)
+                    }
+                }
+                .frame(maxHeight: max(120, containerSize.height - margin * 2))
+                .position(x: containerSize.width / 2, y: cardY)
         }
-        .ignoresSafeArea()
+        .onPreferenceChange(SpotlightCardHeightKey.self) { if $0 > 0 { cardHeight = $0 } }
+        .task(id: currentIndex) { isTitleFocused = true }
+        .accessibilityAction(.escape, onSkip)
         .transition(.opacity)
-    }
-
-    private var dimWithHole: some View {
-        Rectangle()
-            .fill(Color.black.opacity(0.72))
-            .reverseMask {
-                if let targetRect {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .frame(width: targetRect.width + holePadding, height: targetRect.height + holePadding)
-                        .position(x: targetRect.midX, y: targetRect.midY)
-                }
-            }
-    }
-
-    @ViewBuilder
-    private var tooltipLayer: some View {
-        if let targetRect {
-            VStack(spacing: 0) {
-                if placeBelow {
-                    Color.clear.frame(height: min(targetRect.maxY + gap, containerSize.height - 120))
-                    tooltipCard
-                    Spacer(minLength: 0)
-                } else {
-                    Spacer(minLength: 0)
-                    tooltipCard
-                    Color.clear.frame(height: max(0, containerSize.height - targetRect.minY + gap))
-                }
-            }
-        } else {
-            VStack {
-                Spacer()
-                tooltipCard
-                Spacer()
-            }
-        }
+        .animation(reduceMotion ? nil : AppMotion.standard, value: currentIndex)
     }
 
     private var tooltipCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(content.title)
-                    .font(.title3.bold())
-                    .foregroundColor(.primary)
-
-                Spacer()
-
-                Button("Skip", action: onSkip)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.secondary)
-            }
-
-            Text(content.text)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
             HStack {
-                Text("\(currentIndex + 1) of \(total)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
-
+                Text("Step \(currentIndex + 1) of \(total)")
+                    .appTextRole(.caption).foregroundStyle(.secondary).monospacedDigit()
                 Spacer()
-
-                Button(currentIndex == total - 1 ? "Done" : "Next", action: onNext)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.brandPrimary)
+                Button("Skip tour", action: onSkip)
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityIdentifier("spotlight_skip")
+            }
+            ViewThatFits(in: .vertical) {
+                explanation.fixedSize(horizontal: false, vertical: true)
+                ScrollView { explanation }.scrollBounceBehavior(.basedOnSize)
+            }
+            HStack(spacing: AppSpacing.row) {
+                if currentIndex > 0, let onBack {
+                    Button("Back", action: onBack)
+                        .buttonStyle(AppActionButtonStyle(.ghost))
+                        .accessibilityIdentifier("spotlight_back")
+                }
+                Button(currentIndex == total - 1 ? "Got it" : "Next", action: onNext)
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .accessibilityIdentifier("spotlight_next")
             }
         }
-        .padding(16)
-        .background(colorScheme == .dark ? Color(.secondarySystemBackground) : .white,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
-        .padding(.horizontal, 20)
+        .padding(AppSpacing.group)
+        .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.hero, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: AppRadius.hero).stroke(AppPalette.separator, lineWidth: 1) }
+        .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
+        .accessibilityElement(children: .contain)
     }
 
+    private var explanation: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(content.title).appTextRole(.sectionTitle).foregroundStyle(AppPalette.text)
+                .accessibilityAddTraits(.isHeader).accessibilityFocused($isTitleFocused)
+                .accessibilityIdentifier("spotlight_title")
+            Text(content.text).appTextRole(.body).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
-private extension View {
-    /// Masks self everywhere EXCEPT where `mask` draws — i.e. punches a hole.
-    @ViewBuilder
-    func reverseMask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> some View {
-        self.mask(
-            Rectangle()
-                .overlay(mask().blendMode(.destinationOut))
-                .compositingGroup()
-        )
-    }
+private struct SpotlightCardHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }

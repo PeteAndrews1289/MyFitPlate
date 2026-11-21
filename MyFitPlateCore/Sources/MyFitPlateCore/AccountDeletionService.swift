@@ -1,5 +1,9 @@
 import Foundation
 
+public extension Notification.Name {
+    static let appleSignInRevocationIncomplete = Notification.Name("MyFitPlate.AppleSignInRevocationIncomplete")
+}
+
 public final class AccountDeletionService: AccountDeletionServicing, @unchecked Sendable {
     private let authService: AuthServiceProtocol
     private let cloudFunctionService: CloudFunctionServiceProtocol
@@ -23,7 +27,8 @@ public final class AccountDeletionService: AccountDeletionServicing, @unchecked 
             throw AccountDeletionError.reauthenticationFailed(error)
         }
 
-        try await deleteServerDataAndSignOut()
+        guard authService.currentUserID == userID else { throw AccountDeletionError.accountChanged }
+        try await deleteServerDataAndSignOut(userID: userID)
         return AccountDeletionOutcome(userID: userID)
     }
 
@@ -41,6 +46,7 @@ public final class AccountDeletionService: AccountDeletionServicing, @unchecked 
         // while the Firebase user still exists. A failure is reported rather than blocking the
         // deletion the person asked for.
         var revocationFailed = true
+        guard authService.currentUserID == userID else { throw AccountDeletionError.accountChanged }
         if let code = appleCredential.authorizationCode, !code.isEmpty {
             do {
                 try await authService.revokeAppleToken(authorizationCode: code)
@@ -50,19 +56,21 @@ public final class AccountDeletionService: AccountDeletionServicing, @unchecked 
             }
         }
 
-        try await deleteServerDataAndSignOut()
+        guard authService.currentUserID == userID else { throw AccountDeletionError.accountChanged }
+        try await deleteServerDataAndSignOut(userID: userID)
         return AccountDeletionOutcome(userID: userID, appleTokenRevocationFailed: revocationFailed)
     }
 
-    private func deleteServerDataAndSignOut() async throws {
+    private func deleteServerDataAndSignOut(userID: String) async throws {
+        guard authService.currentUserID == userID else { throw AccountDeletionError.accountChanged }
         do {
-            try await cloudFunctionService.deleteUserData()
+            try await cloudFunctionService.deleteUserData(expectedUserID: userID)
         } catch {
             throw AccountDeletionError.dataDeletionFailed(error)
         }
 
         // The callable only returns after both the user's associated data and Firebase Auth
         // record are gone. Clear the now-invalid local session without hiding server failures.
-        try? authService.signOut()
+        if authService.currentUserID == userID || authService.currentUserID == nil { try? authService.signOut() }
     }
 }

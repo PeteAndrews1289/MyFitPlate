@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "mocha firestore.test.js --timeout 10000"
+    "test": "mocha '*.test.js' --timeout 10000"
   },
   "keywords": [],
   "author": "",

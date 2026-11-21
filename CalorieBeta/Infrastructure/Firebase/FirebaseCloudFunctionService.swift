@@ -1,11 +1,20 @@
 import Foundation
 import MyFitPlateCore
 import FirebaseFunctions
+import FirebaseAuth
 
 final class FirebaseCloudFunctionService: CloudFunctionServiceProtocol, @unchecked Sendable {
     func deleteUserData() async throws {
+        guard let userID = Auth.auth().currentUser?.uid else { throw AccountDeletionError.missingCurrentUser }
+        try await deleteUserData(expectedUserID: userID)
+    }
+
+    func deleteUserData(expectedUserID: String) async throws {
+        guard Auth.auth().currentUser?.uid == expectedUserID else { throw AccountDeletionError.accountChanged }
+        _ = try await Auth.auth().currentUser?.getIDToken(forcingRefresh: true)
+        guard Auth.auth().currentUser?.uid == expectedUserID else { throw AccountDeletionError.accountChanged }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            Functions.functions().httpsCallable("deleteUserData").call { _, error in
+            Functions.functions().httpsCallable("deleteUserData").call(["expectedUserID": expectedUserID]) { _, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {

@@ -7,6 +7,9 @@ struct GroceryCategorySection: View {
     let onToggle: () -> Void
     let onEdit: (GroceryListItem) -> Void
     let onDelete: (GroceryListItem) -> Void
+    var coverage: [UUID: GroceryStockCoverage] = [:]
+    var onTransfer: (GroceryListItem) -> Void = { _ in }
+    var onSkip: (GroceryListItem) -> Void = { _ in }
 
     private var remainingCount: Int {
         items.filter { !$0.isCompleted }.count
@@ -21,7 +24,11 @@ struct GroceryCategorySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: category, subtitle: countDescription)
+            HStack(alignment: .firstTextBaseline) {
+                Text(category).appTextRole(.sectionTitle)
+                Spacer(minLength: AppSpacing.compact)
+                Text(countDescription).appTextRole(.caption).foregroundStyle(.secondary)
+            }
 
             LazyVStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -30,7 +37,10 @@ struct GroceryCategorySection: View {
                             item: $groceryList[itemIndex],
                             onToggle: onToggle,
                             onEdit: { onEdit(item) },
-                            onDelete: { onDelete(item) }
+                            onDelete: { onDelete(item) },
+                            stockCoverage: coverage[item.id],
+                            onTransfer: { onTransfer(item) },
+                            onSkip: { onSkip(item) }
                         )
 
                         if index < items.count - 1 {
@@ -53,8 +63,12 @@ struct GroceryItemRow: View {
     var onToggle: () -> Void
     var onEdit: () -> Void
     var onDelete: () -> Void
+    var stockCoverage: GroceryStockCoverage?
+    var onTransfer: () -> Void = {}
+    var onSkip: () -> Void = {}
 
     private var quantityText: String? {
+        if item.quantityUnknown == true { return "Amount unconfirmed" }
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = item.quantity == floor(item.quantity) ? 0 : 2
@@ -89,6 +103,7 @@ struct GroceryItemRow: View {
         if source.contains("meal") {
             return "Meal plan"
         }
+        if source == "retainedpurchase" { return "Previously checked / bought" }
         return nil
     }
 
@@ -135,6 +150,29 @@ struct GroceryItemRow: View {
                             .strikethrough(item.isCompleted, color: Color.secondary)
                             .fixedSize(horizontal: false, vertical: true)
 
+                        if let coverage = stockCoverage, item.source == "mealPlan", item.quantityUnknown != true {
+                            Text("Have \(coverage.available.formatted(.number.precision(.fractionLength(0...2)))) · buy \(coverage.needToBuy.formatted(.number.precision(.fractionLength(0...2)))) \(item.unit)")
+                                .appTextRole(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if item.skippedForPlan == true { Text("Skipped for this plan").appTextRole(.caption) }
+                        if let override = item.quantityOverride {
+                            Text("Plan requirement: \(override.sourceQuantity?.formatted() ?? "unconfirmed") \(override.sourceUnit) · personal buy amount: \(override.buyQuantity.formatted()) \(override.buyUnit)")
+                                .appTextRole(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            if override.requiresReview { Text("Plan requirement increased or changed units · review your shopping override").appTextRole(.caption).foregroundStyle(AppPalette.caution) }
+                        }
+                        if let product = item.productSnapshot {
+                            Text(product.packageQuantity.flatMap { amount in product.packageUnit.map { "Package: \(amount.formatted()) \($0)" } } ?? "Package size unconfirmed · nutrition serving is separate")
+                                .appTextRole(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let bought = item.purchasedQuantity {
+                            Text("Recorded bought \(bought.formatted(.number.precision(.fractionLength(0...2)))) \(item.unit)")
+                                .appTextRole(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                        ForEach(Array((item.unconvertedPurchases ?? []).enumerated()), id: \.offset) { _, bought in
+                            Text("Earlier bought \(bought.quantity.formatted()) \(bought.unit) · review conversion before covering \(item.unit)")
+                                .appTextRole(.caption).foregroundStyle(AppPalette.caution).fixedSize(horizontal: false, vertical: true)
+                        }
                         if !metadataText.isEmpty {
                             Text(metadataText)
                                 .appTextRole(.secondary)
@@ -153,12 +191,16 @@ struct GroceryItemRow: View {
             .accessibilityIdentifier("grocery_item_\(item.id.uuidString)")
 
             Menu {
+                Button("Record bought amount / add to pantry", systemImage: "cabinet", action: onTransfer)
+                if item.source == "mealPlan" {
+                    Button(item.skippedForPlan == true ? "Include this need again" : "Skip buying for this plan", systemImage: "minus.circle", action: onSkip)
+                }
                 Button(action: onEdit) {
                     Label("Edit Item", systemImage: "pencil")
                 }
 
                 Button(role: .destructive, action: onDelete) {
-                    Label("Delete Item", systemImage: "trash")
+                    Label(item.source == "mealPlan" ? "Skip this planned need" : "Remove manual item", systemImage: item.source == "mealPlan" ? "minus.circle" : "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis")

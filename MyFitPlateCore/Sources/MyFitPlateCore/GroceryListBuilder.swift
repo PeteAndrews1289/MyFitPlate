@@ -15,28 +15,28 @@ public enum GroceryListBuilder {
     public static func makeGroceryList(
         from days: [MealPlanDay],
         starting sourcePlanStart: Date? = nil,
-        unitSystem: GroceryUnitSystem = currentUnitSystem()
+        unitSystem: GroceryUnitSystem = currentUnitSystem(),
+        cookedBatchIDs: Set<String> = []
     ) -> [GroceryListItem] {
-        let ingredients = days
-            .flatMap(\.meals)
-            .flatMap { $0.ingredients ?? [] }
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let ingredients = MealPlanCookingRules.requirements(from: days, starting: sourcePlanStart)
+            .filter { requirement in !cookedBatchIDs.contains(where: { requirement.id == "batch-\($0)" }) }
+            .flatMap(\.ingredients)
+            .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         guard !ingredients.isEmpty else { return [] }
 
         var grouped: [String: GroceryListItem] = [:]
 
-        for ingredient in ingredients {
-            let parsed = IngredientLineParser.normalizedIngredient(from: ingredient)
-            let key = "\(IngredientNameMatcher.canonical(parsed.name))_\(parsed.unit)"
+        for parsed in ingredients {
+            let known = InventoryQuantityRules.explicitLeadingAmount(parsed.originalString) != nil
+            let key = requirementIdentity(name: parsed.name, unit: parsed.unit) + (known ? "" : "|unknown")
             let category = IngredientCategoryMapper.groceryCategory(for: parsed.name)
 
             if var existing = grouped[key] {
-                existing.quantity += parsed.quantity
+                existing.quantity += InventoryQuantityRules.convert(parsed.quantity, from: parsed.unit, to: existing.unit) ?? parsed.quantity
                 grouped[key] = existing
             } else {
-                grouped[key] = GroceryListItem(
+                var item = GroceryListItem(
                     name: parsed.name,
                     quantity: parsed.quantity,
                     unit: parsed.unit,
@@ -44,6 +44,9 @@ public enum GroceryListBuilder {
                     source: "mealPlan",
                     sourcePlanStart: sourcePlanStart ?? days.map(\.date).min()
                 )
+                item.requirementKey = key
+                item.quantityUnknown = known ? nil : true
+                grouped[key] = item
             }
         }
 
@@ -63,50 +66,22 @@ public enum GroceryListBuilder {
 
     public static func applyUnitSystem(_ item: GroceryListItem, system: GroceryUnitSystem) -> GroceryListItem {
         var newItem = item
-
+        let normalized = IngredientUnitNormalizer.normalized(item.unit)
         if system == .imperial {
-            if item.unit == "g" {
-                let lbs = item.quantity / 453.592
-                if lbs >= 1.0 {
-                    newItem.quantity = lbs
-                    newItem.unit = "lbs"
-                } else {
-                    newItem.quantity = item.quantity / 28.3495
-                    newItem.unit = "oz"
-                }
-            } else if item.unit == "kg" {
-                newItem.quantity = item.quantity * 2.20462
-                newItem.unit = "lbs"
-            } else if item.unit == "ml" {
-                let flOz = item.quantity / 29.5735
-                newItem.quantity = flOz
-                newItem.unit = "fl oz"
-            } else if item.unit == "L" {
-                newItem.quantity = item.quantity * 33.814
-                newItem.unit = "fl oz"
-            }
+            if normalized == "g" || normalized == "kg" {
+                let pounds = InventoryQuantityRules.convert(item.quantity, from: item.unit, to: "lb") ?? 0
+                newItem.unit = pounds >= 1 ? "lbs" : "oz"
+            } else if normalized == "ml" || normalized == "L" { newItem.unit = "fl oz" }
         } else {
-            if item.unit == "oz" {
-                newItem.quantity = item.quantity * 28.3495
-                newItem.unit = "g"
-            } else if item.unit == "lb" || item.unit == "lbs" {
-                newItem.quantity = item.quantity * 453.592
-                newItem.unit = "g"
-            } else if item.unit == "fl oz" {
-                newItem.quantity = item.quantity * 29.5735
-                newItem.unit = "ml"
-            }
-
-            if newItem.unit == "g" && newItem.quantity >= 1000 {
-                newItem.quantity /= 1000
-                newItem.unit = "kg"
-            }
-            if newItem.unit == "ml" && newItem.quantity >= 1000 {
-                newItem.quantity /= 1000
-                newItem.unit = "L"
-            }
+            if normalized == "oz" || normalized == "lb" { newItem.unit = "g" } else if normalized == "fl oz" { newItem.unit = "ml" }
+            let quantity = InventoryQuantityRules.convert(item.quantity, from: item.unit, to: newItem.unit) ?? item.quantity
+            if newItem.unit == "g", quantity >= 1_000 { newItem.unit = "kg" }
+            if newItem.unit == "ml", quantity >= 1_000 { newItem.unit = "L" }
         }
+        newItem.quantity = InventoryQuantityRules.convert(item.quantity, from: item.unit, to: newItem.unit) ?? item.quantity
 
+        newItem.purchasedQuantity = item.purchasedQuantity.flatMap { InventoryQuantityRules.convert($0, from: item.unit, to: newItem.unit) }
+        newItem.transferredToPantryQuantity = item.transferredToPantryQuantity.flatMap { InventoryQuantityRules.convert($0, from: item.unit, to: newItem.unit) }
         return newItem
     }
 
@@ -124,8 +99,10 @@ public enum GroceryListBuilder {
         }
     }
 
-    public static func currentUnitSystem() -> GroceryUnitSystem {
-        let rawPreference = UserDefaults.standard.string(forKey: "groceryUnitSystem") ?? "imperial"
+    public static func currentUnitSystem(userID: String? = nil) -> GroceryUnitSystem {
+        let scoped = userID.flatMap { AccountScopedStorageKey.make(prefix: "groceryUnitSystem", userID: $0) }
+        let rawPreference = scoped.flatMap { UserDefaults.standard.string(forKey: $0) }
+            ?? UserDefaults.standard.string(forKey: "groceryUnitSystem") ?? "imperial"
         return GroceryUnitSystem(rawValue: rawPreference) ?? .imperial
     }
 
@@ -153,7 +130,7 @@ public enum GroceryListBuilder {
     }
 
     public static func isManualGroceryItem(_ item: GroceryListItem) -> Bool {
-        if item.source == "manual" || item.source == "barcode" { return true }
+        if item.source == "manual" || item.source == "barcode" || item.source == "retainedPurchase" { return true }
         if item.source == nil {
             return item.unit.lowercased() == "item" && item.category == "Misc"
         }
@@ -161,20 +138,81 @@ public enum GroceryListBuilder {
     }
 
     public static func mergeGroceryItems(generatedItems: [GroceryListItem], existingItems: [GroceryListItem]) -> [GroceryListItem] {
-        let generatedKeys = Set(generatedItems.map { mergeKey(for: $0.name) })
-        
         let manualItems = existingItems.filter { item in
-            isManualGroceryItem(item) && !generatedKeys.contains(mergeKey(for: item.name))
+            isManualGroceryItem(item)
         }
 
         let mergedGeneratedItems = generatedItems.map { generatedItem -> GroceryListItem in
             var item = generatedItem
-            if let existing = existingItems.first(where: { mergeKey(for: $0.name) == mergeKey(for: generatedItem.name) }) {
-                item.isCompleted = existing.isCompleted
+            if let existing = existingItems.first(where: {
+                $0.source == "mealPlan" && ($0.requirementKey ?? requirementIdentity(name: $0.name, unit: $0.unit))
+                    == (generatedItem.requirementKey ?? requirementIdentity(name: generatedItem.name, unit: generatedItem.unit))
+            }) {
+                let sameWeek: Bool
+                if let oldStart = existing.sourcePlanStart, let newStart = generatedItem.sourcePlanStart {
+                    sameWeek = Calendar.current.isDate(oldStart, inSameDayAs: newStart)
+                } else {
+                    sameWeek = existing.sourcePlanStart == nil && generatedItem.sourcePlanStart == nil
+                }
+                let oldAmount = applyUnitSystem(existing, system: .metric)
+                let newAmount = applyUnitSystem(generatedItem, system: .metric)
+                // A larger portion or a different week needs a fresh shopping check.
+                item.isCompleted = existing.isCompleted && sameWeek
+                    && oldAmount.unit == newAmount.unit && oldAmount.quantity.isFinite && newAmount.quantity.isFinite
+                    && oldAmount.quantity + 0.0001 >= newAmount.quantity
+                if sameWeek, existing.source == generatedItem.source {
+                    item.id = existing.id
+                    item.revisionID = existing.revisionID
+                    // Display preferences do not rewrite the accepted measurement basis.
+                    if item.quantityUnknown == true, existing.quantityUnknown == false {
+                        // A reviewed shopping amount is an explicit user override, not
+                        // a claim that the recipe's unresolved ingredient became measured.
+                        item.quantity = existing.quantity; item.unit = existing.unit; item.quantityUnknown = false
+                    } else if let amount = InventoryQuantityRules.convert(item.quantity, from: item.unit, to: existing.unit) {
+                        item.quantity = abs(oldAmount.quantity - newAmount.quantity) < 0.000000001 ? existing.quantity : amount
+                        item.unit = existing.unit
+                    }
+                    item.name = existing.name; item.category = existing.category
+                    item.productSnapshot = existing.productSnapshot
+                    if let override = existing.quantityOverride {
+                        item = GroceryOverrideRules.applying(override, generated: item)
+                    }
+                    item.purchasedQuantity = existing.purchasedQuantity.flatMap { InventoryQuantityRules.convert($0, from: existing.unit, to: item.unit) }
+                    item.transferredToPantryQuantity = existing.transferredToPantryQuantity.flatMap { InventoryQuantityRules.convert($0, from: existing.unit, to: item.unit) }
+                    var unconverted = existing.unconvertedPurchases ?? []
+                    if let bought = existing.purchasedQuantity, item.purchasedQuantity == nil, bought > 0 {
+                        let recorded = GroceryPurchaseAmount(quantity: bought, unit: existing.unit, transferredToPantryQuantity: existing.transferredToPantryQuantity)
+                        if !unconverted.contains(recorded) { unconverted.append(recorded) }
+                    }
+                    item.unconvertedPurchases = unconverted.filter { purchase in
+                        guard let bought = InventoryQuantityRules.convert(purchase.quantity, from: purchase.unit, to: item.unit) else { return true }
+                        item.purchasedQuantity = (item.purchasedQuantity ?? 0) + bought
+                        if let transferred = purchase.transferredToPantryQuantity.flatMap({ InventoryQuantityRules.convert($0, from: purchase.unit, to: item.unit) }) {
+                            item.transferredToPantryQuantity = (item.transferredToPantryQuantity ?? 0) + transferred
+                        }
+                        return false
+                    }
+                    if item.unconvertedPurchases?.isEmpty == true { item.unconvertedPurchases = nil }
+                    item.skippedForPlan = item.quantityOverride?.requiresReview != true && existing.skippedForPlan == true && oldAmount.quantity + 0.0001 >= newAmount.quantity
+                    if let bought = item.purchasedQuantity, item.quantityUnknown != true { item.isCompleted = bought + 0.0001 >= item.quantity }
+                }
             }
             return item
         }
 
-        return mergedGeneratedItems + manualItems
+        let currentIDs = Set(mergedGeneratedItems.map(\.id))
+        let retainedPurchases = existingItems.filter {
+            $0.source == "mealPlan" && !currentIDs.contains($0.id)
+                && ($0.isCompleted || ($0.purchasedQuantity ?? 0) > 0 || ($0.transferredToPantryQuantity ?? 0) > 0)
+        }.map { old -> GroceryListItem in var retained = old; retained.source = "retainedPurchase"; return retained }
+        return mergedGeneratedItems + manualItems + retainedPurchases
+    }
+
+    static func requirementIdentity(name: String, unit: String) -> String {
+        let words = name.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted)
+        let preparation = words.contains("cooked") ? "cooked" : words.contains("raw") ? "raw" : "unspecified"
+        let dimension = InventoryQuantityRules.convert(1, from: unit, to: "g") != nil ? "mass"
+            : InventoryQuantityRules.convert(1, from: unit, to: "ml") != nil ? "volume" : IngredientUnitNormalizer.normalized(unit)
+        return "\(IngredientNameMatcher.canonical(name))|\(preparation)|\(dimension)"
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct WeeklyRecapProgress: Equatable, Sendable {
+public struct WeeklyRecapProgress: Codable, Equatable, Sendable {
     public let completed: Int
     public let eligible: Int
 
@@ -15,7 +15,7 @@ public struct WeeklyRecapProgress: Equatable, Sendable {
     }
 }
 
-public struct WeeklyRecapShoeContext: Equatable {
+public struct WeeklyRecapShoeContext: Codable, Equatable {
     public let name: String
     public let weeklyMeters: Double
     public let totalMeters: Double
@@ -37,7 +37,7 @@ public struct WeeklyRecapShoeContext: Equatable {
     }
 }
 
-public struct WeeklyRecapStory: Equatable {
+public struct WeeklyRecapStory: Codable, Equatable {
     public let headline: String
     public let training: String
     public let fueling: String
@@ -51,14 +51,14 @@ public struct WeeklyRecapStory: Equatable {
     }
 }
 
-public enum WeeklyRecapTrainingKind: String, Equatable, Sendable {
+public enum WeeklyRecapTrainingKind: String, Codable, Equatable, Sendable {
     case rest
     case strength
     case run
     case mixed
 }
 
-public struct WeeklyRecapDay: Equatable, Sendable {
+public struct WeeklyRecapDay: Codable, Equatable, Sendable {
     public let date: Date
     public let nutritionLogged: Bool
     public let strengthSessions: Int
@@ -94,14 +94,14 @@ public struct WeeklyRecapDay: Equatable, Sendable {
 /// One week of nutrition and training, computed from data the app already stores. Every
 /// rate carries its denominator so missing data stays visibly missing instead of becoming
 /// an invented failure or an opaque composite score.
-public struct WeeklyRecap: Equatable {
+public struct WeeklyRecap: Codable, Equatable {
     public let weekStart: Date
     public let weekEnd: Date
     public let days: [WeeklyRecapDay]
 
     /// Days in the window with at least one food item logged.
     public let daysLogged: Int
-    /// Average intake over logged days only (nil when nothing was logged).
+    /// Average intake over explicitly complete days only. Partial/unreviewed days remain visible.
     public let averageCalories: Double?
     public let averageProtein: Double?
     public let calorieGoal: Double?
@@ -146,6 +146,8 @@ public struct WeeklyRecap: Equatable {
     public let recoveryFuelLoggedRuns: Int
     /// Runs whose recovery window is still open and therefore cannot be scored yet.
     public let recoveryFuelPendingRuns: Int
+    /// Nil in older revisions; unavailable historical body weight is never invented.
+    public let recoveryFuelUnknownRuns: Int?
     public let recoveryFuelAdherence: WeeklyRecapProgress
     public let shoeContext: WeeklyRecapShoeContext?
 
@@ -201,18 +203,19 @@ public enum WeeklyRecapBuilder {
         bodyWeightLbs: Double = 165,
         heartRateZoneSeconds: [Double]? = nil,
         runWorkoutResults: [RunWorkoutResult] = [],
-        shoes: [RunningShoe] = []
+        shoes: [RunningShoe] = [],
+        dailyTargets: [WeeklyRecapTargetDay]? = nil,
+        requireHistoricalRecoveryWeight: Bool = false,
+        now: Date = Date()
     ) -> WeeklyRecap {
         let startOfEndingDay = calendar.startOfDay(for: weekEnding)
-        let weekEnd = calendar.date(
-            byAdding: DateComponents(day: 1, second: -1),
-            to: startOfEndingDay
-        ) ?? weekEnding
+        let endExclusive = calendar.date(byAdding: .day, value: 1, to: startOfEndingDay) ?? weekEnding
+        let weekEnd = Date(timeIntervalSinceReferenceDate: endExclusive.timeIntervalSinceReferenceDate.nextDown)
         let weekStart = calendar.date(byAdding: .day, value: -6, to: startOfEndingDay) ?? weekEnding
         let priorWeekStart = calendar.date(byAdding: .day, value: -7, to: weekStart) ?? weekStart
 
         func inWindow(_ date: Date) -> Bool {
-            date >= weekStart && date <= weekEnd
+            date >= weekStart && date < endExclusive && date <= now
         }
 
         let validCalorieGoal = validGoal(calorieGoal)
@@ -221,7 +224,7 @@ public enum WeeklyRecapBuilder {
             from: dailyLogs,
             weekStart: weekStart,
             weekEnd: weekEnd,
-            calendar: calendar
+            calendar: calendar, now: now
         )
         let daysLogged = nutritionDays.count
         let assessableCalories = nutritionDays.compactMap(\.calories)
@@ -229,20 +232,27 @@ public enum WeeklyRecapBuilder {
         let averageCalories = average(assessableCalories)
         let averageProtein = average(assessableProtein)
 
-        let calorieAdherentDays = validCalorieGoal.map { goal in
-            assessableCalories.filter { abs($0 - goal) / goal <= calorieToleranceFraction }.count
-        } ?? 0
-        let proteinAdherentDays = validProteinGoal.map { goal in
-            assessableProtein.filter { $0 >= goal * proteinTargetFraction }.count
-        } ?? 0
+        let targetByDay = Dictionary(dailyTargets?.map { (calendar.startOfDay(for: $0.date), $0) } ?? [],
+                                     uniquingKeysWith: { _, latest in latest })
+        func goals(on day: Date) -> (calories: Double?, protein: Double?) {
+            if dailyTargets != nil {
+                let target = targetByDay[calendar.startOfDay(for: day)]
+                return (validGoal(target?.calories), validGoal(target?.protein))
+            }
+            return (validCalorieGoal, validProteinGoal)
+        }
+        let calorieDays = nutritionDays.filter { $0.calories != nil && goals(on: $0.date).calories != nil }
+        let proteinDays = nutritionDays.filter { $0.protein != nil && goals(on: $0.date).protein != nil }
         let calorieAdherence = WeeklyRecapProgress(
-            completed: calorieAdherentDays,
-            eligible: validCalorieGoal == nil ? 0 : assessableCalories.count
-        )
+            completed: calorieDays.filter { day in
+                guard let intake = day.calories, let goal = goals(on: day.date).calories else { return false }
+                return abs(intake - goal) / goal <= calorieToleranceFraction
+            }.count, eligible: calorieDays.count)
         let proteinAdherence = WeeklyRecapProgress(
-            completed: proteinAdherentDays,
-            eligible: validProteinGoal == nil ? 0 : assessableProtein.count
-        )
+            completed: proteinDays.filter { day in
+                guard let intake = day.protein, let goal = goals(on: day.date).protein else { return false }
+                return intake >= goal * proteinTargetFraction
+            }.count, eligible: proteinDays.count)
 
         let reviewedFoods = nutritionDays.flatMap(\.foods).compactMap(\.sourceMetadata).filter {
             $0.reviewStatus != .notRequired
@@ -254,25 +264,21 @@ public enum WeeklyRecapBuilder {
             eligible: reviewedFoods.count
         )
 
-        let weekSessions = sessionLogs.filter { inWindow($0.date) }
+        let weekSessions = WorkoutSetMath.uniqueSessions(sessionLogs).filter { inWindow($0.date) }
         let workingSets = weekSessions.flatMap { session in
-            session.completedExercises.flatMap(\.sets).filter(\.isWorkingSet)
+            session.completedExercises.flatMap { WorkoutSetMath.workingSets(in: $0) }
         }
-        let totalVolume = workingSets.reduce(0.0) { total, set in
-            guard set.weight.isFinite, set.weight > 0, set.reps > 0 else { return total }
-            return total + set.weight * Double(set.reps)
-        }
+        let totalVolume = weekSessions.reduce(0.0) { $0 + WorkoutSetMath.volume($1) }
         let personalRecords = personalRecordCount(
             weekSessions: weekSessions,
             priorSessions: priorSessionLogs.filter { $0.date < weekStart }
         )
         let currentEfforts = workingSets.compactMap(\.effort?.normalizedRPE)
-        let priorWeekSessions = priorSessionLogs.filter {
+        let priorWeekSessions = WorkoutSetMath.uniqueSessions(priorSessionLogs).filter {
             $0.date >= priorWeekStart && $0.date < weekStart
         }
         let priorEfforts = priorWeekSessions.flatMap { session in
-            session.completedExercises.flatMap(\.sets)
-                .filter(\.isWorkingSet)
+            session.completedExercises.flatMap { WorkoutSetMath.workingSets(in: $0) }
                 .compactMap(\.effort?.normalizedRPE)
         }
 
@@ -283,23 +289,18 @@ public enum WeeklyRecapBuilder {
         let loggedDates = Set(nutritionDays.map(\.date))
         let demandingStrengthDaysLogged = hardStrengthDates.intersection(loggedDates).count
         let nutritionByDate = Dictionary(uniqueKeysWithValues: nutritionDays.map { ($0.date, $0) })
-        let canAssessHardDayFuel = validCalorieGoal != nil && validProteinGoal != nil
-        let assessableHardStrengthDates = canAssessHardDayFuel ? hardStrengthDates.filter { date in
-            guard let day = nutritionByDate[date] else { return true }
-            return day.calories != nil && day.protein != nil
-        } : []
+        let assessableHardStrengthDates = hardStrengthDates.filter { date in
+            guard let day = nutritionByDate[date], day.calories != nil, day.protein != nil else { return false }
+            return goals(on: date).calories != nil && goals(on: date).protein != nil
+        }
         let demandingStrengthFuelDays = assessableHardStrengthDates.filter { date in
-            guard let day = nutritionByDate[date],
-                  let calories = day.calories,
-                  let protein = day.protein,
-                  let calorieGoal = validCalorieGoal,
-                  let proteinGoal = validProteinGoal else { return false }
-            let caloriesMet = abs(calories - calorieGoal) / calorieGoal <= calorieToleranceFraction
-            let proteinMet = protein >= proteinGoal * proteinTargetFraction
-            return caloriesMet && proteinMet
+            guard let day = nutritionByDate[date], let calories = day.calories, let protein = day.protein,
+                  let calorieGoal = goals(on: date).calories, let proteinGoal = goals(on: date).protein else { return false }
+            return abs(calories - calorieGoal) / calorieGoal <= calorieToleranceFraction &&
+                protein >= proteinGoal * proteinTargetFraction
         }.count
 
-        let sortedRuns = runs.sorted { $0.startDate < $1.startDate }
+        let sortedRuns = runs.filter { $0.startDate < endExclusive && $0.startDate <= now }.sorted { $0.startDate < $1.startDate }
         let weekRuns = sortedRuns.filter { inWindow($0.startDate) }
         let priorWeekRuns = sortedRuns.filter {
             $0.startDate >= priorWeekStart && $0.startDate < weekStart
@@ -329,8 +330,8 @@ public enum WeeklyRecapBuilder {
         let recovery = recoveryProgress(
             weekRuns: weekRuns,
             foods: dailyLogs.flatMap { $0.meals.flatMap(\.foodItems) },
-            bodyWeightLbs: bodyWeightLbs,
-            evaluatedAt: weekEnding
+            bodyWeightLbs: bodyWeightLbs, weightHistory: weightHistory,
+            requireHistoricalWeight: requireHistoricalRecoveryWeight, evaluatedAt: now
         )
         let shoeContext = primaryShoeContext(
             weekRuns: weekRuns,
@@ -430,6 +431,7 @@ public enum WeeklyRecapBuilder {
             guidedRecordedSteps: guidedRecordedSteps,
             recoveryFuelLoggedRuns: recovery.logged,
             recoveryFuelPendingRuns: recovery.pending,
+            recoveryFuelUnknownRuns: recovery.unknown,
             recoveryFuelAdherence: WeeklyRecapProgress(
                 completed: recovery.targetsMet,
                 eligible: recovery.eligible
@@ -453,28 +455,15 @@ public enum WeeklyRecapBuilder {
         weekSessions: [WorkoutSessionLog],
         priorSessions: [WorkoutSessionLog]
     ) -> Int {
-        func bestByExercise(_ sessions: [WorkoutSessionLog]) -> [String: Double] {
-            var best: [String: Double] = [:]
-            for session in sessions {
-                for exercise in session.completedExercises {
-                    let name = exercise.exerciseName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !name.isEmpty else { continue }
-                    let sessionBest = exercise.sets
-                        .filter(\.isWorkingSet)
-                        .map { estimatedOneRepMax(weight: $0.weight, reps: $0.reps) }
-                        .max() ?? 0
-                    best[name] = max(best[name] ?? 0, sessionBest)
-                }
-            }
-            return best
-        }
-
-        let weekBest = bestByExercise(weekSessions)
-        let priorBest = bestByExercise(priorSessions)
-
-        return weekBest.filter { name, best in
-            guard best > 0, let prior = priorBest[name], prior > 0 else { return false }
-            return best > prior
+        let current = WorkoutSetMath.uniqueSessions(weekSessions).flatMap(\.completedExercises)
+        let previous = WorkoutSetMath.uniqueSessions(priorSessions).flatMap(\.completedExercises)
+        let groups = Dictionary(grouping: current) { WorkoutEvidenceReportRules.setupKey($0.exercise) }
+        return groups.values.filter { values in
+            guard let exercise = values.first,
+                  let best = values.compactMap(WorkoutSetMath.bestSet).map(WorkoutSetMath.strengthScore).max(),
+                  let prior = previous.filter({ WorkoutSetMath.compatible(exercise, $0) })
+                    .compactMap(WorkoutSetMath.bestSet).map(WorkoutSetMath.strengthScore).max() else { return false }
+            return best > prior * 1.005
         }.count
     }
 
@@ -519,20 +508,17 @@ public enum WeeklyRecapBuilder {
         from logs: [DailyLog],
         weekStart: Date,
         weekEnd: Date,
-        calendar: Calendar
+        calendar: Calendar, now: Date
     ) -> [NutritionDay] {
-        var seenDays = Set<Date>()
         var days: [NutritionDay] = []
-        for log in logs.sorted(by: { $0.date < $1.date }) where log.date >= weekStart && log.date <= weekEnd {
-            let day = calendar.startOfDay(for: log.date)
-            guard !seenDays.contains(day) else { continue }
+        for log in NutritionDayEvidence.days(logs, from: weekStart, through: weekEnd, now: now, calendar: calendar) {
+            let day = calendar.startOfDay(for: NutritionDayReviewRules.displayDate(log, calendar: calendar))
             let foods = log.meals.flatMap(\.foodItems)
-            guard !foods.isEmpty else { continue }
-            seenDays.insert(day)
+            guard !foods.isEmpty || NutritionDayEvidence.isComplete(log, now: now, calendar: calendar) else { continue }
             days.append(NutritionDay(
                 date: day,
-                calories: validNutritionValue(log.totalCalories()),
-                protein: validNutritionValue(log.totalMacros().protein),
+                calories: NutritionDayEvidence.isComplete(log, now: now, calendar: calendar) ? validNutritionValue(log.totalCalories()) : nil,
+                protein: NutritionDayEvidence.isComplete(log, now: now, calendar: calendar) ? validNutritionValue(log.totalMacros().protein) : nil,
                 foods: foods
             ))
         }
@@ -545,7 +531,7 @@ public enum WeeklyRecapBuilder {
     ) -> Set<Date> {
         let byDay = Dictionary(grouping: sessions) { calendar.startOfDay(for: $0.date) }
         return Set(byDay.compactMap { date, sessions in
-            let sets = sessions.flatMap { $0.completedExercises.flatMap(\.sets) }.filter(\.isWorkingSet)
+            let sets = sessions.flatMap { $0.completedExercises.flatMap { WorkoutSetMath.workingSets(in: $0) } }
             let efforts = sets.compactMap(\.effort?.normalizedRPE)
             let averageEffort = average(efforts)
             let isDemanding = sets.count >= demandingWorkingSetThreshold ||
@@ -576,9 +562,9 @@ public enum WeeklyRecapBuilder {
     private static func recoveryProgress(
         weekRuns: [Run],
         foods: [FoodItem],
-        bodyWeightLbs: Double,
-        evaluatedAt: Date
-    ) -> (eligible: Int, logged: Int, targetsMet: Int, pending: Int) {
+        bodyWeightLbs: Double, weightHistory: [(id: String, date: Date, weight: Double)],
+        requireHistoricalWeight: Bool, evaluatedAt: Date
+    ) -> (eligible: Int, logged: Int, targetsMet: Int, pending: Int, unknown: Int) {
         let timestampedFoods = foods.compactMap { food -> (food: FoodItem, timestamp: Date)? in
             guard let timestamp = food.timestamp else { return nil }
             return (food, timestamp)
@@ -587,11 +573,17 @@ public enum WeeklyRecapBuilder {
         var eligible = 0
         var logged = 0
         var targetsMet = 0
-        var pending = 0
+        var pending = 0, unknown = 0
         for run in weekRuns {
-            let safeBodyWeight = bodyWeightLbs.isFinite && bodyWeightLbs > 0 ? bodyWeightLbs : 165
-            guard let target = RunRecoveryRules.calculateTarget(for: run, weightLbs: safeBodyWeight) else { continue }
             guard evaluatedAt >= run.endDate else { continue }
+            let historicalWeight = weightHistory.filter { $0.date <= run.startDate && $0.weight.isFinite && $0.weight > 0 }
+                .max { $0.date < $1.date }?.weight
+            let weight: Double
+            if requireHistoricalWeight {
+                guard let historicalWeight else { unknown += 1; continue }
+                weight = historicalWeight
+            } else { weight = bodyWeightLbs.isFinite && bodyWeightLbs > 0 ? bodyWeightLbs : 165 }
+            guard let target = RunRecoveryRules.calculateTarget(for: run, weightLbs: weight) else { continue }
             let windowEnd = run.endDate.addingTimeInterval(Double(target.windowMinutes * 60))
             let observationEnd = min(windowEnd, evaluatedAt)
             let recoveryFoods = timestampedFoods.filter {
@@ -611,7 +603,7 @@ public enum WeeklyRecapBuilder {
             if !recoveryFoods.isEmpty { logged += 1 }
             if targetMet { targetsMet += 1 }
         }
-        return (eligible, logged, targetsMet, pending)
+        return (eligible, logged, targetsMet, pending, unknown)
     }
 
     private static func primaryShoeContext(
@@ -767,14 +759,24 @@ public enum WeeklyRecapBuilder {
     }
 }
 
+public extension WeeklyRecap {
+    /// A date-only label uses the final civil day, not a sub-millisecond endpoint that formatters round forward.
+    func displayEndingDay(calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: 6, to: calendar.startOfDay(for: weekStart)) ?? weekStart
+    }
+}
+
 /// Aggregate-only CSV for explicit user sharing. It intentionally excludes account IDs,
 /// food/routine names, routes, coordinates, and raw heart-rate samples.
 public enum WeeklyRecapCSVExporter {
-    public static func csvString(for recap: WeeklyRecap, metric: Bool) -> String {
+    public static func csvString(for recap: WeeklyRecap, metric: Bool, revisionID: String? = nil,
+                                 timeZoneID: String = TimeZone.current.identifier) -> String {
         let dateFormatter = DateFormatter()
-        dateFormatter.calendar = Calendar(identifier: .gregorian)
+        var displayCalendar = Calendar(identifier: .gregorian)
+        displayCalendar.timeZone = TimeZone(identifier: timeZoneID) ?? .current
+        dateFormatter.calendar = displayCalendar
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.timeZone = .current
+        dateFormatter.timeZone = TimeZone(identifier: timeZoneID) ?? .current
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let weightUnit = metric ? "kg" : "lb"
         let volumeUnit = metric ? "kg-reps" : "lb-reps"
@@ -786,10 +788,10 @@ public enum WeeklyRecapCSVExporter {
         var rows: [[String]] = [
             ["Category", "Metric", "Value", "Unit", "Notes"],
             ["Period", "Start", dateFormatter.string(from: recap.weekStart), "date", "Rolling seven-day report"],
-            ["Period", "End", dateFormatter.string(from: recap.weekEnd), "date", "Rolling seven-day report"],
+            ["Period", "End", dateFormatter.string(from: recap.displayEndingDay(calendar: displayCalendar)), "date", "Rolling seven-day report"],
             ["Nutrition", "Days logged", "\(recap.daysLogged)", "days", "Out of 7"],
-            ["Nutrition", "Average calories", decimal(recap.averageCalories), "kcal/day", "Assessable logged days only"],
-            ["Nutrition", "Average protein", decimal(recap.averageProtein), "g/day", "Assessable logged days only"],
+            ["Nutrition", "Average calories", decimal(recap.averageCalories), "kcal/day", "Confirmed fully logged days only"],
+            ["Nutrition", "Average protein", decimal(recap.averageProtein), "g/day", "Confirmed fully logged days only"],
             ["Nutrition", "Calorie-consistent days", "\(recap.calorieAdherence.completed)/\(recap.calorieAdherence.eligible)", "days", "Within 10% of goal"],
             ["Nutrition", "Protein-consistent days", "\(recap.proteinAdherence.completed)/\(recap.proteinAdherence.eligible)", "days", "At least 90% of goal"],
             ["Nutrition", "Trust reviews", "\(recap.trustReview.completed)/\(recap.trustReview.eligible)", "entries", "Only foods requiring review"],
@@ -813,6 +815,10 @@ public enum WeeklyRecapCSVExporter {
             ["Outcome", "Smoothed weight change", decimal(weightChange), weightUnit, "EMA alpha 0.4"],
         ]
 
+        rows.append(["Running", "Recovery evidence unavailable", "\(recap.recoveryFuelUnknownRuns ?? 0)", "runs", "No recorded body weight before the run; not scored"])
+        rows.append(["Scope", "Schema version", "2", "", "Aggregate report; unknown values stay empty"])
+        rows.append(["Scope", "Time zone", timeZoneID, "", "Calendar-day boundaries"])
+        if let revisionID { rows.append(["Scope", "Revision", revisionID, "", "Immutable aggregate revision"]) }
         if let zoneSeconds = recap.heartRateZoneSeconds {
             for (index, seconds) in zoneSeconds.enumerated() {
                 rows.append(["Running", "Heart-rate zone \(index + 1)", decimal(seconds / 60), "minutes", "Aggregated; no raw samples exported"])

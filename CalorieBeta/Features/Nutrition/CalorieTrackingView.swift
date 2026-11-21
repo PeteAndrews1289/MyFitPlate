@@ -70,7 +70,8 @@ struct CalorieTrackingView: View {
     }
 
     private var summarySection: some View {
-        AppMetricStrip(items: [
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppMetricStrip(items: [
             AppMetricItem(
                 label: "Days Shown",
                 value: trendSummary.observedDays.formatted(),
@@ -78,25 +79,29 @@ struct CalorieTrackingView: View {
             ),
             AppMetricItem(
                 label: "Avg Calories",
-                value: formatted(trendSummary.averageCalories, unit: "cal"),
+                value: formatted(viewModel.summary?.averageCalories, unit: "cal"),
                 accent: AppPalette.energy
             ),
             AppMetricItem(
                 label: "Avg Protein",
-                value: formatted(trendSummary.averageProtein, unit: "g"),
+                value: formatted(viewModel.summary?.averageProtein, unit: "g"),
                 accent: .accentProtein
             ),
             AppMetricItem(
                 label: "Avg Carbs",
-                value: formatted(trendSummary.averageCarbs, unit: "g"),
+                value: formatted(viewModel.summary?.averageCarbs, unit: "g"),
                 accent: .accentCarbs
             ),
             AppMetricItem(
                 label: "Avg Fat",
-                value: formatted(trendSummary.averageFat, unit: "g"),
+                value: formatted(viewModel.summary?.averageFats, unit: "g"),
                 accent: .accentFats
             )
-        ])
+            ])
+            Text("Charts show recorded entries. Averages use \(viewModel.summary?.daysLogged ?? 0) fully logged days; review days in your diary or weekly check-in.")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+                .accessibilityIdentifier("nutrition_trends_coverage")
+        }
         .appSurface(.emphasized)
         .accessibilityIdentifier("nutrition_trends_summary")
     }

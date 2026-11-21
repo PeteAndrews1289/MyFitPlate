@@ -14,16 +14,27 @@ public enum Route: String, Hashable, Identifiable, Sendable {
     case builder
     case runs
     case trainingFuel
+    case tools
+    case foodPreferences
+    case recipes
+    case pantry
+    case grocery
+    case buffet
+    case plateCalculator
+    case weekRescue
+    case mealExperiments
+    case unavailable
 
     public var id: String { rawValue }
 
     public var selectedTab: Int {
         switch self {
-        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder, .trainingFuel:
+        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder, .trainingFuel, .unavailable,
+             .tools, .foodPreferences, .recipes, .pantry, .grocery, .buffet:
             return 0
-        case .maia:
+        case .maia, .mealExperiments:
             return 1
-        case .workouts, .runs:
+        case .workouts, .runs, .plateCalculator, .weekRescue:
             return 2
         case .nutrition:
             return 3

@@ -10,6 +10,7 @@ struct PlanRevealView: View {
 
     @AppStorage(BodyUnits.preferenceKey) private var useMetric = Locale.current.measurementSystem != .us
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showingMethod = false
 
     private var plan: OnboardingPlan {
         OnboardingPlanRules.plan(for: draft)
@@ -18,15 +19,22 @@ struct PlanRevealView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppScreenHeader(
-                    eyebrow: "Your plan",
+                OnboardingHeadline(
+                    eyebrow: "Made for your everyday",
                     title: "Your plan is ready",
-                    subtitle: "Built from your answers. You can change any part of it later in Settings."
+                    subtitle: "A starting point built from your answers. Make it yours as you go."
                 )
 
                 dailyTarget
                 projectionCard
-                methodCard
+                DisclosureGroup(isExpanded: $showingMethod) {
+                    methodCard.padding(.top, AppSpacing.row)
+                } label: {
+                    Label("How we built your plan", systemImage: "slider.horizontal.3")
+                        .appTextRole(.control).foregroundStyle(AppPalette.text)
+                }
+                .tint(AppPalette.text)
+                .accessibilityIdentifier("plan_reveal_method")
 
                 Text("These are estimates to guide you, not medical advice.")
                     .appTextRole(.caption)
@@ -44,7 +52,7 @@ struct PlanRevealView: View {
 
     private var dailyTarget: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            Text("Daily target")
+            Text("Your daily starting point")
                 .appTextRole(.caption)
                 .foregroundStyle(.secondary)
 
@@ -67,7 +75,7 @@ struct PlanRevealView: View {
                 AppMetricItem(label: "Fat", value: "\(Self.whole(plan.fatGrams)) g", accent: AppPalette.fat)
             ])
         }
-        .appSurface(.emphasized)
+        .appSurface(.quiet)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("plan_reveal_daily_target")
     }
@@ -77,6 +85,7 @@ struct PlanRevealView: View {
             .appTextRole(.display)
             .foregroundStyle(AppPalette.text)
             .monospacedDigit()
+            .contentTransition(.numericText())
     }
 
     private var calorieUnit: some View {
@@ -106,7 +115,7 @@ struct PlanRevealView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface(.interpreted)
+        .appSurface(.quiet)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("plan_reveal_projection")
     }
@@ -151,7 +160,7 @@ struct PlanRevealView: View {
         VStack(spacing: 0) {
             AppListRow(
                 icon: "function",
-                iconColor: AppPalette.brandText,
+                iconColor: .secondary,
                 title: "Energy estimate",
                 subtitle: "Mifflin-St Jeor with your activity level: about \(Self.whole(plan.maintenanceCalories)) calories a day to maintain."
             )
@@ -159,7 +168,7 @@ struct PlanRevealView: View {
             if draft.goal != .maintain {
                 AppListRow(
                     icon: "gauge.with.dots.needle.33percent",
-                    iconColor: AppPalette.brandText,
+                    iconColor: .secondary,
                     title: "Your pace",
                     subtitle: paceRowSubtitle
                 )
@@ -167,14 +176,14 @@ struct PlanRevealView: View {
             }
             AppListRow(
                 icon: "chart.pie",
-                iconColor: AppPalette.brandText,
+                iconColor: .secondary,
                 title: "Macro split",
                 subtitle: "30% protein, 50% carbs, and 20% fat. You can adjust it in Settings."
             )
             Divider().padding(.leading, 68)
             AppListRow(
                 icon: "arrow.triangle.2.circlepath",
-                iconColor: AppPalette.brandText,
+                iconColor: .secondary,
                 title: "Keeps up with you",
                 subtitle: "Weigh-ins update your targets. Once you've logged for a few weeks, adaptive targets can follow your real trend."
             )
@@ -210,7 +219,7 @@ struct PlanRevealView: View {
 
     private var editButton: some View {
         Button("Edit answers", action: onEditAnswers)
-            .buttonStyle(AppActionButtonStyle(.secondary))
+            .buttonStyle(OnboardingTextButtonStyle())
             .accessibilityIdentifier("plan_reveal_edit")
     }
 

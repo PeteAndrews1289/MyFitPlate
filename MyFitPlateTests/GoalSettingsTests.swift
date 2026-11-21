@@ -250,20 +250,15 @@ final class BodyUnitsConversionTests: XCTestCase {
 }
 
 final class PendingWaterDrainTests: XCTestCase {
-    func testPendingWaterDrainsExactlyOnce() {
-        // Regression for the widget water button: queued ounces must be readable once and then
-        // cleared, so foregrounding the app logs them a single time instead of repeatedly.
-        let manager = SharedDataManager.shared
-        manager.clearWidgetData()
-
-        manager.logPendingWater(ounces: 8)
-        manager.logPendingWater(ounces: 8)
-
-        XCTAssertEqual(manager.getAndClearPendingWater(), 16, accuracy: 0.001,
-                       "Both queued widget taps should be summed when drained.")
-        XCTAssertEqual(manager.getAndClearPendingWater(), 0, accuracy: 0.001,
-                       "After draining, the pending value must be cleared so it isn't applied again.")
-
-        manager.clearWidgetData()
+    func testPendingWaterSurvivesReadUntilAcknowledged() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = WaterEntryInbox(directory: directory)
+        let entry = PendingWaterEntry(accountScope: "account-a", ounces: 8)
+        try inbox.enqueue(entry)
+        XCTAssertEqual(try inbox.pending(accountScope: "account-a"), [entry])
+        XCTAssertEqual(try inbox.pending(accountScope: "account-a"), [entry])
+        try inbox.acknowledge(entry)
+        XCTAssertTrue(try inbox.pending(accountScope: "account-a").isEmpty)
     }
 }

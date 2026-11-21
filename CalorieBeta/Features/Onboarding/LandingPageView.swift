@@ -87,16 +87,18 @@ struct MyFitPlateLaunchMark: View {
     }
 
     let treatment: Treatment
+    let compact: Bool
 
-    init(treatment: Treatment = .standard) {
+    init(treatment: Treatment = .standard, compact: Bool = false) {
         self.treatment = treatment
+        self.compact = compact
     }
 
     var body: some View {
         Text("MFP")
-            .font(.system(size: 25, weight: .bold, design: .rounded))
+            .font(.system(size: compact ? 15 : 25, weight: .bold, design: .rounded))
             .foregroundStyle(foregroundColor)
-            .frame(width: 76, height: 76)
+            .frame(width: compact ? 40 : 76, height: compact ? 40 : 76)
             .background(
                 backgroundColor,
                 in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)

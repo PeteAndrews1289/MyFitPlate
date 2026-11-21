@@ -109,11 +109,6 @@ final class LocalStateManagerTests: XCTestCase {
         XCTAssertEqual(loaded?.pathEvents?.first?.needsTrustReview, true)
         XCTAssertEqual(loaded?.pathDate, Date(timeIntervalSince1970: 90))
 
-        manager.logPendingWater(ounces: 8)
-        manager.logPendingWater(ounces: 4)
-        XCTAssertEqual(manager.getAndClearPendingWater(), 12, accuracy: 0.001)
-        XCTAssertEqual(manager.getAndClearPendingWater(), 0, accuracy: 0.001)
-
         manager.clearWidgetData()
         XCTAssertNil(manager.loadData())
     }

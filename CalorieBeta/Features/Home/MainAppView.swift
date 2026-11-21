@@ -37,15 +37,10 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
-        let type = userInfo["notification_type"] as? String
-        let deepLink = userInfo["deep_link"] as? String
-        Task { @MainActor in
-            guard let type, TrainingFuelNotificationCandidate.Kind(rawValue: type) != nil else { return }
-            if let deepLink, let url = URL(string: deepLink) { AppCoordinator.shared.handle(url: url) }
-            DIContainer.shared.analyticsManager?.logEvent(
-                ProductAnalytics.Event.trainingFuelNotificationOpened.rawValue,
-                parameters: ["notification_type": type]
-            )
+        if let identifier = userInfo["reminder_id"] as? String, let fingerprint = userInfo["reminder_fingerprint"] as? String {
+            Task { @MainActor in
+                AccountReminderCoordinator.shared.queueResponse(identifier: identifier, fingerprint: fingerprint, action: response.actionIdentifier)
+            }
         }
         completionHandler()
     }
@@ -65,7 +60,6 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
 
     private let accountScopeStore = WatchAccountScopeStore()
     private let mealRepeatInbox = WatchMealRepeatInbox()
-    private var pendingWatchWaterByScope: [String: Double] = [:]
     private var latestNutritionContext: [String: Any]?
     private var shouldClearWatchAccount = UserDefaults.standard.bool(forKey: "watchAccountClearPending") {
         didSet {
@@ -133,8 +127,19 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
            let accountScope = userInfo[WatchQuickActionPayload.accountScope] as? String,
            !accountScope.isEmpty {
             DispatchQueue.main.async {
-                self.pendingWatchWaterByScope[accountScope, default: 0] += ounces
-                self.pendingWatchWaterOunces = self.pendingWatchWaterByScope.values.reduce(0, +)
+                let entry = PendingWaterEntry(
+                    id: (userInfo["waterEntryID"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID(),
+                    accountScope: accountScope,
+                    ounces: ounces,
+                    capturedAt: (userInfo["waterCapturedAt"] as? Double).map(Date.init(timeIntervalSince1970:)) ?? Date()
+                )
+                do {
+                    guard let inbox = SharedDataManager.shared.waterInbox else { return }
+                    try inbox.enqueue(entry)
+                    self.pendingWatchWaterOunces += ounces
+                } catch {
+                    AppLog.watch.error("Could not retain water delivery on this device.")
+                }
             }
         }
 
@@ -145,15 +150,6 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
                 self.pendingWatchMealRepeatCount = self.mealRepeatInbox.pendingCount
             }
         }
-    }
-
-    /// Returns the accumulated watch water and resets it, so each transfer logs exactly once.
-    func claimPendingWatchWater(for userID: String) -> Double {
-        let scope = accountScopeStore.scope(for: userID)
-        let claimed = pendingWatchWaterByScope.removeValue(forKey: scope) ?? 0
-        pendingWatchWaterByScope.removeAll()
-        pendingWatchWaterOunces = 0
-        return claimed
     }
 
     func sendNutritionToWatch(
@@ -224,7 +220,6 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     func clearWatchAccount() {
         shouldClearWatchAccount = true
         mealRepeatInbox.discardRequests(exceptAccountScope: nil)
-        pendingWatchWaterByScope.removeAll()
         pendingWatchWaterOunces = 0
         pendingWatchMealRepeatCount = 0
         guard WCSession.isSupported(), WCSession.default.activationState == .activated else { return }
@@ -277,6 +272,7 @@ struct CalorieBetaApp: App {
     @StateObject var pantryService: PantryService
     @StateObject var workoutService: WorkoutService
     @StateObject var trainingFuelPlanStore: TrainingFuelPlanStore
+    @StateObject var mealExperimentStore: MealExperimentStore
     
     @StateObject var connectivityManager = WatchConnectivityManager()
 
@@ -348,11 +344,75 @@ struct CalorieBetaApp: App {
         #if DEBUG
         if isUITesting {
             let mockAuth = MockAuthService()
+            UserDefaults.standard.set(ProcessInfo.processInfo.arguments.contains("-ui-testing-auto-rest"), forKey: "isAutoRestTimerEnabled")
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-auth-failure") {
+                mockAuth.emailSignInError = AuthServiceError.networkUnavailable
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-onboarding") {
+                AccountSetupCoordinator.shared.store.clearAll()
+            }
             let mockDb = MockDatabaseService()
             let mockCloud = MockCloudFunctionService()
+            let mockAI = MockAIService()
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-recipe-draft") {
+                mockAI.mockResult = .success(#"{"name":"Reviewed test soup","ingredients":["200 g beans","100 g rice"],"instructions":["Cook the rice.","Mix beans and rice."],"nutrition":{"calories":500,"protein":40,"carbs":60,"fats":10},"servings":2}"#)
+            }
+
             let mockNutrition = MockNutritionRepository()
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-recipe-save-failure") {
+                mockNutrition.recipeRevisionError = CocoaError(.fileWriteUnknown)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-meal-plan-save-failure") {
+                mockNutrition.mealPlanEditError = CocoaError(.fileWriteUnknown)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-food-save-failure") {
+                mockNutrition.updateLogSuccess = false
+                mockNutrition.saveDailyLogError = CocoaError(.fileWriteUnknown)
+            }
             let mockWorkout = MockWorkoutRepository()
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-block-save-failure") {
+                mockWorkout.programBlockCommitError = CocoaError(.fileWriteUnknown)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-history-load-failure") {
+                mockWorkout.fetchRecentSessionLogsError = CocoaError(.fileReadUnknown)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-workout-save-failure") {
+                mockWorkout.saveProgramError = CocoaError(.fileWriteUnknown)
+                mockWorkout.saveWorkoutSessionLogError = CocoaError(.fileWriteUnknown)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-workout-draft"),
+               let userID = mockAuth.currentUserID {
+                try? WorkoutDraftStore().remove(userID: userID)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-strength-equipment")
+                || ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-equipment"),
+               let userID = mockAuth.currentUserID,
+               let prefix = AccountScopedStorageKey.make(prefix: "strengthEquipment", userID: userID) {
+                for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix(prefix + ".") {
+                    UserDefaults.standard.removeObject(forKey: key)
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-editor-drafts"),
+               let userID = mockAuth.currentUserID {
+                try? EditorDraftStore().removeAll(userID: userID)
+                // The planner's timer index points into those same disposable draft files.
+                if let key = AccountScopedStorageKey.make(prefix: "cooking-timer-index", userID: userID) {
+                    UserDefaults.standard.removeObject(forKey: key)
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-ayce"),
+               let userID = mockAuth.currentUserID,
+               let key = AccountScopedStorageKey.make(prefix: "ayceSessionDraft", userID: userID) {
+                UserDefaults.standard.removeObject(forKey: key)
+                if let preferencesKey = AccountScopedStorageKey.make(prefix: "aycePreferences", userID: userID) {
+                    UserDefaults.standard.removeObject(forKey: preferencesKey)
+                }
+            }
             let mockSettings = MockSettingsRepository()
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-goal-save-failure") ||
+                ProcessInfo.processInfo.arguments.contains("-ui-testing-food-preferences-save-failure") {
+                mockSettings.saveUserGoalsError = CocoaError(.fileWriteUnknown)
+            }
             let mockAchievements = MockAchievementRepository()
             if isScreenshotMode {
                 ScreenshotDemoData.prepareUserDefaults()
@@ -362,6 +422,12 @@ struct CalorieBetaApp: App {
                     settings: mockSettings
                 )
                 ScreenshotDemoData.configureAchievementRepository(mockAchievements)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-workout-load-failure") {
+                mockWorkout.onProgramsSnapshotListenerAdded = { _, update in
+                    update(.failure(CocoaError(.coderValueNotFound)))
+                }
+                mockWorkout.onRoutinesSnapshotListenerAdded = { _, update in update(.success([])) }
             }
             DIContainer.shared.configure(
                 authService: mockAuth,
@@ -378,7 +444,7 @@ struct CalorieBetaApp: App {
                 analyticsManager: MockAnalyticsManager(),
                 crashManager: MockCrashManager(),
                 featureFlagService: FeatureFlagService(),
-                aiService: MockAIService()
+                aiService: mockAI
             )
         } else {
             configureProductionDependencies()
@@ -407,11 +473,20 @@ struct CalorieBetaApp: App {
         let insightsSvc = InsightsService(dailyLogService: logService, goalSettings: goalsSvc, healthKitViewModel: hkViewModel)
         let plannerService = MealPlannerService(recipeService: recipes)
         let spotlightMgr = SpotlightManager()
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-spotlights") { spotlightMgr.resetSpotlights() }
+        #endif
         let cycleSvc = CycleTrackingService(userID: DIContainer.shared.authService.currentUserID)
         let adaptiveSvc = AdaptiveGoalService()
         let pantrySvc = PantryService()
         let workoutSvc = WorkoutService()
-        let fuelPlanStore = TrainingFuelPlanStore()
+        plannerService.activeWeekRescue = { [weak workoutSvc] userID in
+            guard DIContainer.shared.authService.currentUserID == userID,
+                  workoutSvc?.activeProgram?.userID == userID else { return nil }
+            return workoutSvc?.activeProgram?.weekRescue
+        }
+        let fuelPlanStore = TrainingFuelPlanStore(repository: isScreenshotMode ? nil : FirestoreTrainingFuelRepository(),
+            auth: DIContainer.shared.authService)
 
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
@@ -429,6 +504,7 @@ struct CalorieBetaApp: App {
         _pantryService = StateObject(wrappedValue: pantrySvc)
         _workoutService = StateObject(wrappedValue: workoutSvc)
         _trainingFuelPlanStore = StateObject(wrappedValue: fuelPlanStore)
+        _mealExperimentStore = StateObject(wrappedValue: MealExperimentStore(repository: isScreenshotMode ? nil : FirestoreMealExperimentRepository()))
         
         logService.goalSettings = goalsSvc
         goalsSvc.adaptiveGoalService = adaptiveSvc
@@ -486,7 +562,9 @@ struct CalorieBetaApp: App {
                 .environmentObject(pantryService)
                 .environmentObject(workoutService)
                 .environmentObject(trainingFuelPlanStore)
+                .environmentObject(mealExperimentStore)
                 .environmentObject(AppCoordinator.shared)
+                .tint(AppPalette.brandText)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
         }
     }
@@ -504,8 +582,14 @@ struct ContentView: View {
     @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
+    @EnvironmentObject var mealExperimentStore: MealExperimentStore
+    @EnvironmentObject var workoutService: WorkoutService
     @EnvironmentObject var cycleService: CycleTrackingService
 
+    @ObservedObject private var reminderCoordinator = AccountReminderCoordinator.shared
+    @State private var reminderSyncGeneration = UUID()
+    @State private var presentedReminderTarget: ReminderTarget?
+    @State private var waterEntriesInFlight = Set<UUID>()
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
     @State private var shouldShowFeatureTour = false
@@ -514,11 +598,15 @@ struct ContentView: View {
     @State private var shouldShowFirstSessionFoodSearch = false
     @State private var isTransitioningFirstSessionChoice = false
     @State private var presentedDeepLinkRoute: Route?
+    @State private var presentedDeepLinkRequest: AppLinkRequest?
+    @State private var isResolvingDeepLinkDay = false
     @State private var didQueueUITestDeepLink = false
     @ObservedObject private var accountSetup = AccountSetupCoordinator.shared
+    @ObservedObject private var localCleanup = AccountLocalCleanup.coordinator
     @ObservedObject private var reviewPrompts = AppReviewPromptQueue.shared
     @Environment(\.requestReview) private var requestReview
     @State private var accountSetupFailureMessage: String?
+    @State private var showingAppleDeletionWarning = false
     @State private var provisioningUserID: String?
     @State private var onboardingPrefill: OnboardingProfileDraft?
     @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
@@ -545,12 +633,17 @@ struct ContentView: View {
             "onboarding-pace",
             "onboarding-baseline",
             "onboarding-lifestyle",
-            "feature-tour"
+            "onboarding-about", "onboarding-height", "onboarding-weight", "onboarding-target",
+            "feature-tour-training", "feature-tour-adapt",
+            "feature-tour",
+            "first-session"
         ].contains(ScreenshotDemoData.requestedScreen)
     }
     #endif
 
-    var body: some View {
+    var body: some View { presentationContent }
+
+    private var lifecycleContent: some View {
         ZStack {
             mainContent
 
@@ -558,10 +651,35 @@ struct ContentView: View {
                 NotificationBanner(banner: $bannerService.currentBanner)
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if showingAppleDeletionWarning {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Text("Your account was removed. Apple sign-in access couldn't be revoked; you can manage it in your Apple account settings.")
+                        .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("apple_deletion_warning")
+                    Button("Dismiss") { showingAppleDeletionWarning = false }
+                        .buttonStyle(AppActionButtonStyle(.ghost))
+                }.padding(AppSpacing.group).background(AppPalette.canvas)
+            }
+            if let message = localCleanup.errorMessage {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("account_cleanup_error")
+                    Button("Retry cleanup") { _ = AccountLocalCleanup.retryPending() }
+                        .buttonStyle(AppActionButtonStyle(.secondary))
+                        .accessibilityIdentifier("account_cleanup_retry")
+                }
+                .padding(AppSpacing.group)
+                .background(AppPalette.canvas)
+            }
+        }
         .onAppear {
             #if DEBUG
             queueUITestDeepLinkIfNeeded()
             #endif
+            _ = AccountLocalCleanup.retryPending()
             checkUserStatusAndFirstLogin()
             dailyLogService.activateAccount(currentUserID)
             goalSettings.activateAccount(currentUserID)
@@ -569,23 +687,46 @@ struct ContentView: View {
             recipeService.activateAccount(currentUserID)
             cycleService.activateAccount(currentUserID)
             trainingFuelPlanStore.load(for: currentUserID)
+            mealExperimentStore.activateAccount(currentUserID)
+            workoutService.activateAccount(currentUserID)
+            FastingManager.shared.activateAccount(currentUserID)
             sendNutritionToWatchIfNeeded()
             syncTrainingFuelNotificationsIfNeeded()
             processPendingDeepLinkIfReady()
         }
+        .task(id: currentUserID) {
+            RunCloudSyncCoordinator.shared.requestSync(owner: currentUserID)
+            AYCESessionManager.invalidateActivities(outsideAccount: currentUserID)
+            await CookingNotificationCoordinator.shared.reconcile(userID: currentUserID)
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            RunCloudSyncCoordinator.shared.requestSync(owner: currentUserID)
             handleAppDidBecomeActive()
+            Task { await mealExperimentStore.synchronize() }
+            Task { await CookingNotificationCoordinator.shared.reconcile(userID: currentUserID) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .appleSignInRevocationIncomplete)) { notification in
+            guard let deletedUserID = notification.object as? String,
+                  currentUserID == nil || currentUserID == deletedUserID else { return }
+            showingAppleDeletionWarning = true
         }
         .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
+            RunCloudSyncCoordinator.shared.requestSync(owner: isLoggedIn ? currentUserID : nil)
             dailyLogService.activateAccount(isLoggedIn ? currentUserID : nil)
             goalSettings.activateAccount(isLoggedIn ? currentUserID : nil)
             insightsService.activateAccount(isLoggedIn ? currentUserID : nil)
             recipeService.activateAccount(isLoggedIn ? currentUserID : nil)
             if !isLoggedIn {
+                presentedDeepLinkRoute = nil
+                presentedDeepLinkRequest = nil
+                isResolvingDeepLinkDay = false
                 pantryService.stopListening()
             }
             cycleService.activateAccount(isLoggedIn ? currentUserID : nil)
             trainingFuelPlanStore.load(for: isLoggedIn ? currentUserID : nil)
+            mealExperimentStore.activateAccount(isLoggedIn ? currentUserID : nil)
+            workoutService.activateAccount(isLoggedIn ? currentUserID : nil)
+            FastingManager.shared.activateAccount(isLoggedIn ? currentUserID : nil)
             handleLoginStateChange(isLoggedIn: isLoggedIn)
             syncTrainingFuelNotificationsIfNeeded()
         }
@@ -600,6 +741,20 @@ struct ContentView: View {
         }
         .onChange(of: appCoordinator.pendingRoute) { _, _ in
             processPendingDeepLinkIfReady()
+        }
+        .onChange(of: appState.pendingRunFuelReview?.id) { _, requestID in
+            guard requestID != nil else { return }
+            presentedDeepLinkRoute = nil
+            appState.selectedTab = 0
+        }
+        .task(id: appCoordinator.pendingRequest?.id) {
+            while appCoordinator.pendingRequest != nil, !Task.isCancelled {
+                if !deferredDeepLinkIsBlocked && ReviewPromptPresentation.isScreenCalm {
+                    processPendingDeepLinkIfReady()
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            }
         }
         .onChange(of: deferredDeepLinkIsBlocked) { _, isBlocked in
             if !isBlocked {
@@ -632,11 +787,46 @@ struct ContentView: View {
         .onChange(of: connectivityManager.syncRequestRevision) { _, _ in
             sendNutritionToWatchIfNeeded()
         }
+    }
+
+    private var reminderContent: some View {
+        lifecycleContent
+        .onReceive(NotificationCenter.default.publisher(for: .runLibrariesChanged)) { note in
+            if note.object as? String == currentUserID {
+                RunCloudSyncCoordinator.shared.requestSync(owner: currentUserID)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .reminderEvidenceChanged)) { _ in syncTrainingFuelNotificationsIfNeeded() }
+        .onReceive(NotificationCenter.default.publisher(for: .dailyLogSyncStateChanged)) { note in
+            if note.object as? String == currentUserID { syncTrainingFuelNotificationsIfNeeded() }
+        }
+        .onChange(of: goalSettings.weightHistory.count) { _, _ in syncTrainingFuelNotificationsIfNeeded() }
+        .onChange(of: trainingFuelPlanStore.history) { _, _ in syncTrainingFuelNotificationsIfNeeded() }
+        .onReceive(mealExperimentStore.$experiments) { _ in syncTrainingFuelNotificationsIfNeeded() }
+        .onChange(of: reminderCoordinator.ownerID) { _, _ in
+            presentedReminderTarget = nil
+        }
+        .task(id: reminderCoordinator.pendingTarget?.id) {
+            while reminderCoordinator.pendingTarget != nil, !Task.isCancelled {
+                if !deferredDeepLinkIsBlocked && ReviewPromptPresentation.isScreenCalm { processReminderTarget(); return }
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            }
+        }
+        .sheet(item: $presentedReminderTarget) { target in
+            ReminderTaskView(target: target).environmentObject(dailyLogService).environmentObject(goalSettings)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .trainingFuelNotificationPreferencesChanged)) { _ in
             syncTrainingFuelNotificationsIfNeeded()
         }
+    }
+
+    private var presentationContent: some View {
+        reminderContent
         .withGlobalToast()
-        .sheet(isPresented: $shouldShowFeatureTour) {
+        .onChange(of: deferredDeepLinkIsBlocked, initial: true) { _, paused in
+            spotlightManager.setPresentationPaused(paused)
+        }
+        .sheet(isPresented: $shouldShowFeatureTour, onDismiss: completeFirstLook) {
             FeatureTourView(isPresented: $shouldShowFeatureTour)
         }
         .sheet(isPresented: $shouldShowFirstSessionChoice, onDismiss: handleFirstSessionChoiceDismissed) {
@@ -644,6 +834,7 @@ struct ContentView: View {
                 onImportHistory: { handleFirstSessionChoice(.importHistory) },
                 onLogFirstMeal: { handleFirstSessionChoice(.logFirstMeal) },
                 onExplore: { handleFirstSessionChoice(.explore) },
+                onTour: { handleFirstSessionChoice(.tour) },
                 onViewed: recordFirstSessionChoiceViewed
             )
         }
@@ -665,7 +856,7 @@ struct ContentView: View {
             deepLinkedContent(for: route)
         }
         .onOpenURL { url in
-            appCoordinator.handle(url: url, appState: appState)
+            appCoordinator.handle(url: url)
         }
     }
 
@@ -699,26 +890,43 @@ struct ContentView: View {
             shouldShowFirstSessionFoodSearch ||
             (firstSessionChoicePending && !firstSessionChoiceCompleted) ||
             isTransitioningFirstSessionChoice ||
-            presentedDeepLinkRoute != nil
+            isResolvingDeepLinkDay ||
+            presentedDeepLinkRoute != nil || presentedReminderTarget != nil
     }
 
     private func processPendingDeepLinkIfReady() {
-        guard !deferredDeepLinkIsBlocked,
-              let route = appCoordinator.takePendingRoute() else { return }
+        guard !deferredDeepLinkIsBlocked, ReviewPromptPresentation.isScreenCalm,
+              let request = appCoordinator.takePendingRequest() else { return }
+        let route = request.resolvedRoute(currentUserID: currentUserID)
+        presentedDeepLinkRequest = request
+        if route != .unavailable, let owner = currentUserID, let context = request.diaryDayContext(for: owner) {
+            isResolvingDeepLinkDay = true
+            dailyLogService.fetchLog(for: owner, day: context) { result in
+                guard currentUserID == owner, presentedDeepLinkRequest?.id == request.id else { return }
+                isResolvingDeepLinkDay = false
+                switch result {
+                case .success: presentDeepLink(route)
+                case .failure: presentDeepLink(.unavailable)
+                }
+            }
+        } else { presentDeepLink(route) }
+    }
 
+    private func presentDeepLink(_ route: Route) {
         appState.selectedTab = route.selectedTab
         DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.deepLinkOpened.rawValue, parameters: [
             "destination": route.rawValue
         ])
 
         switch route {
-        case .foodSearch, .trust, .builder, .runs:
+        case .foodSearch, .trust, .builder, .runs, .profile, .settings, .unavailable,
+             .tools, .foodPreferences, .recipes, .pantry, .grocery, .buffet, .plateCalculator, .weekRescue, .mealExperiments:
             presentedDeepLinkRoute = route
         case .trainingFuel:
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: .openTrainingFuelPlanner, object: nil)
             }
-        case .home, .maia, .profile, .settings, .nutrition, .workouts, .reports, .community:
+        case .home, .maia, .nutrition, .workouts, .reports, .community:
             break
         }
     }
@@ -743,7 +951,45 @@ struct ContentView: View {
             )
         case .runs:
             DeepLinkedRunHistoryView()
-        case .home, .maia, .profile, .settings, .nutrition, .workouts, .reports, .community, .trainingFuel:
+        case .profile:
+            NavigationStack { UserProfileView() }
+        case .settings:
+            NavigationStack {
+                SettingsView(showSettings: Binding(get: { presentedDeepLinkRoute == .settings }, set: { if !$0 { presentedDeepLinkRoute = nil } }))
+            }
+        case .tools:
+            NavigationStack { ToolDirectoryView() }
+        case .foodPreferences:
+            SuggestionPreferencesView(goalSettings: goalSettings)
+        case .recipes:
+            if let objectID = presentedDeepLinkRequest?.objectID {
+                DeepLinkedRecipeView(recipeID: objectID, ownerID: currentUserID)
+            } else { RecipeListView() }
+        case .pantry:
+            NavigationStack { PantryView() }
+        case .grocery:
+            NavigationStack { GroceryListView() }
+        case .buffet:
+            AYCEFlowView()
+        case .plateCalculator:
+            PlateCalculatorView()
+        case .weekRescue:
+            NavigationStack { WeekRescueView() }
+        case .mealExperiments:
+            NavigationStack {
+                MealExperimentsView(openCheckIn: true)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { presentedDeepLinkRoute = nil } } }
+            }
+        case .unavailable:
+            AppSheetScaffold(title: "Page unavailable", subtitle: "This link may belong to another account, have been removed, or need a newer version.", dismiss: { presentedDeepLinkRoute = nil }) {
+                Button("Go home") { presentedDeepLinkRoute = nil; appState.selectedTab = 0 }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .padding(AppSpacing.group)
+                    .accessibilityIdentifier("deep_link_unavailable_home")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("deep_link_unavailable")
+        case .home, .maia, .nutrition, .workouts, .reports, .community, .trainingFuel:
             EmptyView()
         }
     }
@@ -815,6 +1061,14 @@ struct ContentView: View {
             OnboardingFlowView(context: .beforeAccount, prefill: Self.screenshotOnboardingDraft, startingPoint: .reveal)
         case "onboarding-baseline":
             OnboardingFlowView(context: .beforeAccount, startingPoint: .quiz(.goal), onClose: { })
+        case "onboarding-about":
+            OnboardingFlowView(context: .beforeAccount, prefill: Self.screenshotOnboardingDraft, startingPoint: .quiz(.aboutYou), onClose: { })
+        case "onboarding-height":
+            OnboardingFlowView(context: .beforeAccount, prefill: Self.screenshotOnboardingDraft, startingPoint: .quiz(.height), onClose: { })
+        case "onboarding-weight":
+            OnboardingFlowView(context: .beforeAccount, prefill: Self.screenshotOnboardingDraft, startingPoint: .quiz(.currentWeight), onClose: { })
+        case "onboarding-target":
+            OnboardingFlowView(context: .beforeAccount, prefill: Self.screenshotOnboardingDraft, startingPoint: .quiz(.targetWeight), onClose: { })
         case "onboarding-lifestyle":
             OnboardingFlowView(
                 context: .beforeAccount,
@@ -831,6 +1085,12 @@ struct ContentView: View {
             )
         case "feature-tour":
             FeatureTourView(isPresented: .constant(true))
+        case "feature-tour-training":
+            FeatureTourView(isPresented: .constant(true), initialSelection: 1)
+        case "feature-tour-adapt":
+            FeatureTourView(isPresented: .constant(true), initialSelection: 2)
+        case "first-session":
+            FirstSessionChoiceView(onImportHistory: {}, onLogFirstMeal: {}, onExplore: {}, onTour: {}, onViewed: {})
         default:
             WelcomeView()
         }
@@ -878,7 +1138,7 @@ struct ContentView: View {
             goalWeight: goalSettings.targetWeight ?? 0.0,
             userWeight: goalSettings.weight,
             currWater: todayLog.waterTracker?.totalOunces ?? 0.0,
-            goalWater: max(1, goalSettings.waterGoal),
+            goalWater: goalSettings.isWaterTrackingOnly ? 0 : goalSettings.waterGoal,
             usesMetric: useMetricBodyUnits,
             userID: userID,
             nextAction: nextAction,
@@ -887,6 +1147,8 @@ struct ContentView: View {
     }
 
     private func handleAppDidBecomeActive() {
+        _ = AccountLocalCleanup.retryPending()
+        FastingManager.shared.activateAccount(appState.isUserLoggedIn ? currentUserID : nil)
         if appState.isUserLoggedIn && !shouldShowOnboardingSurvey {
             if !isScreenshotMode {
                 healthKitViewModel.checkAuthorizationStatus()
@@ -899,24 +1161,31 @@ struct ContentView: View {
         }
     }
 
-    /// Logs water queued by the home-screen widget's button while the app was backgrounded, then
-    /// clears the pending value so it's applied exactly once.
-    private func drainPendingWidgetWater() {
-        guard let userID = currentUserID else { return }
-        let pending = SharedDataManager.shared.getAndClearPendingWater()
-        guard pending > 0 else { return }
-        dailyLogService.addWaterToCurrentLog(for: userID, amount: pending, goalOunces: goalSettings.waterGoal)
-        bannerService.showBanner(title: "Water Logged", message: "Added \(Int(pending)) oz from your widget.")
-    }
+    private func drainPendingWidgetWater() { drainPendingWater() }
+    private func drainPendingWatchWater() { drainPendingWater() }
 
-    /// Same idea for water logged on the watch: the log write mutates currentDailyLog, which
-    /// re-pushes context so the watch's optimistic total gets replaced by the real one.
-    private func drainPendingWatchWater() {
-        guard appState.isUserLoggedIn, let userID = currentUserID else { return }
-        let pending = connectivityManager.claimPendingWatchWater(for: userID)
-        guard pending > 0 else { return }
-        dailyLogService.addWaterToCurrentLog(for: userID, amount: pending, goalOunces: goalSettings.waterGoal)
-        bannerService.showBanner(title: "Water Logged", message: "Added \(Int(pending)) oz from your watch.")
+    private func drainPendingWater() {
+        guard appState.isUserLoggedIn, let userID = currentUserID,
+              let inbox = SharedDataManager.shared.waterInbox else { return }
+        let scope = WatchAccountScopeStore().scope(for: userID)
+        SharedDataManager.shared.setWaterAccountScope(scope)
+        try? SharedDataManager.shared.migrateLegacyWater(accountScope: scope)
+        guard let entries = try? inbox.pending(accountScope: scope) else { return }
+        for entry in entries where !waterEntriesInFlight.contains(entry.id) {
+            waterEntriesInFlight.insert(entry.id)
+            dailyLogService.addWaterToLog(
+                for: userID, amount: entry.ounces, goalOunces: goalSettings.hydrationTarget(for: entry.capturedAt) ?? 0,
+                capturedAt: entry.capturedAt, entryID: entry.id.uuidString
+            ) { accepted in
+                waterEntriesInFlight.remove(entry.id)
+                guard accepted else { return }
+                // The diary outbox now owns this receipt durably, including offline.
+                try? inbox.acknowledge(entry)
+                if currentUserID == userID {
+                    bannerService.showBanner(title: "Water added", message: "Saved \(Int(entry.ounces)) oz to your diary.")
+                }
+            }
+        }
     }
 
     private func drainPendingWatchMealRepeats() {
@@ -951,26 +1220,35 @@ struct ContentView: View {
     }
 
     private func syncTrainingFuelNotificationsIfNeeded() {
-        guard appState.isUserLoggedIn else {
-            NotificationManager.shared.cancelTrainingFuelNotifications()
-            return
+        let owner = appState.isUserLoggedIn ? currentUserID : nil
+        reminderCoordinator.activateAccount(owner)
+        reminderSyncGeneration = UUID(); let generation = reminderSyncGeneration
+        guard let owner else { return }
+        Task { @MainActor in
+            guard let evidence = await ReminderEvidenceLoader.load(ownerID: owner, goals: goalSettings, fuelStore: trainingFuelPlanStore, experimentStore: mealExperimentStore),
+                  currentUserID == owner, reminderSyncGeneration == generation else { return }
+            await reminderCoordinator.reconcile(evidence: evidence)
         }
-        guard let todayLog = dailyLogService.currentDailyLog,
-              Calendar.current.isDateInToday(todayLog.date) else { return }
-        let goals = TodayFuelPlanGoals(
-            calories: goalSettings.calories ?? 0,
-            protein: goalSettings.protein,
-            carbs: goalSettings.carbs,
-            fats: goalSettings.fats
-        )
-        NotificationManager.shared.syncTrainingFuelNotifications(
-            preferences: TrainingFuelNotificationPreferences.load(),
-            plan: trainingFuelPlanStore.confirmedPlan,
-            today: todayLog,
-            goals: goals
-        )
     }
-    
+
+    private func processReminderTarget() {
+        guard let target = reminderCoordinator.takePendingTarget(), target.ownerID == currentUserID,
+              let day = target.day() else { return }
+        if target.kind == .experimentCheckIn { presentedReminderTarget = target; return }
+        if let planID = target.planID {
+            guard trainingFuelPlanStore.history.contains(where: { $0.plan.id == planID && $0.id == target.planRevisionID && $0.archivedAt == nil }),
+                  !trainingFuelPlanStore.conflictingPlanIDs.contains(planID) else { presentDeepLink(.unavailable); return }
+            do { try trainingFuelPlanStore.select(planID: planID, for: target.ownerID) } catch { presentDeepLink(.unavailable); return }
+        }
+        isResolvingDeepLinkDay = true
+        dailyLogService.fetchLog(for: target.ownerID, day: day) { result in
+            guard currentUserID == target.ownerID else { return }
+            isResolvingDeepLinkDay = false
+            guard case .success = result else { presentDeepLink(.unavailable); return }
+            if target.kind == .beforeTraining || target.kind == .recovery { presentDeepLink(.trainingFuel) } else if target.kind == .eveningProtein || (target.kind == .dailyLog && reminderCoordinator.preferences.diaryRule == .anyFood) { presentDeepLink(.foodSearch) } else { appState.selectedTab = 0; presentedReminderTarget = target }
+        }
+    }
+
     private func handleOnboardingComplete() {
         if let userID = currentUserID {
             goalSettings.updateUserAsOnboarded(userID: userID)
@@ -980,14 +1258,12 @@ struct ContentView: View {
         // A brand-new user just finished onboarding — clear the flags so the Home tour fires fresh.
         spotlightManager.resetSpotlights()
         self.shouldShowOnboardingSurvey = false
-        self.firstSessionChoicePending = !firstSessionChoiceCompleted
+        firstSessionChoiceCompleted = false
+        firstSessionChoiceViewed = false
+        self.firstSessionChoicePending = true
         self.loadMainUserData()
-        if firstSessionChoicePending {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                presentFirstSessionChoiceIfNeeded()
-            }
-        } else {
-            self.shouldShowFeatureTour = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            presentFirstSessionChoiceIfNeeded()
         }
         // Notifications are requested from Home's setup checklist, after the first meal, when
         // the reminder's value is clear.
@@ -1010,7 +1286,7 @@ struct ContentView: View {
             self.shouldShowFirstSessionFoodSearch = false
             self.pantryService.stopListening()
             self.connectivityManager.clearWatchAccount()
-            FastingManager.shared.endFast()
+            FastingManager.shared.activateAccount(nil)
             NotificationManager.shared.cancelAccountNotifications()
         }
     }
@@ -1024,6 +1300,11 @@ struct ContentView: View {
                 if self.isScreenshotMode {
                     self.loadMainUserData()
                 }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-ui-testing-first-session") {
+                    self.presentFirstSessionChoiceIfNeeded()
+                }
+                #endif
             }
             return
         }
@@ -1033,10 +1314,16 @@ struct ContentView: View {
         if accountSetup.isAuthenticationInFlight { return }
         if let userID = currentUserID {
             accountSetupFailureMessage = nil
-            DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { profile in
+            DIContainer.shared.settingsRepository.fetchAccountProfile(userID: userID, requireServer: false) { result in
                 DispatchQueue.main.async {
                     guard self.currentUserID == userID, self.appState.isUserLoggedIn else { return }
-                    self.resolveAccountSetup(userID: userID, profile: profile)
+                    switch result {
+                    case .success(let profile):
+                        self.resolveAccountSetup(userID: userID, profile: profile)
+                    case .failure:
+                        self.shouldShowOnboardingSurvey = false
+                        self.accountSetupFailureMessage = "We couldn't load your profile. Check your connection and retry. Your saved goals haven't changed."
+                    }
                 }
             }
         } else {
@@ -1111,6 +1398,15 @@ struct ContentView: View {
                     return
                 }
 
+                let profile = try await DIContainer.shared.settingsRepository.accountProfile(userID: userID)
+                guard currentUserID == userID, appState.isUserLoggedIn else { return }
+                guard OnboardingStateRules.requiresSetup(profile: profile) else {
+                    store.clearAll()
+                    shouldShowOnboardingSurvey = false
+                    isLoadingUserState = false
+                    loadMainUserData()
+                    return
+                }
                 try await BoundedOperation.run(seconds: 20) {
                     try await settings.completeOnboarding(with: draft, userID: userID)
                 }
@@ -1149,6 +1445,7 @@ struct ContentView: View {
         guard appState.isUserLoggedIn, !shouldShowOnboardingSurvey, !isLoadingUserState else { return }
         
         if let userID = currentUserID {
+            SharedDataManager.shared.setWaterAccountScope(WatchAccountScopeStore().scope(for: userID))
             pantryService.startListening(userID: userID)
             goalSettings.loadUserGoals(userID: userID) {
                 guard self.currentUserID == userID, self.appState.isUserLoggedIn else { return }
@@ -1190,16 +1487,26 @@ struct ContentView: View {
         guard firstSessionChoicePending, !firstSessionChoiceCompleted else { return }
         firstSessionChoicePending = false
         firstSessionChoiceCompleted = true
+        completeFirstLook()
         DIContainer.shared.analyticsManager?.logEvent("first_session_choice_selected", parameters: [
             "choice": FirstSessionChoice.explore.rawValue,
             "dismissed": true
         ])
     }
 
+    /// First-run choices are the introduction. Don't stack an automatic Home tour behind them.
+    /// Settings can still explicitly replay the contextual spotlights.
+    private func completeFirstLook() {
+        ["dashboardHeader", "quickActions", "menuScanner", "dailyLog", "action-menu"].forEach {
+            spotlightManager.markAsShown(id: $0)
+        }
+    }
+
     private func handleFirstSessionChoice(_ choice: FirstSessionChoice) {
         firstSessionChoicePending = false
         firstSessionChoiceCompleted = true
         isTransitioningFirstSessionChoice = true
+        completeFirstLook()
         DIContainer.shared.analyticsManager?.logEvent("first_session_choice_selected", parameters: [
             "choice": choice.rawValue
         ])
@@ -1212,10 +1519,62 @@ struct ContentView: View {
             case .logFirstMeal:
                 appState.selectedTab = 0
                 shouldShowFirstSessionFoodSearch = true
-            case .explore:
+            case .tour:
                 shouldShowFeatureTour = true
+            case .explore:
+                break
             }
             isTransitioningFirstSessionChoice = false
+        }
+    }
+}
+
+private struct DeepLinkedRecipeView: View {
+    let recipeID: String
+    let ownerID: String?
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appState: AppState
+    @State private var recipe: Recipe?
+    @State private var isLoading = true
+    @State private var message: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let recipe { RecipeDetailView(recipe: recipe) } else if isLoading { ProgressView("Loading recipe") } else {
+                    VStack(spacing: AppSpacing.row) {
+                        Image(systemName: "book.closed").appTextRole(.screenTitle).accessibilityHidden(true)
+                        Text("Recipe unavailable").appTextRole(.sectionTitle)
+                        Text(message ?? "This recipe may have been removed.")
+                            .appTextRole(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        Button("Open recipes") {
+                            dismiss()
+                            AppCoordinator.shared.navigate(to: .recipes)
+                        }.buttonStyle(AppActionButtonStyle(.primary))
+                    }
+                    .padding(AppSpacing.screenHorizontal)
+                    .accessibilityIdentifier("deep_link_recipe_unavailable")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppPalette.canvas)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+        }
+        .task(id: appState.isUserLoggedIn) {
+            guard let ownerID, appState.isUserLoggedIn, DIContainer.shared.authService.currentUserID == ownerID else {
+                recipe = nil; isLoading = false; message = "Open this link from the account that owns the recipe."
+                return
+            }
+            do {
+                let recipes = try await DIContainer.shared.nutritionRepository.fetchRecipes(userID: ownerID)
+                guard !Task.isCancelled, DIContainer.shared.authService.currentUserID == ownerID else { return }
+                recipe = recipes.first { $0.id == recipeID }
+                isLoading = false
+            } catch {
+                guard DIContainer.shared.authService.currentUserID == ownerID else { return }
+                isLoading = false
+                message = "Couldn't load this recipe. Check your connection or open your saved recipes."
+            }
         }
     }
 }
@@ -1255,12 +1614,13 @@ private struct DeepLinkedRunHistoryView: View {
 private enum FirstSessionChoice: String {
     case importHistory = "import_history"
     case logFirstMeal = "log_first_meal"
+    case tour = "take_tour"
     case explore
 }
 
 /// UIKit is the only reliable view of whether any sheet, cover, or alert is showing anywhere in
 /// the SwiftUI hierarchy: each one is presented from the key window's root controller.
-private enum ReviewPromptPresentation {
+enum ReviewPromptPresentation {
     @MainActor
     static var isScreenCalm: Bool {
         guard UIApplication.shared.applicationState == .active else { return false }
@@ -1276,100 +1636,68 @@ private struct FirstSessionChoiceView: View {
     let onImportHistory: () -> Void
     let onLogFirstMeal: () -> Void
     let onExplore: () -> Void
+    let onTour: () -> Void
     let onViewed: () -> Void
 
     var body: some View {
-        AppSheetScaffold(
-            title: "Start with your first win",
-            subtitle: "Give today a real baseline. You can change or add anything later.",
-            dismiss: onExplore
-        ) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    Label {
-                        Text("Two useful ways to begin")
-                            .appTextRole(.control)
-                    } icon: {
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(AppPalette.brandText)
-                    }
-                    .accessibilityAddTraits(.isHeader)
-
-                    VStack(spacing: AppSpacing.row) {
-                        firstSessionOption(
-                            icon: "square.and.arrow.down",
-                            title: "Import my history",
-                            subtitle: "Bring MyFitnessPal diary and weight history into MyFitPlate.",
-                            color: AppPalette.brandText,
-                            action: onImportHistory
-                        )
-
-                        firstSessionOption(
-                            icon: "fork.knife",
-                            title: "Log my first meal",
-                            subtitle: "Open food search with barcode, camera, and Maia ready.",
-                            color: AppPalette.protein,
-                            action: onLogFirstMeal
-                        )
-                    }
-
-                    Button("Explore first", action: onExplore)
-                        .buttonStyle(AppActionButtonStyle(.ghost))
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                HStack {
+                    Label("Your plan is saved", systemImage: "checkmark.circle.fill")
+                        .appTextRole(.secondary).foregroundStyle(AppPalette.brandText)
+                    Spacer()
+                    Button("Close", systemImage: "xmark", action: onExplore)
+                        .labelStyle(.iconOnly).buttonStyle(AppIconButtonStyle(.plain))
                 }
-                .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.vertical, AppSpacing.group)
+                OnboardingHeadline(title: "Make today yours.", subtitle: "Start with one small thing. The rest can wait.")
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    Text("Your first meal is a great start").appTextRole(.sectionTitle)
+                    Text("Search, scan a barcode or try a photo. You can edit every entry later.")
+                        .appTextRole(.body).foregroundStyle(.secondary)
+                }.appSurface(.quiet)
+                VStack(spacing: 0) {
+                    option("Take a quick tour", detail: "Three things worth knowing.", icon: "sparkles",
+                           identifier: "first_session_tour", action: onTour)
+                    Divider()
+                    option("Bring your history", detail: "Import your MyFitnessPal diary and weight history.", icon: "square.and.arrow.down",
+                           identifier: "first_session_import", action: onImportHistory)
+                }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.section)
+        }
+        .safeAreaInset(edge: .bottom) {
+            OnboardingActionDock {
+                Button("Log first meal", systemImage: "plus", action: onLogFirstMeal)
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .accessibilityIdentifier("first_session_log")
+                Button("Explore on my own", action: onExplore)
+                    .buttonStyle(OnboardingTextButtonStyle())
+                    .accessibilityIdentifier("first_session_explore")
             }
         }
-        .presentationDetents([.medium, .large])
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .onAppear(perform: onViewed)
     }
 
-    private func firstSessionOption(icon: String, title: String, subtitle: String, color: Color, action: @escaping () -> Void) -> some View {
+    private func option(_ title: String, detail: String, icon: String, identifier: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: AppSpacing.row) {
-                Image(systemName: icon)
-                    .appFont(size: 18, weight: .semibold)
-                    .foregroundStyle(color)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        color.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .appTextRole(.control)
-                        .foregroundStyle(AppPalette.text)
-
-                    Text(subtitle)
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: AppSpacing.row) {
+                Image(systemName: icon).frame(width: 32).foregroundStyle(.secondary).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).appTextRole(.control).foregroundStyle(AppPalette.text)
+                    Text(detail).appTextRole(.secondary).foregroundStyle(.secondary)
                 }
-
                 Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+                Image(systemName: "chevron.right").appTextRole(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
             }
-            .padding(AppSpacing.group)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                AppPalette.surface,
-                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                    .stroke(AppPalette.separator, lineWidth: 1)
-            )
+            .padding(.vertical, AppSpacing.group)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(title)
-        .accessibilityValue(subtitle)
-        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier(identifier)
     }
 }

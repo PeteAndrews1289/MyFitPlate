@@ -10,12 +10,12 @@ struct WorkoutReport {
 
 struct WorkoutReportCard: View {
     let report: WorkoutReport
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppSectionHeader(
                 title: "Workout summary",
-                subtitle: "Training volume and most frequent activity."
+                subtitle: "Sessions, activity energy and your most frequent workout."
             ) {
                 Image(systemName: "chevron.right")
                     .appTextRole(.caption)

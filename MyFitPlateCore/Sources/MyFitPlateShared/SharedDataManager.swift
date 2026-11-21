@@ -136,22 +136,39 @@ public struct SharedDataManager {
         }
     }
 
-    public func logPendingWater(ounces: Double) {
-        guard let userDefaults = userDefaults else { return }
-        let currentPending = userDefaults.double(forKey: SharedDataKeys.pendingWater)
-        userDefaults.set(currentPending + ounces, forKey: SharedDataKeys.pendingWater)
+    public var waterInbox: WaterEntryInbox? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedDataKeys.appGroup)
+            .map { WaterEntryInbox(directory: $0.appendingPathComponent("WaterInbox")) }
     }
 
-    public func getAndClearPendingWater() -> Double {
-        guard let userDefaults = userDefaults else { return 0 }
-        let pending = userDefaults.double(forKey: SharedDataKeys.pendingWater)
-        userDefaults.set(0.0, forKey: SharedDataKeys.pendingWater)
-        return pending
+    public func setWaterAccountScope(_ scope: String) {
+        userDefaults?.set(scope, forKey: "waterAccountScope")
+    }
+
+    public func logPendingWater(ounces: Double) throws {
+        guard let scope = userDefaults?.string(forKey: "waterAccountScope"), let inbox = waterInbox else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try inbox.enqueue(PendingWaterEntry(accountScope: scope, ounces: ounces))
+    }
+
+    /// Old builds stored no capture time. Migrate once using the time the app receives it.
+    public func migrateLegacyWater(accountScope: String) throws {
+        guard let userDefaults, let inbox = waterInbox else { return }
+        let ounces = userDefaults.double(forKey: SharedDataKeys.pendingWater)
+        guard ounces > 0 else { return }
+        let idKey = "legacyWaterMigrationID"
+        let id = userDefaults.string(forKey: idKey).flatMap(UUID.init(uuidString:)) ?? UUID()
+        userDefaults.set(id.uuidString, forKey: idKey)
+        try inbox.enqueue(PendingWaterEntry(id: id, accountScope: accountScope, ounces: ounces))
+        userDefaults.removeObject(forKey: SharedDataKeys.pendingWater)
+        userDefaults.removeObject(forKey: idKey)
     }
 
     /// Wipes the app-group data shared with the widget — used when an account is deleted.
     public func clearWidgetData() {
         guard let userDefaults = userDefaults else { return }
+        userDefaults.removeObject(forKey: "waterAccountScope")
         userDefaults.removeObject(forKey: SharedDataKeys.widgetData)
         userDefaults.removeObject(forKey: SharedDataKeys.pendingWater)
     }

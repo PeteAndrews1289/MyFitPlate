@@ -13,18 +13,30 @@ private enum BarcodeScannerAvailability {
 }
 
 struct BarcodeScannerView: View {
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
+    var onClose: (() -> Void)?
     var onBarcodeDetected: (String) -> Void
-    var onBarcodesDetected: (([String]) -> Void)?
+    var onBarcodesDetected: ((RapidBarcodeBatchCheckpoint) -> Void)?
 
     @State private var isRapidMode = false
-    @State private var scannedBarcodes: [String] = []
+    @StateObject private var batch: RapidBarcodeBatchSession
     @State private var lastScannedBarcode: String?
     @State private var flashSuccess = false
     @State private var availability: BarcodeScannerAvailability = .checking
+
+    init(onClose: (() -> Void)? = nil, onBarcodeDetected: @escaping (String) -> Void,
+         onBarcodesDetected: ((RapidBarcodeBatchCheckpoint) -> Void)? = nil,
+         loggingDate: Date = Date(), mealName: String = "Dinner", trainingFuelTarget: TrainingFuelTarget? = nil) {
+        self.onClose = onClose; self.onBarcodeDetected = onBarcodeDetected; self.onBarcodesDetected = onBarcodesDetected
+        let session = RapidBarcodeBatchSession(userID: DIContainer.shared.authService.currentUserID, date: loggingDate, mealName: mealName, trainingFuelTarget: trainingFuelTarget)
+        _batch = StateObject(wrappedValue: session)
+        _isRapidMode = State(initialValue: onBarcodesDetected != nil && !session.checkpoint.entries.isEmpty)
+    }
+
+    private var scannedBarcodes: [String] { batch.checkpoint.entries.map(\.code) }
 
     var body: some View {
         Group {
@@ -80,6 +92,7 @@ struct BarcodeScannerView: View {
                     if isRapidMode {
                         handleRapidScan(barcode)
                     } else {
+                        closeScanner()
                         onBarcodeDetected(barcode)
                     }
                 },
@@ -149,7 +162,7 @@ struct BarcodeScannerView: View {
             }
 
             Button("Use another logging method") {
-                presentationMode.wrappedValue.dismiss()
+                closeScanner()
             }
             .buttonStyle(AppActionButtonStyle(.ghost))
             .tint(.white)
@@ -192,16 +205,24 @@ struct BarcodeScannerView: View {
         openURL(url)
     }
 
+    private func closeScanner() {
+        if let onClose { onClose() } else { dismiss() }
+    }
+
     private var topControlBar: some View {
         HStack {
             Button {
-                presentationMode.wrappedValue.dismiss()
+                closeScanner()
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .appFont(size: 28)
                     .foregroundColor(.white.opacity(0.8))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close barcode scanner")
+            .accessibilityIdentifier("barcode_scanner_close")
 
             Spacer()
 
@@ -225,6 +246,9 @@ struct BarcodeScannerView: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(onBarcodesDetected == nil)
+            .opacity(onBarcodesDetected == nil ? 0 : 1)
+            .accessibilityHidden(onBarcodesDetected == nil)
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
@@ -269,7 +293,7 @@ struct BarcodeScannerView: View {
                     Spacer()
                     if !scannedBarcodes.isEmpty {
                         Button("Clear") {
-                            withAnimation { scannedBarcodes.removeAll() }
+                            withAnimation { _ = batch.clear() }
                         }
                         .font(.caption.bold())
                         .foregroundColor(AppPalette.critical)
@@ -302,17 +326,14 @@ struct BarcodeScannerView: View {
                 }
 
                 Button {
-                    let list = scannedBarcodes
-                    presentationMode.wrappedValue.dismiss()
+                    closeScanner()
                     if let onBarcodes = onBarcodesDetected {
-                        onBarcodes(list)
-                    } else if let first = list.first {
-                        onBarcodeDetected(first)
+                        onBarcodes(batch.checkpoint)
                     }
                 } label: {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
-                        Text("Lookup & Log All (\(scannedBarcodes.count))")
+                        Text("Review All Scans (\(scannedBarcodes.count))")
                     }
                     .font(.headline.bold())
                     .frame(maxWidth: .infinity)
@@ -323,6 +344,7 @@ struct BarcodeScannerView: View {
                 }
                 .disabled(scannedBarcodes.isEmpty)
                 .buttonStyle(.plain)
+                if let message = batch.errorMessage { Text(message).font(.caption).foregroundStyle(.white) }
             }
             .padding(16)
             .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -337,8 +359,8 @@ struct BarcodeScannerView: View {
     private func handleRapidScan(_ barcode: String) {
         // Prevent rapid duplicate scanning within a short window
         guard lastScannedBarcode != barcode else { return }
+        guard batch.append(barcode) else { return }
         lastScannedBarcode = barcode
-        scannedBarcodes.append(barcode)
 
         // Flash visual feedback & vibrate
         AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
@@ -357,7 +379,6 @@ struct BarcodeScannerView: View {
 }
 
 struct VisionKitScannerView: UIViewControllerRepresentable {
-    @Environment(\.presentationMode) var presentationMode
     var isRapidMode: Bool
     var onBarcodeDetected: (String) -> Void
     var onUnavailable: () -> Void
@@ -373,7 +394,7 @@ struct VisionKitScannerView: UIViewControllerRepresentable {
             recognizesMultipleItems: false,
             isHighFrameRateTrackingEnabled: true,
             isPinchToZoomEnabled: true,
-            isGuidanceEnabled: true,
+            isGuidanceEnabled: false, // The custom guidance and controls above the camera own this space.
             isHighlightingEnabled: true
         )
         viewController.delegate = context.coordinator
@@ -429,12 +450,136 @@ struct VisionKitScannerView: UIViewControllerRepresentable {
                         AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
                         
                         DispatchQueue.main.async {
-                            self.parent.presentationMode.wrappedValue.dismiss()
                             self.parent.onBarcodeDetected(payload)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+struct RapidBarcodeReviewView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @StateObject private var batch: RapidBarcodeBatchSession
+    @State private var editingFood: FoodItem?
+    @State private var confirmingUnresolved = false
+    @State private var confirmingDiscard = false
+    private let lookup = BarcodeFoodLookupService()
+    private let lookupOverride: ((String) async -> FoodItem?)?
+
+    init(date: Date, mealName: String, session: RapidBarcodeBatchSession? = nil, lookupOverride: ((String) async -> FoodItem?)? = nil, trainingFuelTarget: TrainingFuelTarget? = nil) {
+        self.lookupOverride = lookupOverride
+        _batch = StateObject(wrappedValue: session ?? RapidBarcodeBatchSession(
+            userID: DIContainer.shared.authService.currentUserID, date: date, mealName: mealName, trainingFuelTarget: trainingFuelTarget))
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let target = batch.checkpoint.trainingFuelTarget {
+                    TrainingFuelTargetContextView(target: target, onDismiss: batch.checkpoint.isSubmitted || batch.isSaving || batch.isResolving ? nil : { _ = batch.removeFuelContext() })
+                }
+                Section {
+                    Text("\(batch.checkpoint.mealName) · \(batch.checkpoint.date.formatted(date: .abbreviated, time: .omitted))")
+                        .accessibilityIdentifier("barcode_batch_destination")
+                    Text("\(batch.checkpoint.entries.count) scanned = \(batch.includedFoods.count) selected + \(batch.unresolvedCount) unresolved + \(batch.leftOutCount) left out")
+                        .accessibilityIdentifier("barcode_batch_counts")
+                    if batch.checkpoint.isAccepted {
+                        Label("Selected items accepted for this diary date", systemImage: "checkmark.circle.fill")
+                    }
+                    if let message = batch.errorMessage {
+                        Text(message).foregroundStyle(AppPalette.caution).accessibilityIdentifier("barcode_batch_error")
+                    }
+                }
+                Section("Every scan") {
+                    ForEach(batch.checkpoint.entries) { entry in
+                        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(entry.food?.name ?? entry.code).appTextRole(.control)
+                                    Text(entry.code).appTextRole(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if entry.resolution == .found {
+                                    Button { _ = batch.toggleIncluded(id: entry.id) } label: {
+                                        Image(systemName: entry.included ? "checkmark.circle.fill" : "circle").frame(width: 44, height: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(entry.included ? "Leave \(entry.food?.name ?? entry.code) out" : "Include \(entry.food?.name ?? entry.code)")
+                                    .disabled(batch.checkpoint.isSubmitted || batch.isResolving)
+                                }
+                            }
+                            if entry.isRepeatedScan {
+                                Text("Repeated scan · excluded by default; include it only for another consumed portion.")
+                                    .appTextRole(.caption).foregroundStyle(.secondary)
+                            }
+                            if let food = entry.food {
+                                Text("\(food.servingSize) · \(food.calories.formatted(.number.precision(.fractionLength(0)))) cal").appTextRole(.secondary)
+                                if !batch.checkpoint.isSubmitted {
+                                    Button("Review portion") { editingFood = food }.disabled(batch.isResolving)
+                                }
+                            } else {
+                                Text(entry.resolution == .skipped ? "Explicitly left out" : entry.resolution == .resolving ? "Looking up…" : "No match or lookup unavailable. This scan is kept for retry.")
+                                    .appTextRole(.secondary).foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("barcode_batch_row_\(entry.id)")
+                    }
+                }
+                if batch.unresolvedCount > 0 && !batch.checkpoint.isSubmitted {
+                    Button(batch.isResolving ? "Looking up…" : "Retry unresolved lookups") { Task { await resolve() } }
+                        .disabled(batch.isResolving)
+                        .accessibilityIdentifier("barcode_batch_retry_lookup")
+                }
+            }.appFormStyle()
+            .accessibilityIdentifier("barcode_batch_review")
+            .navigationTitle("Review all scans")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.disabled(batch.isSaving || batch.isResolving) }
+                ToolbarItem(placement: .primaryAction) {
+                    if !batch.checkpoint.isSubmitted {
+                        Button("Discard", role: .destructive) { confirmingDiscard = true }.disabled(batch.isResolving)
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    if batch.checkpoint.isAccepted { if batch.clear() { dismiss() } } else if batch.unresolvedCount > 0 {
+                        confirmingUnresolved = true
+                    } else { save() }
+                } label: {
+                    Text(batch.checkpoint.isAccepted ? "Done" : batch.isSaving ? "Saving…" : batch.checkpoint.isSubmitted ? "Retry logging batch" : "Log \(batch.includedFoods.count) selected items")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(batch.isSaving || batch.isResolving || (!batch.checkpoint.isAccepted && batch.includedFoods.isEmpty))
+                .padding(AppSpacing.screenHorizontal).background(.bar)
+                .accessibilityIdentifier("barcode_batch_log_action")
+            }
+            .confirmationDialog("Leave \(batch.unresolvedCount) unresolved scans out?", isPresented: $confirmingUnresolved, titleVisibility: .visible) {
+                Button("Log matched items and leave unresolved out") { save(leavingUnresolvedOut: true) }
+            } message: { Text("The receipt will account for these omitted codes. No nutrition will be invented for them.") }
+            .confirmationDialog("Discard all saved scans?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                Button("Discard scans", role: .destructive) { if batch.clear() { dismiss() } }
+            }
+            .sheet(item: $editingFood) { food in
+                FoodDetailView(initialFoodItem: food, dailyLog: .constant(nil), date: batch.checkpoint.date,
+                    source: "barcode_batch_edit", isPresentedModally: true, onLogUpdated: {},
+                    onUpdateAccepted: { batch.updateFood($0) })
+            }
+            .interactiveDismissDisabled(batch.isSaving || batch.isResolving)
+            .task { await resolve() }
+        }
+    }
+
+    private func resolve() async {
+        await batch.resolve { code in
+            if let lookupOverride { return await lookupOverride(code) }
+            return await lookup.lookup(code)?.item
+        }
+    }
+    private func save(leavingUnresolvedOut: Bool = false) {
+        batch.save(using: dailyLogService, leavingUnresolvedOut: leavingUnresolvedOut) { _ in }
     }
 }

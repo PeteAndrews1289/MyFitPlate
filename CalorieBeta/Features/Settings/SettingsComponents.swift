@@ -22,6 +22,7 @@ struct SettingsSectionCard<Content: View>: View {
             VStack(spacing: 0) {
                 content
             }
+            .buttonStyle(.plain)
             .appSurface(.quiet, padding: 0, radius: AppRadius.control)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,7 +40,7 @@ struct SettingsLabel: View {
     init(
         icon: String,
         title: String,
-        subtitle: String,
+        subtitle: String = "",
         showsDisclosure: Bool = false
     ) {
         self.icon = icon
@@ -49,7 +50,7 @@ struct SettingsLabel: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppSpacing.row) {
+        HStack(alignment: .center, spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appFont(size: 17, weight: .semibold)
                 .foregroundStyle(.secondary)
@@ -64,7 +65,7 @@ struct SettingsLabel: View {
                 Text(title)
                     .appTextRole(.control)
                     .foregroundStyle(AppPalette.text)
-                if !dynamicTypeSize.isAccessibilitySize {
+                if !subtitle.isEmpty && !dynamicTypeSize.isAccessibilitySize {
                     Text(subtitle)
                         .appTextRole(.secondary)
                         .foregroundStyle(.secondary)
@@ -78,11 +79,11 @@ struct SettingsLabel: View {
                 Image(systemName: "chevron.right")
                     .appTextRole(.secondary)
                     .foregroundStyle(.tertiary)
-                    .padding(.top, AppSpacing.compact)
                     .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .multilineTextAlignment(.leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
         .accessibilityHint(subtitle)

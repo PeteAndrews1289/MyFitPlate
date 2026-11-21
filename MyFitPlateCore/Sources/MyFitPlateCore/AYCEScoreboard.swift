@@ -35,7 +35,7 @@ public enum AYCEScoreboard {
     /// Newest first, empty sessions ignored, capped so storage never grows unbounded.
     public static func appending(_ record: AYCESessionRecord, to records: [AYCESessionRecord]) -> [AYCESessionRecord] {
         guard record.menuValue > 0 else { return records }
-        return Array(([record] + records).prefix(maxRecords))
+        return Array(([record] + records.filter { $0.id != record.id }).prefix(maxRecords))
     }
 
     public struct Summary: Equatable {

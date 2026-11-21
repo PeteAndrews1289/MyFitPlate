@@ -93,10 +93,7 @@ struct CalorieWidgetEntryView: View {
             if isAccessory {
                 AccessoryWidgetBackground()
             } else {
-                ZStack {
-                    Rectangle().fill(.thickMaterial)
-                    WidgetPalette.backgroundPrimary.opacity(0.2)
-                }
+                WidgetPalette.backgroundPrimary
             }
         }
     }
@@ -363,7 +360,7 @@ struct SmallWidgetView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Calories")
+                    Text("Cal left")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
@@ -382,7 +379,7 @@ struct SmallWidgetView: View {
                                 .foregroundStyle(WidgetPalette.accentSignal)
                                 .accessibilityHidden(true)
                         }
-                        Text("Protein")
+                        Text("Protein left")
                             .foregroundStyle(.secondary)
                     }
                     .font(.caption2)

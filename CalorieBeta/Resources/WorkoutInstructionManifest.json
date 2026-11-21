@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "mfp.demo.bench-press",
+      "version": 1,
+      "canonicalName": "Barbell Bench Press",
+      "movementID": "mfp.exercise.barbell-bench-press",
+      "variantID": "standard-v1",
+      "resourceName": "WorkoutDemo-bench-press",
+      "fileExtension": "mov",
+      "contentSHA256": "250343e1816f0ffb62d8c8dc1891dff91fad666845dbc753b863d1259f26b138",
+      "author": "FitnessScape",
+      "sourceURL": "https://commons.wikimedia.org/wiki/File:Bench_press_-_exercise_demonstration_video.webm",
+      "licenseName": "CC BY 3.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/3.0/",
+      "captionTranscript": "The lifter lies on a flat bench with feet on the floor, holds the bar with both hands, lowers it toward the chest, then presses upward. This short reference shows a barbell bench press; adjust setup and load to your own range and needs."
+    },
+    {
+      "id": "mfp.demo.deadlift",
+      "version": 1,
+      "canonicalName": "Deadlift (Conventional)",
+      "movementID": "mfp.exercise.deadlift-conventional",
+      "variantID": "standard-v1",
+      "resourceName": "WorkoutDemo-deadlift",
+      "fileExtension": "mov",
+      "contentSHA256": "d1db7a9048045ad7eef49f0853793b23b19cd249bf93e575dab284356c6d2268",
+      "author": "FitnessScape",
+      "sourceURL": "https://commons.wikimedia.org/wiki/File:Deadlift_-_exercise_demonstration_video.webm",
+      "licenseName": "CC BY 3.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/3.0/",
+      "captionTranscript": "The lifter stands with the bar in front of the legs, bends at hips and knees, grasps the bar, then stands while keeping the bar near the body and lowers it again. The clip shows a conventional barbell deadlift from a side view."
+    },
+    {
+      "id": "mfp.demo.squat",
+      "version": 1,
+      "canonicalName": "Barbell Back Squat",
+      "movementID": "mfp.exercise.barbell-back-squat",
+      "variantID": "standard-v1",
+      "resourceName": "WorkoutDemo-squat",
+      "fileExtension": "mov",
+      "contentSHA256": "067a24acf120e5de0240bb85cef24fdad865df75f912fe0cb7d638818a7ab306",
+      "author": "FitnessScape",
+      "sourceURL": "https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm",
+      "licenseName": "CC BY 3.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/3.0/",
+      "captionTranscript": "The lifter holds a bar across the upper back, bends the hips and knees to lower into a squat, then stands. The short side-view reference shows a barbell back squat; it is not an assessment of your individual technique or mobility."
+    },
+    {
+      "id": "mfp.demo.bent-over-row",
+      "version": 1,
+      "canonicalName": "Barbell Bent-over Row",
+      "movementID": "mfp.exercise.barbell-bent-over-row",
+      "variantID": "standard-v1",
+      "resourceName": "WorkoutDemo-bent-over-row",
+      "fileExtension": "mov",
+      "contentSHA256": "305b282d229191980cdde58d0d62acf4c317ba3de120ff7ea9ee2ac990a2f75b",
+      "author": "FitnessScape",
+      "sourceURL": "https://commons.wikimedia.org/wiki/File:Bent-over_row_-_exercise_demonstration_video.webm",
+      "licenseName": "CC BY 3.0",
+      "licenseURL": "https://creativecommons.org/licenses/by/3.0/",
+      "captionTranscript": "The lifter hinges forward while holding a bar with both hands, pulls it toward the torso, and lowers it again while maintaining the bent-over position. The clip shows a barbell bent-over row from an angled side view."
+    }
+  ]
+}

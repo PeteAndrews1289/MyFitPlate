@@ -13,9 +13,12 @@ struct OnboardingSurveyView: View {
         case pace
     }
 
+    private let progressStore: OnboardingQuizProgressStore
+    private let restoredMetric: Bool?
     let onDraftReady: (OnboardingProfileDraft) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(BodyUnits.preferenceKey) private var useMetric = Locale.current.measurementSystem != .us
 
     @State private var step: Step
@@ -64,7 +67,11 @@ struct OnboardingSurveyView: View {
         onDraftReady: @escaping (OnboardingProfileDraft) -> Void
     ) {
         self.onDraftReady = onDraftReady
-        _step = State(initialValue: initialStep)
+        let store = OnboardingQuizProgressStore(userID: DIContainer.shared.authService.currentUserID)
+        progressStore = store
+        let progress = prefill == nil && initialStep == .goal && !AppRuntime.isUITesting() ? store.load() : nil
+        restoredMetric = progress?.metric
+        _step = State(initialValue: progress.flatMap { Step(rawValue: $0.step) } ?? initialStep)
 
         let metric = BodyUnits.prefersMetric()
         _selectedGoal = State(initialValue: prefill?.goal)
@@ -89,6 +96,19 @@ struct OnboardingSurveyView: View {
             GoalSettingsRules.normalizedWeeklyChange($0.weeklyChangeLbs, forGoal: $0.goal.rawValue)
         } ?? GoalSettingsRules.defaultWeeklyChangeLbs)
 
+        if let answers = progress?.answers {
+            _selectedGoal = State(initialValue: answers["goal"].flatMap(OnboardingProfileDraft.Goal.init(rawValue:)))
+            _selectedTrainingIntent = State(initialValue: answers["training"] ?? "General Fitness")
+            _selectedSex = State(initialValue: answers["sex"])
+            _ageInput = State(initialValue: answers["age"] ?? "")
+            _heightFeetInput = State(initialValue: answers["feet"] ?? "")
+            _heightInchesInput = State(initialValue: answers["inches"] ?? "")
+            _heightCmInput = State(initialValue: answers["cm"] ?? "")
+            _currentWeightInput = State(initialValue: answers["weight"] ?? "")
+            _targetWeightInput = State(initialValue: answers["target"] ?? "")
+            _selectedActivityLevelKey = State(initialValue: answers["activity"])
+            _selectedWeeklyChangeLbs = State(initialValue: answers["pace"].flatMap(Double.init) ?? GoalSettingsRules.defaultWeeklyChangeLbs)
+        }
         reminderStyle = prefill?.reminderStyle ?? "Gentle"
         maiaTone = prefill?.maiaTone ?? "Balanced"
     }
@@ -96,13 +116,24 @@ struct OnboardingSurveyView: View {
     var body: some View {
         VStack(spacing: 0) {
             progressHeader
-            Divider()
             currentStepView
         }
         .safeAreaInset(edge: .bottom) {
             navigationActions
         }
         .background(AppPalette.canvas.ignoresSafeArea())
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done", action: hideKeyboard)
+            }
+        }
+        .onAppear {
+            if let restoredMetric, restoredMetric != useMetric { convertInputs(toMetric: useMetric) }
+        }
+        .onChange(of: quizProgress) { _, progress in
+            if !AppRuntime.isUITesting() { progressStore.save(progress) }
+        }
         .onChange(of: useMetric) { _, metric in
             convertInputs(toMetric: metric)
         }
@@ -117,6 +148,16 @@ struct OnboardingSurveyView: View {
                 step = .activity
             }
         }
+    }
+
+    private var quizProgress: OnboardingQuizProgress {
+        OnboardingQuizProgress(step: step.rawValue, answers: [
+            "goal": selectedGoal?.rawValue, "training": selectedTrainingIntent,
+            "sex": selectedSex, "age": ageInput, "feet": heightFeetInput,
+            "inches": heightInchesInput, "cm": heightCmInput, "weight": currentWeightInput,
+            "target": targetWeightInput, "activity": selectedActivityLevelKey,
+            "pace": String(selectedWeeklyChangeLbs)
+        ].compactMapValues { $0 }, metric: useMetric)
     }
 
     // MARK: - Steps
@@ -163,10 +204,7 @@ struct OnboardingSurveyView: View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 2) {
-                        progressTitle
-                        progressCount
-                    }
+                    progressCount
                 } else {
                     HStack(alignment: .firstTextBaseline) {
                         progressTitle
@@ -187,9 +225,9 @@ struct OnboardingSurveyView: View {
     }
 
     private var progressTitle: some View {
-        Text("Build your plan")
-            .appTextRole(.sectionTitle)
-            .foregroundStyle(AppPalette.text)
+        Text("Personalize your plan")
+            .appTextRole(.body)
+            .foregroundStyle(.secondary)
     }
 
     private var progressCount: some View {
@@ -263,14 +301,7 @@ struct OnboardingSurveyView: View {
     ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppScreenHeader(eyebrow: eyebrow, title: title, subtitle: subtitle) {
-                    Image(systemName: icon)
-                        .appTextRole(.sectionTitle)
-                        .foregroundStyle(AppPalette.brandText)
-                        .frame(width: 52, height: 52)
-                        .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-                        .accessibilityHidden(true)
-                }
+                OnboardingHeadline(eyebrow: eyebrow, title: title, subtitle: subtitle, role: .screenTitle)
 
                 content()
             }
@@ -280,7 +311,7 @@ struct OnboardingSurveyView: View {
         .scrollDismissesKeyboard(.interactively)
         .id(step)
         .transition(.opacity)
-        .animation(AppMotion.visibility, value: step)
+        .animation(reduceMotion ? nil : AppMotion.visibility, value: step)
     }
 
     private var navigationActions: some View {
@@ -307,14 +338,14 @@ struct OnboardingSurveyView: View {
         Button("Back") {
             hideKeyboard()
             guard let index = visibleSteps.firstIndex(of: step), index > 0 else { return }
-            withAnimation(AppMotion.standard) { step = visibleSteps[index - 1] }
+            withAnimation(reduceMotion ? nil : AppMotion.standard) { step = visibleSteps[index - 1] }
         }
-        .buttonStyle(AppActionButtonStyle(.secondary))
+        .buttonStyle(OnboardingTextButtonStyle())
         .accessibilityIdentifier("onboarding_back")
     }
 
     private var nextButton: some View {
-        Button(isLastStep ? "See my plan" : "Next") {
+        Button(isLastStep ? "See my plan" : "Continue") {
             hideKeyboard()
             advance()
         }
@@ -327,14 +358,15 @@ struct OnboardingSurveyView: View {
         guard isCurrentStepValid else { return }
 
         if !isLastStep, let index = visibleSteps.firstIndex(of: step) {
-            withAnimation(AppMotion.standard) { step = visibleSteps[index + 1] }
+            withAnimation(reduceMotion ? nil : AppMotion.standard) { step = visibleSteps[index + 1] }
             return
         }
 
         guard let draft = makeDraft() else {
-            withAnimation(AppMotion.standard) { step = firstIncompleteStep() }
+            withAnimation(reduceMotion ? nil : AppMotion.standard) { step = firstIncompleteStep() }
             return
         }
+        progressStore.clear()
         onDraftReady(draft)
     }
 
@@ -730,7 +762,7 @@ private struct OnboardingChoiceRow: View {
                 if let icon {
                     Image(systemName: icon)
                         .appTextRole(.control)
-                        .foregroundStyle(AppPalette.brandText)
+                        .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
                         .frame(width: 40, height: 40)
                         .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                         .accessibilityHidden(true)
@@ -758,7 +790,7 @@ private struct OnboardingChoiceRow: View {
             }
             .padding(AppSpacing.group)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? AppPalette.brand.opacity(0.08) : .clear)
+            .background(isSelected ? AppPalette.control : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -783,7 +815,7 @@ private struct OnboardingMeasurementField: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
                     TextField("0", text: $text)
-                        .appTextRole(.metric)
+                        .appTextRole(.display)
                         .foregroundStyle(AppPalette.text)
                         .keyboardType(keyboard)
                         .submitLabel(.done)
@@ -792,10 +824,10 @@ private struct OnboardingMeasurementField: View {
 
                     Text(unit)
                         .appTextRole(.control)
-                        .foregroundStyle(AppPalette.brandText)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .appSurface(.emphasized)
+            .appSurface(.quiet)
             .frame(maxWidth: .infinity)
 
             if let hint {
@@ -849,7 +881,7 @@ private struct OnboardingMenuRow: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appTextRole(.control)
-                .foregroundStyle(AppPalette.brandText)
+                .foregroundStyle(.secondary)
                 .frame(width: 40, height: 40)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)

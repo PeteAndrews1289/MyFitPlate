@@ -23,6 +23,12 @@ public struct ImportedWorkoutSummary: Equatable {
     public let sourceBundleID: String
     public let isIndoor: Bool
     public let hasRoute: Bool
+    /// HealthKit's active workout duration, which excludes recorded pauses.
+    /// Nil preserves the start/end fallback for older adapters and imported fixtures.
+    public let durationSeconds: Double?
+    /// Original recorder identity read from our Health workout metadata.
+    public let recordingID: String?
+    public let saveReview: RunSaveReview?
 
     public init(
         uuid: String,
@@ -35,7 +41,10 @@ public struct ImportedWorkoutSummary: Equatable {
         sourceName: String,
         sourceBundleID: String,
         isIndoor: Bool = false,
-        hasRoute: Bool = false
+        hasRoute: Bool = false,
+        durationSeconds: Double? = nil,
+        recordingID: String? = nil,
+        saveReview: RunSaveReview? = nil
     ) {
         self.uuid = uuid
         self.activity = activity
@@ -48,6 +57,9 @@ public struct ImportedWorkoutSummary: Equatable {
         self.sourceBundleID = sourceBundleID
         self.isIndoor = isIndoor
         self.hasRoute = hasRoute
+        self.durationSeconds = durationSeconds
+        self.recordingID = recordingID
+        self.saveReview = saveReview
     }
 }
 
@@ -67,12 +79,16 @@ public enum RunImportRules {
     /// Walks/hikes/rides stay out of run stats (they'd wreck pace PRs) — running only,
     /// indoor treadmill included.
     public static func isImportableRun(_ workout: ImportedWorkoutSummary) -> Bool {
-        guard workout.activity == .running else { return false }
-        guard workout.endDate > workout.startDate else { return false }
-        // A "run" with no distance and under 2 minutes is a false start / watch fumble.
-        let duration = workout.endDate.timeIntervalSince(workout.startDate)
-        if (workout.distanceMeters ?? 0) < 100 && duration < 120 { return false }
-        return true
+        guard workout.activity == .running, workout.startDate.timeIntervalSinceReferenceDate.isFinite,
+              workout.endDate.timeIntervalSinceReferenceDate.isFinite, workout.endDate > workout.startDate else { return false }
+        let elapsed = workout.endDate.timeIntervalSince(workout.startDate)
+        if let active = workout.durationSeconds {
+            guard active.isFinite, active >= RunSaveReviewRules.minimumActiveSeconds, active <= elapsed + 0.001 else { return false }
+        }
+        let active = activeDuration(for: workout), distance = workout.distanceMeters ?? 0
+        guard RunSaveReviewRules.requirement(activeSeconds: active, distanceMeters: distance) != .empty else { return false }
+        if trustedSaveReview(for: workout) != nil { return true }
+        return RunSaveReviewRules.canAutomaticallyImport(activeSeconds: active, distanceMeters: distance)
     }
 
     public static func run(from workout: ImportedWorkoutSummary) -> Run {
@@ -84,12 +100,31 @@ public enum RunImportRules {
             startDate: workout.startDate,
             endDate: workout.endDate,
             distanceMeters: workout.distanceMeters ?? 0,
-            movingSeconds: workout.endDate.timeIntervalSince(workout.startDate),
+            movingSeconds: activeDuration(for: workout),
             activeCalories: workout.activeCalories,
             averageHeartRate: workout.averageHeartRate,
             isIndoor: workout.isIndoor,
-            hasRoute: workout.hasRoute
+            hasRoute: workout.hasRoute,
+            recordingID: isOwnRecording(sourceBundleID: workout.sourceBundleID)
+                ? workout.recordingID.flatMap { $0.isEmpty ? nil : $0 } : nil,
+            saveReview: trustedSaveReview(for: workout)
         )
+    }
+
+    private static func trustedSaveReview(for workout: ImportedWorkoutSummary) -> RunSaveReview? {
+        // Health supplies the source bundle identity; arbitrary foreign metadata and
+        // prefix lookalikes cannot opt out of automatic-import false-start filtering.
+        guard ["MyFitPlate.CalorieBeta", "MyFitPlate.CalorieBeta.watchkitapp"].contains(workout.sourceBundleID),
+              let id = workout.recordingID, !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return workout.saveReview
+    }
+
+    private static func activeDuration(for workout: ImportedWorkoutSummary) -> Double {
+        let elapsed = workout.endDate.timeIntervalSince(workout.startDate)
+        guard elapsed.isFinite, elapsed >= 0 else { return 0 }
+        guard let duration = workout.durationSeconds, duration.isFinite, duration > 0,
+              duration <= elapsed else { return elapsed }
+        return duration
     }
 
     /// Collapses the same physical run recorded by two devices worn at once (Apple Watch
@@ -111,6 +146,9 @@ public enum RunImportRules {
     }
 
     static func isDuplicate(_ a: Run, _ b: Run) -> Bool {
+        if a.id == b.id { return true }
+        if a.source == .recorded, b.source == .recorded,
+           (a.recordingID ?? a.id) == (b.recordingID ?? b.id) { return true }
         let overlapStart = max(a.startDate, b.startDate)
         let overlapEnd = min(a.endDate, b.endDate)
         let overlap = overlapEnd.timeIntervalSince(overlapStart)
@@ -123,7 +161,10 @@ public enum RunImportRules {
         guard shorter > 0, overlap / shorter >= 0.7 else { return false }
 
         let maxDistance = max(a.distanceMeters, b.distanceMeters)
-        guard maxDistance > 0 else { return true }
+        // Zero measured distance supplies no evidence of a shared physical run.
+        // A deliberately saved short run may have a long wall window due to pauses.
+        // Exact recording/Health identities above still reconcile their copies.
+        guard maxDistance > 0 else { return false }
         return abs(a.distanceMeters - b.distanceMeters) / maxDistance <= 0.15
     }
 

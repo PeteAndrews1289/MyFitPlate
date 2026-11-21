@@ -5,10 +5,21 @@ struct AIMenuSelectionView: View {
     @Binding var estimatedItems: [FoodItem]?
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedItemIDs: Set<String> = []
+    @StateObject private var review: MealReviewSaveSession
+    @State private var confirmingDiscard = false
+
+    init(estimatedItems: Binding<[FoodItem]?>, date: Date = Date(), mealName: String = "Dinner", trainingFuelTarget: TrainingFuelTarget? = nil) {
+        _estimatedItems = estimatedItems
+        _review = StateObject(wrappedValue: MealReviewSaveSession(
+            items: estimatedItems.wrappedValue ?? [], userID: DIContainer.shared.authService.currentUserID,
+            date: date, mealName: mealName, source: "ai_menu", selectsAllItems: false, confirmingSourceType: .aiMenu, trainingFuelTarget: trainingFuelTarget
+        ))
+    }
+
+    private var selectedItemIDs: Set<String> { review.selectedItemIDs }
 
     private var items: [FoodItem] {
-        estimatedItems ?? []
+        review.items
     }
 
     private var selectedItems: [FoodItem] {
@@ -25,21 +36,27 @@ struct AIMenuSelectionView: View {
 
     var body: some View {
         AppEditorScaffold(
-            title: "Review Menu Items",
+            title: "Review menu",
             subtitle: "Choose only what you ate. Restaurant portions and preparation can change every estimate.",
             dismiss: close
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
+                if let target = review.checkpoint.trainingFuelTarget {
+                    TrainingFuelTargetContextView(target: target, onDismiss: review.isLocked ? nil : { _ = review.removeFuelContext() })
+                }
+
+                Text("\(review.mealName) · \(review.date.formatted(date: .abbreviated, time: .omitted))")
+                    .appTextRole(.secondary).accessibilityIdentifier("ai_review_destination")
+                if review.restoredReview { Text("Restored your unfinished review.").foregroundStyle(.secondary) }
+                if review.isSubmitted { Text("Your selection is kept for a safe retry.").foregroundStyle(.secondary) }
                 AIEstimateReviewBanner(
                     title: "Menu estimate",
                     message: "Names and nutrition were inferred from the menu. Review servings before these values enter your totals."
                 )
 
-                selectionSummary
-
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
                     AppSectionHeader(
-                        title: "What You Ate",
+                        title: "What you ate",
                         subtitle: "\(items.count) estimated \(items.count == 1 ? "item" : "items") available"
                     )
 
@@ -74,53 +91,51 @@ struct AIMenuSelectionView: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
         } actions: {
+            selectionSummary
+            if let message = review.errorMessage {
+                Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ai_menu_save_error")
+            }
             Button {
                 logSelectedItems()
             } label: {
                 Label(
-                    selectedItemIDs.isEmpty
-                        ? "Select Items to Log"
+                    review.isSaving ? "Saving…" : review.isSubmitted ? "Retry saving" : selectedItemIDs.isEmpty
+                        ? "Select items to log"
                         : "Log \(selectedItemIDs.count) \(selectedItemIDs.count == 1 ? "Item" : "Items")",
                     systemImage: "plus"
                 )
             }
             .buttonStyle(AppActionButtonStyle(.primary))
-            .disabled(selectedItemIDs.isEmpty)
+            .disabled(selectedItemIDs.isEmpty || review.isSaving)
             .accessibilityIdentifier("ai_menu_log_selected")
         }
+        .interactiveDismissDisabled(review.isSaving)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if !review.isSubmitted {
+                    Button("Discard", role: .destructive) { confirmingDiscard = true }.disabled(review.isSaving)
+                }
+            }
+        }
+        .confirmationDialog("Discard this menu review?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+            Button("Discard review", role: .destructive) { if review.discard() { close() } }
+        } message: { Text("These foods have not been logged.") }
         .tint(AppPalette.brand)
         .accessibilityIdentifier("ai_menu_review")
     }
 
     private var selectionSummary: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(
-                title: selectedItemIDs.isEmpty ? "Nothing Selected Yet" : "Current Selection",
-                subtitle: selectedItemIDs.isEmpty
-                    ? "Tap each item you actually ate."
-                    : "Estimated total before any serving corrections."
-            )
-
-            AppMetricStrip(items: [
-                AppMetricItem(
-                    label: "Items",
-                    value: selectedItemIDs.count.formatted(),
-                    accent: AppPalette.brand
-                ),
-                AppMetricItem(
-                    label: "Calories",
-                    value: "\(selectedCalories.formatted()) cal",
-                    accent: AppPalette.energy
-                ),
-                AppMetricItem(
-                    label: "Protein",
-                    value: "\(selectedProtein.formatted()) g",
-                    accent: AppPalette.protein
-                )
-            ])
-        }
-        .appSurface(selectedItemIDs.isEmpty ? .quiet : .interpreted)
-        .animation(AppMotion.visibility, value: selectedItemIDs)
+        HStack(alignment: .firstTextBaseline) {
+            Text(selectedItemIDs.isEmpty ? "Choose what you ate" : "\(selectedItemIDs.count) selected")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+            Spacer(minLength: AppSpacing.compact)
+            if !selectedItemIDs.isEmpty {
+                Text("\(selectedCalories.formatted()) cal · \(selectedProtein.formatted()) g protein")
+                    .appTextRole(.secondary).monospacedDigit()
+            }
+        }.animation(AppMotion.visibility, value: selectedItemIDs)
     }
 
     private func menuItemButton(_ item: FoodItem) -> some View {
@@ -168,6 +183,7 @@ struct AIMenuSelectionView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(review.isLocked)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(item.name)
         .accessibilityValue(
@@ -177,37 +193,18 @@ struct AIMenuSelectionView: View {
     }
 
     private func toggleSelection(for item: FoodItem) {
-        HapticsService.shared.playSelection()
-        if selectedItemIDs.contains(item.id) {
-            selectedItemIDs.remove(item.id)
-        } else {
-            selectedItemIDs.insert(item.id)
-        }
+        if review.toggleSelection(id: item.id) { HapticsService.shared.playSelection() }
     }
 
     private func close() {
+        guard !review.isSaving else { return }
         estimatedItems = nil
         dismiss()
     }
 
     private func logSelectedItems() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
-
-        let confirmedItems = selectedItems.map { item in
-            item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? .aiMenu)
+        review.save(using: dailyLogService) { accepted in
+            if accepted { HapticsService.shared.playSuccess(); close() }
         }
-        guard !confirmedItems.isEmpty else { return }
-
-        dailyLogService.addMealToLog(
-            for: userID,
-            date: dailyLogService.activelyViewedDate,
-            mealName: "AI Menu Log",
-            foodItems: confirmedItems,
-            source: "ai_menu"
-        )
-
-        HapticsService.shared.playSuccess()
-        estimatedItems = nil
-        dismiss()
     }
 }

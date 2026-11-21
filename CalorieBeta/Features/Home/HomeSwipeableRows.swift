@@ -9,7 +9,7 @@ struct SwipeableExerciseRowView: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            if isSwiped {
+            if isSwiped && exercise.source != "HealthKit" {
                 HStack {
                     Spacer()
                     Button {
@@ -81,9 +81,11 @@ struct SwipeableExerciseRowView: View {
                     withAnimation(.easeInOut) { offset = 0; isSwiped = false }
                 }
             }
-            .gesture(
-                DragGesture()
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
                     .onChanged { value in
+                        guard exercise.source != "HealthKit" else { return }
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
                         if value.translation.width < 0 {
                             offset = max(value.translation.width, -70)
                         } else if isSwiped && value.translation.width > 0 {
@@ -91,6 +93,8 @@ struct SwipeableExerciseRowView: View {
                         }
                     }
                     .onEnded { value in
+                        guard exercise.source != "HealthKit" else { return }
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
                         withAnimation(.easeInOut) {
                             if value.translation.width < -50 {
                                 offset = -70
@@ -102,6 +106,13 @@ struct SwipeableExerciseRowView: View {
                         }
                     }
             )
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("diary_activity_\(exercise.id)")
+            .accessibilityAction { onTap(exercise) }
+            .accessibilityHint(exercise.source == "HealthKit"
+                ? "Edit the MyFitPlate copy. Delete the original workout in Apple Health to remove this import."
+                : "View or edit this activity")
         }
         .padding(.bottom, 2)
     }
@@ -122,6 +133,7 @@ struct SwipeableFoodItemView: View {
     let onDelete: (String) -> Void
     let onLogUpdated: () -> Void
     let date: Date
+    var onMove: ((String) -> Void)?
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
     @State private var showDetailView = false
@@ -152,62 +164,57 @@ struct SwipeableFoodItemView: View {
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
 
-            HStack(spacing: 12) {
-                Image(systemName: "fork.knife")
-                    .appFont(size: 15, weight: .semibold)
-                    .foregroundStyle(AppPalette.brandText)
-                    .frame(width: 38, height: 38)
-                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-                    .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                HStack(alignment: .top, spacing: AppSpacing.row) {
+                    Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name))
+                        .font(.system(size: 26))
+                        .frame(width: 40, height: 40)
+                        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                        .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(initialFoodItem.name)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .appFont(size: 16, weight: .semibold)
-                        .foregroundColor(.textPrimary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(initialFoodItem.name)
+                            .appTextRole(.body)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(AppPalette.text)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if dynamicTypeSize.isAccessibilitySize {
-                        // At accessibility sizes the calories move under the name, so the name
-                        // gets the row's full width instead of a narrow, clipped column.
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(Int(initialFoodItem.calories.rounded())) cal")
-                                .appFont(size: 16, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                            macroSummaryText
-                                .lineLimit(2)
+                        if !initialFoodItem.servingSize.isEmpty {
+                            Text(initialFoodItem.servingSize)
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
-
-                            FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
                         }
-                    } else {
-                        HStack(spacing: 6) {
-                            macroSummaryText
-
-                            FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                        if dynamicTypeSize.isAccessibilitySize {
+                            foodCalories
                         }
-                        .lineLimit(1)
                     }
-                }
-                .layoutPriority(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer()
-
-                if !dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(Int(initialFoodItem.calories.rounded()))")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                        Text("cal")
-                            .appFont(size: 11)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        foodCalories
+                            .fixedSize()
                     }
                 }
 
-                Image(systemName: "chevron.right")
-                    .appFont(size: 11, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                // Nutrition has the row's full width, so long food names and the adjacent
+                // food-options control cannot squeeze the macros or evidence into ellipses.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppSpacing.compact) {
+                        macroSummaryText.fixedSize()
+                        Spacer(minLength: 0)
+                        FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                            .fixedSize()
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        macroSummaryText
+                            .fixedSize(horizontal: false, vertical: true)
+                        FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             .padding(.vertical, 10)
             .contentShape(Rectangle())
@@ -222,9 +229,10 @@ struct SwipeableFoodItemView: View {
                     }
                 }
             }
-            .gesture(
-                DragGesture()
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
                     .onChanged { value in
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
                         if value.translation.width < 0 {
                             offset = max(value.translation.width, -70)
                         } else if isSwiped && value.translation.width > 0 {
@@ -232,6 +240,7 @@ struct SwipeableFoodItemView: View {
                         }
                     }
                     .onEnded { value in
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
                         withAnimation(.easeInOut) {
                             if value.translation.width < -50 {
                                 offset = -70
@@ -243,6 +252,22 @@ struct SwipeableFoodItemView: View {
                         }
                     }
             )
+            .contextMenu {
+                Button("Edit serving", systemImage: "pencil") { showDetailView = true }
+                if let onMove {
+                    Menu("Move to meal", systemImage: "arrow.right") {
+                        ForEach(["Breakfast", "Lunch", "Dinner", "Snacks"], id: \.self) { meal in
+                            Button(meal) { onMove(meal) }
+                        }
+                    }
+                }
+                Button("Delete food", systemImage: "trash", role: .destructive) { onDelete(initialFoodItem.id) }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { showDetailView = true }
+            .accessibilityAction(named: "Delete food") { onDelete(initialFoodItem.id) }
+            .accessibilityIdentifier("diary_food_\(initialFoodItem.id)")
         }
         .navigationDestination(isPresented: $showDetailView) {
             FoodDetailView(
@@ -256,13 +281,22 @@ struct SwipeableFoodItemView: View {
         .padding(.bottom, 1)
     }
 
+    private var foodCalories: some View {
+        Text("\(Int(initialFoodItem.calories.rounded()).formatted()) cal")
+            .appTextRole(.body)
+            .fontWeight(.semibold)
+            .foregroundStyle(AppPalette.text)
+            .monospacedDigit()
+    }
+
     private var macroSummary: String {
-        "P \(Int(initialFoodItem.protein.rounded()))g • C \(Int(initialFoodItem.carbs.rounded()))g • F \(Int(initialFoodItem.fats.rounded()))g"
+        "P \(Int(initialFoodItem.protein.rounded()).formatted()) g · C \(Int(initialFoodItem.carbs.rounded()).formatted()) g · F \(Int(initialFoodItem.fats.rounded()).formatted()) g"
     }
 
     private var macroSummaryText: some View {
         Text(macroSummary)
-            .appFont(size: 12)
-            .foregroundColor(Color(UIColor.secondaryLabel))
+            .appTextRole(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("\(Int(initialFoodItem.protein.rounded()).formatted()) grams protein, \(Int(initialFoodItem.carbs.rounded()).formatted()) grams carbohydrates, \(Int(initialFoodItem.fats.rounded()).formatted()) grams fat")
     }
 }

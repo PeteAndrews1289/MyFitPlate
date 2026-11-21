@@ -23,6 +23,8 @@ struct OnboardingFlowView: View {
     @State private var draft: OnboardingProfileDraft?
     @State private var quizStartStep: OnboardingSurveyView.Step
     @State private var didLogStart = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var accountSetup = AccountSetupCoordinator.shared
 
     private enum Stage {
         case quiz
@@ -64,11 +66,13 @@ struct OnboardingFlowView: View {
                         ToolbarItem(placement: .cancellationAction) {
                             Button(leadingAction.title, action: leadingAction.perform)
                                 .accessibilityIdentifier(leadingAction.identifier)
+                                .disabled(accountSetup.isAuthenticationInFlight)
                         }
                     }
                 }
                 .toolbar(leadingAction.map { _ in Visibility.visible } ?? .hidden, for: .navigationBar)
         }
+        .interactiveDismissDisabled(accountSetup.isAuthenticationInFlight)
         .onAppear(perform: logStartIfNeeded)
     }
 
@@ -82,7 +86,7 @@ struct OnboardingFlowView: View {
                     ProductAnalytics.Event.onboardingPlanRevealed.rawValue,
                     parameters: nil
                 )
-                withAnimation(AppMotion.standard) { stage = .reveal }
+                withAnimation(reduceMotion ? nil : AppMotion.standard) { stage = .reveal }
             }
         case .reveal:
             if let draft {
@@ -105,8 +109,11 @@ struct OnboardingFlowView: View {
         case (.quiz, .beforeAccount):
             guard let onClose else { return nil }
             return ("Close", "onboarding_close", onClose)
+        case (.reveal, .beforeAccount):
+            guard let onClose else { return nil }
+            return ("Close", "onboarding_close", onClose)
         case (.account, _):
-            return ("Back", "create_account_back", { withAnimation(AppMotion.standard) { stage = .reveal } })
+            return ("Back", "create_account_back", { withAnimation(reduceMotion ? nil : AppMotion.standard) { stage = .reveal } })
         default:
             return nil
         }
@@ -117,7 +124,7 @@ struct OnboardingFlowView: View {
         case .beforeAccount:
             // Keep the answers on the device so a relaunch can resume from the plan.
             AccountSetupCoordinator.shared.store.saveDraft(draft)
-            withAnimation(AppMotion.standard) { stage = .account }
+            withAnimation(reduceMotion ? nil : AppMotion.standard) { stage = .account }
         case .signedIn:
             onAcceptPlan?(draft)
         }
@@ -125,7 +132,7 @@ struct OnboardingFlowView: View {
 
     private func editAnswers() {
         quizStartStep = .goal
-        withAnimation(AppMotion.standard) { stage = .quiz }
+        withAnimation(reduceMotion ? nil : AppMotion.standard) { stage = .quiz }
     }
 
     private func logStartIfNeeded() {

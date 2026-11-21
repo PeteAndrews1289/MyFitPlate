@@ -13,7 +13,7 @@ public struct MicronutrientGoals: Equatable {
     public let water: Double
 }
 
-public struct MacroGoals: Equatable {
+public struct MacroGoals: Codable, Equatable {
     public let protein: Double
     public let carbs: Double
     public let fats: Double

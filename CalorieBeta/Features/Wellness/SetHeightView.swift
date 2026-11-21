@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 private enum HeightField: Hashable {
     case centimeters
@@ -14,26 +15,31 @@ struct SetHeightView: View {
     @Binding var feetInput: String
     @Binding var inchesInput: String
     @State private var cmInput: String = ""
+    @State private var baseline: GoalEditorDraft?
+    @State private var capturedUserID: String?
+    @State private var isSaving = false
+    @State private var errorMessage: String?
     @FocusState private var focusedField: HeightField?
-    var onSave: () -> Void
+    var onAccepted: () -> Void
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    AppScreenHeader(
-                        eyebrow: "Personal Details",
-                        title: "Height",
-                        subtitle: "Height helps calculate energy needs and keeps body metrics consistent."
-                    )
+                    Text("Used to estimate energy needs and body metrics.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
 
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
                         AppSectionHeader(
-                            title: "Current Height",
+                            title: "Your height",
                             subtitle: useMetric ? "Enter centimeters." : "Enter feet and inches."
                         )
 
-                        heightFields
+                        heightFields.disabled(isSaving)
+                        if let errorMessage {
+                            Text(errorMessage).foregroundStyle(AppPalette.critical)
+                                .accessibilityIdentifier("settings_height_error")
+                        }
                     }
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
@@ -46,6 +52,7 @@ struct SetHeightView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
                 }
 
                 ToolbarItemGroup(placement: .keyboard) {
@@ -54,9 +61,9 @@ struct SetHeightView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button("Save Height", action: save)
+                Button(isSaving ? "Saving…" : "Save height", action: save)
                     .buttonStyle(AppActionButtonStyle(.primary))
-                    .disabled(!hasValidHeight)
+                    .disabled(!hasValidHeight || isSaving)
                     .padding(.horizontal, AppSpacing.screenHorizontal)
                     .padding(.top, AppSpacing.row)
                     .padding(.bottom, AppSpacing.compact)
@@ -69,14 +76,18 @@ struct SetHeightView: View {
                     .accessibilityIdentifier("settings_height_save")
             }
             .onAppear {
+                guard baseline == nil else { return }
+                baseline = goalSettings.makeGoalEditorDraft()
+                capturedUserID = DIContainer.shared.authService.currentUserID
                 if useMetric {
-                    cmInput = String(Int(goalSettings.height.rounded()))
+                    cmInput = String(goalSettings.height)
                 }
             }
         }
         .tint(AppPalette.brand)
         .background(AppPalette.canvas.ignoresSafeArea())
         .accessibilityIdentifier("settings_height_screen")
+        .interactiveDismissDisabled(isSaving)
     }
 
     @ViewBuilder
@@ -130,12 +141,26 @@ struct SetHeightView: View {
 
     private func save() {
         focusedField = nil
-        if useMetric, let centimeters = Double(cmInput) {
-            let totalInches = Int((centimeters / BodyUnits.cmPerInch).rounded())
-            feetInput = String(totalInches / 12)
-            inchesInput = String(totalInches % 12)
+        guard hasValidHeight, !isSaving, let baseline, let capturedUserID else { return }
+        let centimeters: Double
+        if useMetric, let value = Double(cmInput) {
+            centimeters = value
+        } else if let feet = Double(feetInput), let inches = Double(inchesInput) {
+            centimeters = (feet * 12 + inches) * BodyUnits.cmPerInch
+        } else { return }
+        var proposal = baseline
+        proposal.height = centimeters
+        isSaving = true; errorMessage = nil
+        Task { @MainActor in
+            do {
+                try await goalSettings.saveGoalEditorDraft(proposal, baseline: baseline, userID: capturedUserID)
+                isSaving = false
+                onAccepted()
+            } catch {
+                isSaving = false
+                errorMessage = error.localizedDescription
+            }
         }
-        onSave()
     }
 }
 

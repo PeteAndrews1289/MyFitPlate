@@ -52,7 +52,7 @@ public struct MealScore {
         self.goalSodium = goalSodium
     }
 
-    public static let noScore = MealScore(grade: "N/A", summary: "Log a full day of meals to get your score.", color: .gray, calorieScore: 0, macroScore: 0, qualityScore: 0, overallScore: 0, personalizedAISummary: "No data available.", improvementTips: [], actualCalories: 0, goalCalories: 2000, actualProtein: 0, goalProtein: 150, actualCarbs: 0, goalCarbs: 250, actualFats: 0, goalFats: 70, actualFiber: 0, goalFiber: 25, actualSaturatedFat: 0, goalSaturatedFat: 20, actualSodium: 0, goalSodium: 2300)
+    public static let noScore = MealScore(grade: "N/A", summary: "Mark the food day as fully logged in your diary to get your score.", color: .gray, calorieScore: 0, macroScore: 0, qualityScore: 0, overallScore: 0, personalizedAISummary: "No data available.", improvementTips: [], actualCalories: 0, goalCalories: 2000, actualProtein: 0, goalProtein: 150, actualCarbs: 0, goalCarbs: 250, actualFats: 0, goalFats: 70, actualFiber: 0, goalFiber: 25, actualSaturatedFat: 0, goalSaturatedFat: 20, actualSodium: 0, goalSodium: 2300)
 }
 
 public struct ImprovementTip: Identifiable {
@@ -153,8 +153,11 @@ public struct EnhancedSleepReport: Identifiable {
     public let sleepConsistencyScore: Int
     public let sleepConsistencyMessage: String
     public let dailySleepData: [DailySleepStageData]
+    public let nightEvidence: [SleepNightEvidence]
+    public let requestedDayCount: Int?
+    public let evidenceNotice: String?
     
-    public init(dateRange: String, averageSleepScore: Int, averageTimeInBed: TimeInterval, averageTimeAsleep: TimeInterval, averageTimeInCore: TimeInterval, averageTimeInDeep: TimeInterval, averageTimeInREM: TimeInterval, averageTimeAwake: TimeInterval, sleepConsistencyScore: Int, sleepConsistencyMessage: String, dailySleepData: [DailySleepStageData]) {
+    public init(dateRange: String, averageSleepScore: Int, averageTimeInBed: TimeInterval, averageTimeAsleep: TimeInterval, averageTimeInCore: TimeInterval, averageTimeInDeep: TimeInterval, averageTimeInREM: TimeInterval, averageTimeAwake: TimeInterval, sleepConsistencyScore: Int, sleepConsistencyMessage: String, dailySleepData: [DailySleepStageData], nightEvidence: [SleepNightEvidence] = [], requestedDayCount: Int? = nil, evidenceNotice: String? = nil) {
         self.dateRange = dateRange
         self.averageSleepScore = averageSleepScore
         self.averageTimeInBed = averageTimeInBed
@@ -166,6 +169,7 @@ public struct EnhancedSleepReport: Identifiable {
         self.sleepConsistencyScore = sleepConsistencyScore
         self.sleepConsistencyMessage = sleepConsistencyMessage
         self.dailySleepData = dailySleepData
+        self.nightEvidence = nightEvidence; self.requestedDayCount = requestedDayCount; self.evidenceNotice = evidenceNotice
     }
 
     public struct DailySleepStageData: Identifiable {

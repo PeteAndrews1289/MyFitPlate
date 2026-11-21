@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import MyFitPlateCore
 
 struct FoodTrustResolution: Equatable, Identifiable {
     let id = UUID()
@@ -17,8 +18,15 @@ struct FoodDetailView: View {
     var date: Date
     var source: String
     var targetMealName: String?
+    var isPresentedModally: Bool
     var onLogUpdated: () -> Void
+    private let onFoodAccepted: ((FoodDetailSaveCheckpoint, UUID?) -> Void)?
+    private let onExpandNutrition: (() -> Void)?
     var onUpdate: ((FoodItem) -> Void)?
+    var onUpdateAccepted: ((FoodItem) -> Bool)?
+    private let reviewActionTitle: String?
+    private let reviewNavigationTitle: String?
+    @StateObject private var saveSession: FoodDetailSaveSession
 
     @Environment(\.dismiss) var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -31,6 +39,10 @@ struct FoodDetailView: View {
     @State private var availableServings: [ServingSizeOption] = []
     @State private var selectedServingID: UUID?
     @State private var quantity: String = "1"
+    @State private var portionBasis: Double
+    @State private var displayMassUnit: String?
+    @State private var massText = ""
+    @State private var showNutritionDetails = false
     @State private var isLoadingDetails: Bool = false
     @State private var errorLoading: String?
 
@@ -40,11 +52,13 @@ struct FoodDetailView: View {
     @State private var isSavedAsCustom: Bool = false
     @State private var hasSavedBarcodeCorrection: Bool = false
     @State private var customFoodForAction: FoodItem?
+    @State private var pendingCustomFoodID = UUID().uuidString
 
     @State private var showingImagePicker = false
     @StateObject private var presentationState: FoodDetailPresentationState
     @State private var showingTrustReceipt = false
     @State private var showingNutrientProfile = false
+    @State private var recipeVariation: FoodItem?
     @State private var correctionEditorDidSubmit = false
     @State private var correctionCalibrationContext: FoodTrustCalibrationContext?
     @State private var persistedTrustItem: FoodItem?
@@ -55,46 +69,75 @@ struct FoodDetailView: View {
     @State private var isProcessingLabel = false
     @State private var labelAnalysisID: UUID?
     @State private var labelScanFailed = false
+    @State private var linkedInventory: InventoryIntakeLink?
 
     // MARK: - Robust Initializer
     // Updated to use new model fields if available, ensuring stability.
     init(
-        initialFoodItem: FoodItem,
+        initialFoodItem inputFoodItem: FoodItem,
         dailyLog: Binding<DailyLog?>,
         date: Date = Date(),
         source: String = "log",
         targetMealName: String? = nil,
+        isPresentedModally: Bool = false,
         presentationState: FoodDetailPresentationState = FoodDetailPresentationState(),
         onLogUpdated: @escaping () -> Void,
-        onUpdate: ((FoodItem) -> Void)? = nil
+        onUpdate: ((FoodItem) -> Void)? = nil,
+        onUpdateAccepted: ((FoodItem) -> Bool)? = nil,
+        reviewActionTitle: String? = nil,
+        reviewNavigationTitle: String? = nil,
+        dayContext: DiaryDayContext? = nil,
+        trainingFuelTarget: TrainingFuelTarget? = nil,
+        onFoodAccepted: ((FoodDetailSaveCheckpoint, UUID?) -> Void)? = nil,
+        onExpandNutrition: (() -> Void)? = nil
     ) {
+        let userID = DIContainer.shared.authService.currentUserID
+        let sourceLog = dailyLog.wrappedValue.flatMap { log in
+            let matchesEntry = source.starts(with: "log_") && log.meals.flatMap(\.foodItems).contains { $0.id == inputFoodItem.id }
+            let calendar = dayContext?.calendar ?? Calendar.current
+            let matchesDay = log.id != nil && log.id == dayContext?.dayKey
+                || log.date == date || calendar.isDate(log.date, inSameDayAs: date)
+            return matchesEntry || matchesDay ? log : nil
+        }
+        let capturedDay = userID.flatMap { owner in
+            if let dayContext, !dayContext.isOwned(by: owner) { return dayContext }
+            if let sourceLog, let key = sourceLog.id {
+                return DiaryDayContext(userID: owner, date: sourceLog.date, timeZone: dayContext?.timeZone ?? .current, dayKey: key)
+            }
+            return dayContext ?? DiaryDayContext(userID: owner, date: Calendar.current.startOfDay(for: date))
+        }
+        let session = FoodDetailSaveSession(food: inputFoodItem, userID: userID,
+            date: date, mealName: targetMealName ?? DailyLogRules.determineMealType(), source: source,
+            isEditing: source.starts(with: "log_"), restoresExisting: onUpdate == nil && onUpdateAccepted == nil,
+            dayContext: capturedDay, trainingFuelTarget: trainingFuelTarget)
+        _saveSession = StateObject(wrappedValue: session)
+        let initialFoodItem = session.restoredReview ? session.checkpoint.food : inputFoodItem
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
-        self.date = date
+        self.date = session.checkpoint.date
         self.source = source
-        self.targetMealName = targetMealName
+        self.targetMealName = targetMealName ?? session.checkpoint.mealName
+        self.isPresentedModally = isPresentedModally
         self._presentationState = StateObject(wrappedValue: presentationState)
+        self.onExpandNutrition = onExpandNutrition
+        self.onFoodAccepted = onFoodAccepted
         self.onLogUpdated = onLogUpdated
         self.onUpdate = onUpdate
+        self.onUpdateAccepted = onUpdateAccepted
+        self.reviewActionTitle = reviewActionTitle
+        self.reviewNavigationTitle = reviewNavigationTitle
         
         let isEditingLoggedItem = source.starts(with: "log_")
         self._isLoggedItem = State(initialValue: isEditingLoggedItem)
         self._foodName = State(initialValue: initialFoodItem.name)
+        self._pendingCustomFoodID = State(initialValue: MyFoodsLibraryRules.savedCopyID(for: initialFoodItem))
 
-        // 1. IMPROVEMENT: Check for explicit quantity first.
-        // This prevents errors if string formatting changes in the future.
-        if let explicitQty = initialFoodItem.quantityValue {
-            self._quantity = State(initialValue: String(format: "%g", explicitQty))
-        } else {
-            // Fallback for older data or items without explicit quantity
-            if isEditingLoggedItem || source == "image_result_edit" {
-                let parsed = parseQuantityFromServing(initialFoodItem.servingSize)
-                let qty = parsed.qty > 0 ? parsed.qty : 1.0
-                self._quantity = State(initialValue: String(format: "%g", qty))
-            } else {
-                self._quantity = State(initialValue: "1")
-            }
-        }
+        let previousAmount = isEditingLoggedItem || source == "image_result_edit"
+            ? ServingNutritionCalculator.parseQuantity(from: initialFoodItem.servingSize).quantity : 1
+        let amount = initialFoodItem.quantityValue ?? previousAmount
+        let openingAmount = amount.isFinite && amount > 0 ? amount : 1
+        _quantity = State(initialValue: Self.amountText(openingAmount))
+        _portionBasis = State(initialValue: openingAmount)
     }
 
     // Helper to parse old string format (Backward Compatibility)
@@ -106,6 +149,15 @@ struct FoodDetailView: View {
     private var selectedServingOption: ServingSizeOption? {
         guard let selectedID = selectedServingID else { return nil }
         return availableServings.first { $0.id == selectedID }
+    }
+
+    private func destinationDateText(style: DateFormatter.Style) -> String {
+        let formatter = DateFormatter()
+        let context = saveSession.checkpoint.dayContext
+        formatter.calendar = context?.calendar ?? Calendar(identifier: .gregorian)
+        formatter.timeZone = context?.timeZone ?? .current
+        formatter.dateStyle = style
+        return formatter.string(from: context?.displayDate ?? saveSession.checkpoint.date)
     }
 
     private var isShowingDetailsLoading: Bool {
@@ -318,7 +370,7 @@ struct FoodDetailView: View {
 
     var body: some View {
         ZStack {
-            detailContent
+            presentedDetailContent
                 .opacity(presentationState.correctionDraft == nil ? 1 : 0)
                 .allowsHitTesting(presentationState.correctionDraft == nil)
                 .accessibilityHidden(presentationState.correctionDraft != nil)
@@ -330,104 +382,124 @@ struct FoodDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private var presentedDetailContent: some View {
+        if isPresentedModally {
+            // Keep the review and correction editor in separate navigation containers.
+            NavigationStack { detailContent }
+        } else {
+            detailContent
+        }
+    }
+
+    private var boundedNutrition: AnyView { AnyView(detailedNutrition) }
+
+    private var nutritionDisclosure: AnyView {
+        AnyView(
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                Button {
+                    showNutritionDetails.toggle()
+                    if showNutritionDetails { onExpandNutrition?() }
+                } label: {
+                    HStack(spacing: AppSpacing.row) {
+                        Label("Nutrition and sources", systemImage: "list.bullet").appTextRole(.control)
+                        Spacer()
+                        Image(systemName: showNutritionDetails ? "chevron.up" : "chevron.down").appTextRole(.caption)
+                    }
+                    .frame(minHeight: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(showNutritionDetails ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("food_detail_more")
+                if showNutritionDetails {
+                    if !trustEvaluation.requiresCorrection { trustSummary }
+                    FoodDetailMacroGrid(calories: adjustedNutrients.calories, protein: adjustedNutrients.protein,
+                                        carbs: adjustedNutrients.carbs, fats: adjustedNutrients.fats)
+                    boundedNutrition
+                }
+            }
+        )
+    }
+
+    private var portionNotices: AnyView {
+        AnyView(Group {
+            if let linkedInventory { linkedStockReview(linkedInventory) }
+
+            let consistencyStatus = adjustedConsistencyStatus
+            if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
+                NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
+            }
+
+            if trustEvaluation.requiresCorrection {
+                trustSummary
+            }
+
+            if shouldShowBarcodeCorrectionCard, trustEvaluation.action == nil {
+                FoodDetailBarcodeMemoryAction(
+                    rememberAction: {
+                        logCorrectionAction("remember")
+                        saveAsCustomFood()
+                    }
+                )
+            }
+
+            if isShowingDetailsLoading {
+                FoodDetailLoadingCard()
+            } else {
+                if let error = errorLoading {
+                    FoodDetailNoticeCard(
+                        title: "Serving details could not fully refresh",
+                        message: error
+                    )
+                }
+
+                if labelScanFailed {
+                    LabelScanFailureCard(
+                        retry: { showingImagePicker = true },
+                        continueManually: { labelScanFailed = false }
+                    )
+                }
+            }
+        })
+    }
+
     private var detailContent: some View {
         ZStack {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: AppSpacing.group) {
+                        if let target = saveSession.checkpoint.trainingFuelTarget {
+                            TrainingFuelTargetContextView(target: target, currentCalories: adjustedNutrients.calories,
+                                currentProtein: adjustedNutrients.protein, currentCarbs: adjustedNutrients.carbs,
+                                onDismiss: saveSession.checkpoint.isSubmitted || saveSession.isSaving ? nil : { _ = saveSession.removeFuelContext() })
+                        }
                         FoodDetailHeroCard(
-                            foodName: foodName,
-                            servingDescription: adjustedNutrients.servingDescription
+                            foodName: FoodSearchRanking.productDisplayName(foodName, brandName: initialFoodItem.sourceMetadata?.brandName),
+                            servingDescription: displayedServingDescription
                         )
 
-                        FoodDetailMacroGrid(
-                            calories: adjustedNutrients.calories,
-                            protein: adjustedNutrients.protein,
-                            carbs: adjustedNutrients.carbs,
-                            fats: adjustedNutrients.fats
-                        )
-
-                        let consistencyStatus = adjustedConsistencyStatus
-                        if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
-                            NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
-                        }
-
-                        FoodTrustSummaryCard(
-                            item: persistedTrustItem ?? initialFoodItem,
-                            descriptor: sourceDescriptor,
-                            evaluation: trustEvaluation,
-                            metadata: trustMetadata,
-                            isSavingCorrection: isSavingTrustCorrection,
-                            resolution: trustResolution,
-                            onOpenReceipt: {
-                                logTrustAction("receipt_opened")
-                                showingTrustReceipt = true
-                            },
-                            onAction: trustEvaluation.action.map { _ in
-                                {
-                                    logTrustAction("correction_opened")
-                                    openCorrectionEditor(action: "trust_fix_opened")
-                                }
-                            }
-                        )
-                        .onAppear {
-                            logTrustCardViewedIfNeeded()
-                            logSuspiciousDataIfNeeded()
-                        }
-
-                        if shouldShowBarcodeCorrectionCard, trustEvaluation.action == nil {
-                            FoodDetailBarcodeMemoryAction(
-                                rememberAction: {
-                                    logCorrectionAction("remember")
-                                    saveAsCustomFood()
-                                }
-                            )
-                        }
-
-                        if isShowingDetailsLoading {
-                            FoodDetailLoadingCard()
-                        } else {
-                            if let error = errorLoading {
-                                FoodDetailNoticeCard(
-                                    title: "Serving details could not fully refresh",
-                                    message: error
-                                )
-                            }
-
-                            if labelScanFailed {
-                                LabelScanFailureCard(
-                                    retry: { showingImagePicker = true },
-                                    continueManually: { labelScanFailed = false }
-                                )
-                            }
-                        }
-
-                        servingControlsCard
-
-                        FoodNutrientProfileCard(
-                            nutrients: adjustedNutrients,
-                            onOpenProfile: {
-                                logNutrientProfileAction("profile_opened")
-                                showingNutrientProfile = true
-                            },
-                            onScanLabel: {
-                                logNutrientProfileAction("label_scan_from_summary")
-                                showingImagePicker = true
-                            }
-                        )
-
-                        nutritionDetailsCard
-                        FoodDetailLabelScanCard {
-                            logNutrientProfileAction("label_scan_from_detail")
-                            showingImagePicker = true
-                        }
+                        AnyView(servingControlsCard)
+                        portionNotices
+                        nutritionDisclosure
                     }
-
                     .padding(.horizontal, AppSpacing.screenHorizontal)
                     .padding(.top, AppSpacing.group)
                     .padding(.bottom, AppSpacing.row)
+                    .disabled(saveSession.checkpoint.isSubmitted)
                 }
                 .scrollDismissesKeyboard(.interactively)
+
+                if let message = saveSession.errorMessage {
+                    Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                        .padding(.horizontal, AppSpacing.screenHorizontal)
+                        .accessibilityIdentifier("food_detail_save_error")
+                }
+                if onUpdate == nil && onUpdateAccepted == nil {
+                    Text("\(saveSession.checkpoint.mealName) · \(destinationDateText(style: .medium))")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                        .accessibilityLabel("\(saveSession.checkpoint.mealName), \(destinationDateText(style: .full))")
+                        .accessibilityIdentifier("food_detail_destination")
+                }
 
                 FoodDetailActionBar(
                     title: buttonText(),
@@ -446,18 +518,31 @@ struct FoodDetailView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle(navigationTitleText()).navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+                    .accessibilityIdentifier("food_detail_cancel")
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: toggleSavedState) {
                     Image(systemName: isSavedAsCustom ? "star.fill" : "star")
                         .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brandText)
                 }
+                .accessibilityLabel(isSavedAsCustom ? "Unsave food" : "Save food")
+                .accessibilityIdentifier("food_detail_saved")
             }
         }
         .onTapGesture { hideKeyboard() }
+        .interactiveDismissDisabled(saveSession.isSaving)
         .onAppear {
             setupInitialData()
             checkIfSaved()
+        }
+        .task(id: initialFoodItem.id) {
+            guard isLoggedItem, onUpdate == nil, onUpdateAccepted == nil, let owner = saveSession.userID,
+                  DIContainer.shared.authService.currentUserID == owner else { return }
+            let link = try? await DIContainer.shared.nutritionRepository.fetchInventoryIntakeLink(userID: owner, foodID: initialFoodItem.id)
+            guard !Task.isCancelled, DIContainer.shared.authService.currentUserID == owner else { return }
+            linkedInventory = link
         }
         .imageSourceDialog(isPresented: $showingImagePicker) { image in
                 let requestID = UUID()
@@ -476,6 +561,9 @@ struct FoodDetailView: View {
                         self.labelScanFailed = true
                     }
                 }
+        }
+        .sheet(item: $recipeVariation) { food in
+            RecipeVariationReviewView(food: food)
         }
         .sheet(isPresented: $showingTrustReceipt) {
             trustReceiptSheet
@@ -560,9 +648,73 @@ struct FoodDetailView: View {
         }
     }
 
+    private var trustSummary: some View {
+        FoodTrustSummaryCard(
+            item: persistedTrustItem ?? initialFoodItem,
+            descriptor: sourceDescriptor,
+            evaluation: trustEvaluation,
+            metadata: trustMetadata,
+            isSavingCorrection: isSavingTrustCorrection,
+            resolution: trustResolution,
+            onOpenReceipt: {
+                logTrustAction("receipt_opened")
+                showingTrustReceipt = true
+            },
+            onAction: trustEvaluation.action.map { _ in
+                {
+                    logTrustAction("correction_opened")
+                    openCorrectionEditor(action: "trust_fix_opened")
+                }
+            }
+        )
+        .onAppear {
+            logTrustCardViewedIfNeeded()
+            logSuspiciousDataIfNeeded()
+        }
+    }
+
+    @ViewBuilder private var detailedNutrition: some View {
+        FoodNutrientProfileCard(
+            nutrients: adjustedNutrients,
+            onOpenProfile: {
+                logNutrientProfileAction("profile_opened")
+                showingNutrientProfile = true
+            },
+            onScanLabel: {
+                logNutrientProfileAction("label_scan_from_summary")
+                showingImagePicker = true
+            }
+        )
+
+        if initialFoodItem.recipePortionSnapshot?.adjustedIngredientFoods?.isEmpty == false {
+            Button {
+                guard saveSession.userID != nil, saveSession.userID == DIContainer.shared.authService.currentUserID else { return }
+                recipeVariation = initialFoodItem
+            } label: {
+                Label("Save adjusted recipe as a variation", systemImage: "doc.badge.plus")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(AppActionButtonStyle(.secondary))
+            .accessibilityIdentifier("recipe_save_logged_variation")
+        }
+
+        nutritionDetailsCard
+        FoodDetailLabelScanCard {
+            logNutrientProfileAction("label_scan_from_detail")
+            showingImagePicker = true
+        }
+    }
+
     @ViewBuilder private var servingControlsCard: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: "Serving")
+            HStack(alignment: .firstTextBaseline) {
+                Text("Your portion").appTextRole(.sectionTitle)
+                    .accessibilityIdentifier("food_detail_serving_controls")
+                Spacer()
+                Text("\(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
+                    .appTextRole(.secondary).monospacedDigit()
+                    .accessibilityIdentifier("food_detail_portion_total")
+            }
 
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
@@ -579,19 +731,81 @@ struct FoodDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            HStack(spacing: AppSpacing.compact) {
+                ForEach([0.5, 1, 2], id: \.self) { factor in
+                    Button {
+                        applyQuantity(portionBasis * factor)
+                    } label: {
+                        Text(factor == 0.5 ? "½×" : factor == 1 ? "1×" : "2×")
+                            .appTextRole(.control).frame(maxWidth: .infinity, minHeight: 44)
+                            .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(selectedServingOption == nil)
+                    .accessibilityLabel("\(factor.formatted()) times starting portion")
+                    .accessibilityIdentifier("food_portion_" + (factor == 0.5 ? "half" : factor == 1 ? "original" : "double"))
+                }
+            }
         }
         .appSurface(.quiet)
-        .accessibilityIdentifier("food_detail_serving_controls")
+    }
+
+    private var displayedServingDescription: String {
+        ServingNutritionCalculator.displayPortion(adjustedNutrients.servingDescription)
+    }
+
+    private var gramsPerSelectedServing: Double? {
+        selectedServingOption.flatMap { ServingNutritionCalculator.measuredGrams(in: $0.description) }
+    }
+
+    private static func amountText(_ amount: Double) -> String {
+        let text = String(amount)
+        return text.hasSuffix(".0") ? String(text.dropLast(2)) : text
+    }
+
+    private func chooseServing(_ option: ServingSizeOption) {
+        displayMassUnit = nil
+        guard option.id != selectedServingID else { return }
+        if let previousGrams = gramsPerSelectedServing,
+           let nextGrams = ServingNutritionCalculator.measuredGrams(in: option.description),
+           let previousAmount = Double(quantity) {
+            let ratio = previousGrams / nextGrams
+            portionBasis *= ratio
+            quantity = Self.amountText(previousAmount * ratio)
+        } else {
+            portionBasis = 1
+            quantity = "1"
+        }
+        selectedServingID = option.id
+    }
+
+    private func applyQuantity(_ amount: Double) {
+        quantity = Self.amountText(amount)
+        if let displayMassUnit, let grams = gramsPerSelectedServing,
+           let mass = InventoryQuantityRules.convert(amount * grams, from: "g", to: displayMassUnit) {
+            massText = mass.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.fractionLength(0...3)))
+        }
+    }
+
+    private var displayedQuantity: Binding<String> {
+        Binding(get: { displayMassUnit == nil ? quantity : massText }, set: { text in
+            let decimal = text.replacingOccurrences(of: ",", with: ".")
+            if let displayMassUnit, let basis = gramsPerSelectedServing {
+                massText = text
+                quantity = Double(decimal).flatMap { InventoryQuantityRules.convert($0, from: displayMassUnit, to: "g") }
+                    .map { String($0 / basis) } ?? ""
+            } else { quantity = decimal }
+        })
     }
 
     private var quantityControl: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(isLoggedItem ? "Logged servings" : "Servings")
+            Text("Amount")
                 .appTextRole(.caption)
                 .foregroundStyle(.secondary)
 
             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-                TextField("Quantity", text: $quantity)
+                TextField("Quantity", text: displayedQuantity)
                     .accessibilityLabel("Quantity")
                     .keyboardType(.decimalPad)
                     .appTextRole(.sectionTitle)
@@ -606,11 +820,17 @@ struct FoodDetailView: View {
     }
 
     @ViewBuilder private var servingSelectionControl: some View {
-        if canChangeServing, !availableServings.isEmpty {
+        if !availableServings.isEmpty, canChangeServing || gramsPerSelectedServing != nil {
             Menu {
                 ForEach(availableServings) { option in
-                    Button(option.description) {
-                        selectedServingID = option.id
+                    Button(option.description) { chooseServing(option) }
+                }
+                if gramsPerSelectedServing != nil {
+                    ForEach(["g", "oz"], id: \.self) { unit in
+                        Button(unit == "g" ? "Grams" : "Ounces") {
+                            displayMassUnit = unit
+                            if let amount = Double(quantity) { applyQuantity(amount) } else { massText = "" }
+                        }
                     }
                 }
             } label: {
@@ -619,7 +839,7 @@ struct FoodDetailView: View {
                         Text("Serving size")
                             .appTextRole(.caption)
                             .foregroundStyle(.secondary)
-                        Text(selectedServingOption?.description ?? "Select")
+                        Text(displayMassUnit ?? selectedServingOption?.description ?? "Select")
                             .appTextRole(.control)
                             .foregroundStyle(AppPalette.text)
                             .fixedSize(horizontal: false, vertical: true)
@@ -631,6 +851,7 @@ struct FoodDetailView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("food_portion_unit")
         } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Base serving")
@@ -726,32 +947,36 @@ struct FoodDetailView: View {
         self.availableServings.insert(scannedServing, at: 0)
         self.selectedServingID = scannedServing.id
         self.quantity = "1"
+        portionBasis = 1
+        displayMassUnit = nil
     }
 
     private func buttonText() -> String {
-        if onUpdate != nil {
-            return "Update item"
+        if saveSession.isSaving { return "Saving…" }
+        if saveSession.checkpoint.isSubmitted { return "Retry food save" }
+        if onUpdate != nil || onUpdateAccepted != nil {
+            return reviewActionTitle ?? "Update item"
         }
         return isLoggedItem ? "Update logged item" : "Add to log"
     }
 
     private func navigationTitleText() -> String {
-        if onUpdate != nil {
-            return "Edit item"
+        if onUpdate != nil || onUpdateAccepted != nil {
+            return reviewNavigationTitle ?? "Edit item"
         }
         return isLoggedItem ? "Edit logged item" : "Log food"
     }
 
     private func handleButtonAction() {
-        if let onUpdate = onUpdate {
-            updateItem(onUpdate: onUpdate)
+        if onUpdate != nil || onUpdateAccepted != nil {
+            updateItem()
         } else {
             logAdjustedFood()
         }
     }
     
     // MARK: - Update Item (Refactored)
-    private func updateItem(onUpdate: (FoodItem) -> Void) {
+    private func updateItem() {
         guard let quantityValue = Double(quantity), quantityValue > 0 else { return }
         
         let finalNutrients = adjustedNutrients
@@ -780,13 +1005,51 @@ struct FoodDetailView: View {
                 sourceType: inferredSourceType(for: source),
                 originalItem: initialFoodItem
             )
-        onUpdate(updatedFoodItem)
-        dismiss()
+            .preservingRecipePortion(from: initialFoodItem, quantity: finalNutrients.quantityValue, unit: finalNutrients.servingUnit)
+        if let onUpdateAccepted {
+            if onUpdateAccepted(updatedFoodItem) { dismiss() } else {
+                bannerService.showBanner(title: "Changes not saved", message: "Your portion is still in this editor. Keep it open and try again.",
+                    iconName: "exclamationmark.triangle.fill", iconColor: AppPalette.caution)
+            }
+        } else {
+            onUpdate?(updatedFoodItem)
+            dismiss()
+        }
+    }
+
+    private var proposedStockScale: Double? {
+        guard let linkedInventory else { return nil }
+        var desired = initialFoodItem
+        desired.servingSize = adjustedNutrients.servingDescription
+        desired.servingWeight = adjustedNutrients.servingWeightGrams
+        desired.quantityValue = nil; desired.servingUnit = nil
+        return try? InventoryIntakeRules.scale(food: desired, link: linkedInventory)
+    }
+    private func linkedStockReview(_ link: InventoryIntakeLink) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("Linked stock", systemImage: "shippingbox").appTextRole(.control)
+            if let source = try? link.source.mutation(), let scale = proposedStockScale {
+                ForEach(source.before) { item in
+                    let consumed = item.quantity - (source.after.first { $0.id == item.id }?.quantity ?? item.quantity)
+                    Text("\(item.name): \((consumed * link.currentScale).formatted()) → \((consumed * scale).formatted()) \(item.unit) used")
+                        .appTextRole(.secondary)
+                }
+            } else {
+                Text("Choose a compatible serving to review its linked stock amount before saving.")
+                    .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+            }
+            Text("Saving adjusts only this intake's original stock use. Later purchases stay intact; cooked ingredients are not deducted again. Delete and diary Undo keep the same link. Review the receipt in Pantry history.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+        }.appSurface(.quiet).accessibilityElement(children: .contain).accessibilityIdentifier("food_linked_stock_review")
     }
 
     private var logButtonEnabled: Bool {
+        guard !saveSession.isSaving, !saveSession.isAccepted else { return false }
+        if saveSession.checkpoint.isSubmitted { return true }
         let quantityValue = Double(quantity) ?? 0
-        return quantityValue > 0 && selectedServingOption != nil
+        return !foodName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && quantityValue.isFinite && quantityValue > 0 && selectedServingOption != nil
+            && (linkedInventory == nil || proposedStockScale != nil)
     }
 
     private func toggleSavedState() {
@@ -811,7 +1074,7 @@ struct FoodDetailView: View {
         calibrationContext: FoodTrustCalibrationContext? = nil,
         completion: ((Bool, FoodItem?) -> Void)? = nil
     ) {
-        guard let userID = DIContainer.shared.authService.currentUserID else {
+        guard let userID = saveSession.userID, DIContainer.shared.authService.currentUserID == userID else {
             if let correctionScope {
                 logCorrectionAction(
                     "correction_save_failed",
@@ -822,17 +1085,18 @@ struct FoodDetailView: View {
             completion?(false, nil)
             return
         }
+        guard quantityValue.isFinite, quantityValue > 0 else {
+            bannerService.showBanner(title: "Review amount", message: "Enter a positive amount before saving this food.", iconName: "exclamationmark.triangle.fill", iconColor: AppPalette.caution)
+            completion?(false, nil)
+            return
+        }
         let finalNutrients = ServingNutritionCalculator.adjustedNutrition(
             base: serving,
             quantityValue: quantityValue
         )
         
         let rawItemToSave = FoodItem(
-            id: customFoodForAction?.id ?? (
-                initialFoodItem.sourceMetadata?.sourceType == .custom
-                    ? initialFoodItem.id
-                    : UUID().uuidString
-            ),
+            id: customFoodForAction?.id ?? pendingCustomFoodID,
             name: foodName,
             calories: finalNutrients.calories, protein: finalNutrients.protein, carbs: finalNutrients.carbs, fats: finalNutrients.fats,
             saturatedFat: finalNutrients.saturatedFat, polyunsaturatedFat: finalNutrients.polyunsaturatedFat, monounsaturatedFat: finalNutrients.monounsaturatedFat,
@@ -854,9 +1118,18 @@ struct FoodDetailView: View {
                 barcode: initialFoodItem.sourceMetadata?.barcode,
                 originalItem: initialFoodItem
             )
+            .preservingRecipePortion(from: initialFoodItem, quantity: finalNutrients.quantityValue, unit: finalNutrients.servingUnit)
+        guard MyFoodsLibraryRules.isValidSavedSnapshot(itemToSave) else {
+            bannerService.showBanner(title: "Review nutrition", message: "Review the name, amount and nutrition before saving this food.", iconName: "exclamationmark.triangle.fill", iconColor: AppPalette.caution)
+            completion?(false, nil)
+            return
+        }
 
         let finishSave: (Bool, FoodItem?) -> Void = { success, persistedItem in
             Task { @MainActor in
+                guard self.saveSession.userID == userID, DIContainer.shared.authService.currentUserID == userID else {
+                    completion?(false, nil); return
+                }
                 if success, let persistedItem {
                     self.isSavedAsCustom = true
                     self.hasSavedBarcodeCorrection = persistedItem.sourceMetadata?.barcode?.isEmpty == false
@@ -953,6 +1226,8 @@ struct FoodDetailView: View {
                 self.availableServings.insert(correctedServing, at: 0)
                 self.selectedServingID = correctedServing.id
                 self.quantity = "1"
+                self.portionBasis = 1
+                self.displayMassUnit = nil
                 self.trustResolution = FoodTrustResolution(
                     title: "Correction saved",
                     detail: self.barcodeForCorrection == nil
@@ -965,9 +1240,11 @@ struct FoodDetailView: View {
     }
     
     private func unsaveCustomFood() {
-        guard let userID = DIContainer.shared.authService.currentUserID, let foodID = customFoodForAction?.id else { return }
+        guard let userID = saveSession.userID, DIContainer.shared.authService.currentUserID == userID,
+              let foodID = customFoodForAction?.id else { return }
         dailyLogService.customFoodStore.deleteCustomFood(for: userID, foodItemID: foodID) { success in
             Task { @MainActor in
+                guard self.saveSession.userID == userID, DIContainer.shared.authService.currentUserID == userID else { return }
                 if success {
                     self.isSavedAsCustom = false
                     if let barcode = self.barcodeForCorrection,
@@ -985,9 +1262,10 @@ struct FoodDetailView: View {
     }
     
     private func checkIfSaved() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = saveSession.userID, DIContainer.shared.authService.currentUserID == userID else { return }
         dailyLogService.customFoodStore.fetchMyFoodItems(for: userID) { result in
             DispatchQueue.main.async {
+                guard self.saveSession.userID == userID, DIContainer.shared.authService.currentUserID == userID else { return }
                 guard case .success(let items) = result else { return }
 
                 if let barcode = self.barcodeForCorrection,
@@ -999,7 +1277,7 @@ struct FoodDetailView: View {
                     self.hasSavedBarcodeCorrection = true
                     self.customFoodForAction = savedBarcodeItem
                     self.persistedTrustItem = savedBarcodeItem
-                } else if let savedItem = items.first(where: { $0.name == self.foodName }) {
+                } else if let savedItem = MyFoodsLibraryRules.savedCopy(of: self.initialFoodItem, in: items) {
                     self.isSavedAsCustom = true
                     self.hasSavedBarcodeCorrection = false
                     self.customFoodForAction = savedItem
@@ -1014,7 +1292,6 @@ struct FoodDetailView: View {
     // MARK: - Setup Initial Data
     // Updated to handle logic for new quantity/unit fields logic
     private func setupInitialData() {
-        dailyLogService.activelyViewedDate = self.date
 
         if source.starts(with: "log_") || source.starts(with: "image_result_edit") {
             let singleUnitNutrients = ServingNutritionCalculator.baseServing(from: initialFoodItem)
@@ -1080,10 +1357,11 @@ struct FoodDetailView: View {
 
     // MARK: - Save Data (Robust)
     private func logAdjustedFood() {
-        guard let userID = DIContainer.shared.authService.currentUserID, logButtonEnabled, selectedServingOption != nil else { return }
+        guard logButtonEnabled, saveSession.userID == DIContainer.shared.authService.currentUserID else { return }
+        if saveSession.checkpoint.isSubmitted { saveReviewedFood(saveSession.checkpoint.food); return }
+        guard selectedServingOption != nil else { return }
         guard let quantityValue = Double(quantity), quantityValue > 0 else { return }
 
-        dailyLogService.activelyViewedDate = self.date
         let finalNutrients = adjustedNutrients
         
         var itemSourceToLog = "unknown_detail_view"
@@ -1132,23 +1410,20 @@ struct FoodDetailView: View {
                 sourceType: inferredSourceType(for: itemSourceToLog),
                 originalItem: initialFoodItem
             )
+            .preservingRecipePortion(from: initialFoodItem, quantity: finalNutrients.quantityValue, unit: finalNutrients.servingUnit)
 
-        if isLoggedItem {
-            dailyLogService.updateFoodInCurrentLog(for: userID, updatedFoodItem: loggedFoodItem)
-        } else if let targetMealName {
-            dailyLogService.addFoodToLog(
-                for: userID,
-                date: date,
-                mealName: targetMealName,
-                foodItem: loggedFoodItem,
-                source: itemSourceToLog
-            )
-        } else {
-            dailyLogService.addFoodToCurrentLog(for: userID, foodItem: loggedFoodItem, source: itemSourceToLog)
+        saveReviewedFood(loggedFoodItem)
+    }
+
+    private func saveReviewedFood(_ food: FoodItem) {
+        let previousUndoID = dailyLogService.undoChangeID
+        saveSession.save(food: food, using: dailyLogService) { accepted in
+            guard accepted else { return }
+            HapticManager.instance.feedback(.medium)
+            onFoodAccepted?(saveSession.checkpoint, previousUndoID)
+            onLogUpdated()
+            dismiss()
         }
-        
-        HapticManager.instance.feedback(.medium)
-        onLogUpdated(); dismiss()
     }
 
     @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String, specifier: String = "%.1f") -> some View {
@@ -1165,13 +1440,14 @@ struct FoodDetailView: View {
 
     private func inferredSourceType(for source: String) -> FoodSourceType? {
         let normalizedSource = source.lowercased()
+        let sourceWords = normalizedSource.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        if FoodSourceClassifier.descriptor(for: source).sourceKey == "chain_builder" { return .chainBuilder }
         if normalizedSource.contains("usda") { return .usda }
         if normalizedSource.contains("open_food_facts") { return .openFoodFacts }
         if normalizedSource.contains("barcode") || normalizedSource.contains("fatsecret") { return .fatSecret }
-        if normalizedSource.contains("menu") { return .aiMenu }
-        if normalizedSource.contains("text") { return .aiText }
-        if normalizedSource.contains("ai") || normalizedSource.contains("image") { return .aiImage }
-        if normalizedSource.contains("chain_builder") || normalizedSource.contains("chain builder") { return .chainBuilder }
+        if sourceWords.contains("menu") || normalizedSource == "aimenu" { return .aiMenu }
+        if sourceWords.contains("text") || normalizedSource == "aitext" { return .aiText }
+        if sourceWords.contains("ai") || sourceWords.contains("image") || ["aiimage", "aichat", "aibulk"].contains(normalizedSource) { return .aiImage }
         if normalizedSource.contains("recipe") { return .recipe }
         if normalizedSource.contains("meal_plan") { return .mealPlan }
         if normalizedSource.contains("manual") || normalizedSource.contains("custom") { return .manual }

@@ -228,7 +228,7 @@ public class FatSecretFoodAPIService {
                     return completion(.failure(NSError(domain: "FatSecretFoodAPIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No serving options were returned for this food."])))
                 }
                 let baseFoodItem = FoodItem(
-                    id: food.foodID, name: food.brandName.map { "\($0) \(food.foodName)" } ?? food.foodName,
+                    id: food.foodID, name: FoodSearchRanking.productDisplayName(food.foodName, brandName: food.brandName),
                     calories: baseServing.parsedNutrient(.calories), protein: baseServing.parsedNutrient(.protein),
                     carbs: baseServing.parsedNutrient(.carbohydrate), fats: baseServing.parsedNutrient(.fat),
                     saturatedFat: baseServing.parsedOptionalNutrient(.saturatedFat),
@@ -263,7 +263,8 @@ public class FatSecretFoodAPIService {
                 ).withDatabaseSource(
                     .fatSecret,
                     sourceName: "FatSecret",
-                    sourceID: food.foodID
+                    sourceID: food.foodID,
+                    brandName: FoodSearchRanking.reportedBrandName(food.brandName)
                 )
                 
                 completion(.success((foodInfo: baseFoodItem, availableServings: availableServings)))
@@ -295,7 +296,7 @@ public class FatSecretFoodAPIService {
     }
     
     private func mapSearchResultToFoodItem(from fatSecretFoodItem: FatSecretFoodItem) -> FoodItem {
-        let fullName = fatSecretFoodItem.brandName.map { "\($0) \(fatSecretFoodItem.foodName ?? "")" } ?? (fatSecretFoodItem.foodName ?? "Unknown")
+        let fullName = FoodSearchRanking.productDisplayName(fatSecretFoodItem.foodName ?? "Unknown", brandName: fatSecretFoodItem.brandName)
         let preview = parseSearchNutritionPreview(from: fatSecretFoodItem.foodDescription)
 
         return FoodItem(
@@ -309,7 +310,8 @@ public class FatSecretFoodAPIService {
         ).withDatabaseSource(
             .fatSecret,
             sourceName: "FatSecret",
-            sourceID: fatSecretFoodItem.foodID
+            sourceID: fatSecretFoodItem.foodID,
+            brandName: FoodSearchRanking.reportedBrandName(fatSecretFoodItem.brandName)
         )
     }
 

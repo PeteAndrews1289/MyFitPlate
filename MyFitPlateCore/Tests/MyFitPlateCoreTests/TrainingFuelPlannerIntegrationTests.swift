@@ -3,6 +3,18 @@ import XCTest
 
 @MainActor
 final class TrainingFuelPlannerIntegrationTests: XCTestCase {
+    private var draftDirectories: [URL] = []
+    override func tearDown() {
+        draftDirectories.forEach { try? FileManager.default.removeItem(at: $0) }
+        draftDirectories = []
+        super.tearDown()
+    }
+    private func makeStore(_ defaults: UserDefaults) -> TrainingFuelPlanStore {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("fuel-store-tests-\(UUID().uuidString)")
+        draftDirectories.append(directory)
+        return TrainingFuelPlanStore(userDefaults: defaults, draftStore: EditorDraftStore(directory: directory))
+    }
+
     private var calendar: Calendar {
         var value = Calendar(identifier: .gregorian)
         value.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -207,6 +219,10 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
             ]
         )
 
+        plan.foodLinks = log.meals[0].foodItems.enumerated().map { index, food in
+            TrainingFuelFoodLink(requestID: "reviewed", food: food, day: TrainingCalendarDay(log.date, calendar: calendar),
+                phase: index == 0 ? .beforeTraining : .afterTraining, at: now)
+        }
         let progress = TrainingFuelPlanProgressRules.makeProgress(
             plan: plan,
             today: log,
@@ -340,7 +356,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         XCTAssertNil(progress.target(for: .afterTraining, plan: plan))
     }
 
-    func testProgressFallsBackToDiaryDeltaForLegacyUntimestampedFood() throws {
+    func testProgressDoesNotInventLinksForLegacyUntimestampedFood() throws {
         let start = date(2026, 7, 11, 18, 0)
         let baseline = DailyLog(
             date: start,
@@ -367,8 +383,8 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         )
         let before = try XCTUnwrap(progress.phases.first { $0.allocation.phase == .beforeTraining })
 
-        XCTAssertEqual(before.loggedProteinGrams, 5)
-        XCTAssertEqual(before.loggedCarbGrams, 12)
+        XCTAssertEqual(before.loggedProteinGrams, 0)
+        XCTAssertEqual(before.loggedCarbGrams, 0)
     }
 
     func testProgressBecomesNeutralWhenDayMovesOverCalorieGoal() {
@@ -522,7 +538,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         let suite = "TrainingFuelPlannerIntegrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let store = TrainingFuelPlanStore(userDefaults: defaults)
+        let store = makeStore(defaults)
         let start = date(2026, 7, 11, 18, 0)
         let plan = confirmedPlan(start: start, confirmedAt: date(2026, 7, 11, 14, 0))
 
@@ -538,11 +554,61 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         XCTAssertNil(store.confirmedPlan)
     }
 
+    func testMalformedFuelCacheIsPreservedAndCannotBeSilentlyOverwritten() throws {
+        let suite = "fuel-corrupt-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = try XCTUnwrap(AccountScopedStorageKey.make(prefix: "myfitplate.training_fuel_plan", userID: "owner"))
+        let corrupt = Data("unreadable saved plan".utf8)
+        defaults.set(corrupt, forKey: key)
+        let store = makeStore(defaults)
+        let start = date(2026, 7, 11, 18, 0)
+        let plan = confirmedPlan(start: start, confirmedAt: start)
+        store.load(for: "owner", now: start, calendar: calendar)
+        XCTAssertNil(store.confirmedPlan)
+        XCTAssertNotNil(store.errorMessage)
+        XCTAssertEqual(defaults.data(forKey: key), corrupt)
+        XCTAssertFalse(store.confirm(plan, for: "owner"))
+        XCTAssertEqual(defaults.data(forKey: key), corrupt)
+        XCTAssertFalse(store.clear(for: "owner"), "Closing one plan must never discard an unreadable multi-session library")
+        XCTAssertEqual(defaults.data(forKey: key), corrupt)
+        XCTAssertFalse(store.confirm(plan, for: "owner"))
+    }
+
+    func testFuelPlanPublishWaitsForDurableWriteAndPreviousPlanSurvivesIOFailure() throws {
+        let suite = "fuel-io-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        let backup = directory.appendingPathExtension("backup")
+        defer { try? FileManager.default.removeItem(at: directory); try? FileManager.default.removeItem(at: backup) }
+        let disk = EditorDraftStore(directory: directory)
+        let store = TrainingFuelPlanStore(userDefaults: defaults, draftStore: disk)
+        let start = date(2026, 7, 11, 18, 0)
+        let original = confirmedPlan(start: start, confirmedAt: start)
+        let changed = confirmedPlan(start: start.addingTimeInterval(3_600), confirmedAt: start)
+        XCTAssertTrue(store.confirm(original, for: "owner"))
+        try FileManager.default.moveItem(at: directory, to: backup)
+        try Data("not a directory".utf8).write(to: directory)
+        XCTAssertFalse(store.confirm(changed, for: "owner"))
+        XCTAssertEqual(store.confirmedPlan?.id, original.id)
+        XCTAssertNotNil(store.errorMessage)
+        try FileManager.default.removeItem(at: directory)
+        try FileManager.default.moveItem(at: backup, to: directory)
+        let reopened = TrainingFuelPlanStore(userDefaults: defaults, draftStore: disk)
+        reopened.load(for: "owner", now: start, calendar: calendar)
+        XCTAssertEqual(reopened.confirmedPlan?.id, original.id)
+        XCTAssertTrue(reopened.confirm(changed, for: "owner"))
+        let accepted = TrainingFuelPlanStore(userDefaults: defaults, draftStore: disk)
+        accepted.load(for: "owner", now: start, calendar: calendar)
+        XCTAssertEqual(accepted.confirmedPlan?.id, changed.id)
+    }
+
     func testStrengthCompletionRequiresExactProgramRoutine() throws {
         let suite = "TrainingFuelPlannerIntegrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let store = TrainingFuelPlanStore(userDefaults: defaults)
+        let store = makeStore(defaults)
         let start = date(2026, 7, 11, 18, 0)
         let candidate = TrainingFuelSessionCandidate(
             id: "strength:program:lower:1",
@@ -556,7 +622,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
             suggestedDurationMinutes: 60,
             suggestedIntensity: .hard,
             suggestedStrengthFocus: .lowerBody,
-            assumptions: []
+            assumptions: [], identity: TrainingFuelSessionIdentity(programID: "program", programSlot: 1)
         )
         store.confirm(
             confirmedPlan(
@@ -585,7 +651,9 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
             today: nil,
             goals: defaultGoals,
             for: "user",
-            calendar: calendar
+            calendar: calendar,
+            session: WorkoutSessionLog(id: "accepted-session", date: date(2026, 7, 11, 19, 0), routineID: "lower", completedExercises: [],
+                programContext: WorkoutProgramSessionContext(programID: "program", slotIndex: 1))
         ))
         XCTAssertEqual(store.confirmedPlan?.outcome?.status, .completed)
         XCTAssertEqual(store.confirmedPlan?.outcome?.source, .strengthWorkout)
@@ -595,7 +663,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         let suite = "TrainingFuelPlannerIntegrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let store = TrainingFuelPlanStore(userDefaults: defaults)
+        let store = makeStore(defaults)
         let start = date(2026, 7, 11, 18, 0)
         let selected = RunWorkoutPlan(
             id: "tempo",
@@ -603,15 +671,16 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
             subtitle: "Controlled",
             steps: [RunWorkoutStep(kind: .hard, title: "Tempo", goal: .duration(seconds: 3_600))]
         )
+        let commitment = TrainingRunCommitment(id: "scheduled-tempo", date: start, plan: selected, calendar: calendar)
         store.confirm(
             confirmedPlan(
                 start: start,
                 confirmedAt: date(2026, 7, 11, 14, 0),
-                candidate: TrainingFuelSessionAdapter.runCandidate(from: selected)
+                candidate: TrainingFuelSessionAdapter.scheduledRunCandidate(from: commitment)
             ),
             for: "user"
         )
-        let run = Run(
+        var run = Run(
             id: "run",
             source: .recorded,
             startDate: start,
@@ -630,6 +699,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         ))
         XCTAssertNil(store.confirmedPlan?.outcome)
 
+        run.scheduledContext = RunScheduledContext(commitment: commitment)
         XCTAssertTrue(store.recordRunCompletion(
             run,
             selectedPlanID: "tempo",
@@ -646,7 +716,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         let suite = "TrainingFuelPlannerIntegrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let store = TrainingFuelPlanStore(userDefaults: defaults)
+        let store = makeStore(defaults)
         let start = date(2026, 7, 11, 18, 0)
         store.confirm(
             confirmedPlan(start: start, confirmedAt: date(2026, 7, 11, 14, 0)),
@@ -679,7 +749,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         let suite = "TrainingFuelPlannerIntegrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let store = TrainingFuelPlanStore(userDefaults: defaults)
+        let store = makeStore(defaults)
         let start = date(2026, 7, 11, 23, 30)
         let preference = TrainingFuelPreference(
             wantsPreSessionFuel: false,
@@ -758,7 +828,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         let suite = "TrainingFuelPlannerIntegrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let store = TrainingFuelPlanStore(userDefaults: defaults)
+        let store = makeStore(defaults)
         let start = date(2026, 7, 11, 22, 30)
         store.confirm(
             confirmedPlan(start: start, confirmedAt: date(2026, 7, 11, 18, 0)),
@@ -805,7 +875,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         XCTAssertNotNil(store.confirmedPlan?.outcome?.recoveryPlan)
     }
 
-    func testStoreDiscardsUnreadablePlanData() throws {
+    func testStoreKeepsUnreadableLegacyPlanDataForRecovery() throws {
         let suite = "TrainingFuelPlannerIntegrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -815,12 +885,13 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         )
         defaults.set(Data("not-json".utf8), forKey: key)
 
-        let store = TrainingFuelPlanStore(userDefaults: defaults)
+        let store = makeStore(defaults)
         store.load(for: "user-a", now: date(2026, 7, 11, 9, 0), calendar: calendar)
 
         XCTAssertNil(store.confirmedPlan)
-        XCTAssertNil(defaults.data(forKey: key))
+        XCTAssertEqual(defaults.data(forKey: key), Data("not-json".utf8))
         XCTAssertNil(defaults.data(forKey: hashedKey))
+        XCTAssertNotNil(store.errorMessage)
     }
 
     func testSavedPlanDecodesWhenNewIdentityAndOutcomeKeysAreAbsent() throws {

@@ -32,34 +32,27 @@ struct FoodSearchMealPicker: View {
 struct FoodSearchCompactMealPicker: View {
     @Binding var selectedMeal: String
     let foodTypes: [String]
+    var date: Date?
 
     var body: some View {
-        HStack(spacing: AppSpacing.row) {
-            Text("Log to")
-                .appTextRole(.caption)
-                .foregroundStyle(.secondary)
-
-            Menu {
-                ForEach(foodTypes, id: \.self) { meal in
-                    Button(meal) {
-                        selectedMeal = meal
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(selectedMeal)
-                        .appTextRole(.control)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .appTextRole(.caption)
-                }
-                .foregroundStyle(AppPalette.text)
-                .padding(.horizontal, AppSpacing.row)
-                .frame(minHeight: 44)
-                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+        Menu {
+            ForEach(foodTypes, id: \.self) { meal in
+                Button(meal) { selectedMeal = meal }
             }
-            .accessibilityIdentifier("food_search_meal_menu")
-
-            Spacer(minLength: 0)
+        } label: {
+            VStack(spacing: 1) {
+                HStack(spacing: 4) {
+                    Text(selectedMeal).appTextRole(.control)
+                    Image(systemName: "chevron.down").appTextRole(.caption)
+                }
+                if let date {
+                    Text(Calendar.current.isDateInToday(date) ? "Today" : date.formatted(date: .abbreviated, time: .omitted))
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("food_search_destination_date")
+                }
+            }.foregroundStyle(AppPalette.text).frame(minHeight: 44)
         }
+        .accessibilityLabel(date.map { "Log to \(selectedMeal), \($0.formatted(date: .complete, time: .omitted))" } ?? "Log to \(selectedMeal)")
+        .accessibilityIdentifier("food_search_meal_menu")
     }
 }

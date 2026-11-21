@@ -10,7 +10,7 @@ struct WeightTracker: View {
     private var current: Double { appDelegate.userWeight }
     private var goal: Double { appDelegate.goalWeight }
 
-    private var unit: String { appDelegate.usesMetric ? "kg" : "lbs" }
+    private var unit: String { appDelegate.usesMetric ? "kg" : "lb" }
 
     private func display(_ lbs: Double) -> String {
         let value = appDelegate.usesMetric ? lbs * 0.45359237 : lbs
@@ -26,8 +26,10 @@ struct WeightTracker: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 if current > 0 {
+                    Label("Latest weight", systemImage: "scalemass")
+                        .font(.caption2).foregroundStyle(.secondary)
                     Text("\(display(current)) \(unit)")
                         .font(.system(.title2, design: .rounded, weight: .bold))
                         .contentTransition(.numericText())
@@ -44,6 +46,7 @@ struct WeightTracker: View {
                             .foregroundStyle(gapLine == "At your goal" ? WatchPalette.brandForeground : .primary)
                     }
 
+                    Divider().padding(.vertical, 2)
                     Text("Log weigh-ins on your phone.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)

@@ -126,7 +126,11 @@ public enum IngredientLineParser {
             .replacingOccurrences(of: #"\([^)]*\)"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let parsed = IngredientParser.parse(cleanRaw)
+        var measuredRaw = cleanRaw
+        if let match = cleanRaw.range(of: #"^\d{1,3}(?:,\d{3})+(?:\.\d+)?(?=\s)"#, options: .regularExpression) {
+            measuredRaw.replaceSubrange(match, with: cleanRaw[match].replacingOccurrences(of: ",", with: ""))
+        }
+        let parsed = IngredientParser.parse(measuredRaw)
         let parsedName = parsed.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = (parsedName.isEmpty ? cleanRaw : parsedName).capitalized
         let quantity = parsed.quantity > 0 ? parsed.quantity : 1

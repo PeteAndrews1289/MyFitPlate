@@ -2,76 +2,33 @@ import MyFitPlateCore
 
 import SwiftUI
 
-struct ReportsOverviewCard: View {
-    let selectedTimeframe: ReportTimeframe
-    let customStartDate: Date
-    let customEndDate: Date
+enum ReportFocus: String, CaseIterable, Identifiable {
+    case nutrition, training, recovery
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+}
+
+struct ReportNutritionSummary: View {
     let summary: ReportSummary?
-    let wellnessScore: WellnessScore?
-    let workoutReport: WorkoutReport?
-    let sleepReport: EnhancedSleepReport?
-    let onOpenInsights: () -> Void
-
-    private var periodTitle: String {
-        if selectedTimeframe == .custom {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d"
-            return "\(formatter.string(from: customStartDate)) - \(formatter.string(from: customEndDate))"
-        }
-        return selectedTimeframe.rawValue
-    }
-
-    private var overviewMessage: String {
-        if let wellnessScore {
-            return wellnessScore.summary
-        }
-        if let summary, summary.daysLogged > 0 {
-            return "\(summary.daysLogged) logged \(summary.daysLogged == 1 ? "day" : "days") in this timeframe."
-        }
-        if workoutReport != nil || sleepReport != nil {
-            return "Activity or sleep data is available for this timeframe."
-        }
-        return "Start logging to build a useful report."
-    }
+    let period: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(title: "At a glance", subtitle: periodTitle) {
-                Button(action: onOpenInsights) {
-                    Image(systemName: "wand.and.stars")
-                }
-                .buttonStyle(AppIconButtonStyle(.neutral))
-                .accessibilityLabel("Generate detailed insights")
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Nutrition", subtitle: period)
+            if let summary, summary.daysLogged > 0 {
+                AppMetricStrip(items: [
+                    AppMetricItem(label: "Daily calories", value: "\(Int(summary.averageCalories.rounded()).formatted()) cal", accent: AppPalette.energy),
+                    AppMetricItem(label: "Daily protein", value: "\(Int(summary.averageProtein.rounded()).formatted()) g", accent: AppPalette.protein)
+                ])
+                Text("Averages from \(summary.daysLogged.formatted()) fully logged \(summary.daysLogged == 1 ? "day" : "days"). Partial days are excluded.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("reports_nutrition_evidence")
+            } else {
+                Text("Confirm fully logged days in your diary to see meaningful intake averages.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
             }
-
-            Text(overviewMessage)
-                .appTextRole(.body)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            AppMetricStrip(items: [
-                AppMetricItem(
-                    label: wellnessScore?.isNutritionOnly == true ? "Nutrition" : "Wellness",
-                    value: wellnessScore.map { "\($0.overallScore)" } ?? "--",
-                    accent: wellnessScore?.color ?? Color.secondary
-                ),
-                AppMetricItem(
-                    label: "Avg calories",
-                    value: summary.map { "\(Int($0.averageCalories.rounded()).formatted()) cal" } ?? "--",
-                    accent: AppPalette.energy
-                ),
-                AppMetricItem(
-                    label: "Workouts",
-                    value: workoutReport.map { $0.totalWorkouts.formatted() } ?? "--",
-                    accent: AppPalette.effort
-                ),
-                AppMetricItem(
-                    label: "Sleep score",
-                    value: sleepReport.map { $0.averageSleepScore.formatted() } ?? "--",
-                    accent: AppPalette.recovery
-                )
-            ])
         }
+        .fixedSize(horizontal: false, vertical: true)
         .appSurface(.quiet)
         .accessibilityIdentifier("reports_overview")
     }

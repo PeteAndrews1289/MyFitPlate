@@ -1,45 +1,99 @@
+import MyFitPlateCore
 import SwiftUI
 
 struct AISummaryView: View {
     @EnvironmentObject private var dailyLogService: DailyLogService
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @State private var didOfferQuestion = false
+    private var questionResponse: String? { review.checkpoint.portionQuestion?.receipt?.summary }
+    private var question: UsefulMealQuestion? {
+        guard let stored = review.checkpoint.portionQuestion, stored.receipt == nil,
+              let item = estimatedItems.first(where: { $0.id == stored.question.itemID }),
+              (try? PlanFingerprint.make(item)) == stored.question.itemFingerprint else { return nil }
+        return stored.question
+    }
+    @StateObject private var review: MealReviewSaveSession
+    @State private var confirmingDiscard = false
+    private var estimatedItems: [FoodItem] { review.items }
+    private var isSaving: Bool { review.isSaving }
+    private var saveError: String? { review.errorMessage }
 
-    @State private var estimatedItems: [FoodItem]
-
-    private let mealName: String
+    private var mealName: String { review.mealName }
     private let source: String
     private let isAIEstimate: Bool
     private let reviewTitle: String
     private let photoReview: MealPhotoReviewContext?
+    private let onSelectFoods: (([FoodItem]) -> Bool)?
 
     init(
         estimatedItems: [FoodItem],
         photoReview: MealPhotoReviewContext? = nil,
-        mealName: String = "AI Logged Meal",
+        mealName: String = "Dinner",
+        date: Date = Date(),
         source: String = "ai_image",
         isAIEstimate: Bool = true,
-        reviewTitle: String = "Review Meal"
+        reviewTitle: String = "Review Meal", dayContext: DiaryDayContext? = nil,
+        trainingFuelTarget: TrainingFuelTarget? = nil, onSelectFoods: (([FoodItem]) -> Bool)? = nil
     ) {
-        _estimatedItems = State(initialValue: estimatedItems)
-        self.mealName = mealName
+        _review = StateObject(wrappedValue: MealReviewSaveSession(
+            items: estimatedItems, userID: DIContainer.shared.authService.currentUserID,
+            date: date, mealName: mealName, source: source,
+            confirmingSourceType: source == "chain_builder_components" ? .chainBuilder : isAIEstimate ? .aiImage : nil, dayContext: dayContext, trainingFuelTarget: trainingFuelTarget
+        ))
         self.source = source
         self.isAIEstimate = isAIEstimate
         self.reviewTitle = reviewTitle
         self.photoReview = photoReview
+        self.onSelectFoods = onSelectFoods
+    }
+
+    private var destinationDateLabel: String {
+        let formatter = DateFormatter()
+        let day = review.checkpoint.draft.dayContext
+        formatter.calendar = day?.calendar ?? .current; formatter.timeZone = day?.timeZone ?? .current
+        formatter.dateStyle = .medium
+        return formatter.string(from: day?.displayDate ?? review.date)
     }
 
     var body: some View {
         NavigationStack {
             List {
+                if let target = review.checkpoint.trainingFuelTarget { TrainingFuelTargetContextView(target: target, onDismiss: review.isLocked ? nil : { _ = review.removeFuelContext() }) }
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                    Text("\(review.mealName) · \(destinationDateLabel)")
+                        .appTextRole(.secondary).accessibilityIdentifier("ai_review_destination")
+                    if review.restoredReview { Text("Unfinished review restored").appTextRole(.caption).foregroundStyle(.secondary) }
+                    if review.isSubmitted { Text("Your reviewed foods are kept for retry").appTextRole(.caption).foregroundStyle(.secondary) }
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+
+                if !review.isLocked, let question, estimatedItems.contains(where: { $0.id == question.itemID }) {
+                    Section {
+                        if let item = estimatedItems.first(where: { $0.id == question.itemID }) {
+                            UsefulMealQuestionCard(question: question, item: item) { answer in
+                                _ = review.answerPortionQuestion(answer)
+                            }
+                        }
+                    }.listRowSeparator(.hidden).listRowBackground(Color.clear)
+                }
+                if let questionResponse {
+                    Text(questionResponse).appTextRole(.secondary).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("meal_question_response")
+                }
+
                 Section {
                     AIReviewOverview(
-                        eyebrow: isAIEstimate ? "Maia Photo Estimate" : "Matched Products",
-                        title: isAIEstimate ? "Review Your Meal" : "Review Scanned Items",
-                        subtitle: isAIEstimate
+                        eyebrow: source == "chain_builder_components" ? "Restaurant Reference" : isAIEstimate ? "Maia Photo Estimate" : "Matched Products",
+                        title: source == "chain_builder_components" ? "Review Your Order" : isAIEstimate ? "Review Your Meal" : "Review Scanned Items",
+                        subtitle: source == "chain_builder_components" ? "These catalog components will log together as separate diary foods after your review." : isAIEstimate
                             ? "Maia separated the photo into foods. Nothing is logged until you confirm this list."
                             : "Each matched product will log as its own entry after you confirm this list.",
                         reviewTitle: isAIEstimate ? "Review Needed" : "Serving Check",
-                        reviewMessage: isAIEstimate
+                        reviewMessage: source == "chain_builder_components" ? "Confirm the portions you ate. Catalog values are reference estimates and local preparation may differ." : isAIEstimate
                             ? "Confirm the foods and portions, especially oils, sauces, and ingredients the camera cannot measure."
                             : "Database matches can still use a different serving than the amount you ate.",
                         items: estimatedItems,
@@ -49,9 +103,9 @@ struct AISummaryView: View {
                 }
                 .listRowInsets(
                     EdgeInsets(
-                        top: AppSpacing.group,
+                        top: AppSpacing.compact,
                         leading: AppSpacing.screenHorizontal,
-                        bottom: AppSpacing.section,
+                        bottom: AppSpacing.row,
                         trailing: AppSpacing.screenHorizontal
                     )
                 )
@@ -59,9 +113,9 @@ struct AISummaryView: View {
                 .listRowBackground(Color.clear)
 
                 Section {
-                    ForEach($estimatedItems) { $item in
+                    ForEach(estimatedItems) { item in
                         NavigationLink {
-                            foodDetailDestination(for: $item)
+                            foodDetailDestination(for: item)
                         } label: {
                             AIReviewItemRow(
                                 item: item,
@@ -80,7 +134,7 @@ struct AISummaryView: View {
                     }
                 } header: {
                     AppSectionHeader(
-                        title: "Items to Log",
+                        title: onSelectFoods == nil ? "Items to log" : "Foods to select",
                         subtitle: "Tap an item to edit it, or swipe to remove it."
                     )
                     .textCase(nil)
@@ -95,7 +149,9 @@ struct AISummaryView: View {
                     )
                 )
                 .listRowBackground(AppPalette.control)
+                .disabled(review.isLocked)
             }
+            .appFormStyle()
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(AppPalette.canvas.ignoresSafeArea())
@@ -103,70 +159,105 @@ struct AISummaryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Close") { dismiss() }.disabled(isSaving)
                         .tint(AppPalette.brand)
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    if !review.isSubmitted {
+                        Button("Discard", role: .destructive) { confirmingDiscard = true }.disabled(isSaving)
+                    }
+                }
             }
+            .confirmationDialog("Discard this meal review?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                Button("Discard review", role: .destructive) { if review.discard() { dismiss() } }
+            } message: { Text("These foods have not been logged.") }
             .safeAreaInset(edge: .bottom) {
-                Button(action: logAllItems) {
-                    Label(logButtonTitle, systemImage: "checkmark.circle.fill")
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    if let saveError {
+                        Text(saveError).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, AppSpacing.screenHorizontal)
+                            .accessibilityIdentifier("ai_summary_save_error")
+                    }
+                    Button(action: logAllItems) {
+                        Label(logButtonTitle, systemImage: "checkmark.circle.fill")
+                    }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .disabled(estimatedItems.isEmpty || isSaving)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.row)
+                    .padding(.bottom, AppSpacing.compact)
+                    .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(AppPalette.separator)
+                            .frame(height: 1)
+                    }
+                    .accessibilityIdentifier("ai_summary_log_action")
                 }
-                .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(estimatedItems.isEmpty)
-                .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.top, AppSpacing.row)
-                .padding(.bottom, AppSpacing.compact)
-                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(AppPalette.separator)
-                        .frame(height: 1)
-                }
-                .accessibilityIdentifier("ai_summary_log_action")
+                .background(AppPalette.canvas)
             }
         }
+        .task { offerQuestionIfUseful() }
+        .interactiveDismissDisabled(isSaving)
         .accessibilityIdentifier("ai_summary_review")
+        .accessibilityElement(children: .contain)
     }
 
     private var logButtonTitle: String {
+        if isSaving { return "Saving…" }
+        if review.isSubmitted { return "Retry saving" }
+        if onSelectFoods != nil { return "Select \(review.selectedItems.count) \(review.selectedItems.count == 1 ? "food" : "foods")" }
         let noun = estimatedItems.count == 1 ? "Item" : "Items"
         return "Log \(estimatedItems.count.formatted()) \(noun)"
     }
 
-    private func foodDetailDestination(for item: Binding<FoodItem>) -> some View {
+    private func foodDetailDestination(for item: FoodItem) -> some View {
         FoodDetailView(
-            initialFoodItem: item.wrappedValue,
+            initialFoodItem: item,
             dailyLog: .constant(nil),
-            date: dailyLogService.activelyViewedDate,
-            source: "image_result_edit",
+            date: review.date,
+            source: source == "chain_builder_components" ? "chain_builder_component_edit" : "image_result_edit",
             onLogUpdated: {},
             onUpdate: { updatedItem in
-                item.wrappedValue = updatedItem
+                _ = review.updateItem(updatedItem)
             }
         )
     }
 
     private func delete(_ item: FoodItem) {
-        estimatedItems.removeAll { $0.id == item.id }
-        HapticManager.instance.feedback(.light)
+        if review.removeItem(id: item.id) { HapticManager.instance.feedback(.light) }
     }
 
     private func logAllItems() {
-        guard let userID = DIContainer.shared.authService.currentUserID, !estimatedItems.isEmpty else { return }
-
-        let fallbackSourceType: FoodSourceType = isAIEstimate ? .aiImage : .unknown
-        let reviewedItems = estimatedItems.map { item in
-            item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? fallbackSourceType)
+        if let onSelectFoods {
+            if review.moveToMeal(onSelectFoods) { dismiss() }
+            return
         }
-        dailyLogService.addMealToLog(
-            for: userID,
-            date: dailyLogService.activelyViewedDate,
-            mealName: mealName,
-            foodItems: reviewedItems,
-            source: source
-        )
+        review.save(using: dailyLogService) { accepted in
+            if accepted { dismiss() }
+        }
+    }
 
-        dismiss()
+    private func offerQuestionIfUseful() {
+        guard !didOfferQuestion, !review.isSubmitted, review.checkpoint.portionQuestion == nil else { return }
+        didOfferQuestion = true
+        guard let photoReview, isAIEstimate else { return }
+        let evidence = photoReview.itemReviews.values.compactMap { review -> MealPortionEvidence? in
+            guard let low = review.portionLowGrams, let high = review.portionHighGrams, low.isFinite, high.isFinite, low <= 100_000, high <= 100_000 else { return nil }
+            guard let item = estimatedItems.first(where: { $0.id == review.itemID }) else { return nil }
+            let anchors = item.sourceMetadata?.portionAnchors ?? []
+            return MealPortionEvidence(itemID: review.itemID, lowGrams: low, highGrams: high,
+                anchors: anchors, uncertainty: MealQuestionUncertaintyRules.kind(for: item, hasUnresolvedPreparation: !review.hiddenIngredientRisks.isEmpty),
+                canUseMeasuredGrams: false)
+        }
+        let current = dailyLogService.currentDailyLog.flatMap { log in
+            Calendar.current.isDate(log.date, inSameDayAs: review.date) ? log : nil
+        }
+        if let question = UsefulMealQuestionRules.choose(items: estimatedItems, evidence: evidence,
+            loggedCalories: current?.totalCalories(), calorieGuide: goalSettings.calories) {
+            _ = review.offerPortionQuestion(question)
+        }
     }
 }
 
@@ -192,46 +283,27 @@ struct AIReviewOverview: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.section) {
-            AppScreenHeader(eyebrow: eyebrow, title: title, subtitle: subtitle)
-
-            AIEstimateReviewBanner(title: reviewTitle, message: reviewMessage)
-
-            if let photoReview {
-                MealPhotoEvidenceSummary(review: photoReview)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(eyebrow).appTextRole(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: AppSpacing.compact)
+                Text("\(items.count) \(items.count == 1 ? "food" : "foods")").appTextRole(.caption).foregroundStyle(.secondary)
             }
-
-            VStack(alignment: .leading, spacing: AppSpacing.row) {
-                AppSectionHeader(
-                    title: "Estimated Nutrition",
-                    subtitle: "Totals update as you edit or remove items."
-                )
-
-                AppMetricStrip(items: [
-                    AppMetricItem(
-                        label: "Items",
-                        value: items.count.formatted(),
-                        accent: AppPalette.brand
-                    ),
-                    AppMetricItem(
-                        label: "Calories",
-                        value: "\(Int(totalCalories.rounded()).formatted()) cal",
-                        accent: AppPalette.energy
-                    ),
-                    AppMetricItem(
-                        label: "Protein",
-                        value: "\(Int(totalProtein.rounded()).formatted()) g",
-                        accent: .accentProtein
-                    ),
-                    AppMetricItem(
-                        label: "Carbs",
-                        value: "\(Int(totalCarbs.rounded()).formatted()) g",
-                        accent: .accentCarbs
-                    )
-                ])
-            }
-            .appSurface(.interpreted)
-        }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Calories", value: "\(Int(totalCalories.rounded()).formatted()) cal", accent: AppPalette.energy),
+                AppMetricItem(label: "Protein", value: "\(Int(totalProtein.rounded()).formatted()) g", accent: .accentProtein),
+                AppMetricItem(label: "Carbs", value: "\(Int(totalCarbs.rounded()).formatted()) g", accent: .accentCarbs)
+            ]).appSurface(.interpreted)
+            Label(reviewMessage, systemImage: "info.circle")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup("About this review") {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    Text(subtitle).appTextRole(.secondary).foregroundStyle(.secondary)
+                    if let photoReview { MealPhotoEvidenceSummary(review: photoReview) }
+                }.padding(.top, AppSpacing.compact)
+            }.appTextRole(.secondary).tint(AppPalette.text)
+        }.accessibilityLabel(title)
     }
 }
 
@@ -310,27 +382,10 @@ struct AIReviewItemRow: View {
 private struct MealPhotoEvidenceSummary: View {
     let review: MealPhotoReviewContext
 
-    private var confidenceText: String {
-        switch review.overallConfidence {
-        case 0.82...: return "High photo confidence"
-        case 0.62...: return "Moderate photo confidence"
-        default: return "Low photo confidence"
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-                Label(confidenceText, systemImage: "camera.metering.center.weighted")
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-
-                Spacer(minLength: AppSpacing.compact)
-
-                Text("\(Int((review.overallConfidence * 100).rounded()))%")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Label("What the photo can tell us", systemImage: "camera.metering.center.weighted")
+                .appTextRole(.control).foregroundStyle(AppPalette.text)
 
             Text(evidenceSummary)
                 .appTextRole(.secondary)
@@ -344,19 +399,6 @@ private struct MealPhotoEvidenceSummary: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if !review.clarificationQuestions.isEmpty {
-                Divider()
-                Text("Before You Log")
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-
-                ForEach(Array(review.clarificationQuestions.enumerated()), id: \.offset) { _, question in
-                    Label(question, systemImage: "questionmark.circle")
-                        .appTextRole(.secondary)
-                        .foregroundStyle(AppPalette.caution)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
         }
         .appSurface(.quiet)
         .accessibilityElement(children: .combine)
@@ -381,7 +423,7 @@ private struct MealPhotoItemEvidence: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(
-                "Photo confidence: \(Int((min(max(review.confidence, 0), 1) * 100).rounded()))%",
+                review.requiresConfirmation ? "Portion needs a closer look" : "Portion estimated from photo",
                 systemImage: review.requiresConfirmation ? "exclamationmark.circle" : "camera.metering.center.weighted"
             )
             .foregroundStyle(review.requiresConfirmation ? AppPalette.caution : .secondary)
@@ -407,11 +449,6 @@ private struct MealPhotoItemEvidence: View {
                 .foregroundStyle(AppPalette.caution)
             }
 
-            if let question = review.clarificationQuestion,
-               !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Label(question, systemImage: "questionmark.circle")
-                    .foregroundStyle(AppPalette.caution)
-            }
         }
         .appTextRole(.caption)
         .fixedSize(horizontal: false, vertical: true)
@@ -419,7 +456,7 @@ private struct MealPhotoItemEvidence: View {
     }
 
     private var rangeText: String? {
-        guard let low = review.portionLowGrams, let high = review.portionHighGrams else { return nil }
+        guard let low = review.portionLowGrams, let high = review.portionHighGrams, low.isFinite, high.isFinite, low <= 100_000, high <= 100_000 else { return nil }
         let orderedLow = Int(min(low, high).rounded())
         let orderedHigh = Int(max(low, high).rounded())
         guard orderedLow > 0, orderedHigh > 0 else { return nil }
@@ -488,10 +525,10 @@ struct AIEstimateReviewBanner: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
-            Image(systemName: "checkmark.shield")
+            Image(systemName: "info.circle")
                 .appFont(size: 18, weight: .semibold)
                 .foregroundStyle(AppPalette.caution)
-                .frame(width: 40, height: 40)
+                .frame(width: 28, height: 28)
                 .background(
                     AppPalette.caution.opacity(0.10),
                     in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)

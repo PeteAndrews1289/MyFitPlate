@@ -1,42 +1,6 @@
 import MyFitPlateCore
 
 import SwiftUI
-// MARK: - Program slot math (shared by the slider and the program calendar)
-
-extension WorkoutProgram {
-    /// How many sessions the program spans (12 weeks of training days, or the routine count if larger).
-    var totalSlots: Int {
-        max((daysOfWeek?.count ?? 0) * 12, routines.count)
-    }
-
-    /// The routine that fills slot `index` (routines rotate).
-    func routine(forSlot index: Int) -> WorkoutRoutine? {
-        guard !routines.isEmpty else { return nil }
-        return routines[index % routines.count]
-    }
-
-    /// 1-based (week, day) label for slot `index`.
-    func weekAndDay(forSlot index: Int) -> (week: Int, day: Int) {
-        let perWeek = max(daysOfWeek?.count ?? 1, 1)
-        return (index / perWeek + 1, index % perWeek + 1)
-    }
-
-    /// The calendar date the Nth scheduled training day falls on, walking forward from the start date.
-    func date(forSlot index: Int) -> Date? {
-        guard let start = startDate, let days = daysOfWeek, !days.isEmpty else { return nil }
-        let calendar = Calendar.current
-        var matched = 0
-        for offset in 0..<(7 * 13) {
-            guard let date = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
-            if days.contains(calendar.component(.weekday, from: date)) {
-                if matched == index { return calendar.startOfDay(for: date) }
-                matched += 1
-            }
-        }
-        return nil
-    }
-}
-
 // MARK: - Today's Best Next Step
 
 /// A scrubbable replacement for the old "Continue Program" card. It centers on the program's
@@ -46,33 +10,40 @@ struct TodaysNextStepSlider: View {
     let program: WorkoutProgram
     /// Completed session logs keyed by the slot index they belong to.
     let completedLogsByIndex: [Int: WorkoutSessionLog]
-    let onStart: (WorkoutRoutine) -> Void
+    let onStart: (WorkoutRoutine, Int) -> Void
     /// Advance the program pointer to this slot index, marking everything in between as skipped.
     let onSkipTo: (Int) -> Void
     let onReview: (WorkoutSessionLog) -> Void
+    let skipFuelReview: String?
+    let showsExercisePreview: Bool
 
     @State private var viewedIndex: Int
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(program: WorkoutProgram,
          completedLogsByIndex: [Int: WorkoutSessionLog],
-         onStart: @escaping (WorkoutRoutine) -> Void,
+         onStart: @escaping (WorkoutRoutine, Int) -> Void,
          onSkipTo: @escaping (Int) -> Void,
-         onReview: @escaping (WorkoutSessionLog) -> Void) {
+         onReview: @escaping (WorkoutSessionLog) -> Void, skipFuelReview: String? = nil,
+         showsExercisePreview: Bool = true) {
         self.program = program
         self.completedLogsByIndex = completedLogsByIndex
         self.onStart = onStart
         self.onSkipTo = onSkipTo
         self.onReview = onReview
-        self._viewedIndex = State(initialValue: program.currentProgressIndex ?? 0)
+        self.skipFuelReview = skipFuelReview
+        self.showsExercisePreview = showsExercisePreview
+        self._viewedIndex = State(initialValue: min(max(program.currentProgressIndex ?? 0, 0), max(program.totalSlots - 1, 0)))
     }
 
     private var currentIndex: Int { program.currentProgressIndex ?? 0 }
     private var totalSlots: Int { max(program.totalSlots, 1) }
+    @State private var pendingSkip: Int?
+    @State private var expandedExerciseSlot: Int?
+
     private var skippedIndices: Set<Int> { Set(program.skippedIndices ?? []) }
     private var usesAccessibilityLayout: Bool { dynamicTypeSize.isAccessibilitySize }
-    private let visibleExerciseLimit = 3
-    private var slotHeight: CGFloat { usesAccessibilityLayout ? 500 : 306 }
+    private let visibleExerciseLimit = 2
 
     private enum SlotState {
         case completed(WorkoutSessionLog)
@@ -94,15 +65,13 @@ struct TodaysNextStepSlider: View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             header
 
-            TabView(selection: $viewedIndex) {
-                ForEach(Array(0..<totalSlots), id: \.self) { index in
-                    slotCard(for: index)
-                        .padding(.horizontal, 2)
-                        .tag(index)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: slotHeight)
+            slotCard(for: min(max(viewedIndex, 0), totalSlots - 1))
+                .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { value in
+                    guard abs(value.translation.width) > max(70, abs(value.translation.height) * 2) else { return }
+                    withAnimation(AppMotion.standard) {
+                        viewedIndex = min(max(viewedIndex + (value.translation.width < 0 ? 1 : -1), 0), totalSlots - 1)
+                    }
+                })
 
             positionBar
         }
@@ -113,7 +82,13 @@ struct TodaysNextStepSlider: View {
                 .frame(width: 4)
                 .padding(.vertical, AppSpacing.group)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("train_next_step")
+        .onChange(of: program.id) { _, _ in
+            expandedExerciseSlot = nil
+            viewedIndex = min(max(currentIndex, 0), totalSlots - 1)
+        }
+        .onChange(of: viewedIndex) { _, _ in expandedExerciseSlot = nil }
         .onChange(of: currentIndex) { _, newValue in
             withAnimation(AppMotion.standard) { viewedIndex = min(max(newValue, 0), totalSlots - 1) }
         }
@@ -139,20 +114,10 @@ struct TodaysNextStepSlider: View {
 
     private var headerText: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Today's Best Next Step")
-                .appTextRole(.caption)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
             Text(program.name)
-                .appTextRole(.sectionTitle)
-                .foregroundStyle(AppPalette.text)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // DESIGN.md rule 3: progress in words a stranger understands.
-            Text("Day \(min(currentIndex + 1, totalSlots)) of \(totalSlots)")
                 .appTextRole(.secondary)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -171,7 +136,7 @@ struct TodaysNextStepSlider: View {
         Button(action: action) {
             Image(systemName: systemName)
         }
-        .buttonStyle(AppIconButtonStyle(enabled ? .brand : .neutral))
+        .buttonStyle(AppIconButtonStyle(.neutral))
         .disabled(!enabled)
         .accessibilityLabel(label)
     }
@@ -199,21 +164,31 @@ struct TodaysNextStepSlider: View {
                         .appTextRole(.sectionTitle)
                         .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
-                    if let routine {
-                        Text("\(routine.exercises.count) exercises")
-                            .appTextRole(.secondary)
-                            .foregroundStyle(.secondary)
+                    if let routine, !routine.exercises.isEmpty {
+                        Button {
+                            expandedExerciseSlot = expandedExerciseSlot == index ? nil : index
+                        } label: {
+                            HStack(spacing: 5) {
+                                Text("\(routine.exercises.count) exercises")
+                                Image(systemName: expandedExerciseSlot == index ? "chevron.up" : "chevron.down")
+                                    .appTextRole(.caption)
+                            }
+                            .appTextRole(.secondary).frame(minHeight: 44)
+                        }
+                        .buttonStyle(.plain).foregroundStyle(AppPalette.brandText)
+                        .accessibilityValue(expandedExerciseSlot == index ? "Expanded" : "Collapsed")
+                        .accessibilityIdentifier("train_exercise_preview")
                     }
                 }
                 Spacer(minLength: 0)
             }
 
-            if let routine, !usesAccessibilityLayout {
+            if let routine, expandedExerciseSlot == index || (showsExercisePreview && !usesAccessibilityLayout) {
                 VStack(spacing: 6) {
-                    ForEach(Array(routine.exercises.prefix(visibleExerciseLimit))) { exercise in
+                    ForEach(Array(routine.exercises.prefix(expandedExerciseSlot == index ? routine.exercises.count : visibleExerciseLimit))) { exercise in
                         exercisePreviewRow(exercise)
                     }
-                    if routine.exercises.count > visibleExerciseLimit {
+                    if expandedExerciseSlot != index, routine.exercises.count > visibleExerciseLimit {
                         Text("+ \(routine.exercises.count - visibleExerciseLimit) more")
                             .appTextRole(.caption)
                             .foregroundStyle(AppPalette.effort)
@@ -222,11 +197,9 @@ struct TodaysNextStepSlider: View {
                 }
             }
 
-            Spacer(minLength: 0)
-
             actionRow(for: index, state: slotState, routine: routine)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -334,7 +307,7 @@ struct TodaysNextStepSlider: View {
 
         case .skipped:
             if let routine {
-                Button { onStart(routine) } label: {
+                Button { onStart(routine, index) } label: {
                     Label("Do It Now", systemImage: "play.fill")
                 }
                 .buttonStyle(AppActionButtonStyle(.secondary))
@@ -342,24 +315,24 @@ struct TodaysNextStepSlider: View {
 
         case .current:
             pairedActions(
-                primaryTitle: "Start",
+                primaryTitle: "Start workout",
                 primaryIcon: "play.fill",
                 primaryEnabled: routine != nil,
-                primaryAction: { if let routine { onStart(routine) } },
+                primaryAction: { if let routine { onStart(routine, index) } },
                 secondaryTitle: "Skip",
                 secondaryIcon: "forward.end.fill",
-                secondaryAction: { onSkipTo(index + 1) }
+                secondaryAction: { pendingSkip = index + 1 }
             )
 
         case .upcoming:
             pairedActions(
-                primaryTitle: "Start Early",
+                primaryTitle: "Start early",
                 primaryIcon: "play.fill",
                 primaryEnabled: routine != nil,
-                primaryAction: { if let routine { onStart(routine) } },
+                primaryAction: { if let routine { onStart(routine, index) } },
                 secondaryTitle: "Skip to Here",
                 secondaryIcon: "forward.fill",
-                secondaryAction: { onSkipTo(index) }
+                secondaryAction: { pendingSkip = index }
             )
         }
     }
@@ -374,25 +347,41 @@ struct TodaysNextStepSlider: View {
         secondaryIcon: String,
         secondaryAction: @escaping () -> Void
     ) -> some View {
-        if usesAccessibilityLayout {
-            VStack(spacing: AppSpacing.compact) {
-                primaryActionButton(
-                    title: primaryTitle,
-                    icon: primaryIcon,
-                    isEnabled: primaryEnabled,
-                    action: primaryAction
-                )
-                secondaryActionButton(title: secondaryTitle, icon: secondaryIcon, action: secondaryAction)
+        HStack(spacing: AppSpacing.compact) {
+            primaryActionButton(title: primaryTitle, icon: primaryIcon, isEnabled: primaryEnabled, action: primaryAction)
+            Menu {
+                Button(secondaryTitle, systemImage: secondaryIcon, action: secondaryAction)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .appTextRole(.control)
+                    .frame(width: 48, height: 48)
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
             }
-        } else {
-            HStack(spacing: AppSpacing.compact) {
-                primaryActionButton(
-                    title: primaryTitle,
-                    icon: primaryIcon,
-                    isEnabled: primaryEnabled,
-                    action: primaryAction
-                )
-                secondaryActionButton(title: secondaryTitle, icon: secondaryIcon, action: secondaryAction)
+            .accessibilityLabel("Workout options")
+            .accessibilityIdentifier("workout_slot_options")
+        }
+        .sheet(isPresented: Binding(get: { pendingSkip != nil }, set: { if !$0 { pendingSkip = nil } })) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        Text("Review skipped sessions").appTextRole(.sectionTitle)
+                        Text("Completed receipts stay saved. Only uncompleted slots in this reviewed range are marked skipped. Undo is available until later work or a conflicting plan change; it never removes completed history.")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                        if let skipFuelReview { Text(skipFuelReview).appTextRole(.secondary).foregroundStyle(.secondary) }
+                        let end = min(pendingSkip ?? currentIndex, program.totalSlots)
+                        ForEach(Array(currentIndex..<max(currentIndex, end)), id: \.self) { slot in
+                            let completed = completedLogsByIndex[slot] != nil
+                            Text("Session \(slot + 1): \(program.routine(forSlot: slot)?.name ?? "Session") · \(program.date(forSlot: slot)?.formatted(date: .abbreviated, time: .omitted) ?? "Unscheduled") · \(completed ? "already recorded, kept" : "will skip")")
+                                .appTextRole(.secondary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        Button("Skip workouts", role: .destructive) {
+                            if let target = pendingSkip { onSkipTo(target) }; pendingSkip = nil
+                        }.buttonStyle(AppActionButtonStyle(.primary)).accessibilityIdentifier("workout_skip_confirm")
+                    }.padding(AppSpacing.screenHorizontal)
+                }
+                .accessibilityIdentifier("workout_skip_review")
+                .navigationTitle("Review skip").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Keep current plan") { pendingSkip = nil } } }
             }
         }
     }
@@ -410,17 +399,6 @@ struct TodaysNextStepSlider: View {
         .disabled(!isEnabled)
     }
 
-    private func secondaryActionButton(
-        title: String,
-        icon: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-        }
-        .buttonStyle(AppActionButtonStyle(.secondary))
-    }
-
     // MARK: Position bar
 
     private var positionBar: some View {
@@ -428,7 +406,7 @@ struct TodaysNextStepSlider: View {
             // Decorative: the "Slot X of Y" text below carries the same info for VoiceOver.
             GeometryReader { geo in
                 AppProgressTrack(
-                    progress: Double(min(currentIndex + 1, totalSlots)) / Double(totalSlots),
+                    progress: Double(min(currentIndex, totalSlots)) / Double(totalSlots),
                     role: .effort,
                     height: 8
                 )
@@ -447,30 +425,26 @@ struct TodaysNextStepSlider: View {
         }
     }
 
-    @ViewBuilder
     private var positionLabels: some View {
-        if usesAccessibilityLayout {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(relativeLabel)
-                Text("Slot \(viewedIndex + 1) of \(totalSlots)")
+        let layout = usesAccessibilityLayout
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.compact))
+            : AnyLayout(HStackLayout(spacing: AppSpacing.row))
+        return layout {
+            Text("Session \(viewedIndex + 1) of \(totalSlots)")
+                .monospacedDigit()
+            if (0..<totalSlots).contains(currentIndex), viewedIndex != currentIndex {
+                if !usesAccessibilityLayout { Spacer(minLength: 0) }
+                Button {
+                    withAnimation(AppMotion.standard) { viewedIndex = currentIndex }
+                } label: {
+                    Label("Back to current", systemImage: "arrow.uturn.backward")
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain).foregroundStyle(AppPalette.brandText)
+                .accessibilityIdentifier("train_return_to_current")
             }
-            .appTextRole(.caption)
-            .foregroundStyle(.secondary)
-        } else {
-            HStack {
-                Text(relativeLabel)
-                Spacer()
-                Text("Slot \(viewedIndex + 1) of \(totalSlots)")
-            }
-            .appTextRole(.caption)
-            .foregroundStyle(.secondary)
         }
-    }
-
-    private var relativeLabel: String {
-        if viewedIndex < currentIndex { return "Swipe ▶ to return to today" }
-        if viewedIndex == currentIndex { return "You are here · today's session" }
-        let ahead = viewedIndex - currentIndex
-        return "\(ahead) session\(ahead == 1 ? "" : "s") ahead"
+        .appTextRole(.caption)
+        .foregroundStyle(.secondary)
     }
 }

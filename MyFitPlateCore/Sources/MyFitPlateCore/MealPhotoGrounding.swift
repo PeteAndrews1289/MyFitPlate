@@ -295,6 +295,7 @@ public enum MealPhotoGrounding {
             originalEstimate: item.nutritionSnapshot,
             nutrientReferenceEvidence: reference
         )
+        item.sourceMetadata?.portionAnchors = MealPortionAnchorRules.referenceAnchors(for: candidate)
         return (item, sourceName)
     }
 

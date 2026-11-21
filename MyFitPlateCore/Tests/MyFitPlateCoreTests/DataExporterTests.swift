@@ -74,4 +74,18 @@ final class DataExporterTests: XCTestCase {
         XCTAssertEqual(DataExporter.foodLogCSV(from: []).split(separator: "\n").count, 1)
         XCTAssertEqual(DataExporter.workoutCSV(from: []).split(separator: "\n").count, 1)
     }
+
+    func testCarriageReturnsAndEmbeddedQuotesStayInsideOneProtectedCSVField() {
+        XCTAssertEqual(DataExporter.escape("\r=SUM(A1:A2)"), "\"'\r=SUM(A1:A2)\"")
+        XCTAssertEqual(DataExporter.escape("Meal\rname"), "\"Meal\rname\"")
+        XCTAssertEqual(DataExporter.escape(" =\"a,b\""), "\"' =\"\"a,b\"\"\"")
+    }
+
+    func testFiniteValuesOutsideIntegerRangeDoNotTrapOrChangeColumnCount() {
+        let food = FoodItem(name: "Legacy large value", calories: 1e30, protein: 12.5)
+        let csv = DataExporter.foodLogCSV(from: [DailyLog(date: Date(), meals: [Meal(name: "Meal", foodItems: [food])])])
+        let row = csv.split(separator: "\n")[1]
+        XCTAssertEqual(row.split(separator: ",", omittingEmptySubsequences: false).count, 9)
+        XCTAssertTrue(row.contains(",12.5,"))
+    }
 }

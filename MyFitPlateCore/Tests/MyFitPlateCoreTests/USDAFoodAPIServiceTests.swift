@@ -2,6 +2,114 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class USDAFoodAPIServiceTests: XCTestCase {
+    func testSearchRequiresEveryTypedTermBeforeBoundedResultsAreRanked() throws {
+        let url = try XCTUnwrap(USDAFoodRequestBuilder.searchURL(query: " Fairlife 2% milk ", apiKey: "test-key"))
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(items.first { $0.name == "query" }?.value, "Fairlife 2% milk")
+        XCTAssertEqual(items.first { $0.name == "requireAllWords" }?.value, "true")
+        XCTAssertEqual(items.first { $0.name == "pageSize" }?.value, "20")
+        XCTAssertEqual(items.first { $0.name == "dataType" }?.value, "Branded,Foundation,SR Legacy,Survey (FNDDS)")
+    }
+
+    func testSearchBoundsInputAndDoesNotAllowQueryParameterInjection() throws {
+        let url = try XCTUnwrap(USDAFoodRequestBuilder.searchURL(query: "milk&requireAllWords=false", apiKey: "test-key"))
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(items.filter { $0.name == "requireAllWords" }.compactMap(\.value), ["true"])
+        XCTAssertEqual(items.first { $0.name == "query" }?.value, "milk&requireAllWords=false")
+        let long = try XCTUnwrap(USDAFoodRequestBuilder.searchURL(query: String(repeating: "x", count: 500), apiKey: "test-key"))
+        XCTAssertEqual(URLComponents(url: long, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "query" }?.value?.count, 160)
+        XCTAssertNil(USDAFoodRequestBuilder.searchURL(query: " \n ", apiKey: "test-key"))
+    }
+
+    func testBrandedGRMServingUsesTheLabelWeightForNutrition() throws {
+        let data = Data(#"{"foods":[{"fdcId":9,"description":"Old fashioned oats","brandName":"Quaker","servingSize":40,"servingSizeUnit":"GRM","householdServingFullText":"1/2 cup dry (40 g)","foodNutrients":[{"nutrientNumber":"208","value":375}]}]}"#.utf8)
+        let oats = try XCTUnwrap(USDAFoodParser.foodItems(from: data).first)
+        XCTAssertEqual(oats.servingSize, "1/2 cup dry (40 g)")
+        XCTAssertEqual(oats.servingWeight, 40)
+        XCTAssertEqual(oats.calories, 150)
+    }
+
+    func testSpecificNonemptySearchMakesOnlyOneRequest() async throws {
+        var requests = 0
+        let foods = try await USDAFoodSearchPipeline.search(query: "Fairlife milk", apiKey: "test", timeout: 6) { url, timeout in
+            requests += 1
+            XCTAssertTrue(url.absoluteString.contains("requireAllWords=true"))
+            XCTAssertLessThanOrEqual(timeout, 6)
+            return Data(#"{"foods":[{"fdcId":1,"description":"Milk","brandName":"Fairlife","foodNutrients":[]}]}"#.utf8)
+        }
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(foods.count, 1)
+    }
+
+    func testEmptySpecificSearchGetsOneBroadAttemptWithRemainingBudget() async throws {
+        var elapsed = 10.0
+        var attempts: [Bool] = []
+        var budgets: [Double] = []
+        let foods = try await USDAFoodSearchPipeline.search(query: "100 g banana raw", apiKey: "test", timeout: 6, now: { elapsed }) { url, timeout in
+            let strict = url.absoluteString.contains("requireAllWords=true")
+            attempts.append(strict); budgets.append(timeout)
+            elapsed += 2
+            return Data((strict ? #"{"foods":[]}"# : #"{"foods":[{"fdcId":2,"description":"Banana, raw","foodNutrients":[]}]}"#).utf8)
+        }
+        XCTAssertEqual(attempts, [true, false])
+        XCTAssertEqual(budgets, [6, 4])
+        XCTAssertEqual(foods.map(\.id), ["usda_2"])
+    }
+
+    func testRejectedMultiwordQueryRetriesOnlyItsFamilyWithinTheSameBudget() async throws {
+        var requests: [String] = []
+        let results = try await USDAFoodSearchPipeline.search(query: "Chobani vanilla greek yogurt", apiKey: "test", timeout: 6) { url, _ in
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "query" }?.value ?? ""
+            requests.append(query)
+            if requests.count == 1 { throw USDAFoodSearchPipeline.RequestError.rejectedQuery }
+            return Data(#"{"foods":[{"fdcId":1,"description":"Vanilla Greek Yogurt","brandName":"Chobani","foodNutrients":[]}]}"#.utf8)
+        }
+        XCTAssertEqual(requests, ["Chobani vanilla greek yogurt", "Chobani vanilla"])
+        XCTAssertEqual(results.first?.id, "usda_1")
+    }
+
+    func testProviderFailureDoesNotTriggerBroadRetry() async {
+        var requests = 0
+        do {
+            _ = try await USDAFoodSearchPipeline.search(query: "milk", apiKey: "test", timeout: 6) { _, _ in
+                requests += 1
+                throw URLError(.badServerResponse)
+            }
+            XCTFail("Expected provider failure")
+        } catch { XCTAssertEqual((error as? URLError)?.code, .badServerResponse) }
+        XCTAssertEqual(requests, 1)
+    }
+
+    func testExpiredBudgetPreventsSecondRequest() async {
+        var elapsed = 10.0
+        var requests = 0
+        do {
+            _ = try await USDAFoodSearchPipeline.search(query: "milk", apiKey: "test", timeout: 6, now: { elapsed }) { _, _ in
+                requests += 1; elapsed += 6
+                return Data(#"{"foods":[]}"#.utf8)
+            }
+            XCTFail("Expected exhausted deadline")
+        } catch { XCTAssertEqual((error as? URLError)?.code, .timedOut) }
+        XCTAssertEqual(requests, 1)
+    }
+
+    func testCancellationAfterEmptyResponsePreventsSecondRequest() async {
+        let work = Task { () throws -> Int in
+            var requests = 0
+            do {
+                _ = try await USDAFoodSearchPipeline.search(query: "milk", apiKey: "test", timeout: 6) { _, _ in
+                    requests += 1
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    return Data(#"{"foods":[]}"#.utf8)
+                }
+                XCTFail("Expected cancellation")
+            } catch { XCTAssertTrue(error is CancellationError) }
+            return requests
+        }
+        let requests = try? await work.value
+        XCTAssertEqual(requests, 1)
+    }
+
     func testParsingValidJSON() throws {
         let json = """
         {

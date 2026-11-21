@@ -9,7 +9,11 @@ struct PastWorkoutDetailView: View {
     @State private var sessionLog: WorkoutSessionLog?
     @State private var isLoading = true
     @State private var showingEditSheet = false
+    @State private var editedExercise: LoggedExercise?
+    @EnvironmentObject private var dailyLogService: DailyLogService
     @Environment(\.dismiss) var dismiss
+
+    private var displayedExercise: LoggedExercise { editedExercise ?? exercise }
 
     var body: some View {
         Group {
@@ -18,7 +22,7 @@ struct PastWorkoutDetailView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.section) {
                         AppScreenHeader(
                             eyebrow: "Training Evidence",
-                            title: "Workout Details",
+                            title: "Workout details",
                             subtitle: "Retrieving the completed session."
                         )
 
@@ -42,18 +46,20 @@ struct PastWorkoutDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppSpacing.section) {
                         AppScreenHeader(
-                            eyebrow: "Manual Entry",
-                            title: "Simple Workout Log",
-                            subtitle: "This entry has exercise totals but no recorded set-by-set session."
+                            eyebrow: displayedExercise.source == "HealthKit" ? "Apple Health" : "Manual Entry",
+                            title: displayedExercise.source == "HealthKit" ? "Imported activity" : "Activity details",
+                            subtitle: displayedExercise.source == "HealthKit"
+                                ? "Corrections apply only to MyFitPlate. To remove this import, delete the original workout in Apple Health."
+                                : "This entry has exercise totals but no recorded set-by-set session."
                         )
 
                         VStack(alignment: .leading, spacing: AppSpacing.row) {
                             AppSectionHeader(
-                                title: exercise.name,
+                                title: displayedExercise.name,
                                 subtitle: "Detailed trends become available when a workout is completed through the session player."
                             )
 
-                            Button("Edit Entry") {
+                            Button("Edit activity") {
                                 showingEditSheet = true
                             }
                             .buttonStyle(AppActionButtonStyle(.primary))
@@ -77,8 +83,16 @@ struct PastWorkoutDetailView: View {
             }
         }
         .sheet(isPresented: $showingEditSheet) {
-            AddExerciseView(exerciseToEdit: exercise) { _ in
-                // Callback handling if needed
+            let original = displayedExercise
+            AddExerciseView(exerciseToEdit: original) { userID, updated, completion in
+                dailyLogService.exerciseLogStore.updateExerciseInLog(
+                    for: userID, original: original, updated: updated
+                ) { accepted in
+                    if accepted, DIContainer.shared.authService.currentUserID == userID {
+                        editedExercise = updated
+                    }
+                    completion(accepted)
+                }
             }
         }
         .task {

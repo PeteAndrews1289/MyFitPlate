@@ -10,7 +10,7 @@ struct WorkoutRoutinesView: View {
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @State private var routineToPlay: WorkoutRoutine?
+    @State private var workoutToPlay: WorkoutPlayerLaunch?
     @State private var showingAIGenerator = false
     @State private var routineToEdit: WorkoutRoutine?
     @State private var reviewLog: WorkoutSessionLog?
@@ -22,16 +22,20 @@ struct WorkoutRoutinesView: View {
     @State private var showingScreenshotWorkoutHistory = false
     @State private var screenshotProgramDetail: WorkoutProgram?
     @State private var screenshotHistoryLogs: [WorkoutSessionLog]?
+    @State private var resumableDraft: WorkoutSessionDraft?
+    @State private var routineToDelete: WorkoutRoutine?
+    @State private var showingPlanLibrary = false
+    @State private var showingOneOffWorkouts = false
 
     @StateObject private var viewModel = WorkoutDashboardViewModel()
-
-    private let planLibraryColumns = [GridItem(.flexible())]
 
     #if DEBUG
     init() {
         let screen = ScreenshotDemoData.requestedScreen
-        _routineToPlay = State(
-            initialValue: screen == "workout-player" ? ScreenshotDemoData.routineBuilderRoutine : nil
+        _showingAIGenerator = State(initialValue: ScreenshotDemoMode.isEnabled &&
+            (ProcessInfo.processInfo.arguments.contains("-ui-testing-ai-outline") || ProcessInfo.processInfo.arguments.contains("-ui-testing-open-ai-generator")))
+        _workoutToPlay = State(
+            initialValue: screen == "workout-player" ? WorkoutPlayerLaunch(standalone: ScreenshotDemoData.routineBuilderRoutine) : nil
         )
         _showingProgramBuilder = State(initialValue: screen == "program-builder")
         _showingSavedPrograms = State(initialValue: screen == "saved-programs")
@@ -58,47 +62,70 @@ struct WorkoutRoutinesView: View {
     static let trainTourSteps: [SpotlightTourStep] = [
         SpotlightTourStep(id: "train-next-step", title: "Training hub",
                           text: "Follow your active program or choose a workout routine tailored to your goals."),
-        SpotlightTourStep(id: "train-library", title: "Plan library",
-                          text: "Pick ready-made programs, generate AI plans, or build your own custom workouts.")
+        SpotlightTourStep(id: "train-library", title: "Your training",
+                          text: "Open your program and schedule, check recovery and fuel, or explore running and training tools.")
     ]
 
-    var body: some View {
+    var body: AnyView {
         SpotlightTourScaffold(steps: WorkoutRoutinesView.trainTourSteps) { isActive in
         let isNextStepSpotlightActive = isActive("train-next-step")
         let isLibrarySpotlightActive = isActive("train-library")
         NavigationStack {
-            ScrollViewReader { scrollProxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     let nextWorkout = viewModel.nextWorkoutInfo(for: workoutService.activeProgram)
 
-                    let todayLog = dailyLogService.currentDailyLog.flatMap { log in
-                        Calendar.current.isDateInToday(log.date) ? log : nil
-                    }
-
                     AppScreenHeader(
                         title: "Train",
-                        subtitle: dynamicTypeSize.isAccessibilitySize
-                            ? nil
-                            : "Your next workout, readiness, and recovery."
+                        subtitle: nil
                     ) {
-                        NavigationLink(destination: WorkoutHistoryView()) {
-                            Image(systemName: "clock.arrow.circlepath")
+                        HStack(spacing: AppSpacing.compact) {
+                            Button { showingSavedPrograms = true } label: {
+                                Image(systemName: "folder")
+                            }
+                            .buttonStyle(AppIconButtonStyle(.neutral))
+                            .accessibilityLabel("Saved plans")
+                            .accessibilityIdentifier("train_saved_plans")
+                            NavigationLink(destination: AnyView(WorkoutHistoryView())) {
+                                Image(systemName: "clock.arrow.circlepath")
+                            }
+                            .buttonStyle(AppIconButtonStyle(.neutral))
+                            .accessibilityLabel("Workout history")
                         }
-                        .buttonStyle(AppIconButtonStyle(.neutral))
-                        .accessibilityLabel("Workout history")
                     }
                     .accessibilityIdentifier("train_screen_header")
 
+                    WorkoutSyncNotice(service: workoutService)
+                    WorkoutMigrationRecoveryLink(workoutService: workoutService)
+                    if let resumableDraft {
+                        let savedSets = resumableDraft.routine.exercises.reduce(0) { $0 + $1.sets.filter(\.isCompleted).count }
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            Text("Continue your workout").appTextRole(.sectionTitle)
+                            Text(resumableDraft.routine.name).appTextRole(.body)
+                            Text("\(savedSets.formatted()) \(savedSets == 1 ? "set" : "sets") saved · \(resumableDraft.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                                .appTextRole(.secondary).foregroundStyle(.secondary)
+                            Button {
+                                workoutToPlay = WorkoutPlayerLaunch(resuming: resumableDraft)
+                            } label: {
+                                Label(resumableDraft.completion == nil ? "Resume Workout" : "Finish Saving", systemImage: "play.fill")
+                            }
+                            .buttonStyle(AppActionButtonStyle(.primary))
+                            .accessibilityIdentifier("workout_resume")
+                        }
+                        .appSurface(.emphasized)
+                    }
                     // DESIGN.md rule 1: the Train screen answers "what do I do right now?"
-                    // With a program, the slider is the single hero; the Training Hub banner
-                    // and path-chooser card only appear in the no-program empty state.
+                    // Resume or the next session is the single hero. Secondary planning
+                    // and recovery details live on focused destination pages.
+                    if resumableDraft == nil {
                     VStack(alignment: .leading, spacing: 14) {
                         if let program = workoutService.activeProgram {
                             TodaysNextStepSlider(
                                 program: program,
                                 completedLogsByIndex: viewModel.completedLogsByIndex(for: program),
-                                onStart: { routine in self.routineToPlay = routine },
+                                onStart: { routine, slot in
+                                    startProgramWorkout(routine, program: program, slot: slot)
+                                },
                                 onSkipTo: { target in
                                     Task {
                                         if let updated = await workoutService.skipToIndex(target, in: program),
@@ -107,175 +134,68 @@ struct WorkoutRoutinesView: View {
                                         }
                                     }
                                 },
-                                onReview: { log in self.reviewLog = log }
+                                onReview: { log in self.reviewLog = log },
+                                showsExercisePreview: false
                             )
 
-                            TrainingWeekPreviewCard(program: program, nextWorkout: nextWorkout)
+                            if program.weekRescue != nil, let date = program.date(forSlot: program.currentProgressIndex ?? 0) {
+                                Text("Adjusted plan · Next session \(date.formatted(date: .abbreviated, time: .omitted))")
+                                    .appTextRole(.secondary).foregroundStyle(.secondary)
+                            }
+                        } else if !workoutService.hasLoadedPrograms || workoutService.preferredProgramUnavailable {
+                            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                                if workoutService.isLoadingPrograms {
+                                    ProgressView("Loading your saved programs")
+                                } else {
+                                    Label("Your saved programs couldn’t load", systemImage: "icloud.slash")
+                                        .appTextRole(.sectionTitle)
+                                }
+                                Text("Reconnect and retry to load your existing plan and progress.")
+                                    .appTextRole(.secondary)
+                                    .foregroundStyle(.secondary)
+                                if workoutService.isLoadingPrograms {
+                                    Button("Retry", action: workoutService.retryPendingSaves)
+                                        .buttonStyle(AppActionButtonStyle(.secondary))
+                                }
+                            }
+                            .appSurface(.emphasized)
+                            .accessibilityIdentifier("workout_library_loading")
                         } else {
-                            TrainingHeroCard(
-                                activeProgramName: nil,
-                                routineCount: workoutService.userRoutines.count,
-                                programCount: workoutService.userPrograms.count
-                            )
-
                             TrainingDecisionCard(
                                 nextWorkout: nextWorkout,
                                 activeProgramName: nil,
                                 routineCount: workoutService.userRoutines.count,
                                 onStartWorkout: {
-                                    if let nextWorkout {
-                                        self.routineToPlay = nextWorkout.routine
+                                    if let nextWorkout, let slot = nextWorkout.program.currentProgressIndex {
+                                        startProgramWorkout(nextWorkout.routine, program: nextWorkout.program, slot: slot)
                                     }
                                 },
                                 onChoosePlan: {
-                                    withAnimation { scrollProxy.scrollTo("plan-library", anchor: .top) }
+                                    showingPlanLibrary = true
                                 },
                                 onChooseOneOff: {
-                                    withAnimation { scrollProxy.scrollTo("one-off-workouts", anchor: .top) }
+                                    showingOneOffWorkouts = true
                                 }
                             )
                         }
                     }
                     .featureSpotlight(isActive: isNextStepSpotlightActive)
-
-                    TrainingReadinessCard(brief: viewModel.trainingBrief(todayLog: todayLog, goalSettings: goalSettings))
-
-                    if workoutService.activeProgram != nil {
-                        MuscleRecoveryMapView()
                     }
 
-                    if let program = workoutService.activeProgram {
-                        ActiveProgramManagementCard(
-                            program: program,
-                            onDelete: {
-                                showingDeleteCurrentProgramAlert = true
-                            }
-                        ) {
-                            ProgramListView(workoutService: workoutService)
-                                .environmentObject(goalSettings)
-                                .environmentObject(dailyLogService)
-                                .environmentObject(achievementService)
-                        }
+                    trainingDestinations
                         .featureSpotlight(isActive: isLibrarySpotlightActive)
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        TrainingSectionHeader(
-                            title: "Running",
-                            subtitle: "Every run from every watch, in one place."
-                        )
-
-                        NavigationLink(destination: RunHistoryView()) {
-                            TrainingActionTile(
-                                icon: "figure.run",
-                                title: "Your runs",
-                                subtitle: "History, splits, routes",
-                                color: Color(UIColor.secondaryLabel)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("running_history_button")
-                    }
-
-                    if workoutService.activeProgram == nil {
-                        VStack(alignment: .leading, spacing: 12) {
-                            TrainingSectionHeader(
-                                title: "Plan Library",
-                                subtitle: "Choose a ready-made plan, generate one, or build your own."
-                            )
-
-                        LazyVGrid(columns: planLibraryColumns, spacing: 12) {
-                            NavigationLink(destination: PreBuiltProgramsView()
-                                .environmentObject(workoutService)
-                                .environmentObject(goalSettings)
-                                .environmentObject(dailyLogService)
-                                .environmentObject(achievementService)
-                            ) {
-                                TrainingActionTile(
-                                    icon: "rectangle.stack.fill",
-                                    title: "Pre-built",
-                                    subtitle: "Preview proven plans",
-                                    color: Color(UIColor.secondaryLabel)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("prebuilt_programs_button")
-
-                            Button {
-                                showingAIGenerator = true
-                            } label: {
-                                TrainingActionTile(
-                                    icon: "sparkles",
-                                    title: "AI Program",
-                                    subtitle: "Generate tailored plan",
-                                    color: Color.brandPrimary
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("ai_workout_generator_button")
-
-                            NavigationLink(destination: ProgramCreatorView(workoutService: workoutService)) {
-                                TrainingActionTile(
-                                    icon: "square.and.pencil",
-                                    title: "Manual Build",
-                                    subtitle: "Design your split",
-                                    color: Color(UIColor.secondaryLabel)
-                                )
-                            }
-                            .buttonStyle(.plain)
-
-                            NavigationLink(destination: ProgramListView(workoutService: workoutService)
-                                .environmentObject(goalSettings)
-                                .environmentObject(dailyLogService)
-                                .environmentObject(achievementService)
-                            ) {
-                                TrainingActionTile(
-                                    icon: "folder.fill",
-                                    title: "Saved Plans",
-                                    subtitle: "Manage programs",
-                                    color: .accentPositive
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        }
-                        .featureSpotlight(isActive: isLibrarySpotlightActive)
-                        .id("plan-library")
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            TrainingSectionHeader(
-                                title: "One-off Workouts",
-                                subtitle: "Start a saved routine without committing to a program."
-                            )
-
-                            if workoutService.userRoutines.isEmpty {
-                                Button {
-                                    routineToEdit = WorkoutRoutine(
-                                        userID: DIContainer.shared.authService.currentUserID ?? "",
-                                        name: "",
-                                        dateCreated: Date()
-                                    )
-                                } label: {
-                                    Label("Create a Routine", systemImage: "plus")
-                                }
-                                .buttonStyle(AppActionButtonStyle(.secondary))
-                            } else {
-                                ForEach(workoutService.userRoutines) { routine in
-                                    routineRow(routine)
-                                }
-                            }
-                        }
-                        .id("one-off-workouts")
-                    }
 
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.group)
                 .padding(.bottom, AppSpacing.section)
-            }
+                .workoutPresentationBoundary()
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $showingPlanLibrary) { planLibrary }
+            .navigationDestination(isPresented: $showingOneOffWorkouts) { oneOffWorkouts }
+            .workoutPresentationBoundary()
             .navigationDestination(isPresented: $showingScreenshotProgramDetail) {
                 if let screenshotProgramDetail {
                     ProgramDetailView(program: screenshotProgramDetail)
@@ -284,6 +204,16 @@ struct WorkoutRoutinesView: View {
             .navigationDestination(isPresented: $showingScreenshotWorkoutHistory) {
                 WorkoutHistoryView(fixtureLogs: screenshotHistoryLogs)
             }
+            .onAppear {
+                workoutService.fetchRoutinesAndPrograms()
+                refreshDraft()
+            }
+            .task(id: workoutService.activeProgram?.id) {
+                await viewModel.refreshSessionLogs(for: workoutService.activeProgram, workoutService: workoutService)
+            }
+            .workoutPresentationBoundary()
+        }
+            .workoutPresentationBoundary()
             .alert("Delete Current Program?", isPresented: $showingDeleteCurrentProgramAlert) {
                 Button("Delete Program", role: .destructive) {
                     if let program = workoutService.activeProgram {
@@ -300,27 +230,20 @@ struct WorkoutRoutinesView: View {
             } message: {
                 Text("This removes the active plan from your saved programs. Workout history stays saved.")
             }
-            .onAppear {
-                workoutService.fetchRoutinesAndPrograms()
-            }
-            .task(id: workoutService.activeProgram?.id) {
-                await viewModel.refreshSessionLogs(for: workoutService.activeProgram, workoutService: workoutService)
-            }
-            .fullScreenCover(item: $routineToPlay) { routine in
-                WorkoutPlayerView(routine: routine, onWorkoutComplete: {
+            .confirmationDialog("Delete this routine?", isPresented: Binding(
+                get: { routineToDelete != nil }, set: { if !$0 { routineToDelete = nil } }
+            ), titleVisibility: .visible) {
+                Button("Delete Routine", role: .destructive) {
+                    if let routineToDelete { workoutService.deleteRoutine(routineToDelete) }
+                    routineToDelete = nil
+                }
+            } message: { Text("Completed workout history will be kept.") }
+            .fullScreenCover(item: $workoutToPlay, onDismiss: refreshDraft) { launch in
+                WorkoutPlayerView(routine: launch.routine, programContext: launch.programContext, onWorkoutComplete: {
+                    refreshDraft()
                     if let program = workoutService.activeProgram {
-                        let mutableProgram = WorkoutRules.advanceAfterCompletion(
-                            in: program,
-                            completedRoutineID: routine.id
-                        )
-                        let expectedLogCount = viewModel.sessionLogs.count + 1
-
                         Task {
-                            let savedProgram = await workoutService.saveProgram(mutableProgram) ?? mutableProgram
-                            if savedProgram.id == workoutService.activeProgram?.id {
-                                workoutService.activeProgram = savedProgram
-                            }
-                            await viewModel.refreshSessionLogs(for: savedProgram, workoutService: workoutService, expectingAtLeast: expectedLogCount)
+                            await viewModel.refreshSessionLogs(for: program, workoutService: workoutService)
                         }
                     }
                 })
@@ -330,6 +253,7 @@ struct WorkoutRoutinesView: View {
                 .environmentObject(achievementService)
                 .environmentObject(trainingFuelPlanStore)
             }
+            .workoutPresentationBoundary()
             .sheet(isPresented: $showingAIGenerator) {
                 AIWorkoutGeneratorView()
                     .environmentObject(workoutService)
@@ -352,14 +276,13 @@ struct WorkoutRoutinesView: View {
                         .environmentObject(achievementService)
                 }
             }
+            .workoutPresentationBoundary()
             .sheet(item: $routineToEdit) { routine in
                 RoutineEditorView(
                     workoutService: workoutService,
                     routine: routine,
                     onSave: { updatedRoutine in
-                        Task {
-                            try? await workoutService.saveRoutine(updatedRoutine)
-                        }
+                        try await workoutService.saveRoutine(updatedRoutine)
                     }
                 )
             }
@@ -370,14 +293,186 @@ struct WorkoutRoutinesView: View {
                         .navigationBarTitleDisplayMode(.inline)
                 }
             }
+            .workoutPresentationBoundary()
         }
+        .workoutPresentationBoundary()
+    }
+
+    private var trainingDestinations: AnyView {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text("Your training").appTextRole(.sectionTitle)
+            VStack(spacing: 0) {
+                if let program = workoutService.activeProgram {
+                    NavigationLink { programOverview } label: {
+                        TrainingNavigationRow(icon: "calendar", title: "Program & schedule", subtitle: program.name)
+                    }
+                    .accessibilityIdentifier("train_program_overview")
+                    trainingDivider
+                }
+                NavigationLink { preparationOverview } label: {
+                    TrainingNavigationRow(icon: "heart.text.square", title: "Recovery & fuel", subtitle: "Recent training, check-ins and today's fuel")
+                }
+                .accessibilityIdentifier("train_preparation")
+                trainingDivider
+                NavigationLink(destination: AnyView(RunHistoryView())) {
+                    TrainingNavigationRow(icon: "figure.run", title: "Running", subtitle: "Record a run, review splits and routes")
+                }
+                .accessibilityIdentifier("running_history_button")
+                trainingDivider
+                NavigationLink(destination: AnyView(ToolDirectoryView())) {
+                    TrainingNavigationRow(icon: "square.grid.2x2", title: "Training tools", subtitle: "Planning, calculators and more")
+                }
+                .accessibilityIdentifier("train_all_tools")
+            }
+            .buttonStyle(.plain)
+            .background { Color.clear.appSurface(.quiet, padding: 0).allowsHitTesting(false) }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("train_destinations")
+        .workoutPresentationBoundary()
+    }
+
+    private var trainingDivider: some View { Divider().padding(.leading, 64) }
+
+    private var programOverview: AnyView {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                WorkoutSyncNotice(service: workoutService)
+                if let program = workoutService.activeProgram {
+                    TrainingWeekPreviewCard(program: program, history: viewModel.sessionLogs)
+                    ActiveProgramManagementCard(program: program, onDelete: {
+                        showingDeleteCurrentProgramAlert = true
+                    }) {
+                        ProgramListView(workoutService: workoutService)
+                            .environmentObject(goalSettings)
+                            .environmentObject(dailyLogService)
+                            .environmentObject(achievementService)
+                            .workoutPresentationBoundary()
+                    }
+                    NavigationLink { oneOffWorkouts } label: {
+                        TrainingNavigationRow(icon: "dumbbell", title: "Saved routines", subtitle: "Start a separate workout or edit a routine")
+                            .appSurface(.quiet, padding: 0)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("train_saved_routines")
+                    NavigationLink { planLibrary } label: {
+                        TrainingNavigationRow(icon: "rectangle.stack", title: "Explore plans", subtitle: "Pre-built, generated and custom programs")
+                            .appSurface(.quiet, padding: 0)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("train_explore_plans")
+                } else {
+                    Text("Your active program is available from Train. Choose a plan there to review its schedule.")
+                        .appTextRole(.body).foregroundStyle(.secondary)
+                }
+            }
+            .padding(AppSpacing.screenHorizontal)
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .navigationTitle("Program & schedule")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .accessibilityIdentifier("train_program_overview_screen")
+        .workoutPresentationBoundary()
+    }
+
+    private var preparationOverview: AnyView {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                let todayLog = dailyLogService.currentDailyLog.flatMap { log in
+                    Calendar.current.isDateInToday(log.date) ? log : nil
+                }
+                TrainingReadinessCard(brief: viewModel.trainingBrief(todayLog: todayLog, goalSettings: goalSettings))
+                if workoutService.activeProgram != nil {
+                    MuscleRecoveryMapView()
+                    AdaptiveToolsLinks()
+                }
+            }
+            .padding(AppSpacing.screenHorizontal)
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .navigationTitle("Recovery & fuel")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .accessibilityIdentifier("train_preparation_screen")
+        .workoutPresentationBoundary()
+    }
+
+    private var planLibrary: AnyView {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                Text("Choose a ready-made plan, generate a tailored program, or build your own.")
+                    .appTextRole(.body).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 0) {
+                    Button { showingSavedPrograms = true } label: {
+                        TrainingNavigationRow(icon: "folder", title: "Saved plans", subtitle: "Open your existing program library")
+                    }
+                    trainingDivider
+                    NavigationLink(destination: PreBuiltProgramsView()
+                        .environmentObject(workoutService)
+                        .environmentObject(goalSettings)
+                        .environmentObject(dailyLogService)
+                        .environmentObject(achievementService)) {
+                        TrainingNavigationRow(icon: "rectangle.stack", title: "Pre-built programs", subtitle: "Preview proven training plans")
+                    }
+                    .accessibilityIdentifier("prebuilt_programs_button")
+                    trainingDivider
+                    Button { showingAIGenerator = true } label: {
+                        TrainingNavigationRow(icon: "sparkles", title: "Generate a program", subtitle: "Review a plan built around your goals")
+                    }
+                    .accessibilityIdentifier("ai_workout_generator_button")
+                    trainingDivider
+                    NavigationLink(destination: ProgramCreatorView(workoutService: workoutService)) {
+                        TrainingNavigationRow(icon: "square.and.pencil", title: "Build a program", subtitle: "Design your own training split")
+                    }
+                }
+                .buttonStyle(.plain)
+                .background { Color.clear.appSurface(.quiet, padding: 0).allowsHitTesting(false) }
+            }
+            .padding(AppSpacing.screenHorizontal)
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .navigationTitle("Choose a plan")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .accessibilityIdentifier("train_plan_library")
+        .workoutPresentationBoundary()
+    }
+
+    private var oneOffWorkouts: AnyView {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                Text("Start a saved routine separately from your program.")
+                    .appTextRole(.body).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if workoutService.userRoutines.isEmpty {
+                    Text("Build a routine for the sessions you like to repeat.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                } else {
+                    ForEach(workoutService.userRoutines) { routine in routineRow(routine) }
+                }
+                Button {
+                    routineToEdit = WorkoutRoutine(userID: DIContainer.shared.authService.currentUserID ?? "", name: "", dateCreated: Date())
+                } label: {
+                    Label("Create a routine", systemImage: "plus")
+                }
+                .buttonStyle(AppActionButtonStyle(.secondary))
+            }
+            .padding(AppSpacing.screenHorizontal)
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .navigationTitle("Saved routines")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .accessibilityIdentifier("train_one_off_workouts")
+        .workoutPresentationBoundary()
     }
 
     private func recordTrainingFuelSkip(for program: WorkoutProgram) {
         let index = program.currentProgressIndex ?? 0
         guard !program.routines.isEmpty else { return }
-        let routine = program.routines[index % program.routines.count]
+        guard let routine = program.routine(forSlot: index) else { return }
         let today = dailyLogService.currentDailyLog.flatMap { log in
             Calendar.current.isDateInToday(log.date) ? log : nil
         }
@@ -385,12 +480,26 @@ struct WorkoutRoutinesView: View {
             programID: program.id,
             routineID: routine.id,
             today: today,
-            for: DIContainer.shared.authService.currentUserID
+            for: DIContainer.shared.authService.currentUserID,
+            slotIndex: index
         ) else { return }
         DIContainer.shared.analyticsManager?.logEvent(
             ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
             parameters: ["outcome": "skipped", "source": "program_skip"]
         )
+    }
+
+    private func startProgramWorkout(_ routine: WorkoutRoutine, program: WorkoutProgram, slot: Int) {
+        guard let launch = WorkoutPlayerLaunch(routine: routine, program: program, slot: slot) else {
+            ToastManager.shared.showToast(message: "Reopen your program to choose its current session.")
+            return
+        }
+        workoutToPlay = launch
+    }
+
+    private func refreshDraft() {
+        guard let userID = DIContainer.shared.authService.currentUserID else { resumableDraft = nil; return }
+        resumableDraft = try? WorkoutDraftStore().load(userID: userID)
     }
 
     @ViewBuilder
@@ -419,7 +528,7 @@ struct WorkoutRoutinesView: View {
             Spacer(minLength: AppSpacing.compact)
 
             Button {
-                routineToPlay = routine
+                workoutToPlay = WorkoutPlayerLaunch(standalone: routine)
             } label: {
                 Image(systemName: "play.fill")
             }
@@ -431,7 +540,7 @@ struct WorkoutRoutinesView: View {
                     routineToEdit = routine
                 }
                 Button("Delete", role: .destructive) {
-                    workoutService.deleteRoutine(routine)
+                    routineToDelete = routine
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -445,4 +554,10 @@ struct WorkoutRoutinesView: View {
         .padding(AppSpacing.row)
         .appSurface(.quiet, padding: 0)
     }
+}
+
+private extension View {
+    /// Keep screen and destination metadata shallow enough for the device's
+    /// type-decoder stack. These fixed boundaries retain the existing state owners.
+    func workoutPresentationBoundary() -> AnyView { AnyView(self) }
 }

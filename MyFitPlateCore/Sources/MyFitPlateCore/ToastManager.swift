@@ -24,12 +24,14 @@ public struct ToastView: View {
     
     public var body: some View {
         Text(message)
-            .font(.subheadline)
-            .foregroundColor(.white)
-            .padding()
-            .background(Color.black.opacity(0.8))
-            .cornerRadius(8)
-            .shadow(radius: 4)
+            .appTextRole(.secondary)
+            .foregroundStyle(AppPalette.text)
+            .multilineTextAlignment(.center)
+            .padding(AppSpacing.group)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: AppRadius.surface))
+            .overlay { RoundedRectangle(cornerRadius: AppRadius.surface).stroke(AppPalette.separator, lineWidth: 1) }
+            .frame(maxWidth: 520)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
     }
 }
 
@@ -46,12 +48,10 @@ public struct ToastModifier: ViewModifier {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .padding(.bottom, 50)
                     .zIndex(1)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            withAnimation {
-                                manager.toast = nil
-                            }
-                        }
+                    .task(id: toast.id) {
+                        do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                        guard !Task.isCancelled, manager.toast?.id == toast.id else { return }
+                        withAnimation { manager.toast = nil }
                     }
             }
         }

@@ -46,10 +46,17 @@ public final class MockCloudFunctionService: CloudFunctionServiceProtocol, @unch
     public var onCall: (([String: Any]) throws -> Result<Any?, Error>)?
     public var deleteUserDataCalled = false
     public var deleteUserDataError: Error?
+    public var onDeleteUserData: (() -> Void)?
+    public private(set) var expectedDeletionUserIDs: [String] = []
+    public func deleteUserData(expectedUserID: String) async throws {
+        expectedDeletionUserIDs.append(expectedUserID)
+        try await deleteUserData()
+    }
 
     public func deleteUserData() async throws {
         if let deleteUserDataError { throw deleteUserDataError }
         deleteUserDataCalled = true
+        onDeleteUserData?()
     }
 
     public func callFunction(_ name: String, with data: [String: Any]) async throws -> Any? { 
@@ -138,9 +145,80 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
         lock.lock(); defer { lock.unlock() }; return _savedStatuses
     }
     public func saveUserStatus(userID: String, status: UserAchievementStatus) async throws {
-        appendSavedStatus(status)
+        guard !status.isUnlocked, status.currentProgress.isFinite else { throw AchievementAwardError.invalid }
+        lock.withLock {
+            let existing = awardStatusesByUser[userID]?[status.achievementID]
+                ?? mockUserStatuses?.first(where: { $0.achievementID == status.achievementID })
+            guard existing?.isUnlocked != true else { return }
+            var next = status; next.currentProgress = max(existing?.currentProgress ?? 0, status.currentProgress)
+            awardStatusesByUser[userID, default: [:]][status.achievementID] = next
+            _savedStatuses.append(next)
+        }
     }
     
+    public var awardError: Error?
+    public var awardErrorsByID: [String: Error] = [:]
+    public var awardErrorsByFoodID: [String: Error] = [:]
+    public var awardFailureAfterCommit: Error?
+    public var awardDelayNanoseconds: UInt64 = 0
+    private var awardStatusesByUser: [String: [String: UserAchievementStatus]] = [:]
+    private var awardPointsByUser: [String: Int] = [:]
+    private var awardReceiptsByUser: [String: [String: AchievementAwardResult]] = [:]
+    private var _acceptedAwardCount = 0
+    public var acceptedAwardCount: Int { lock.withLock { _acceptedAwardCount } }
+
+    private var legacyBalances: [String: LegacyAchievementBalanceReceipt] = [:]
+    public func preserveLegacyPointBalance(userID: String) async throws -> LegacyAchievementBalanceReceipt {
+        let owner = await MainActor.run { DIContainer.shared.authService.currentUserID }
+        guard owner == userID else { throw AchievementAwardError.accountChanged }
+        return try lock.withLock {
+            let receipt = try LegacyAchievementBalanceReceipt.preserving(legacyBalances[userID], ownerID: userID,
+                profilePoints: awardPointsByUser[userID] ?? mockUserProfile?.points ?? 0)
+            legacyBalances[userID] = receipt
+            return receipt
+        }
+    }
+
+    public func acceptAward(_ command: AchievementAwardCommand, levelThresholds: [Int]) async throws -> AchievementAwardResult {
+        if awardDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: awardDelayNanoseconds) }
+        let ownerID = await MainActor.run { DIContainer.shared.authService.currentUserID }
+        try command.validate(currentUserID: ownerID)
+        if let awardError { throw awardError }
+        if let error = awardErrorsByID[command.id] { throw error }
+        if let foodID = command.evidence.facts?["foodID"], let error = awardErrorsByFoodID[foodID] { throw error }
+        let result: AchievementAwardResult = try lock.withLock {
+            let owner = command.ownerID
+            if awardStatusesByUser[owner] == nil {
+                awardStatusesByUser[owner] = Dictionary((mockUserStatuses ?? []).map { ($0.achievementID, $0) }, uniquingKeysWith: { first, second in first.isUnlocked ? first : second })
+            }
+            let oldPoints = awardPointsByUser[owner] ?? mockUserProfile?.points ?? 0
+            guard oldPoints >= 0, oldPoints <= Int.max - command.points else { throw AchievementAwardError.invalid }
+            legacyBalances[owner] = try LegacyAchievementBalanceReceipt.preserving(legacyBalances[owner], ownerID: owner, profilePoints: oldPoints)
+            if let receipt = awardReceiptsByUser[owner]?[command.id] {
+                return AchievementAwardResult(status: receipt.status, totalPoints: oldPoints,
+                    level: AchievementRules.level(for: oldPoints, thresholds: levelThresholds), awardedNow: false)
+            }
+            let existing = awardStatusesByUser[owner]?[command.id]
+            var status = command.status
+            let awardsNow = existing?.isUnlocked != true
+            if let existing, existing.isUnlocked {
+                status = existing
+                if status.awardEvidence == nil { status.legacyAwardPreserved = true }
+            }
+            let points = oldPoints + (awardsNow ? command.points : 0)
+            let result = AchievementAwardResult(status: status, totalPoints: points,
+                level: AchievementRules.level(for: points, thresholds: levelThresholds), awardedNow: awardsNow)
+            awardStatusesByUser[owner, default: [:]][command.id] = status
+            awardPointsByUser[owner] = points
+            awardReceiptsByUser[owner, default: [:]][command.id] = result
+            _savedStatuses.append(status)
+            if awardsNow { _acceptedAwardCount += 1 }
+            return result
+        }
+        if let awardFailureAfterCommit { throw awardFailureAfterCommit }
+        return result
+    }
+
     public var mockAwardPointsResult = (newPoints: 0, newLevel: 1)
     private var _awardPointsCalledCount = 0
     public var awardPointsCalledCount: Int {
@@ -197,13 +275,25 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
     public init() {}
     public var mockFetchUserGoalsResult: [String: Any]?
     public var shouldDeferFetchUserGoals = false
-    public var fetchUserGoalsCallbacks: [String: ([String: Any]?) -> Void] = [:]
-    public var fetchedUserGoalIDs: [String] = []
+    private let fetchLock = NSLock()
+    private var storedFetchCallbacks: [String: ([String: Any]?) -> Void] = [:]
+    private var storedFetchedIDs: [String] = []
+    public var fetchUserGoalsCallbacks: [String: ([String: Any]?) -> Void] {
+        fetchLock.withLock { storedFetchCallbacks }
+    }
+    public var fetchedUserGoalIDs: [String] {
+        get { fetchLock.withLock { storedFetchedIDs } }
+        set { fetchLock.withLock { storedFetchedIDs = newValue } }
+    }
     public var mockWeightHistory: [(id: String, date: Date, weight: Double)] = []
     public var savedUserGoals: [String: Any]?
     public func fetchUserGoals(userID: String, completion: @escaping ([String: Any]?) -> Void) {
-        fetchedUserGoalIDs.append(userID)
-        fetchUserGoalsCallbacks[userID] = completion
+        // accountProfile's async bridge may call this on a cooperative executor
+        // while a test awaits the deferred callback on MainActor.
+        fetchLock.withLock {
+            storedFetchedIDs.append(userID)
+            storedFetchCallbacks[userID] = completion
+        }
         if !shouldDeferFetchUserGoals {
             completion(mockFetchUserGoalsResult)
         }
@@ -214,7 +304,15 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
     
     public var onSave: (() -> Void)?
     public var saveUserGoalsError: Error?
+    public var goalEditorSaveDelayNanoseconds: UInt64 = 0
+    public private(set) var goalEditorSaveUserIDs: [String] = []
+    public private(set) var waterGoalSaveUserIDs: [String] = []
+    public private(set) var foodPreferencesSaveUserIDs: [String] = []
+    public var saveWeightEntryError: Error?
+    public var weightSaveDelayNanoseconds: UInt64 = 0
     public private(set) var savedWeightEntries: [(userID: String, weight: Double)] = []
+    public private(set) var savedWeightMeasurements: [String: (userID: String, weight: Double, date: Date)] = [:]
+    public private(set) var weightSaveAttemptIDs: [String] = []
     public private(set) var createdInitialUserData: [(userID: String, email: String, username: String)] = []
 
     public func saveUserGoals(userID: String, data: [String: Any]) async throws {
@@ -222,14 +320,100 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
         savedUserGoals = data
         onSave?()
     }
+    public var weeklyDecisionNow: () -> Date = { Date() }
+    public var weeklyDecisionErrorAfterCommit: Error?
+    public private(set) var weeklyTargetDecisions: [String: [UUID: WeeklyTargetDecision]] = [:]
+    public private(set) var weeklyTargetCommitCount = 0
+    @MainActor
+    public func saveWeeklyTargetDecision(_ decision: WeeklyTargetDecision) async throws -> WeeklyTargetDecision {
+        let owner = decision.proposal.userID
+        guard DIContainer.shared.authService.currentUserID == owner else { throw WeeklyTargetReviewError.accountChanged }
+        if let existing = weeklyTargetDecisions[owner]?[decision.id] {
+            guard existing == decision else { throw WeeklyTargetReviewError.changed }
+            return existing
+        }
+        try decision.validateForNewCommit(now: weeklyDecisionNow())
+        if let current = mockFetchUserGoalsResult, !decision.proposal.matchesPersistedTargets(current) {
+            throw WeeklyTargetReviewError.changed
+        }
+        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        guard DIContainer.shared.authService.currentUserID == owner else { throw WeeklyTargetReviewError.accountChanged }
+        if let saveUserGoalsError { throw saveUserGoalsError }
+        if !decision.profilePatch.isEmpty {
+            savedUserGoals = decision.profilePatch
+            if var current = mockFetchUserGoalsResult {
+                var goals = current["goals"] as? [String: Any] ?? [:]
+                for (key, value) in decision.profilePatch where key != "goals" { current[key] = value }
+                for (key, value) in decision.profilePatch["goals"] as? [String: Any] ?? [:] { goals[key] = value }
+                current["goals"] = goals; mockFetchUserGoalsResult = current
+            }
+        }
+        weeklyTargetDecisions[owner, default: [:]][decision.id] = decision
+        weeklyTargetCommitCount += 1
+        if let weeklyDecisionErrorAfterCommit { throw weeklyDecisionErrorAfterCommit }
+        return decision
+    }
+    @MainActor
+    public func fetchWeeklyTargetDecisions(userID: String) async throws -> [WeeklyTargetDecision] {
+        guard DIContainer.shared.authService.currentUserID == userID else { throw WeeklyTargetReviewError.accountChanged }
+        return (weeklyTargetDecisions[userID] ?? [:]).values.sorted { $0.decidedAt > $1.decidedAt }
+    }
+
+    @MainActor
+    public func saveGoalEditorChange(userID: String, baseline: GoalEditorDraft, data: [String: Any]) async throws {
+        guard DIContainer.shared.authService.currentUserID == userID else { throw GoalEditorError.accountChanged }
+        if let current = mockFetchUserGoalsResult, !baseline.matchesPersistedInputs(current) { throw GoalEditorError.changed }
+        goalEditorSaveUserIDs.append(userID)
+        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        guard DIContainer.shared.authService.currentUserID == userID else { throw GoalEditorError.accountChanged }
+        try await saveUserGoals(userID: userID, data: data)
+    }
+    @MainActor
+    public func saveWaterGoalChange(userID: String, baseline: Double, goal: Double) async throws {
+        guard DIContainer.shared.authService.currentUserID == userID else { throw GoalEditorError.accountChanged }
+        if let goals = mockFetchUserGoalsResult?["goals"] as? [String: Any], let current = goals["waterGoal"] {
+            guard let value = current as? NSNumber,
+                  abs(value.doubleValue - baseline) < 0.0001 || abs(value.doubleValue - goal) < 0.0001 else { throw GoalEditorError.changed }
+        }
+        waterGoalSaveUserIDs.append(userID)
+        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        guard DIContainer.shared.authService.currentUserID == userID else { throw GoalEditorError.accountChanged }
+        try await saveUserGoals(userID: userID, data: ["goals": ["waterGoal": goal]])
+    }
+    @MainActor
+    public func saveFoodPreferencesChange(userID: String, baseline: FoodPreferencesDraft, draft: FoodPreferencesDraft) async throws {
+        guard DIContainer.shared.authService.currentUserID == userID else { throw FoodPreferencesError.accountChanged }
+        if let current = mockFetchUserGoalsResult,
+           !baseline.matchesPersistedPreferences(current), !draft.matchesPersistedPreferences(current) { throw FoodPreferencesError.changed }
+        foodPreferencesSaveUserIDs.append(userID)
+        if goalEditorSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: goalEditorSaveDelayNanoseconds) }
+        guard DIContainer.shared.authService.currentUserID == userID else { throw FoodPreferencesError.accountChanged }
+        try await saveUserGoals(userID: userID, data: draft.profilePatch(updatedAt: Date()))
+    }
+
     public func weightHistoryPublisher(userID: String) -> AnyPublisher<[(id: String, date: Date, weight: Double)], Error> {
         return Just(mockWeightHistory).setFailureType(to: Error.self).eraseToAnyPublisher()
     }
     public func saveWeightEntry(userID: String, weight: Double, date: Date) async throws {
+        if let saveWeightEntryError { throw saveWeightEntryError }
         savedWeightEntries.append((userID: userID, weight: weight))
+    }
+    public func saveWeightMeasurement(userID: String, entryID: String, weight: Double, date: Date) async throws -> Bool {
+        weightSaveAttemptIDs.append(entryID)
+        if let saveWeightEntryError { throw saveWeightEntryError }
+        if weightSaveDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: weightSaveDelayNanoseconds) }
+        let key = "\(userID):\(entryID)"
+        if let existing = savedWeightMeasurements[key] {
+            guard existing.weight == weight, existing.date == date else { throw GoalEditorError.changed }
+            return false
+        }
+        try await saveWeightEntry(userID: userID, weight: weight, date: date)
+        savedWeightMeasurements[key] = (userID, weight, date)
+        return true
     }
     public func deleteWeightEntry(userID: String, entryID: String) async throws {}
     public func fetchWeightHistory(userID: String) async throws -> [(id: String, date: Date, weight: Double)] { return mockWeightHistory }
+    public func fetchWeightHistoryForReview(userID: String) async throws -> [(id: String, date: Date, weight: Double)] { return mockWeightHistory }
     public func updateUserAsOnboarded(userID: String) async throws {}
     public func createInitialUserData(userID: String, email: String, username: String) async throws {
         createdInitialUserData.append((userID: userID, email: email, username: username))

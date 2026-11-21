@@ -4,29 +4,44 @@ import SwiftUI
 
 struct ProgramListView: View {
     @ObservedObject var workoutService: WorkoutService
-    
+
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
-    
+
     @State private var showingProgramCreator = false
     @State private var programToEdit: WorkoutProgram?
+    @State private var programToDelete: WorkoutProgram?
+    @State private var showingArchived = false
+    @State private var isUpdatingArchive = false
+    private var visiblePrograms: [WorkoutProgram] {
+        workoutService.userPrograms.filter { showingArchived ? $0.archivedAt != nil : $0.archivedAt == nil }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                WorkoutSyncNotice(service: workoutService)
                 SavedProgramsHeader(
-                    programCount: workoutService.userPrograms.count,
+                    programCount: visiblePrograms.count,
                     activeProgramName: workoutService.activeProgram?.name
                 )
 
-                if workoutService.userPrograms.isEmpty {
+                Picker("Plan library", selection: $showingArchived) {
+                    Text("Current").tag(false)
+                    Text("Archived").tag(true)
+                }
+                .pickerStyle(.segmented).accessibilityIdentifier("program_library_scope")
+                if visiblePrograms.isEmpty && showingArchived {
+                    Text("No archived plans. Archive an inactive plan to tidy your library while keeping its progress and logs.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary).appSurface(.quiet)
+                } else if visiblePrograms.isEmpty {
                     SavedProgramsEmptyState {
                         programToEdit = nil
                         showingProgramCreator = true
                     }
                 } else {
-                    ForEach(workoutService.userPrograms) { program in
+                    ForEach(visiblePrograms) { program in
                         savedProgramCard(program)
                     }
                 }
@@ -35,8 +50,20 @@ struct ProgramListView: View {
         }
         .accessibilityIdentifier("saved_programs")
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Saved Plans")
+        .navigationTitle("Training plans")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Delete this program?", isPresented: Binding(
+            get: { programToDelete != nil }, set: { if !$0 { programToDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("Delete Program", role: .destructive) {
+                guard let program = programToDelete else { return }
+                programToDelete = nil
+                Task {
+                    let result = await workoutService.deleteProgram(program)
+                    ToastManager.shared.showToast(message: result.userMessage)
+                }
+            }
+        } message: { Text("Your completed workout history will be kept.") }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: {
@@ -71,9 +98,14 @@ struct ProgramListView: View {
                 showingProgramCreator = true
             },
             onDelete: {
+                programToDelete = program
+            },
+            onArchive: {
+                guard !isUpdatingArchive else { return }
+                isUpdatingArchive = true
                 Task {
-                    let result = await workoutService.deleteProgram(program)
-                    ToastManager.shared.showToast(message: result.userMessage)
+                    _ = await workoutService.setProgramArchived(program, archived: program.archivedAt == nil)
+                    isUpdatingArchive = false
                 }
             }
         ) {
@@ -100,10 +132,9 @@ struct SavedProgramsHeader: View {
 
     var body: some View {
         AppScreenHeader(
-            eyebrow: "Training Library",
-            title: "Your Training Plans",
+            title: "Your plans",
             subtitle: activeProgramName.map { "Active now: \($0)" }
-                ?? "Choose a plan, review its rotation, or adjust its schedule."
+                ?? "Your routines, organized into a plan."
         ) {
             VStack(spacing: 0) {
                 Text("\(programCount)")
@@ -115,7 +146,7 @@ struct SavedProgramsHeader: View {
                     .foregroundStyle(.secondary)
             }
             .frame(minWidth: 52, minHeight: 52)
-            .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(programCount) saved \(programCount == 1 ? "plan" : "plans")")
         }
@@ -157,6 +188,7 @@ struct SavedProgramCard<Destination: View>: View {
     let onSetActive: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    var onArchive: (() -> Void)?
     let destination: () -> Destination
 
     private var trainingDays: Int {
@@ -170,7 +202,7 @@ struct SavedProgramCard<Destination: View>: View {
     }
 
     private var totalWorkouts: Int {
-        max(trainingDays * 12, program.routines.count)
+        program.totalSlots
     }
 
     private var progressText: String {
@@ -180,11 +212,13 @@ struct SavedProgramCard<Destination: View>: View {
 
     private var statusTitle: String {
         if isActive { return "Active" }
+        if program.archivedAt != nil { return "Archived" }
         return program.startDate == nil ? "Needs Schedule" : "Saved"
     }
 
     private var statusColor: Color {
         if isActive { return .accentPositive }
+        if program.archivedAt != nil { return .gray }
         return program.startDate == nil ? AppPalette.caution : AppPalette.brand
     }
 
@@ -198,7 +232,7 @@ struct SavedProgramCard<Destination: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: isActive ? "checkmark.seal.fill" : "calendar.badge.clock")
+                Image(systemName: program.archivedAt != nil ? "archivebox" : isActive ? "checkmark.seal.fill" : "calendar.badge.clock")
                     .appFont(size: 18, weight: .semibold)
                     .foregroundStyle(statusColor)
                     .frame(width: 40, height: 40)
@@ -228,8 +262,12 @@ struct SavedProgramCard<Destination: View>: View {
                 Spacer(minLength: 0)
 
                 Menu {
-                    Button("Edit") { onEdit() }
-                    Button("Delete", role: .destructive) { onDelete() }
+                    Button("Edit") { onEdit() }.disabled(program.archivedAt != nil)
+                    if let onArchive {
+                        Button(program.archivedAt == nil ? "Archive plan" : "Restore plan", action: onArchive)
+                            .disabled(isActive && program.archivedAt == nil)
+                    }
+                    Button("Delete permanently", role: .destructive) { onDelete() }
                 } label: {
                     Image(systemName: "ellipsis")
                 }
@@ -263,11 +301,12 @@ struct SavedProgramCard<Destination: View>: View {
                 }
                 .buttonStyle(AppActionButtonStyle(.secondary))
 
-                Button(action: onSetActive) {
-                    Label(isActive ? "Active" : "Set Active", systemImage: isActive ? "checkmark.circle.fill" : "target")
+                if !isActive || program.archivedAt != nil {
+                    Button(action: program.archivedAt == nil ? onSetActive : { onArchive?() }) {
+                        Label(program.archivedAt != nil ? "Restore plan" : "Set active", systemImage: "target")
+                    }
+                    .buttonStyle(AppActionButtonStyle(.primary))
                 }
-                .buttonStyle(AppActionButtonStyle(isActive ? .secondary : .primary))
-                .disabled(isActive)
     }
 }
 

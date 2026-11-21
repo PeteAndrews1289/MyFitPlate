@@ -71,7 +71,10 @@ final class GroceryListBuilderTests: XCTestCase {
         let list = GroceryListBuilder.makeGroceryList(from: [day], unitSystem: .imperial)
 
         let rice = requireItem(named: "Rice", in: list)
-        XCTAssertEqual(rice.quantity, 3, accuracy: 0.001)
+        XCTAssertEqual(rice.quantity, 1, accuracy: 0.001)
+        let cookedRice = requireItem(named: "Cooked Rice", in: list)
+        XCTAssertEqual(cookedRice.quantity, 2, accuracy: 0.001)
+        XCTAssertEqual(cookedRice.unit, "cup")
         XCTAssertEqual(rice.unit, "cup")
         XCTAssertEqual(rice.category, "Carbohydrates")
         XCTAssertEqual(rice.source, "mealPlan")
@@ -238,7 +241,7 @@ final class GroceryListBuilderTests: XCTestCase {
         XCTAssertEqual(merged.count, 2)
         XCTAssertEqual(merged[0].name, "Apple")
         XCTAssertEqual(merged[0].quantity, 2) // from generated
-        XCTAssertTrue(merged[0].isCompleted) // kept from existing
+        XCTAssertFalse(merged[0].isCompleted) // The larger quantity still needs shopping.
         
         XCTAssertEqual(merged[1].name, "Cookies") // manual is preserved
     }

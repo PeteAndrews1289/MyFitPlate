@@ -11,17 +11,19 @@ struct WorkoutCompleteAnalyticsView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var pantryService: PantryService
-    
+    @EnvironmentObject var workoutService: WorkoutService
+    @EnvironmentObject var mealExperimentStore: MealExperimentStore
+
     // The raw data source. Kept in state so past-session edits can refresh this screen in place.
     @State private var log: WorkoutSessionLog
     @State private var ownerUserID: String?
-    
+
     @StateObject var analyticsService = WorkoutAnalyticsService()
     @State private var analytics: WorkoutAnalytics?
     @State private var comparison: WorkoutComparison?
     @State private var trendData: [String: [ExerciseTrendPoint]] = [:]
     @State private var muscleSplit: [MuscleSplitPoint] = [] // New State
-    
+
     @State private var isAnimated = false
     @State private var isLoading = true
     @State private var showingPRCelebration = false
@@ -29,7 +31,12 @@ struct WorkoutCompleteAnalyticsView: View {
     @State private var showingRecoveryMealDetail = false
     @State private var showingNutritionAudit = false
     @State private var showingWorkoutEditor = false
+    @State private var futureTemplate: WorkoutRoutine?
     @State private var isSavingWorkoutEdit = false
+    @State private var workoutEditMessage: String?
+    @State private var pendingCorrection: WorkoutCorrectionReceipt?
+    @State private var correctionConflict = false
+    @State private var recoveryMealReview: MealReviewSaveSession?
     @State private var recoveryMealSuggestion: MealSuggestion?
     @State private var recoverySuggestionUserID: String?
     @State private var didLogRecoveryHandoffViewed = false
@@ -42,6 +49,18 @@ struct WorkoutCompleteAnalyticsView: View {
         self.isFreshCompletion = isFreshCompletion
     }
 
+    private var freshProgramStatus: String? {
+        guard isFreshCompletion, let ownerUserID, ownerUserID == DIContainer.shared.authService.currentUserID,
+              log.programLinkDecision != .standalone, let context = log.programContext,
+              let program = workoutService.userPrograms.first(where: { $0.id == context.programID && $0.userID == ownerUserID }),
+              program.archivedAt == nil, let next = program.currentProgressIndex else { return nil }
+        if next == program.totalSlots { return "End of program reached" }
+        guard (0..<program.totalSlots).contains(next), next != context.slotIndex,
+              let routine = program.routine(forSlot: next) else { return nil }
+        let position = program.weekAndDay(forSlot: next)
+        return "Up next · \(routine.name) · Week \(position.week), day \(position.day)"
+    }
+
     private var displayedAnalytics: WorkoutAnalytics {
         analytics ?? localAnalytics
     }
@@ -51,21 +70,13 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private var totalVolume: Double {
-        log.completedExercises.reduce(0) { exerciseSum, exercise in
-            exerciseSum + exercise.sets.reduce(0) { setSum, set in
-                setSum + (set.weight * Double(set.reps))
-            }
-        }
+        WorkoutSetMath.volume(log)
     }
 
-    private var completedSetCount: Int {
-        log.completedExercises.reduce(0) { $0 + $1.sets.count }
-    }
+    private var completedSetCount: Int { WorkoutSetMath.workingSetCount(log) }
 
     private var totalRepCount: Int {
-        log.completedExercises.reduce(0) { exerciseSum, exercise in
-            exerciseSum + exercise.sets.reduce(0) { $0 + $1.reps }
-        }
+        log.completedExercises.reduce(0) { $0 + WorkoutSetMath.workingSets(in: $1).reduce(0) { $0 + $1.reps } }
     }
 
     private var cardioMinutes: Int {
@@ -76,67 +87,88 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private var estimatedDurationMinutes: Int {
-        max(cardioMinutes, completedSetCount * 2)
+        if let elapsed = log.elapsedSeconds, elapsed.isFinite, elapsed > 0 { return max(1, Int(elapsed) / 60) }
+        return max(cardioMinutes, completedSetCount * 2)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
+                if let coverage = analyticsService.historyCoverageMessage {
+                    Text(coverage).appTextRole(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("workout_analytics_history_coverage")
+                }
+                WorkoutSyncNotice(service: workoutService)
+                if let workoutEditMessage {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        Text(workoutEditMessage).appTextRole(.secondary)
+                        if pendingCorrection != nil {
+                            Button("Retry workout correction") { Task { await saveEditedWorkout(log) } }
+                                .disabled(isSavingWorkoutEdit)
+                                .accessibilityIdentifier("workout_correction_retry")
+                            if correctionConflict {
+                                Button("Keep newer saved session") { Task { await keepNewerSession() } }
+                                    .accessibilityIdentifier("workout_correction_keep_newer")
+                            }
+                        }
+                    }.appSurface(.quiet)
+                }
                 WorkoutSummaryHeroCard(
                     date: log.date,
+                    programStatus: freshProgramStatus,
                     totalVolume: displayedAnalytics.totalVolume,
                     exerciseCount: log.completedExercises.count,
                     setCount: completedSetCount,
                     repCount: totalRepCount,
                     estimatedMinutes: estimatedDurationMinutes,
-                    isAnimated: isAnimated
+                    durationIsMeasured: log.elapsedSeconds.map { $0.isFinite && $0 > 0 } ?? false,
+                    isAnimated: isAnimated,
+                    canEdit: log.id != nil,
+                    isEditingDisabled: isSavingWorkoutEdit,
+                    onEdit: {
+                        HapticManager.instance.feedback(.light)
+                        showingWorkoutEditor = true
+                    }
                 )
+
+                WorkoutNextTimeCard(log: log, ownerID: ownerUserID,
+                    hasPendingCorrection: pendingCorrection != nil || isSavingWorkoutEdit, workoutService: workoutService)
+
+                if let comp = comparison {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Compared with last time",
+                            subtitle: comp.previousDate?.formatted(date: .abbreviated, time: .omitted)
+                        )
+
+                        AppMetricStrip(items: [AppMetricItem(label: "Recorded working volume", value: formatPercent(comp.volumeDiffPercent), accent: comp.volumeDiffPercent >= 0 ? AppPalette.positive : AppPalette.caution)])
+                        if comp.durationIsMeasured {
+                            Text("Actual duration change: \(formatPercent(comp.durationDiffPercent)). Duration is context, not a speed or quality score.")
+                                .appTextRole(.secondary).foregroundStyle(.secondary)
+                        } else {
+                            Text("Actual duration is unavailable for one of these sessions; no pace comparison is inferred from set count.")
+                                .appTextRole(.caption).foregroundStyle(.secondary)
+                        }
+                    }.appSurface(.quiet)
+                }
 
                 if shouldShowRecoveryHandoff {
                     workoutRecoveryHandoffCard(plan: workoutCompletionFuelPlan)
                 }
 
-                if let comp = comparison {
-                    VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        AppSectionHeader(
-                            title: "Compared With Last Time",
-                            subtitle: comp.previousDate?.formatted(date: .abbreviated, time: .omitted)
-                        )
-
-                        AppMetricStrip(items: [
-                            AppMetricItem(
-                                label: "Volume",
-                                value: formatPercent(comp.volumeDiffPercent),
-                                accent: comp.volumeDiffPercent >= 0 ? AppPalette.positive : AppPalette.caution
-                            ),
-                            AppMetricItem(
-                                label: "Estimated pace",
-                                value: formatPercent(-comp.durationDiffPercent),
-                                accent: comp.durationDiffPercent <= 0 ? AppPalette.positive : AppPalette.effort
-                            )
-                        ])
-                        .appSurface(.quiet)
-                    }
-                }
-
-                SessionExerciseBreakdownCard(exercises: log.completedExercises)
-
-                if log.id != nil {
-                    Button {
-                        HapticManager.instance.feedback(.light)
-                        showingWorkoutEditor = true
-                    } label: {
-                        Label("Edit Workout", systemImage: "pencil")
+                if let comparison = mealExperimentStore.active, MealExperimentEvidenceRules.matches(log, experiment: comparison, allowLegacy: true) {
+                    NavigationLink { MealExperimentsView(openCheckIn: true, preferredSessionID: log.id) } label: {
+                        Label("Check in on your pre-workout meal", systemImage: "fork.knife.circle")
                     }
                     .buttonStyle(AppActionButtonStyle(.secondary))
-                    .disabled(isSavingWorkoutEdit)
-                    .accessibilityIdentifier("workout_summary_edit")
+                    .accessibilityIdentifier("workout_meal_checkin")
                 }
+                SessionExerciseBreakdownCard(exercises: log.completedExercises)
 
                 if !displayedAnalytics.personalRecords.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         AppSectionHeader(
-                            title: "New Records",
+                            title: "New records",
                             subtitle: "Personal bests detected in this session."
                         )
 
@@ -155,35 +187,22 @@ struct WorkoutCompleteAnalyticsView: View {
                     .opacity(isAnimated ? 1 : 0)
                     .animation(.spring(response: 0.35, dampingFraction: 0.8).delay(0.15), value: isAnimated)
                     .onAppear {
-                        HapticManager.instance.notification(.success)
+                        if isFreshCompletion { HapticManager.instance.notification(.success) }
                     }
                 }
 
-                if !trendData.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        AppSectionHeader(
-                            title: "Key Gains",
-                            subtitle: "Recent movement trends from your saved sessions."
-                        )
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(Array(log.completedExercises.prefix(3))) { exercise in
-                                    if let points = trendData[exercise.exerciseName], points.count > 1 {
-                                        ExerciseTrendChartView(exerciseName: exercise.exerciseName, dataPoints: points, metric: "Max Weight")
-                                            .frame(width: 300)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 1)
-                        }
-                    }
-                }
-
+                Button("Review a reusable future routine") {
+                    guard let owner = DIContainer.shared.authService.currentUserID, owner == ownerUserID else { return }
+                    futureTemplate = WorkoutExerciseCopyRules.routine(from: log, userID: owner)
+                }.buttonStyle(AppActionButtonStyle(.secondary)).accessibilityIdentifier("workout_review_future_template")
+                Text("This creates a separate reviewed routine. It does not rewrite the completed receipt or your active block.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+                NavigationLink("Explore exercise trends & evidence", destination: WorkoutEvidenceReportView(initialProgramID: log.programContext?.programID))
+                    .buttonStyle(AppActionButtonStyle(.secondary)).accessibilityIdentifier("workout_open_evidence_report")
                 if !muscleSplit.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         AppSectionHeader(
-                            title: "Muscle Focus",
+                            title: "Muscle focus",
                             subtitle: "Working-set distribution across this session."
                         )
 
@@ -192,7 +211,7 @@ struct WorkoutCompleteAnalyticsView: View {
                                 x: .value("Sets", point.setCount),
                                 y: .value("Muscle", point.muscleName)
                             )
-                            .foregroundStyle(Color.brandPrimary.gradient)
+                            .foregroundStyle(AppPalette.effort.gradient)
                         }
                         .frame(height: 200)
                         .frame(maxWidth: .infinity)
@@ -203,7 +222,7 @@ struct WorkoutCompleteAnalyticsView: View {
                 if !displayedAnalytics.aiInsights.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         AppSectionHeader(
-                            title: "Maia Analysis",
+                            title: "Maia analysis",
                             subtitle: "Coaching notes grounded in this workout."
                         )
 
@@ -248,15 +267,13 @@ struct WorkoutCompleteAnalyticsView: View {
             )
         }
         .sheet(isPresented: $showingRecoveryMealDetail) {
-            if let suggestion = recoveryMealSuggestion {
-                MealSuggestionDetailView(
-                    suggestion: suggestion,
-                    pantryItemNames: pantryService.pantryItems.map(\.name),
-                    remainingCalories: remainingCaloriesToday,
-                    remainingProtein: remainingProteinToday,
-                    remainingCarbs: remainingCarbsToday,
-                    remainingFats: remainingFatsToday,
-                    onLog: logRecoveryMealSuggestion
+            if let review = recoveryMealReview {
+                SavedMealSuggestionDetailView(
+                    review: review, pantryItemNames: pantryService.pantryItems.map(\.name),
+                    remainingCalories: remainingCaloriesToday, remainingProtein: remainingProteinToday,
+                    remainingCarbs: remainingCarbsToday, remainingFats: remainingFatsToday,
+                    onAccepted: { recoveryMealReview = nil; showingRecoveryMealDetail = false },
+                    onDiscarded: { recoveryMealReview = nil; showingRecoveryMealDetail = false }
                 )
             }
         }
@@ -271,43 +288,50 @@ struct WorkoutCompleteAnalyticsView: View {
                 }
             }
         }
+        .sheet(item: $futureTemplate) { routine in
+            RoutineEditorView(workoutService: workoutService, routine: routine, draftScope: "future-template-\(log.id ?? routine.id)") { edited in
+                guard DIContainer.shared.authService.currentUserID == ownerUserID else { throw WorkoutBlockError.accountChanged }
+                try await workoutService.saveRoutine(edited)
+            }
+        }
         .sheet(isPresented: $showingWorkoutEditor) {
             WorkoutSessionLogEditorSheet(
-                log: log,
+                log: pendingCorrection?.updated ?? log,
                 isSaving: isSavingWorkoutEdit,
+                saveMessage: workoutEditMessage,
+                hasPendingCorrection: pendingCorrection != nil,
                 onSave: { updatedLog in
                     Task { await saveEditedWorkout(updatedLog) }
                 }
             )
         }
-        .toolbar {
-            if log.id != nil {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Edit") {
-                        showingWorkoutEditor = true
-                    }
-                    .disabled(isSavingWorkoutEdit)
-                }
-            }
-        }
         .onAppear {
             isAnimated = true
+            if let ownerUserID, let sessionID = log.id {
+                do {
+                    pendingCorrection = try WorkoutCorrectionStore().pending(sessionID: sessionID, userID: ownerUserID)
+                    if pendingCorrection != nil { workoutEditMessage = "A saved correction still needs to finish. Retry it before making another edit." }
+                } catch { workoutEditMessage = "A saved correction could not be read. It has been kept on this device." }
+            }
             loadData()
             logRecoveryHandoffViewedIfNeeded()
-            if !localAnalytics.personalRecords.isEmpty {
+            if let ownerUserID, ownerUserID == DIContainer.shared.authService.currentUserID {
+                NotificationCenter.default.post(name: .reminderEvidenceChanged, object: ownerUserID)
+            }
+            if isFreshCompletion && !localAnalytics.personalRecords.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     showingPRCelebration = true
                 }
             }
         }
         .onChange(of: comparison) { _, newComp in
-            if newComp?.isPR == true {
+            if isFreshCompletion && newComp?.isPR == true {
                 showingPRCelebration = true
             }
         }
         .celebrationOverlay(type: .workoutPR, isPresented: $showingPRCelebration)
     }
-    
+
     private func loadData() {
         isLoading = true
         self.muscleSplit = analyticsService.calculateMuscleSplit(log: log)
@@ -343,12 +367,7 @@ struct WorkoutCompleteAnalyticsView: View {
                 guard analyticsLoadGeneration == requestID,
                       DIContainer.shared.authService.currentUserID == userID else { return }
                 self.comparison = comparison
-                for exercise in log.completedExercises.prefix(3) {
-                    let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: userID)
-                    guard analyticsLoadGeneration == requestID,
-                          DIContainer.shared.authService.currentUserID == userID else { return }
-                    self.trendData[exercise.exerciseName] = points
-                }
+
                 self.isLoading = false
             }
             return
@@ -374,12 +393,6 @@ struct WorkoutCompleteAnalyticsView: View {
             guard analyticsLoadGeneration == requestID,
                   DIContainer.shared.authService.currentUserID == userID else { return }
             self.comparison = comparison
-            for exercise in log.completedExercises.prefix(3) {
-                let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: userID)
-                guard analyticsLoadGeneration == requestID,
-                      DIContainer.shared.authService.currentUserID == userID else { return }
-                self.trendData[exercise.exerciseName] = points
-            }
 
             self.isLoading = false
         }
@@ -422,29 +435,58 @@ struct WorkoutCompleteAnalyticsView: View {
             return
         }
 
-        var logToSave = updatedLog
-        logToSave.aiInsights = nil
         isSavingWorkoutEdit = true
-
+        let coordinator = WorkoutCorrectionCoordinator(repository: DIContainer.shared.workoutRepository,
+            diary: dailyLogService, auth: DIContainer.shared.authService)
         do {
-            try await DIContainer.shared.workoutRepository.saveWorkoutSessionLog(userID: userID, log: logToSave)
+            let command = try pendingCorrection ?? coordinator.prepare(original: log, updated: updatedLog, userID: userID)
+            pendingCorrection = command
+            let receipt = try await coordinator.resume(command)
+            pendingCorrection = receipt.isComplete ? nil : receipt
             guard DIContainer.shared.authService.currentUserID == userID else {
                 isSavingWorkoutEdit = false
                 return
             }
-            log = logToSave
+            log = receipt.updated
             analytics = nil
             comparison = nil
             trendData = [:]
             muscleSplit = []
-            showingWorkoutEditor = false
-            ToastManager.shared.showToast(message: "Workout updated.")
+            showingWorkoutEditor = !receipt.isComplete
+            switch receipt.diaryResult {
+            case .updated, .alreadyCurrent: workoutEditMessage = "Workout and linked diary estimate updated."
+            case .missing: workoutEditMessage = "Workout updated. Its diary entry was missing and was not recreated."
+            case .preservedOverride: workoutEditMessage = "Workout updated. Existing diary totals were kept because they were edited or the original estimate was not recorded."
+            default: workoutEditMessage = "History is saved. Retry to finish its linked diary correction."
+            }
             loadData()
         } catch {
-            ToastManager.shared.showToast(message: "Couldn't update workout. Check your connection and try again.")
+            if let correctionError = error as? WorkoutCorrectionError, case .conflict = correctionError {
+                correctionConflict = true
+                showingWorkoutEditor = false
+            }
+            workoutEditMessage = error is WorkoutCorrectionError
+                ? "This session changed or contains unsupported values. Your correction is kept; reopen the latest session before changing it again."
+                : "Your correction is kept on this device. Retry when connected."
         }
 
         isSavingWorkoutEdit = false
+    }
+
+    @MainActor
+    private func keepNewerSession() async {
+        guard let receipt = pendingCorrection, let userID = ownerUserID,
+              DIContainer.shared.authService.currentUserID == userID, let id = log.id else { return }
+        do {
+            let latest = try await DIContainer.shared.workoutRepository.fetchWorkoutSessionLog(userID: userID, sessionID: id)
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
+            let coordinator = WorkoutCorrectionCoordinator(repository: DIContainer.shared.workoutRepository,
+                diary: dailyLogService, auth: DIContainer.shared.authService)
+            _ = try coordinator.abandon(receipt)
+            log = latest; pendingCorrection = nil; correctionConflict = false
+            workoutEditMessage = "Kept the newer saved session. Your proposed correction was not applied."
+            loadData()
+        } catch { workoutEditMessage = "Could not load the newer session. Both versions are kept; try again." }
     }
 
     private var currentTodayLog: DailyLog? {
@@ -507,11 +549,7 @@ struct WorkoutCompleteAnalyticsView: View {
 
             recoveryHandoffActions(for: plan)
         }
-        .appSurface(.emphasized)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                .stroke(recoveryHandoffColor(for: plan.kind).opacity(0.16), lineWidth: 1)
-        )
+        .appSurface(.quiet)
         .accessibilityIdentifier("workout_summary_recovery")
     }
 
@@ -577,14 +615,14 @@ struct WorkoutCompleteAnalyticsView: View {
             HStack(spacing: AppSpacing.compact) {
                 if insightsService.isGeneratingSuggestion {
                     ProgressView()
-                        .tint(.white)
+                        .tint(AppPalette.text)
                 } else {
                     Image(systemName: "sparkles")
                 }
                 Text("Fill Macros")
             }
         }
-        .buttonStyle(AppActionButtonStyle(.primary))
+        .buttonStyle(AppActionButtonStyle(.secondary))
         .disabled(insightsService.isGeneratingSuggestion)
     }
 
@@ -606,6 +644,12 @@ struct WorkoutCompleteAnalyticsView: View {
     private func generateRecoveryMealSuggestion() {
         guard let userID = ownerUserID,
               DIContainer.shared.authService.currentUserID == userID else { return }
+        guard let day = DiaryDayContext(userID: userID, date: Date()) else { return }
+        if let saved = MealReviewSaveSession.resumeMealSuggestion(source: "workout_recovery_suggestion", userID: userID) {
+            recoveryMealReview = saved
+            showingRecoveryMealDetail = true
+            return
+        }
         HapticManager.instance.feedback(.light)
         logRecoveryHandoffAction("fill_macros")
 
@@ -613,8 +657,7 @@ struct WorkoutCompleteAnalyticsView: View {
             let pantryNames = pantryService.pantryItems.map(\.name)
             if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
                 guard DIContainer.shared.authService.currentUserID == userID else { return }
-                self.recoveryMealSuggestion = suggestion
-                self.recoverySuggestionUserID = userID
+                recoveryMealReview = suggestion.makeReview(userID: userID, day: day, source: "workout_recovery_suggestion")
                 self.showingRecoveryMealDetail = true
             } else {
                 guard DIContainer.shared.authService.currentUserID == userID else { return }
@@ -631,42 +674,6 @@ struct WorkoutCompleteAnalyticsView: View {
             showingNutritionAudit = true
         } else {
             ToastManager.shared.showToast(message: "Nothing to review yet.")
-        }
-    }
-
-    private func logRecoveryMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = DIContainer.shared.authService.currentUserID,
-              ownerUserID == userID,
-              recoverySuggestionUserID == userID else {
-            recoveryMealSuggestion = nil
-            recoverySuggestionUserID = nil
-            showingRecoveryMealDetail = false
-            return
-        }
-
-        let foodItem = FoodItem(
-            id: UUID().uuidString,
-            name: suggestion.mealName,
-            calories: Double(suggestion.calories),
-            protein: suggestion.protein,
-            carbs: suggestion.carbs,
-            fats: suggestion.fats,
-            servingSize: "1 serving (AI Suggestion)",
-            servingWeight: 0,
-            timestamp: Date()
-        )
-
-        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "workout_recovery_suggestion")
-        DIContainer.shared.analyticsManager?.logEvent("workout_recovery_handoff_logged", parameters: [
-            "calories": Int(suggestion.calories.rounded()),
-            "protein": Int(suggestion.protein.rounded()),
-            "carbs": Int(suggestion.carbs.rounded())
-        ])
-
-        withAnimation {
-            self.recoveryMealSuggestion = nil
-            self.recoverySuggestionUserID = nil
-            self.showingRecoveryMealDetail = false
         }
     }
 
@@ -694,7 +701,7 @@ struct WorkoutCompleteAnalyticsView: View {
             "target_carbs": plan.targetCarbGrams ?? 0
         ])
     }
-    
+
     private func generateShareText(analytics: WorkoutAnalytics) -> String {
         let prCount = analytics.personalRecords.count
         let prText = prCount > 0 ? "Hit \(prCount) new PRs!" : "Great session!"
@@ -713,17 +720,21 @@ private struct WorkoutSessionLogEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: WorkoutSessionLog
     let isSaving: Bool
+    let saveMessage: String?
+    let hasPendingCorrection: Bool
     let onSave: (WorkoutSessionLog) -> Void
 
-    init(log: WorkoutSessionLog, isSaving: Bool, onSave: @escaping (WorkoutSessionLog) -> Void) {
+    init(log: WorkoutSessionLog, isSaving: Bool, saveMessage: String?, hasPendingCorrection: Bool, onSave: @escaping (WorkoutSessionLog) -> Void) {
         self._draft = State(initialValue: log)
         self.isSaving = isSaving
+        self.saveMessage = saveMessage
+        self.hasPendingCorrection = hasPendingCorrection
         self.onSave = onSave
     }
 
     var body: some View {
         AppEditorScaffold(
-            title: "Edit Workout",
+            title: "Edit workout",
             subtitle: "Correct the saved session without changing the original Apple Health workout.",
             dismiss: {
                 guard !isSaving else { return }
@@ -731,19 +742,40 @@ private struct WorkoutSessionLogEditorSheet: View {
             }
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
+                if let saveMessage { Text(saveMessage).appTextRole(.secondary).accessibilityIdentifier("workout_correction_message") }
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
                     AppSectionHeader(
                         title: "Session",
                         subtitle: "Changes update this MyFitPlate history record."
                     )
 
-                    AppDateField("Date", selection: $draft.date, displayedComponents: [.date, .hourAndMinute])
+                    Text("\(draft.date.formatted(date: .abbreviated, time: .shortened)) · Original diary day")
                         .appTextRole(.control)
                         .padding(AppSpacing.group)
                         .background(
                             AppPalette.control,
                             in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                         )
+
+                    if draft.elapsedSeconds != nil {
+                        LabeledContent("Elapsed seconds") {
+                            TextField("Seconds", value: Binding(get: { draft.elapsedSeconds ?? 0 },
+                                set: { draft.elapsedSeconds = $0 }), format: .number)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
+                                .frame(minWidth: 72, maxWidth: 120)
+                                .accessibilityIdentifier("workout_editor_elapsed_seconds")
+                        }
+                        .appTextRole(.body)
+                        .padding(AppSpacing.row)
+                        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                        Text("Session seconds update the linked diary duration when its original estimate is unchanged.")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text("Actual elapsed time was not recorded for this older session.")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                    }
 
                     AppMetricStrip(items: [
                         AppMetricItem(
@@ -783,7 +815,8 @@ private struct WorkoutSessionLogEditorSheet: View {
                                     CompletedSetEditorRow(
                                         set: $draft.completedExercises[exerciseIndex].sets[setIndex],
                                         setIndex: setIndex + 1,
-                                        exerciseType: exercise.exercise.type
+                                        exerciseType: exercise.exercise.type,
+                                        equipment: exercise.exercise.loadEquipment
                                     )
                                     .padding(AppSpacing.group)
 
@@ -796,7 +829,7 @@ private struct WorkoutSessionLogEditorSheet: View {
                         }
                     }
                 }
-            }
+            }.disabled(hasPendingCorrection)
         } actions: {
             Button {
                 onSave(sanitizedDraft())
@@ -804,10 +837,10 @@ private struct WorkoutSessionLogEditorSheet: View {
                 if isSaving {
                     HStack {
                         ProgressView()
-                        Text("Saving Workout")
+                        Text("Saving workout…")
                     }
                 } else {
-                    Label("Save Workout", systemImage: "checkmark")
+                    Label(hasPendingCorrection ? "Retry correction" : "Save workout", systemImage: "checkmark")
                 }
             }
             .buttonStyle(AppActionButtonStyle(.primary))
@@ -848,6 +881,7 @@ private struct CompletedSetEditorRow: View {
     @Binding var set: CompletedSet
     let setIndex: Int
     let exerciseType: ExerciseType
+    let equipment: StrengthEquipment?
 
     private var distanceBinding: Binding<Double> {
         Binding(
@@ -856,10 +890,10 @@ private struct CompletedSetEditorRow: View {
         )
     }
 
-    private var durationMinutesBinding: Binding<Int> {
+    private var durationSecondsBinding: Binding<Int> {
         Binding(
-            get: { max(0, (set.durationInSeconds ?? 0) / 60) },
-            set: { set.durationInSeconds = max(0, $0) * 60 }
+            get: { max(0, set.durationInSeconds ?? 0) },
+            set: { set.durationInSeconds = max(0, $0) }
         )
     }
 
@@ -875,6 +909,11 @@ private struct CompletedSetEditorRow: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
+
+            Picker("Set role", selection: Binding(get: { set.resolvedSetType }, set: { set.setType = $0 })) {
+                ForEach(SetType.allCases, id: \.rawValue) { role in Text(role.rawValue.capitalized).tag(role) }
+            }
+            .accessibilityIdentifier("workout_editor_role_\(set.id)")
 
             switch exerciseType {
             case .strength:
@@ -941,14 +980,17 @@ private struct CompletedSetEditorRow: View {
     }
 
     private var strengthWeightField: some View {
-        editableNumberField(title: "Weight", unit: "lb") {
-            TextField("0", value: $set.weight, format: .number.precision(.fractionLength(0...1)))
+        editableNumberField(title: equipment?.loadingMeaning.title ?? "Load as logged", unit: equipment?.unit.rawValue ?? "lb") {
+            TextField("0", value: Binding(get: { (equipment?.unit ?? .lb).displayWeight(set.weight) },
+                                          set: { set.weight = (equipment?.unit ?? .lb).storedWeight($0) }), format: .number.precision(.fractionLength(0...2)))
+                .accessibilityIdentifier("workout_editor_weight_\(set.id)")
         }
     }
 
     private var strengthRepsField: some View {
         editableNumberField(title: "Reps", unit: "reps") {
             TextField("0", value: $set.reps, format: .number)
+                .accessibilityIdentifier("workout_editor_reps_\(set.id)")
         }
     }
 
@@ -959,8 +1001,8 @@ private struct CompletedSetEditorRow: View {
     }
 
     private var durationField: some View {
-        editableNumberField(title: "Duration", unit: "min") {
-            TextField("0", value: durationMinutesBinding, format: .number)
+        editableNumberField(title: "Duration", unit: "sec") {
+            TextField("0", value: durationSecondsBinding, format: .number)
         }
     }
 
@@ -971,43 +1013,121 @@ private struct CompletedSetEditorRow: View {
 
 struct WorkoutSummaryHeroCard: View {
     let date: Date
+    let programStatus: String?
     let totalVolume: Double
     let exerciseCount: Int
     let setCount: Int
     let repCount: Int
     let estimatedMinutes: Int
+    let durationIsMeasured: Bool
     let isAnimated: Bool
+    let canEdit: Bool
+    let isEditingDisabled: Bool
+    let onEdit: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppScreenHeader(
-                eyebrow: "Session Review",
-                title: "Workout Complete",
-                subtitle: date.formatted(date: .abbreviated, time: .shortened)
-            ) {
-                Image(systemName: "trophy.fill")
-                    .appFont(size: 24, weight: .bold)
-                    .foregroundStyle(AppPalette.achievement)
-                    .frame(width: 52, height: 52)
-                    .background(
-                        AppPalette.achievement.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            summaryIdentity
+            if let programStatus {
+                Text(programStatus)
+                    .appTextRole(.secondary).foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("workout_summary_program_status")
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                metricLayout {
+                    summaryMetric(
+                        "Working volume", value: "\(Int(totalVolume).formatted()) lb",
+                        identifier: "workout_summary_volume"
                     )
-                    .scaleEffect(isAnimated ? 1.0 : 0.65)
-                    .animation(AppMotion.standard, value: isAnimated)
+                    summaryMetric(
+                        durationIsMeasured ? "Duration" : "Estimated time", value: "\(estimatedMinutes.formatted()) min",
+                        identifier: "workout_summary_duration"
+                    )
+                }
+
+                Divider()
+
+                metricLayout {
+                    summaryMetric("Exercises", value: exerciseCount.formatted(), identifier: "workout_summary_exercises", prominent: false)
+                    summaryMetric("Working sets", value: setCount.formatted(), identifier: "workout_summary_sets", prominent: false)
+                    summaryMetric("Reps", value: repCount.formatted(), identifier: "workout_summary_reps", prominent: false)
+                }
+            }
+            .appSurface(.quiet)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("workout_summary_metrics")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("workout_summary_header")
+    }
+
+    private var summaryIdentity: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: AppSpacing.compact) {
+                Text("Workout complete")
+                    .appTextRole(.screenTitle)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("workout_summary_title")
+                Image(systemName: "checkmark.circle.fill")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.positive)
+                    .frame(width: 32, height: 32)
+                    .scaleEffect(isAnimated || reduceMotion ? 1 : 0.85)
+                    .animation(reduceMotion ? nil : AppMotion.standard, value: isAnimated)
                     .accessibilityHidden(true)
             }
 
-            AppMetricStrip(items: [
-                AppMetricItem(label: "Volume", value: "\(Int(totalVolume).formatted()) lb", accent: AppPalette.effort),
-                AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: Color.secondary),
-                AppMetricItem(label: "Working sets", value: setCount.formatted(), accent: AppPalette.positive),
-                AppMetricItem(label: "Reps", value: repCount.formatted(), accent: AppPalette.effort),
-                AppMetricItem(label: "Estimated time", value: "\(estimatedMinutes) min", accent: AppPalette.recovery)
-            ])
-            .appSurface(.emphasized)
+            HStack(alignment: .center, spacing: AppSpacing.compact) {
+                Text(date.formatted(date: .abbreviated, time: .shortened))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if canEdit {
+                    Button(action: onEdit) {
+                        Text("Edit")
+                            .appTextRole(.secondary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isEditingDisabled)
+                    .accessibilityLabel("Edit workout")
+                    .accessibilityIdentifier("workout_summary_edit")
+                }
+            }
         }
-        .accessibilityIdentifier("workout_summary_header")
+    }
+
+    private var metricLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.row))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: AppSpacing.row))
+    }
+
+    private func summaryMetric(_ label: String, value: String, identifier: String, prominent: Bool = true) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .appTextRole(prominent ? .sectionTitle : .control)
+                .foregroundStyle(AppPalette.text)
+                .monospacedDigit()
+                .fixedSize(horizontal: false, vertical: true)
+            Text(label)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(value)")
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -1079,56 +1199,41 @@ private struct SessionExerciseRow: View {
     }
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                    exerciseIdentity
-                    if volume > 0 {
-                        Text("\(Int(volume).formatted()) lb volume")
-                            .appTextRole(.caption)
-                            .foregroundStyle(AppPalette.brandText)
-                    }
-                }
-            } else {
-                HStack(spacing: AppSpacing.row) {
-                    exerciseIdentity
-                    Spacer(minLength: AppSpacing.compact)
-
-                    if volume > 0 {
-                        Text("\(Int(volume).formatted()) lb")
-                            .appTextRole(.caption)
-                            .foregroundStyle(AppPalette.brandText)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, AppSpacing.group)
-        .padding(.vertical, AppSpacing.row)
-    }
-
-    private var exerciseIdentity: some View {
-        HStack(spacing: AppSpacing.row) {
-            Image(systemName: exercise.exercise.type.icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(exercise.exercise.type.color)
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            Text(ExerciseEmojiMapper.getEmoji(for: exercise.exerciseName))
+                .font(.system(size: 26))
+                .fixedSize()
                 .frame(width: 40, height: 40)
                 .background(
-                    exercise.exercise.type.color.opacity(0.10),
+                    AppPalette.canvas,
                     in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 )
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(exercise.exerciseName)
                     .appTextRole(.control)
                     .foregroundStyle(AppPalette.text)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("\(exercise.sets.count) sets · \(bestSetText)")
                     .appTextRole(.secondary)
                     .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if volume > 0 {
+                    Text("\(Int(volume).formatted()) lb volume")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityElement(children: .combine)
     }
 }
 

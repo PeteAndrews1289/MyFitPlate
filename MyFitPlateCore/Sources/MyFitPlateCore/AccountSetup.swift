@@ -82,6 +82,9 @@ public final class OnboardingDraftStore: @unchecked Sendable {
     }
 
     public func clearAll() {
+        for key in userDefaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding_quiz") {
+            userDefaults.removeObject(forKey: key)
+        }
         clearDraft()
         clearPendingAccount()
     }

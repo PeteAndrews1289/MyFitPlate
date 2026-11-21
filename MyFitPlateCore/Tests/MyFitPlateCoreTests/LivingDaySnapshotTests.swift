@@ -16,6 +16,20 @@ final class LivingDaySnapshotTests: XCTestCase {
         TodayFuelPlanGoals(calories: 2_100, protein: 160, carbs: 230, fats: 60)
     }
 
+    func testEmptyLegacyMealsDoNotAppearAsLoggedEvents() {
+        let log = DailyLog(date: day, meals: [
+            Meal(name: "All-you-can-eat Sushi", foodItems: []),
+            Meal(name: "Lunch", foodItems: [FoodItem(name: "Rice", calories: 420)]),
+            Meal(name: "Snack", foodItems: [FoodItem(name: "Unsweetened tea", calories: 0)])
+        ])
+        let snapshot = LivingDaySnapshotBuilder.make(
+            date: day, now: day.addingTimeInterval(18 * 60 * 60),
+            dailyLog: log, goals: goals, calendar: calendar
+        )
+        XCTAssertEqual(Set(snapshot.events.filter { $0.kind == .meal }.map(\.title)), Set(["Lunch", "Snack"]))
+        XCTAssertEqual(snapshot.budget.calories.consumed, 420)
+    }
+
     func testBuildsSortedMealAndActivityPathWithBudgets() throws {
         let breakfastTime = day.addingTimeInterval(8 * 60 * 60)
         let lunch = FoodItem(
@@ -220,6 +234,7 @@ final class LivingDaySnapshotTests: XCTestCase {
             servingWeight: 390
         )
         let planned = PlannedMeal(mealType: "Dinner", foodItem: food)
+        food.id = PlannedMealLoggingRules.entryID(for: planned, date: day, calendar: calendar)
         food.timestamp = day.addingTimeInterval(18.5 * 60 * 60)
         let log = DailyLog(date: day, meals: [Meal(name: "Dinner", foodItems: [food])])
 
@@ -248,6 +263,7 @@ final class LivingDaySnapshotTests: XCTestCase {
         )
         let plannedLunch = PlannedMeal(mealType: "Lunch", foodItem: food)
         let plannedDinner = PlannedMeal(mealType: "Dinner", foodItem: food)
+        food.id = PlannedMealLoggingRules.entryID(for: plannedLunch, date: day, calendar: calendar)
         food.timestamp = day.addingTimeInterval(12 * 60 * 60)
         let log = DailyLog(date: day, meals: [Meal(name: "Lunch", foodItems: [food])])
 

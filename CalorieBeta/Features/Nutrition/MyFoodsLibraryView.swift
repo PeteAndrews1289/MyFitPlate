@@ -41,7 +41,11 @@ final class MyFoodsLibraryViewModel: ObservableObject {
     }
 
     var duplicateGroups: [MyFoodsDuplicateGroup] {
-        MyFoodsLibraryRules.duplicateGroups(from: entries)
+        let separate = (try? SavedFoodDuplicateDecisionStore(userID: DIContainer.shared.authService.currentUserID).decisions()) ?? []
+        return MyFoodsLibraryRules.reviewGroups(from: entries).filter { group in
+            guard let key = try? SavedFoodDuplicateDecisionStore.key([group.keeper.item] + group.duplicates.map(\.item)) else { return true }
+            return !separate.contains(key)
+        }
     }
 
     func count(for filter: MyFoodsLibraryFilter) -> Int {
@@ -235,6 +239,9 @@ struct MyFoodsLibraryView: View {
     @EnvironmentObject private var bannerService: BannerService
     @StateObject private var viewModel: MyFoodsLibraryViewModel
     @State private var editingLog: DailyLog?
+    @State private var reviewingCopies: MyFoodsDuplicateGroup?
+    @State private var showingLibraryHistory = false
+    @StateObject private var maintenance = LibraryMutationSession(userID: DIContainer.shared.authService.currentUserID)
 
     private let loadsRemoteData: Bool
     private let onLibraryChanged: () -> Void
@@ -278,6 +285,7 @@ struct MyFoodsLibraryView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) { Button("Changes") { showingLibraryHistory = true } }
             }
             .refreshable {
                 guard loadsRemoteData else { return }
@@ -303,6 +311,13 @@ struct MyFoodsLibraryView: View {
             }
         }
         .alert(item: $viewModel.confirmation, content: confirmationAlert)
+        .sheet(item: $reviewingCopies) { group in
+            SavedFoodMergeReviewView(group: group, session: maintenance, onChanged: reloadAfterLibraryChange)
+        }
+        .sheet(isPresented: $showingLibraryHistory) {
+            LibraryMaintenanceHistoryView(session: maintenance, onChanged: reloadAfterLibraryChange)
+        }
+        .onChange(of: maintenance.checkpoint.history.map(\.id)) { _, _ in reloadAfterLibraryChange() }
     }
 
     private var libraryContent: some View {
@@ -313,6 +328,9 @@ struct MyFoodsLibraryView: View {
                 }
 
                 libraryControls
+                if maintenance.pending != nil || maintenance.errorMessage != nil {
+                    LibraryMutationStatusView(session: maintenance, onChanged: reloadAfterLibraryChange).appSurface(.quiet)
+                }
 
                 if let loadError = viewModel.loadError {
                     inlineError(loadError)
@@ -481,13 +499,14 @@ struct MyFoodsLibraryView: View {
             VStack(spacing: 0) {
                 ForEach(Array(viewModel.duplicateGroups.enumerated()), id: \.element.id) { index, group in
                     Button {
-                        viewModel.confirmation = .merge(group)
+                        reviewingCopies = group
                     } label: {
                         AppListRow(
                             icon: "square.on.square",
                             iconColor: AppPalette.caution,
                             title: group.keeper.item.name,
-                            subtitle: "\(group.itemCount) identical saved copies"
+                            subtitle: MyFoodsLibraryRules.areExactDuplicates([group.keeper.item] + group.duplicates.map(\.item))
+                                ? "\(group.itemCount) exact copies · choose a keeper" : "\(group.itemCount) possible matches · review differences"
                         ) {
                             Text("Review")
                                 .appTextRole(.caption)
@@ -612,6 +631,12 @@ struct MyFoodsLibraryView: View {
             )
             logMutation(action: "merge", success: success, itemCount: group.itemCount)
         }
+    }
+
+    private func reloadAfterLibraryChange() {
+        viewModel.objectWillChange.send()
+        if loadsRemoteData { viewModel.load(using: dailyLogService) }
+        onLibraryChanged()
     }
 
     private func showResult(success: Bool, title: String, message: String) {

@@ -2,7 +2,7 @@ import Foundation
 
 /// Pure logic rules and data transformations for Workout Programs, Routines, and Exercises.
 public struct WorkoutRules {
-    
+
     /// Advances the program's pointer to `targetIndex`, marking every slot in between as skipped.
     /// Returns the mutated copy of the program.
     public static func skip(to targetIndex: Int, in program: WorkoutProgram) -> WorkoutProgram {
@@ -16,7 +16,7 @@ public struct WorkoutRules {
         }
         updated.skippedIndices = skipped.sorted()
         updated.currentProgressIndex = targetIndex
-        
+
         return updated
     }
 
@@ -25,8 +25,8 @@ public struct WorkoutRules {
         return skip(to: (program.currentProgressIndex ?? 0) + 1, in: program)
     }
 
-    /// Advances the program after a completed routine. If the saved progress pointer is stale,
-    /// this searches forward for the completed routine and advances past that slot.
+    /// Compatibility helper for a caller that only knows the current routine.
+    /// Never searches ahead: the same routine recurs, so identity alone cannot locate a slot.
     public static func advanceAfterCompletion(
         in program: WorkoutProgram,
         completedRoutineID: String
@@ -35,13 +35,8 @@ public struct WorkoutRules {
         guard total > 0 else { return program }
 
         let current = min(max(program.currentProgressIndex ?? 0, 0), total)
-        let matchedSlot = (current..<total).first { slot in
-            program.routines.indices.contains(slot % program.routines.count) &&
-                program.routines[slot % program.routines.count].id == completedRoutineID
-        }
-
-        let completedSlot = matchedSlot ?? current
-        let nextIndex = min(completedSlot + 1, total)
+        guard current < total, program.routine(forSlot: current)?.id == completedRoutineID else { return program }
+        let nextIndex = current + 1
         guard nextIndex > current else { return program }
 
         var updated = program
@@ -49,8 +44,39 @@ public struct WorkoutRules {
         return updated
     }
 
-    /// Repairs a stale program pointer from persisted session logs. This is intentionally count
-    /// based because old app versions could save the session log but miss the program advancement.
+    /// Captures the exact planned slot before presenting the player. A routine-only entry
+    /// resolves its next occurrence, never the program's position at completion time.
+    public static func sessionContext(
+        for program: WorkoutProgram, routineID: String, slotIndex: Int? = nil
+    ) -> WorkoutProgramSessionContext? {
+        guard let programID = program.id, !programID.isEmpty, !program.routines.isEmpty else { return nil }
+        let current = max(program.currentProgressIndex ?? 0, 0)
+        let slot = slotIndex ?? (current..<max(current, program.totalSlots)).first {
+            program.routine(forSlot: $0)?.id == routineID
+        }
+        guard let slot, (0..<program.totalSlots).contains(slot),
+              program.routine(forSlot: slot)?.id == routineID else { return nil }
+        return WorkoutProgramSessionContext(programID: programID, slotIndex: slot,
+                                             blockSession: WorkoutBlockRules.snapshot(for: program, slot: slot))
+    }
+
+    /// A review suggestion, never evidence sufficient to auto-link an old draft:
+    /// the old schema did not record whether a matching routine was started alone.
+    public static func legacyProgramContextCandidate(
+        for draft: WorkoutSessionDraft, in program: WorkoutProgram, userID: String, now: Date = Date()
+    ) -> WorkoutProgramSessionContext? {
+        guard draft.needsProgramLinkReview, draft.completion == nil,
+              draft.routine.userID == userID, program.userID == userID,
+              draft.startedAt.timeIntervalSinceReferenceDate.isFinite,
+              draft.startedAt >= program.dateCreated, draft.startedAt <= now,
+              let current = program.currentProgressIndex, (0..<program.totalSlots).contains(current),
+              !(program.skippedIndices ?? []).contains(current),
+              program.routine(forSlot: current)?.id == draft.routine.id else { return nil }
+        return sessionContext(for: program, routineID: draft.routine.id, slotIndex: current)
+    }
+
+    /// Advances only through identified contiguous completions and explicit skips.
+    /// The stored pointer is authoritative; this never resets or lowers existing progress.
     public static func reconcileProgressFromSessionLogs(
         in program: WorkoutProgram,
         sessionLogs: [WorkoutSessionLog]
@@ -58,19 +84,14 @@ public struct WorkoutRules {
         let total = totalSlots(in: program)
         guard total > 0 else { return program }
 
-        // Count the logs that belong to this program. We match on routine ID first, then fall back
-        // to an exercise-name signature so a completion still counts even when the program's routine
-        // IDs changed after the log was written — otherwise ID drift silently orphans the log and
-        // progress can never advance past the point where the drift happened.
-        let completedLogCount = sessionLogs.filter { logBelongsToProgram($0, program: program) }.count
-        guard completedLogCount > 0 else { return program }
-
-        let current = min(max(program.currentProgressIndex ?? 0, 0), total)
+        let current = program.currentProgressIndex ?? 0
+        guard (0..<total).contains(current) else { return program }
+        let completed = sessionLogsBySlot(in: program, sessionLogs: sessionLogs)
         let skipped = Set(program.skippedIndices ?? [])
         var reconciledIndex = current
 
         while reconciledIndex < total &&
-            completedSlotCount(upTo: reconciledIndex, skipped: skipped) < completedLogCount {
+            (completed[reconciledIndex] != nil || skipped.contains(reconciledIndex)) {
             reconciledIndex += 1
         }
 
@@ -80,41 +101,61 @@ public struct WorkoutRules {
         return updated
     }
 
-    /// Whether a session log represents a completed workout for `program`. Prefers a direct routine
-    /// ID match; falls back to comparing the logged exercise names against each routine so a log
-    /// still counts after routine IDs are regenerated (e.g. re-adopting a pre-built program, which
-    /// mints fresh IDs while keeping the same routine and exercise names).
+    /// Explicit provenance wins over names/dates, including after schedule edits.
+    /// Legacy history requires an exact routine ID inside this program's lifetime.
+    /// Similar exercise names are never evidence that a fresh program was completed.
     public static func logBelongsToProgram(_ log: WorkoutSessionLog, program: WorkoutProgram) -> Bool {
-        if program.routines.contains(where: { $0.id == log.routineID }) { return true }
-
-        let loggedNames = Set(log.completedExercises
-            .map { normalizedExerciseName($0.exerciseName) }
-            .filter { !$0.isEmpty })
-        guard !loggedNames.isEmpty else { return false }
-
-        return program.routines.contains { routine in
-            let routineNames = Set(routine.exercises
-                .map { normalizedExerciseName($0.name) }
-                .filter { !$0.isEmpty })
-            guard !routineNames.isEmpty else { return false }
-            let overlap = loggedNames.intersection(routineNames).count
-            // Half of the logged movements landing in one routine is a confident match, tolerant of
-            // a swapped exercise or two mid-session.
-            return Double(overlap) >= Double(loggedNames.count) * 0.5
+        guard log.programLinkDecision != .standalone,
+              log.date.timeIntervalSinceReferenceDate.isFinite, log.date <= Date() else { return false }
+        if let context = log.programContext {
+            return context.programID == program.id && (0..<program.totalSlots).contains(context.slotIndex)
         }
+        let preservedStart = program.slotDateSnapshots?.map(\.date).filter { $0.timeIntervalSinceReferenceDate.isFinite }.min()
+        let scheduleStart = min(program.startDate ?? program.dateCreated, preservedStart ?? program.startDate ?? program.dateCreated)
+        let lowerBound = max(program.dateCreated, scheduleStart)
+        return log.date >= lowerBound && program.routines.contains { $0.id == log.routineID }
     }
 
-    private static func normalizedExerciseName(_ name: String) -> String {
-        name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func completedSlotCount(upTo index: Int, skipped: Set<Int>) -> Int {
-        guard index > 0 else { return 0 }
-        return (0..<index).filter { !skipped.contains($0) }.count
+    /// A single shared map powers progression and review links. Explicit slot receipts
+    /// support early/reordered sessions. Legacy dates can review only an already-passed,
+    /// non-skipped exact routine/day; they never infer new progress or a launch origin.
+    public static func sessionLogsBySlot(
+        in program: WorkoutProgram, sessionLogs: [WorkoutSessionLog], calendar: Calendar = .current
+    ) -> [Int: WorkoutSessionLog] {
+        guard !program.routines.isEmpty, program.totalSlots > 0 else { return [:] }
+        var seen = Set<String>()
+        let logs = sessionLogs.filter { logBelongsToProgram($0, program: program) }.sorted {
+            if $0.date != $1.date { return $0.date < $1.date }
+            if $0.id != $1.id { return ($0.id ?? "") < ($1.id ?? "") }
+            return ($0.programContext?.slotIndex ?? -1) < ($1.programContext?.slotIndex ?? -1)
+        }.filter { log in
+            let identity = log.id ?? "\(log.routineID)|\(log.date.timeIntervalSinceReferenceDate)"
+            return seen.insert(identity).inserted
+        }
+        var result: [Int: WorkoutSessionLog] = [:]
+        for log in logs {
+            if let slot = log.programContext?.slotIndex, result[slot] == nil { result[slot] = log }
+        }
+        let legacy = logs.filter { $0.programContext == nil }
+        let passedSlots = 0..<min(max(program.currentProgressIndex ?? 0, 0), program.totalSlots)
+        let skipped = Set(program.skippedIndices ?? [])
+        var candidates: [Int: [WorkoutSessionLog]] = [:]
+        for log in legacy {
+            let slots = passedSlots.filter { slot in
+                guard !skipped.contains(slot), program.routine(forSlot: slot)?.id == log.routineID,
+                      let date = program.date(forSlot: slot, calendar: calendar) else { return false }
+                return calendar.isDate(log.date, inSameDayAs: date)
+            }
+            if slots.count == 1, let slot = slots.first { candidates[slot, default: []].append(log) }
+        }
+        for (slot, matches) in candidates where result[slot] == nil && matches.count == 1 {
+            result[slot] = matches[0]
+        }
+        return result
     }
 
     private static func totalSlots(in program: WorkoutProgram) -> Int {
-        max((program.daysOfWeek?.count ?? 0) * 12, program.routines.count)
+        program.totalSlots
     }
 
     /// Prepares a fresh copy of a pre-built program for a user by resetting IDs and clearing completion states.
@@ -130,8 +171,14 @@ public struct WorkoutRules {
         let normalizedStartDate = calendar.startOfDay(for: startDate)
         let trainingDays = program.daysOfWeek?.isEmpty == false ? program.daysOfWeek ?? [] : [2, 4, 6]
         userProgramCopy.startDate = normalizedStartDate
+        userProgramCopy.scheduleAnchorDay = TrainingCalendarDay(normalizedStartDate, calendar: calendar)
         userProgramCopy.daysOfWeek = alignTrainingDays(trainingDays, toStartDate: normalizedStartDate, calendar: calendar)
         userProgramCopy.currentProgressIndex = 0
+        userProgramCopy.progressEpoch = UUID().uuidString; userProgramCopy.slotCompletionProofs = nil; userProgramCopy.lastSkipReceipt = nil
+        userProgramCopy.skippedIndices = nil
+        userProgramCopy.weekRescue = nil
+        userProgramCopy.trainingBlock = nil
+        userProgramCopy.lineage = nil; userProgramCopy.archivedAt = nil; userProgramCopy.slotDateSnapshots = nil
         userProgramCopy.dateCreated = Date()
 
         userProgramCopy.routines = userProgramCopy.routines.map { routine in
@@ -144,6 +191,7 @@ public struct WorkoutRules {
                     var newSet = set
                     newSet.id = UUID().uuidString
                     newSet.isCompleted = false
+                    newSet.intervalTimer = nil; newSet.isDeferred = nil
                     newSet.reps = 0
                     newSet.weight = 0
                     newSet.distance = 0
@@ -163,6 +211,9 @@ public struct WorkoutRules {
             )
         }
 
+        if let release = userProgramCopy.catalogRelease {
+            userProgramCopy.trainingBlock = try? WorkoutBlockRules.createRepeatingBlock(for: userProgramCopy, weekCount: release.weekCount)
+        }
         return userProgramCopy
     }
 
@@ -184,15 +235,22 @@ public struct WorkoutRules {
         let routines = response.routines.map { aiRoutine -> WorkoutRoutine in
             let exercises = aiRoutine.exercises.map { aiExercise -> RoutineExercise in
                 let sets = aiExercise.sets.map { aiSet -> ExerciseSet in
-                    return ExerciseSet(target: aiSet.target)
+                    return ExerciseSet(target: aiSet.prescription?.targetText ?? aiSet.target, prescription: aiSet.prescription)
                 }
                 let exerciseType = ExerciseType(rawValue: aiExercise.type.rawValue) ?? .strength
-                return RoutineExercise(name: aiExercise.name, type: exerciseType, sets: sets, alternatives: aiExercise.alternatives)
+                var exercise = RoutineExercise(name: aiExercise.name, type: exerciseType, sets: sets, alternatives: aiExercise.alternatives)
+                exercise.movementIdentity = WorkoutMovementCatalog.identity(for: aiExercise.name)
+                for index in exercise.sets.indices { exercise.sets[index].prescription = exercise.sets[index].prescription ?? WorkoutPrescription.legacy(exercise.sets[index].target, type: exerciseType) }
+                if exerciseType == .strength { exercise.progressionPolicy = aiExercise.progressionPolicy ?? WorkoutProgressionPolicy() }
+                exercise.restTimeInSeconds = aiExercise.restSeconds ?? 60
+                return exercise
             }
             return WorkoutRoutine(id: UUID().uuidString, userID: userID, name: aiRoutine.name, dateCreated: Date(), exercises: exercises)
         }
 
-        return WorkoutProgram(userID: userID, name: response.programName, dateCreated: Date(), routines: routines)
+        var program = WorkoutProgram(userID: userID, name: response.programName, dateCreated: Date(), routines: routines)
+        program.progressEpoch = UUID().uuidString
+        return program
     }
 
     /// Generates the static list of pre-built programs.
@@ -1024,6 +1082,34 @@ public struct WorkoutRules {
             days: [2, 4, 6]
         )
 
+        for index in programs.indices {
+            programs[index].catalogRelease = WorkoutCatalogRelease.profile(templateID: programs[index].id ?? "")
+            for routine in programs[index].routines {
+                for exerciseIndex in routine.exercises.indices {
+                    routine.exercises[exerciseIndex].movementIdentity = WorkoutMovementCatalog.identity(for: routine.exercises[exerciseIndex].name)
+                    for setIndex in routine.exercises[exerciseIndex].sets.indices {
+                        let original = routine.exercises[exerciseIndex].sets[setIndex].target ?? ""
+                        let adapted: String
+                        if original == "5/3/1 reps" { adapted = "\([5, 3, 1][min(setIndex, 2)]) reps" } else if original == "50 total reps" { adapted = "10 reps" } else if original.hasSuffix("+ reps"), let minimum = Int(original.replacingOccurrences(of: "+ reps", with: "")) {
+                            adapted = "\(minimum)-\(minimum + 2) reps"
+                        } else { adapted = original }
+                        routine.exercises[exerciseIndex].sets[setIndex].target = adapted
+                        if routine.exercises[exerciseIndex].type == .strength, let range = ProgressionRules.repRange(adapted) {
+                            routine.exercises[exerciseIndex].sets[setIndex].prescription = WorkoutPrescription(kind: .repetitions,
+                                lowerBound: Double(range.lowerBound), upperBound: Double(range.upperBound),
+                                notes: adapted.contains("side") ? "Per side" : nil, originalText: original)
+                        } else {
+                            let parsed = WorkoutPrescription.legacy(adapted, type: routine.exercises[exerciseIndex].type)
+                            routine.exercises[exerciseIndex].sets[setIndex].prescription = parsed?.isSupported(for: routine.exercises[exerciseIndex].type) == true
+                                ? parsed : WorkoutPrescription(kind: .manual, originalText: original)
+                        }
+                    }
+                    if routine.exercises[exerciseIndex].sets.allSatisfy({ $0.prescription?.kind == .repetitions }) {
+                        routine.exercises[exerciseIndex].progressionPolicy = WorkoutProgressionPolicy()
+                    }
+                }
+            }
+        }
         return programs
     }
 
@@ -1036,17 +1122,33 @@ public struct WorkoutRules {
         details: String,
         age: Int,
         gender: String,
-        primaryWeightGoal: String
+        primaryWeightGoal: String,
+        maximumSessionMinutes: Int? = nil, typedContract: Bool = false
     ) -> String? {
         let exerciseListJSON: String
         do {
-            let jsonData = try JSONEncoder().encode(ExerciseList.categorizedExercises)
+            let jsonData: Data
+            if typedContract {
+                let entries = ExerciseList.entries.compactMap { entry -> [String: String]? in
+                    guard let identity = WorkoutMovementCatalog.identity(for: entry.name) else { return nil }
+                    return ["name": entry.name, "movementID": identity.movementID, "variantID": identity.variantID]
+                }
+                jsonData = try JSONEncoder().encode(entries)
+            } else { jsonData = try JSONEncoder().encode(ExerciseList.categorizedExercises) }
             exerciseListJSON = String(data: jsonData, encoding: .utf8) ?? "{}"
         } catch {
             return nil
         }
 
         let detailsString = details.isEmpty ? "No additional details provided." : details
+        let contract = typedContract ? """
+        REQUIRED V2 FORMAT (replaces rule6 below): root includes schemaVersion:2, programName, routines.
+        Each exercise includes exact name+movementID+variantID from the catalog, type, restSeconds (integer0...900; strength with multiple sets at least30), sets, alternatives.
+        Strength exercises include progressionPolicy:{version:1,kind:conservativeDouble or linear or bodyweight or assistance,incrementPounds:5}. Cardio/flexibility progressionPolicy is null.
+        Each set includes target display text and prescription:{schemaVersion:1,kind:repetitions or duration or distance,lowerBound:number,upperBound:number-or-null,effort:null,notes:null,originalText:null,loadPercentage:null,loadReference:null}.
+        Target and typed bounds must agree. Duration is seconds; distance is meters. Never invent a percentage reference/training maximum. Use bounded numeric targets, not AMRAP or written methods.
+        Bodyweight policy requires a bodyweight-only movement; assistance requires the explicitly confirmed assisted implement. For mapped gym movements echo equipmentProfileID and equipmentImplementID exactly from the request; otherwise both must be null. Do not fabricate inventory IDs.
+        """ : ""
 
         return """
         You are an expert kinesiologist and fitness coach. Your task is to create a safe, effective, and well-structured workout program.
@@ -1060,6 +1162,9 @@ public struct WorkoutRules {
         - Available Equipment: \(equipment)
         - Days Per Week: \(daysPerWeek)
         - Additional Notes: \(detailsString)
+        - Equipment interpretation: \(WorkoutPlanningEquipment(request: equipment)?.explanation ?? equipment)
+        - Maximum session minutes: \(maximumSessionMinutes.map(String.init) ?? "No time cap selected")
+        - Time review uses 5 minutes warm-up, 1 minute setup per exercise, 4 seconds per upper-target rep (minimum 30 seconds per set), explicit timed work and 60-second between-set rests. Keep every session within the selected estimate budget. Avoid open-ended AMRAP or distance-only sets when a time cap is given.
 
         **YOUR RULES (READ CAREFULLY):**
 
@@ -1074,7 +1179,7 @@ public struct WorkoutRules {
             - 4 Days: Upper / Lower / Upper / Lower
             - 5 Days: Push / Pull / Legs / Upper / Lower
             - 6 Days: Push / Pull / Legs / Push / Pull / Legs
-            Each routine must have a MINIMUM of 5 exercises.
+            Use 1–10 exercises per routine, choosing fewer movements or sets when needed to fit the time budget. A repeating A/B rotation may have fewer routines than weekly training days.
 
         3.  **SETS & REPS:** Tailor volume to the user's level.
             - Beginner: 3 sets per exercise. Reps in 10-15 range.
@@ -1082,7 +1187,7 @@ public struct WorkoutRules {
             - Advanced: 4-5 sets per exercise. Use varied rep ranges (e.g., 6-10, 12-15).
             - Cardio/Flexibility: Use time (e.g., "30-60 sec", "20 min").
 
-        4.  **ALTERNATIVES:** The "alternatives" array MUST contain 2 suitable replacement exercises *from the provided JSON list* for the same muscle group.
+        4.  **ALTERNATIVES:** The "alternatives" array may contain up to 2 suitable replacements from the provided JSON list that ALSO fit the equipment constraint. Use an empty array when no compatible alternative is available. Do not assume a bench, pull-up bar or dip station for floor-only requests.
 
         5.  **SAFETY:** If the user mentions an injury (e.g., "bad knee"), avoid high-impact exercises (like 'Burpees', 'Jump Squats') and provide low-impact alternatives. Always assume "Beginner" if the fitness level is unclear.
 
@@ -1091,6 +1196,7 @@ public struct WorkoutRules {
             - Routine object keys: "name" (string, e.g., "Push Day") and "exercises" (array).
             - Exercise object keys: "name" (string), "type" (string: "Strength", "Cardio", or "Flexibility"), "sets" (array), "alternatives" (array).
             - Set object key: "target" (string, e.g., "8-12 reps", "60 seconds").
+        \(contract)
         """
     }
 
@@ -1105,7 +1211,7 @@ public struct WorkoutRules {
         guard let jsonData = responseString.data(using: .utf8) else {
             return .decodingError(NSError(domain: "WorkoutRules", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not convert AI response to data."]))
         }
-        
+
         do {
             if responseString.contains("cannot generate") || responseString.contains("unable to") {
                  struct Refusal: Codable { let programName: String }
@@ -1114,12 +1220,12 @@ public struct WorkoutRules {
                  }
                  return .apiError("The AI was unable to generate a plan for this request.")
             }
-            
+
             let decodedResponse = try JSONDecoder().decode(AIProgramResponse.self, from: jsonData)
             if decodedResponse.routines.isEmpty && decodedResponse.programName.contains("cannot") {
                 return .apiError(decodedResponse.programName)
             }
-            
+
             return .success(decodedResponse)
         } catch {
             return .decodingError(error)

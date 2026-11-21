@@ -547,6 +547,11 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
     public var reviewStatus: FoodReviewStatus
     public var sourceName: String?
     public var sourceID: String?
+    /// Product brand reported by its provider. Absent on legacy and generic records; a
+    /// database's name is never used as a substitute for product identity.
+    public var brandName: String?
+    /// Original serving printed on a provider label when nutrition uses a different basis.
+    public var labeledServing: String?
     public var barcode: String?
     public var matchedFoodID: String?
     public var createdAt: Date?
@@ -569,6 +574,10 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
     /// A composition record used to calculate an estimated entry. This is not identity
     /// verification: for a meal photo, the model still estimated the food and portion.
     public var nutrientReferenceEvidence: FoodVerificationEvidence?
+    public var portionAnchors: [MealPortionAnchor]?
+    public var portionQuestionReceipt: MealQuestionReceipt?
+    public var mealSuggestionEvidence: MealSuggestionFeasibility?
+    public var mealSuggestionRejections: [MealSuggestionRejectionEvidence]?
 
     public init(
         sourceType: FoodSourceType,
@@ -577,6 +586,7 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         reviewStatus: FoodReviewStatus,
         sourceName: String? = nil,
         sourceID: String? = nil,
+        brandName: String? = nil,
         barcode: String? = nil,
         matchedFoodID: String? = nil,
         createdAt: Date? = Date(),
@@ -596,6 +606,7 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         self.reviewStatus = reviewStatus
         self.sourceName = sourceName
         self.sourceID = sourceID
+        self.brandName = brandName
         self.barcode = barcode
         self.matchedFoodID = matchedFoodID
         self.createdAt = createdAt
@@ -614,6 +625,7 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         _ sourceType: FoodSourceType,
         sourceName: String,
         sourceID: String?,
+        brandName: String? = nil,
         barcode: String? = nil,
         matchedFoodID: String? = nil,
         evidenceLineage: FoodEvidenceLineage? = nil,
@@ -625,6 +637,7 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
             reviewStatus: .notRequired,
             sourceName: sourceName,
             sourceID: sourceID,
+            brandName: brandName,
             barcode: barcode,
             matchedFoodID: matchedFoodID ?? sourceID,
             sourceObservedAt: Date(),
@@ -1147,10 +1160,13 @@ public enum FoodSourceClassifier {
         }
 
         let normalizedSource = source.lowercased()
-
-        if normalizedSource.contains("ai") ||
-            normalizedSource.contains("image") ||
-            normalizedSource.contains("menu") ||
+        let sourceWords = normalizedSource.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        if normalizedSource.contains("chain_builder") || normalizedSource.contains("chain builder") || normalizedSource == "chainbuilder" {
+            return descriptor(for: FoodSourceMetadata(sourceType: .chainBuilder, confidence: .estimated,
+                reviewStatus: .unreviewed, sourceName: "Chain catalog reference"))
+        }
+        if sourceWords.contains("ai") || sourceWords.contains("image") || sourceWords.contains("menu") ||
+            ["aiimage", "aitext", "aichat", "aimenu", "aibulk"].contains(normalizedSource) ||
             normalizedSource.contains("pantry_vision") {
             return FoodSourceDescriptor(
                 sourceKey: "ai_estimate",
@@ -1529,13 +1545,17 @@ public extension FoodItem {
         var metadata = sourceMetadata ?? .userEntered(sourceName: sourceName)
         let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode ?? metadata.barcode ?? "")
         let originalSnapshot = originalItem?.nutritionSnapshot ?? metadata.originalEstimate
+        let nutritionChanged = originalSnapshot.map { $0 != nutritionSnapshot } ?? false
+        let isEstimate = metadata.confidence == .estimated || metadata.effectiveEvidenceLineage == .modelEstimate
 
         if metadata.sourceType != .custom && metadata.sourceType != .manual {
             metadata.originSourceType = metadata.originSourceType ?? metadata.sourceType
         }
         metadata.sourceType = .custom
-        metadata.confidence = .userVerified
-        metadata.reviewStatus = originalSnapshot == nil || originalSnapshot == nutritionSnapshot ? .userConfirmed : .userEdited
+        // Saving to a personal library does not verify its nutrition. Keep model
+        // lineage/uncertainty even when a user adjusts one estimated field.
+        if isEstimate { metadata.confidence = .estimated } else if nutritionChanged { metadata.confidence = .userVerified }
+        if nutritionChanged { metadata.reviewStatus = .userEdited }
         metadata.sourceName = sourceName
         metadata.sourceID = id
         metadata.matchedFoodID = metadata.matchedFoodID ?? originalItem?.id ?? id
@@ -1556,6 +1576,7 @@ public extension FoodItem {
         _ sourceType: FoodSourceType,
         sourceName: String,
         sourceID: String? = nil,
+        brandName: String? = nil,
         barcode: String? = nil
     ) -> FoodItem {
         withSourceMetadata(
@@ -1563,6 +1584,7 @@ public extension FoodItem {
                 sourceType,
                 sourceName: sourceName,
                 sourceID: sourceID ?? id,
+                brandName: brandName,
                 barcode: barcode,
                 matchedFoodID: id
             )
@@ -1612,7 +1634,7 @@ public extension FoodItem {
     ) -> FoodItem {
         var metadata = sourceMetadata ?? FoodSourceMetadata(
             sourceType: fallbackSourceType ?? .manual,
-            confidence: fallbackSourceType?.isAISource == true ? .estimated : .userVerified,
+            confidence: fallbackSourceType?.isAISource == true || fallbackSourceType == .chainBuilder ? .estimated : .userVerified,
             reviewStatus: reviewStatus,
             sourceID: id,
             matchedFoodID: id

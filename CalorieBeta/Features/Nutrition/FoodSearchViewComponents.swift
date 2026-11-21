@@ -1,6 +1,112 @@
 import SwiftUI
 import MyFitPlateCore
 
+struct FoodRepeatQuickList: View {
+    let foods: [FoodItem]
+    let loggingFoodIDs: Set<String>
+    let loggedFoodIDs: Set<String>
+    var isBuildingMeal = false
+    let onSelect: (FoodItem) -> Void
+    let onLog: (FoodItem) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(foods.enumerated()), id: \.element.id) { index, food in
+                FoodPickerRow(food: food, isQuickLogged: loggedFoodIDs.contains(food.id),
+                    isLogging: loggingFoodIDs.contains(food.id), isBuildingMeal: isBuildingMeal,
+                    onSelect: onSelect, onQuickLog: onLog, onDelete: nil, source: nil,
+                    selectionID: "repeat_food_review_\(index)", quickActionID: "repeat_food_add_\(index)")
+                if index < foods.count - 1 { Divider().padding(.leading, 50) }
+            }
+        }
+        .appSurface(.quiet, padding: 0)
+    }
+}
+
+struct RepeatMealDraft: Identifiable {
+    let id = UUID()
+    let mealName: String
+    let date: Date
+    let foods: [FoodItem]
+}
+
+struct RepeatMealReview: View {
+    let draft: RepeatMealDraft
+    let onLog: ([FoodItem], @escaping (Bool) -> Void) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var multipliers: [Double]
+    @State private var isSaving = false
+    @State private var saveFailed = false
+
+    init(draft: RepeatMealDraft, onLog: @escaping ([FoodItem], @escaping (Bool) -> Void) -> Void) {
+        self.draft = draft
+        self.onLog = onLog
+        _multipliers = State(initialValue: Array(repeating: 1, count: draft.foods.count))
+    }
+
+    private var selectedFoods: [FoodItem] {
+        draft.foods.enumerated().compactMap { index, food in
+            FoodRepeatRules.adjusting(food, by: multipliers[index])
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("\(draft.mealName) · \(draft.date.formatted(date: .abbreviated, time: .omitted))")
+                    Text("Adjust each amount. Set it to zero to leave that food out.")
+                        .foregroundStyle(.secondary)
+                }
+                Section("Servings to repeat") {
+                    ForEach(draft.foods.indices, id: \.self) { index in
+                        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                            Text(draft.foods[index].name).fontWeight(.semibold)
+                            Text(draft.foods[index].servingSize).foregroundStyle(.secondary)
+                            Stepper(value: $multipliers[index], in: 0...5, step: 0.5) {
+                                Text(multipliers[index] == 0 ? "Leave out" : "\(multipliers[index].formatted(.number.precision(.fractionLength(0...1)))) × original amount")
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .accessibilityIdentifier("repeat_meal_serving_\(index)")
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                Section {
+                    Text("\(selectedFoods.count) \(selectedFoods.count == 1 ? "food" : "foods") · \(Int(selectedFoods.reduce(0) { $0 + $1.calories }.rounded()).formatted()) cal")
+                        .monospacedDigit()
+                        .accessibilityIdentifier("repeat_meal_total")
+                    if saveFailed {
+                        Text("Could not save this meal. Your changes are still here; try again.")
+                            .foregroundStyle(AppPalette.caution)
+                    }
+                    Button {
+                        isSaving = true
+                        saveFailed = false
+                        onLog(selectedFoods) { success in
+                            isSaving = false
+                            saveFailed = !success
+                            if success { dismiss() }
+                        }
+                    } label: {
+                        Text(isSaving ? "Saving meal…" : "Log meal")
+                    }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .disabled(isSaving || selectedFoods.isEmpty)
+                    .accessibilityIdentifier("repeat_meal_confirm")
+                }
+            }.appFormStyle()
+            .disabled(isSaving)
+            .navigationTitle("Review servings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(isSaving) }
+            }
+            .interactiveDismissDisabled(isSaving)
+        }
+    }
+}
+
 struct FoodHorizontalScroller: View {
     let title: String
     let subtitle: String
@@ -158,6 +264,7 @@ struct FoodCard: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("food_select_\(food.id)")
     }
 
     @ViewBuilder

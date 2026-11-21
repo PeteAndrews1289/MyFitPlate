@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 // MARK: - Data Models for Analytics
 
 public struct WorkoutAnalytics {
@@ -39,6 +40,7 @@ public struct WorkoutComparison: Equatable {
     public let volumeDiffPercent: Double
     public let durationDiffPercent: Double
     public let previousDate: Date?
+    public let durationIsMeasured: Bool
 
     public var isPR: Bool {
         volumeDiffPercent > 0 && previousDate != nil
@@ -58,13 +60,16 @@ public struct MuscleSplitPoint: Identifiable {
 @MainActor
 public class WorkoutAnalyticsService: ObservableObject {
     public init() {}
+    @Published public private(set) var historyCoverageMessage: String?
     private let workoutService = WorkoutService()
-    
+
     // MARK: - Core Analytics Calculation (Existing Logic)
 
     public func calculateAnalytics(for logs: [DailyLog], program: WorkoutProgram?) async -> WorkoutAnalytics {
         var totalVolume: Double = 0
         var personalRecords: [String: (weight: Double, reps: Int)] = [:]
+        var recordContexts: [String: RoutineExercise] = [:]
+        var ambiguousRecords = Set<String>()
 
         let allLoggedExercises = logs.flatMap { $0.exercises ?? [] }
 
@@ -75,12 +80,23 @@ public class WorkoutAnalyticsService: ObservableObject {
 
             if case .success(let sessionLog) = sessionResult {
                 for completedExercise in sessionLog.completedExercises {
-                    for set in completedExercise.sets where set.isWorkingSet {
+                    let exerciseName = completedExercise.exerciseName
+                    let identity = normalizedExerciseName(exerciseName)
+                    if completedExercise.exercise.loadEquipment?.isValid == false {
+                        ambiguousRecords.insert(identity)
+                    }
+                    if let previous = recordContexts[identity] {
+                        if !StrengthEquipment.historyCompatible(current: completedExercise.exercise.loadEquipment,
+                                                                previous: previous.loadEquipment) {
+                            ambiguousRecords.insert(identity)
+                        }
+                    } else {
+                        recordContexts[identity] = completedExercise.exercise
+                    }
+                    for set in WorkoutSetMath.workingSets(in: completedExercise) where completedExercise.exercise.type == .strength && completedExercise.exercise.loadEquipment?.loadingMeaning != .assistance && completedExercise.exercise.loadEquipment?.loadingMeaning != .bodyweightOnly {
                         let volume = set.weight * Double(set.reps)
                         totalVolume += volume
 
-                        let exerciseName = completedExercise.exerciseName
-                        
                         if let currentPR = personalRecords[exerciseName] {
                             if set.weight > currentPR.weight {
                                 personalRecords[exerciseName] = (weight: set.weight, reps: set.reps)
@@ -93,19 +109,20 @@ public class WorkoutAnalyticsService: ObservableObject {
             }
         }
 
-        let prStrings = personalRecords.mapValues { String(format: "%.1f lbs x %d reps", $0.weight, $0.reps) }
+        let prStrings = personalRecords.filter { !ambiguousRecords.contains(normalizedExerciseName($0.key)) }
+            .mapValues { String(format: "%.1f lbs x %d reps", $0.weight, $0.reps) }
         let aiInsights = await generateAIWorkoutInsights(for: logs, program: program, analytics: (totalVolume, prStrings))
 
         return WorkoutAnalytics(totalVolume: totalVolume, personalRecords: prStrings, aiInsights: aiInsights)
     }
-    
+
     public func generateInsightsForPastSession(sessionID: String, workoutName: String, userID: String) async -> [WorkoutAnalysisInsight] {
         let sessionResult = await workoutService.fetchWorkoutSessionLog(workoutID: "unknown", sessionID: sessionID)
         guard case .success(let sessionLog) = sessionResult else { return [] }
 
         return await generateAIWorkoutInsights(for: sessionLog, totalVolume: calculateTotalVolume(log: sessionLog), personalRecords: [:])
     }
-    
+
     public func generateAnalyticsForPastSession(sessionID: String, workoutName: String, date: Date) async -> WorkoutAnalytics? {
         let sessionResult = await workoutService.fetchWorkoutSessionLog(workoutID: "unknown", sessionID: sessionID)
         guard case .success(let sessionLog) = sessionResult else { return nil }
@@ -168,7 +185,7 @@ public class WorkoutAnalyticsService: ObservableObject {
     }
 
     // MARK: - New: History & Trends Features
-    
+
     /// Fetches a paginated list of past workout logs for the History View
     public func fetchWorkoutHistory(userID: String, limit: Int = 20) async -> [WorkoutSessionLog] {
         do {
@@ -181,22 +198,24 @@ public class WorkoutAnalyticsService: ObservableObject {
 
     /// Fetches historical performance for a specific exercise to plot charts
     public func fetchTrends(for exerciseName: String, userID: String) async -> [ExerciseTrendPoint] {
+        await fetchTrends(for: RoutineExercise(name: exerciseName), userID: userID)
+    }
+
+    /// Complete dated history is paged before comparing compatible setups.
+    public func fetchTrends(for exercise: RoutineExercise, userID: String) async -> [ExerciseTrendPoint] {
+        guard exercise.loadEquipment?.loadingMeaning != .assistance, exercise.loadEquipment?.loadingMeaning != .bodyweightOnly else { return [] }
         do {
-            let logs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, limit: 30)
-            
-            var points: [ExerciseTrendPoint] = []
-            
-            // Process logs in reverse (oldest to newest for the chart)
-            for log in logs.reversed() {
-                if let completedExercise = log.completedExercises.first(where: { $0.exerciseName == exerciseName }) {
-                    // Calculate "Max Weight Used" as the metric for the chart (working sets only)
-                    let maxWeight = completedExercise.sets.filter(\.isWorkingSet).map { $0.weight }.max() ?? 0
-                    if maxWeight > 0 {
-                        points.append(ExerciseTrendPoint(date: log.date, value: maxWeight))
-                    }
+            let logs = try await completeHistory(userID: userID)
+            guard DIContainer.shared.authService.currentUserID == userID else { return [] }
+            return logs.reversed().compactMap { log in
+                let matches = log.completedExercises.filter {
+                    WorkoutSetMath.normalizedName($0.exerciseName) == WorkoutSetMath.normalizedName(exercise.name)
                 }
+                guard matches.allSatisfy({ StrengthEquipment.historyCompatible(current: exercise.loadEquipment, previous: $0.exercise.loadEquipment) }) else { return nil }
+                let maximum = matches.flatMap { WorkoutSetMath.workingSets(in: $0) }.map(\.weight).max() ?? 0
+                guard maximum.isFinite, maximum > 0 else { return nil }
+                return ExerciseTrendPoint(date: log.date, value: maximum)
             }
-            return points
         } catch {
             AppLog.workouts.error("Failed to fetch workout trends: \(error.localizedDescription, privacy: .public)")
             return []
@@ -207,35 +226,45 @@ public class WorkoutAnalyticsService: ObservableObject {
     public func compareAgainstPrevious(currentLog: WorkoutSessionLog, userID: String) async -> WorkoutComparison? {
         let routineID = currentLog.routineID
         do {
-            let logs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, routineID: routineID, limit: 2)
-            
-            guard logs.count >= 2 else { return nil }
-            
-            let previousLog = logs[1]
+            let logs = try await completeHistory(userID: userID).filter { $0.routineID == routineID }
+
+            guard let previousLog = logs.filter({ (currentLog.id == nil || $0.id != currentLog.id) && $0.date < currentLog.date }).max(by: { $0.date < $1.date }) else { return nil }
+            // A raw volume delta cannot establish progress after the meaning of a load
+            // or machine changes. Preserve recorded volumes, but omit that comparison.
+            guard currentLog.completedExercises.count == previousLog.completedExercises.count else { return nil }
+            for exercise in currentLog.completedExercises {
+                guard exercise.exercise.loadEquipment?.isValid != false,
+                      exercise.exercise.loadEquipment?.loadingMeaning != .assistance,
+                      let previous = previousLog.completedExercises.first(where: { WorkoutSetMath.compatible(exercise, $0) }),
+                      WorkoutSetMath.prescriptionCompatible(exercise.exercise, previous.exercise),
+                      WorkoutSetMath.workingSets(in: exercise).count == WorkoutSetMath.workingSets(in: previous).count else { return nil }
+            }
             let currentVolume = calculateTotalVolume(log: currentLog)
             let previousVolume = calculateTotalVolume(log: previousLog)
-            let currentDuration = calculateEstimatedDuration(log: currentLog)
-            let previousDuration = calculateEstimatedDuration(log: previousLog)
-            
+            let measured = currentLog.elapsedSeconds.map { $0.isFinite && $0 > 0 } == true
+                && previousLog.elapsedSeconds.map { $0.isFinite && $0 > 0 } == true
+            let currentDuration = measured ? currentLog.elapsedSeconds ?? 0 : 0
+            let previousDuration = measured ? previousLog.elapsedSeconds ?? 0 : 0
+
             let volDiff = previousVolume > 0 ? (currentVolume - previousVolume) / previousVolume : 0.0
             let durDiff = previousDuration > 0 ? (Double(currentDuration) - Double(previousDuration)) / Double(previousDuration) : 0.0
-            
-            return WorkoutComparison(volumeDiffPercent: volDiff, durationDiffPercent: durDiff, previousDate: previousLog.date)
+
+            return WorkoutComparison(volumeDiffPercent: volDiff, durationDiffPercent: durDiff, previousDate: previousLog.date, durationIsMeasured: measured)
         } catch {
             AppLog.workouts.error("Failed to compare workouts: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
-    
+
     // Calculates volume distribution by muscle group
     public func calculateMuscleSplit(log: WorkoutSessionLog) -> [MuscleSplitPoint] {
         var distribution: [String: Double] = [:]
-        
+
         for exercise in log.completedExercises {
             let muscle = guessMuscleGroup(exerciseName: exercise.exerciseName)
-            distribution[muscle, default: 0] += Double(exercise.sets.filter(\.isWorkingSet).count)
+            distribution[muscle, default: 0] += Double(WorkoutSetMath.workingSets(in: exercise).count)
         }
-        
+
         return distribution.map { MuscleSplitPoint(muscleName: $0.key, setCount: $0.value) }
             .sorted { $0.setCount > $1.setCount }
     }
@@ -282,9 +311,9 @@ public class WorkoutAnalyticsService: ObservableObject {
 
         let result = await DIContainer.shared.aiService.performRequest(
             messages: [["role": "user", "content": prompt]],
-            model: "gpt-4o-mini",
+            model: "gpt-6-astra",
             temperature: 0.35,
-            responseFormat: ["type": "json_object"]
+            responseFormat: ["type": "json_object"], requestKind: .coaching
         )
 
         switch result {
@@ -335,8 +364,8 @@ public class WorkoutAnalyticsService: ObservableObject {
 
         let result = await DIContainer.shared.aiService.performRequest(
             messages: messages,
-            model: "gpt-4o-mini",
-            responseFormat: ["type": "json_object"]
+            model: "gpt-6-astra",
+            responseFormat: ["type": "json_object"], requestKind: .coaching
         )
 
         switch result {
@@ -356,16 +385,30 @@ public class WorkoutAnalyticsService: ObservableObject {
         }
     }
 
-    // MARK: - Helpers
-    
-    private func calculateTotalVolume(log: WorkoutSessionLog) -> Double {
-        return log.completedExercises.reduce(0) { exerciseSum, exercise in
-            exerciseSum + exercise.sets.filter(\.isWorkingSet).reduce(0) { setSum, set in
-                setSum + (set.weight * Double(set.reps))
+    private func completeHistory(userID: String) async throws -> [WorkoutSessionLog] {
+        do {
+            let all = try await DIContainer.shared.workoutRepository.fetchCompleteWorkoutHistory(userID: userID)
+            let now = Date()
+            let logs = all.filter { $0.date.timeIntervalSinceReferenceDate.isFinite && $0.date <= now }
+            guard DIContainer.shared.authService.currentUserID == userID else { throw WorkoutHistoryReadError.accountChanged }
+            let excluded = all.count - logs.count
+            historyCoverageMessage = "\(logs.count) eligible dated sessions checked. Comparisons use compatible working sets; refresh after new or corrected workouts."
+                + (excluded > 0 ? " \(excluded) future-dated records remain in History for review and are excluded here." : "")
+            return logs
+        } catch {
+            if DIContainer.shared.authService.currentUserID == userID {
+                historyCoverageMessage = "Complete history could not be confirmed. Loaded session totals are still shown; all-history comparisons are unavailable until refresh."
             }
+            throw error
         }
     }
-    
+
+    // MARK: - Helpers
+
+    private func calculateTotalVolume(log: WorkoutSessionLog) -> Double {
+        WorkoutSetMath.volume(log)
+    }
+
     private func calculateEstimatedDuration(log: WorkoutSessionLog) -> Int {
         let totalSets = log.completedExercises.reduce(0) { $0 + $1.sets.count }
         return totalSets * 120
@@ -373,7 +416,7 @@ public class WorkoutAnalyticsService: ObservableObject {
 
     private func detectPersonalRecords(in currentLog: WorkoutSessionLog, userID: String) async -> [String: String] {
         do {
-            let historicalLogs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, limit: 60)
+            let historicalLogs = try await completeHistory(userID: userID)
                 .filter { log in
                     if let currentID = currentLog.id, log.id == currentID { return false }
                     return log.date < currentLog.date
@@ -382,14 +425,23 @@ public class WorkoutAnalyticsService: ObservableObject {
             guard !historicalLogs.isEmpty else { return [:] }
 
             var records: [String: String] = [:]
+            let currentGroups = Dictionary(grouping: currentLog.completedExercises) { normalizedExerciseName($0.exerciseName) }
+            let ambiguousNames = Set(currentGroups.filter { entry in
+                guard let first = entry.value.first else { return false }
+                return entry.value.contains { !StrengthEquipment.historyCompatible(current: first.exercise.loadEquipment,
+                                                                                   previous: $0.exercise.loadEquipment) }
+            }.keys)
 
             for exercise in currentLog.completedExercises where exercise.exercise.type == .strength {
-                guard let currentBest = bestStrengthSet(in: exercise.sets) else { continue }
+                guard !ambiguousNames.contains(normalizedExerciseName(exercise.exerciseName)) else { continue }
+                guard let currentBest = WorkoutSetMath.bestSet(exercise) else { continue }
 
                 let previousBest = historicalLogs
                     .flatMap(\.completedExercises)
-                    .filter { $0.exerciseName.localizedCaseInsensitiveCompare(exercise.exerciseName) == .orderedSame }
-                    .compactMap { bestStrengthSet(in: $0.sets) }
+                    .filter { normalizedExerciseName($0.exerciseName) == normalizedExerciseName(exercise.exerciseName)
+                        && StrengthEquipment.historyCompatible(current: exercise.exercise.loadEquipment,
+                                                               previous: $0.exercise.loadEquipment) }
+                    .compactMap(WorkoutSetMath.bestSet)
                     .max { estimatedOneRepMax($0) < estimatedOneRepMax($1) }
 
                 guard let previousBest else { continue }
@@ -408,8 +460,12 @@ public class WorkoutAnalyticsService: ObservableObject {
         }
     }
 
+    private func normalizedExerciseName(_ name: String) -> String {
+        name.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ").lowercased()
+    }
+
     private func generateLocalSessionInsights(for log: WorkoutSessionLog, totalVolume: Double, personalRecords: [String: String]) -> [WorkoutAnalysisInsight] {
-        let setCount = log.completedExercises.reduce(0) { $0 + $1.sets.count }
+        let setCount = WorkoutSetMath.workingSetCount(log)
         let strengthExercises = log.completedExercises.filter { $0.exercise.type == .strength }
         let cardioMinutes = log.completedExercises.reduce(0) { exerciseSum, exercise in
             exerciseSum + exercise.sets.reduce(0) { $0 + (($1.durationInSeconds ?? 0) / 60) }
@@ -492,12 +548,12 @@ public class WorkoutAnalyticsService: ObservableObject {
     }
 
     private func exerciseVolume(_ exercise: CompletedExercise) -> Double {
-        exercise.sets.filter(\.isWorkingSet).reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+        WorkoutSetMath.volume(exercise)
     }
 
     private func bestStrengthSet(in sets: [CompletedSet]) -> CompletedSet? {
         sets
-            .filter { $0.isWorkingSet && $0.weight > 0 && $0.reps > 0 }
+            .filter { $0.isWorkingSet && $0.weight.isFinite && $0.weight > 0 && $0.reps > 0 }
             .max { estimatedOneRepMax($0) < estimatedOneRepMax($1) }
     }
 
@@ -508,7 +564,7 @@ public class WorkoutAnalyticsService: ObservableObject {
     private func formatSet(_ set: CompletedSet) -> String {
         "\(String(format: "%g", set.weight)) lb x \(set.reps)"
     }
-    
+
     private func guessMuscleGroup(exerciseName: String) -> String {
         let lower = exerciseName.lowercased()
         // Check leg-specific terms FIRST so "calf raise", "leg press", and "leg curl" don't fall

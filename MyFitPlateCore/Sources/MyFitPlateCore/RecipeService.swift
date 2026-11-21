@@ -183,6 +183,16 @@ public class RecipeService: ObservableObject {
     @Published public var isLoading: Bool = false
     private var activeAccountID: String?
     private var loadingRequestIDs: Set<UUID> = []
+    private var mutationGeneration: UInt64 = 0
+    private var latestFetchRequestID: UUID?
+    private var recipeWriteTokens: [String: UUID] = [:]
+
+    private struct LibraryMutation {
+        let userID: String
+        let key: String
+        let token: UUID
+        let before: String?
+    }
 
     public init() {}
 
@@ -191,6 +201,9 @@ public class RecipeService: ObservableObject {
         activeAccountID = userID
         userRecipes = []
         loadingRequestIDs.removeAll()
+        mutationGeneration &+= 1
+        latestFetchRequestID = nil
+        recipeWriteTokens.removeAll()
         isLoading = false
     }
 
@@ -216,8 +229,34 @@ public class RecipeService: ObservableObject {
         }
     }
 
+    private func beginLibraryMutation(userID: String, recipeID: String?) -> LibraryMutation {
+        mutationGeneration &+= 1
+        let key = recipeID ?? "new-\(UUID().uuidString)", token = UUID()
+        recipeWriteTokens[key] = token
+        return LibraryMutation(userID: userID, key: key, token: token,
+            before: libraryFingerprint(userRecipes.first { $0.id == recipeID }))
+    }
+
+    private func endLibraryMutation(_ mutation: LibraryMutation) {
+        if isActiveAccount(mutation.userID) { mutationGeneration &+= 1 }
+    }
+
+    private func libraryFingerprint(_ recipe: Recipe?) -> String? {
+        guard let recipe else { return "absent" }
+        return try? PlanFingerprint.make(recipe)
+    }
+
+    private func mayPublish(_ mutation: LibraryMutation, expected: Recipe? = nil, saved: Recipe? = nil) -> Bool {
+        guard isActiveAccount(mutation.userID), recipeWriteTokens[mutation.key] == mutation.token,
+              let current = libraryFingerprint(userRecipes.first { $0.id == mutation.key }) else { return false }
+        if current == mutation.before { return true }
+        if let expected, current == libraryFingerprint(expected) { return true }
+        if let saved, current == libraryFingerprint(saved) { return true }
+        return false
+    }
+
     // MARK: - AI Recipe Generation (Refactored)
-    public func createRecipeFromAI(description: String, userID: String, retryCount: Int = 1) async -> Recipe? {
+    public func createRecipeFromAI(description: String, userID: String, retryCount: Int = 1, saveResult: Bool = true) async -> Recipe? {
         guard let requestID = beginRequest(for: userID) else { return nil }
         defer { finishRequest(requestID, for: userID) }
 
@@ -237,7 +276,10 @@ public class RecipeService: ObservableObject {
         switch result {
         case .success(let jsonString):
             do {
-                let recipe = try RecipeRules.parseRecipeFromAIResponse(jsonString)
+                var recipe = try RecipeRules.parseRecipeFromAIResponse(jsonString)
+                recipe.importProvenance = RecipeImportProvenance(kind: .ai, originalText: description)
+                recipe.ingredientBasis = .wholeRecipe
+                if !saveResult { return recipe }
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
                 guard isActiveAccount(userID) else { return nil }
                 DIContainer.shared.analyticsManager?.logEvent("ai_recipe_generated", parameters: nil)
@@ -246,7 +288,7 @@ public class RecipeService: ObservableObject {
                 AppLog.recipes.error("Recipe parsing failed: \(error.localizedDescription, privacy: .public)")
                 if retryCount > 0 {
                     AppLog.recipes.info("Retrying recipe generation.")
-                    return await createRecipeFromAI(description: description, userID: userID, retryCount: retryCount - 1)
+                    return await createRecipeFromAI(description: description, userID: userID, retryCount: retryCount - 1, saveResult: saveResult)
                 }
                 return nil
             }
@@ -256,7 +298,7 @@ public class RecipeService: ObservableObject {
         }
     }
 
-    public func createRecipeFromText(text: String, userID: String, retryCount: Int = 1) async -> Recipe? {
+    public func createRecipeFromText(text: String, userID: String, retryCount: Int = 1, saveResult: Bool = true) async -> Recipe? {
         guard let requestID = beginRequest(for: userID) else { return nil }
         defer { finishRequest(requestID, for: userID) }
 
@@ -275,7 +317,10 @@ public class RecipeService: ObservableObject {
         switch result {
         case .success(let jsonString):
             do {
-                let recipe = try RecipeRules.parseRecipeFromAIResponse(jsonString)
+                var recipe = try RecipeRules.parseRecipeFromAIResponse(jsonString)
+                recipe.importProvenance = RecipeImportProvenance(kind: .text, originalText: text)
+                recipe.ingredientBasis = .wholeRecipe
+                if !saveResult { return recipe }
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
                 guard isActiveAccount(userID) else { return nil }
                 DIContainer.shared.analyticsManager?.logEvent("ai_recipe_text_imported", parameters: nil)
@@ -284,7 +329,7 @@ public class RecipeService: ObservableObject {
                 AppLog.recipes.error("Recipe text parsing failed: \(error.localizedDescription, privacy: .public)")
                 if retryCount > 0 {
                     AppLog.recipes.info("Retrying recipe text generation.")
-                    return await createRecipeFromText(text: text, userID: userID, retryCount: retryCount - 1)
+                    return await createRecipeFromText(text: text, userID: userID, retryCount: retryCount - 1, saveResult: saveResult)
                 }
                 return nil
             }
@@ -365,16 +410,29 @@ public class RecipeService: ObservableObject {
         }
     }
 
-    public func createRecipeFromURL(url: String, userID: String, retryCount: Int = 1) async -> Recipe? {
-        guard let requestID = beginRequest(for: userID) else { return nil }
+    /// Prefer exact structured page data and let the caller choose when a page has multiple recipes.
+    /// Neither path writes to the recipe library.
+    public func draftRecipesFromURL(url: String, userID: String) async throws -> [Recipe] {
+        guard let requestID = beginRequest(for: userID) else { throw CancellationError() }
         defer { finishRequest(requestID, for: userID) }
+        let page = try await fetchRecipePage(url: url, userID: userID)
+        let structured = try RecipeStructuredImport.drafts(html: page.html, sourceURL: page.url)
+        if !structured.isEmpty { return structured }
+        guard var recipe = await createRecipeFromText(text: page.text, userID: userID, saveResult: false) else {
+            throw RecipeDocumentError.notRecipe
+        }
+        guard isActiveAccount(userID) else { throw CancellationError() }
+        recipe.importProvenance = RecipeImportProvenance(kind: .url, sourceURL: page.url, originalText: page.text)
+        recipe.ingredientBasis = .wholeRecipe
+        return [recipe]
+    }
 
+    private func fetchRecipePage(url: String, userID: String) async throws -> (html: String, text: String, url: String) {
         guard let urlObj = RecipeImportURLPolicy.allowedURL(from: url) else {
             AppLog.recipes.error("Recipe URL was rejected by the public HTTPS policy.")
-            return nil
+            throw URLError(.badURL)
         }
 
-        var scrapedText = ""
         do {
             var request = URLRequest(
                 url: urlObj,
@@ -401,7 +459,7 @@ public class RecipeService: ObservableObject {
             defer { session.invalidateAndCancel() }
 
             let (bytes, response) = try await session.bytes(for: request)
-            guard isActiveAccount(userID) else { return nil }
+            guard isActiveAccount(userID) else { throw CancellationError() }
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 || httpResponse.statusCode == 206,
                   httpResponse.expectedContentLength <= Int64(RecipeImportURLPolicy.maximumResponseBytes) ||
@@ -430,12 +488,21 @@ public class RecipeService: ObservableObject {
             guard let extractedText = try RecipePageTextExtractor.extract(from: htmlString) else {
                 throw URLError(.cannotParseResponse)
             }
-            scrapedText = extractedText
+            return (htmlString, extractedText, httpResponse.url?.absoluteString ?? urlObj.absoluteString)
         } catch {
             AppLog.recipes.error("Failed to scrape URL: \(error.localizedDescription, privacy: .public)")
-            return nil
+            throw error
         }
 
+    }
+
+    public func createRecipeFromURL(url: String, userID: String, retryCount: Int = 1, saveResult: Bool = true) async -> Recipe? {
+        guard let requestID = beginRequest(for: userID) else { return nil }
+        defer { finishRequest(requestID, for: userID) }
+
+        let page: (html: String, text: String, url: String)
+        do { page = try await fetchRecipePage(url: url, userID: userID) } catch { return nil }
+        let scrapedText = page.text
         let prompt = RecipeRules.createRecipeFromURLPrompt(scrapedText: scrapedText)
 
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
@@ -451,10 +518,13 @@ public class RecipeService: ObservableObject {
         switch result {
         case .success(let jsonString):
             do {
-                guard let recipe = try RecipeRules.parseRecipeFromURLResponse(jsonString) else {
+                guard var recipe = try RecipeRules.parseRecipeFromURLResponse(jsonString) else {
                     AppLog.recipes.info("Recipe URL response did not affirmatively identify a recipe.")
                     return nil
                 }
+                recipe.importProvenance = RecipeImportProvenance(kind: .url, sourceURL: page.url, originalText: scrapedText)
+                recipe.ingredientBasis = .wholeRecipe
+                if !saveResult { return recipe }
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
                 guard isActiveAccount(userID) else { return nil }
                 DIContainer.shared.analyticsManager?.logEvent("url_recipe_imported", parameters: nil)
@@ -463,7 +533,7 @@ public class RecipeService: ObservableObject {
                 AppLog.recipes.error("Recipe parsing failed: \(error.localizedDescription, privacy: .public)")
                 if retryCount > 0 {
                     AppLog.recipes.info("Retrying URL recipe import.")
-                    return await createRecipeFromURL(url: url, userID: userID, retryCount: retryCount - 1)
+                    return await createRecipeFromURL(url: url, userID: userID, retryCount: retryCount - 1, saveResult: saveResult)
                 }
                 return nil
             }
@@ -479,9 +549,11 @@ public class RecipeService: ObservableObject {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         guard let requestID = beginRequest(for: userID) else { return }
         defer { finishRequest(requestID, for: userID) }
+        let generation = mutationGeneration, fetchID = UUID()
+        latestFetchRequestID = fetchID
         do {
             let recipes = try await DIContainer.shared.nutritionRepository.fetchRecipes(userID: userID)
-            guard isActiveAccount(userID) else { return }
+            guard isActiveAccount(userID), mutationGeneration == generation, latestFetchRequestID == fetchID else { return }
             self.userRecipes = recipes
         } catch {
             AppLog.recipes.error("Failed to fetch user recipes: \(error.localizedDescription, privacy: .public)")
@@ -491,8 +563,16 @@ public class RecipeService: ObservableObject {
     @discardableResult
     public func saveRecipe(_ recipe: Recipe, for userID: String) async throws -> Recipe {
         guard isActiveAccount(userID) else { throw CancellationError() }
+        let mutation = beginLibraryMutation(userID: userID, recipeID: recipe.id)
+        defer { endLibraryMutation(mutation) }
+        if recipe.nutritionBasis != nil {
+            guard let yield = recipe.servings, yield.isFinite, yield > 0, yield <= 100,
+                  [recipe.nutrition.calories, recipe.nutrition.protein, recipe.nutrition.carbs, recipe.nutrition.fats].allSatisfy({ $0.isFinite && $0 >= 0 }) else {
+                throw RecipeIntegrityError.incompleteIngredients
+            }
+        }
         let savedRecipe = try await DIContainer.shared.nutritionRepository.saveRecipe(userID: userID, recipe: recipe)
-        guard isActiveAccount(userID) else { return savedRecipe }
+        guard mayPublish(mutation, saved: savedRecipe) else { return savedRecipe }
         DIContainer.shared.analyticsManager?.logEvent("recipe_created", parameters: nil)
 
         if let recipeID = savedRecipe.id,
@@ -505,13 +585,91 @@ public class RecipeService: ObservableObject {
         return savedRecipe
     }
 
+    /// Checked manual edits preserve the editor's exact original recipe. A rejected save
+    /// cannot replace a newer library version, and retry retains the same content revision.
+    @discardableResult
+    public func saveRecipeRevision(_ recipe: Recipe, for userID: String, expected: Recipe?, operationID: UUID) async throws -> Recipe {
+        guard isActiveAccount(userID) else { throw CancellationError() }
+        let mutation = beginLibraryMutation(userID: userID, recipeID: recipe.id)
+        defer { endLibraryMutation(mutation) }
+        if recipe.nutritionBasis != nil {
+            guard let yield = recipe.servings, yield.isFinite, yield > 0, yield <= 100 else {
+                throw RecipePortionError.invalidYield
+            }
+        }
+        if let weight = recipe.cookedWeightGrams {
+            guard recipe.nutritionBasis != nil else { throw RecipePortionError.unconfirmedBasis }
+            guard weight.isFinite, weight > 0, weight <= 1_000_000 else { throw RecipePortionError.invalidCookedWeight }
+        }
+        guard [recipe.nutrition.calories, recipe.nutrition.protein, recipe.nutrition.carbs, recipe.nutrition.fats]
+            .allSatisfy({ $0.isFinite && $0 >= 0 }) else { throw RecipePortionError.invalidNutrition }
+        var updated = recipe
+        updated.revisionID = try RecipePortionRules.revisionID(for: updated)
+        let saved = try await DIContainer.shared.nutritionRepository.saveRecipeRevision(userID: userID, expected: expected, updated: updated, operationID: operationID)
+        guard isActiveAccount(userID) else { throw CancellationError() }
+        guard mayPublish(mutation, expected: expected, saved: saved) else { return saved }
+        if let index = userRecipes.firstIndex(where: { $0.id == saved.id }) { userRecipes[index] = saved } else { userRecipes.append(saved) }
+        return saved
+    }
+
+    public func fetchRecipeVersionHistory(recipeID: String, limit: Int = 60) async throws -> [RecipeVersionRecord] {
+        guard let owner = DIContainer.shared.authService.currentUserID, isActiveAccount(owner) else { throw RecipeRevisionError.accountChanged }
+        let values = try await DIContainer.shared.nutritionRepository.fetchRecipeVersionHistory(userID: owner, recipeID: recipeID, limit: limit)
+        guard isActiveAccount(owner) else { throw RecipeRevisionError.accountChanged }; return values
+    }
+    public func restoreRecipeVersion(_ proposal: RecipeVersionRestoreProposal) async throws -> Recipe {
+        guard isActiveAccount(proposal.userID) else { throw RecipeRevisionError.accountChanged }
+        let mutation = beginLibraryMutation(userID: proposal.userID, recipeID: proposal.version.recipeID)
+        defer { endLibraryMutation(mutation) }
+        let saved = try await DIContainer.shared.nutritionRepository.restoreRecipeVersion(userID: proposal.userID, proposal: proposal)
+        guard isActiveAccount(proposal.userID) else { throw RecipeRevisionError.accountChanged }
+        if mayPublish(mutation, expected: proposal.expected, saved: saved) {
+            if let index = userRecipes.firstIndex(where: { $0.id == saved.id }) { userRecipes[index] = saved } else { userRecipes.append(saved) }
+        }
+        return saved
+    }
+    public func resolveRecipeVersionRestore(_ proposal: RecipeVersionRestoreProposal, cancelIfUnaccepted: Bool) async throws -> RecipeRevisionResolution {
+        guard isActiveAccount(proposal.userID) else { throw RecipeRevisionError.accountChanged }
+        let generation = mutationGeneration
+        let before = libraryFingerprint(userRecipes.first { $0.id == proposal.version.recipeID })
+        let result = try await DIContainer.shared.nutritionRepository.resolveRecipeVersionRestore(userID: proposal.userID, proposal: proposal, cancelIfUnaccepted: cancelIfUnaccepted)
+        guard isActiveAccount(proposal.userID) else { throw RecipeRevisionError.accountChanged }
+        if mutationGeneration == generation, before == libraryFingerprint(userRecipes.first { $0.id == proposal.version.recipeID }), case .accepted(let recipe) = result {
+            if let recipe {
+                if let index = userRecipes.firstIndex(where: { $0.id == recipe.id }) { userRecipes[index] = recipe } else { userRecipes.append(recipe) }
+            } else { userRecipes.removeAll { $0.id == proposal.version.recipeID } }
+        }
+        return result
+    }
+    public func resolveRecipeRevision(_ proposal: RecipeRevisionSaveProposal, cancelIfUnaccepted: Bool) async throws -> RecipeRevisionResolution {
+        guard isActiveAccount(proposal.userID), proposal.userID == DIContainer.shared.authService.currentUserID else {
+            throw CancellationError()
+        }
+        let generation = mutationGeneration
+        let before = libraryFingerprint(userRecipes.first { $0.id == proposal.updated.id })
+        let result = try await DIContainer.shared.nutritionRepository.resolveRecipeRevision(userID: proposal.userID,
+            expected: proposal.expected, updated: proposal.updated, operationID: proposal.operationID,
+            cancelIfUnaccepted: cancelIfUnaccepted)
+        guard isActiveAccount(proposal.userID) else { throw CancellationError() }
+        if mutationGeneration == generation,
+           before == libraryFingerprint(userRecipes.first { $0.id == proposal.updated.id }),
+           case .accepted(let recipe) = result {
+            if let recipe {
+                if let index = userRecipes.firstIndex(where: { $0.id == recipe.id }) { userRecipes[index] = recipe } else { userRecipes.append(recipe) }
+            } else { userRecipes.removeAll { $0.id == proposal.updated.id } }
+        }
+        return result
+    }
+
     public func deleteRecipe(recipe: Recipe) async {
         guard let userID = DIContainer.shared.authService.currentUserID,
               isActiveAccount(userID),
               let recipeID = recipe.id else { return }
+        let mutation = beginLibraryMutation(userID: userID, recipeID: recipeID)
+        defer { endLibraryMutation(mutation) }
         do {
             try await DIContainer.shared.nutritionRepository.deleteRecipe(userID: userID, recipeID: recipeID)
-            guard isActiveAccount(userID) else { return }
+            guard mayPublish(mutation, expected: recipe) else { return }
             if let index = userRecipes.firstIndex(where: { $0.id == recipeID }) { userRecipes.remove(at: index) }
         } catch {
             AppLog.recipes.error("Failed to delete recipe: \(error.localizedDescription, privacy: .public)")
@@ -519,54 +677,7 @@ public class RecipeService: ObservableObject {
     }
 
     public func recipeToFoodItem(recipe: Recipe) -> FoodItem {
-        let nutrition = recipe.nutrition
-        var food = FoodItem(
-            id: recipe.id ?? UUID().uuidString,
-            name: recipe.name,
-            calories: nutrition.calories,
-            protein: nutrition.protein,
-            carbs: nutrition.carbs,
-            fats: nutrition.fats,
-            saturatedFat: nutrition.saturatedFat,
-            polyunsaturatedFat: nutrition.polyunsaturatedFat,
-            monounsaturatedFat: nutrition.monounsaturatedFat,
-            fiber: nutrition.fiber,
-            servingSize: "1 serving",
-            servingWeight: 0,
-            timestamp: nil,
-            sourceMetadata: FoodSourceMetadata(
-                sourceType: .recipe,
-                confidence: .userVerified,
-                reviewStatus: .notRequired,
-                sourceName: "Recipe",
-                sourceID: recipe.id
-            ),
-            calcium: nutrition.calcium,
-            iron: nutrition.iron,
-            potassium: nutrition.potassium,
-            sodium: nutrition.sodium,
-            vitaminA: nutrition.vitaminA,
-            vitaminC: nutrition.vitaminC,
-            vitaminD: nutrition.vitaminD,
-            vitaminB12: nutrition.vitaminB12,
-            folate: nutrition.folate,
-            magnesium: nutrition.magnesium,
-            phosphorus: nutrition.phosphorus,
-            zinc: nutrition.zinc,
-            copper: nutrition.copper,
-            manganese: nutrition.manganese,
-            selenium: nutrition.selenium,
-            vitaminB1: nutrition.vitaminB1,
-            vitaminB2: nutrition.vitaminB2,
-            vitaminB3: nutrition.vitaminB3,
-            vitaminB5: nutrition.vitaminB5,
-            vitaminB6: nutrition.vitaminB6,
-            vitaminE: nutrition.vitaminE,
-            vitaminK: nutrition.vitaminK
-        )
-        food.quantityValue = 1.0
-        food.servingUnit = "serving"
-        return food
+        recipe.foodItemForLogging()
     }
 
 }

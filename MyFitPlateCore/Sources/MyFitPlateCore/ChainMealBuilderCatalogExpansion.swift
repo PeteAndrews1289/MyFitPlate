@@ -321,7 +321,7 @@ extension ChainRestaurantCatalog {
         _ protein: Double,
         _ carbs: Double,
         _ fat: Double,
-        _ fiber: Double = 0,
+        _ fiber: Double? = nil,
         _ sodium: Double? = nil,
         serving: String = "1 menu item"
     ) -> ChainIngredient {

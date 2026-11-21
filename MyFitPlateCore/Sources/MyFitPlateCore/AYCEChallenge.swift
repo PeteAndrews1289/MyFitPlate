@@ -58,12 +58,17 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
     /// True when the entered or scanned price already represents the session's market.
     /// Curated national catalog prices are the only values scaled by the city index.
     public let isLocallyPriced: Bool
+    /// Portion conversions describe this catalog unit, not a restaurant's serving guarantee.
+    public let piecesPerUnit: Int?
+    public let cookedGramsPerUnit: Double?
+    public let catalogMatch: AYCECatalogMatchEvidence?
 
     public init(
         id: String, cuisine: AYCECuisine, name: String, emoji: String, unit: String,
         calories: Double, protein: Double, carbs: Double, fats: Double,
         restaurantPrice: Double, homeCost: Double, isAIEstimated: Bool = false,
-        isLocallyPriced: Bool = false
+        isLocallyPriced: Bool = false, piecesPerUnit: Int? = nil,
+        cookedGramsPerUnit: Double? = nil, catalogMatch: AYCECatalogMatchEvidence? = nil
     ) {
         self.id = id
         self.cuisine = cuisine
@@ -78,11 +83,15 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
         self.homeCost = homeCost
         self.isAIEstimated = isAIEstimated
         self.isLocallyPriced = isLocallyPriced
+        self.piecesPerUnit = piecesPerUnit
+        self.cookedGramsPerUnit = cookedGramsPerUnit
+        self.catalogMatch = catalogMatch
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, cuisine, name, emoji, unit, calories, protein, carbs, fats
         case restaurantPrice, homeCost, isAIEstimated, isLocallyPriced
+        case piecesPerUnit, cookedGramsPerUnit, catalogMatch
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,6 +111,9 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
         isAIEstimated = try container.decodeIfPresent(Bool.self, forKey: .isAIEstimated) ?? false
         // Old scanned drafts were already priced for their market.
         isLocallyPriced = try container.decodeIfPresent(Bool.self, forKey: .isLocallyPriced) ?? isAIEstimated
+        piecesPerUnit = try container.decodeIfPresent(Int.self, forKey: .piecesPerUnit)
+        cookedGramsPerUnit = try container.decodeIfPresent(Double.self, forKey: .cookedGramsPerUnit)
+        catalogMatch = try container.decodeIfPresent(AYCECatalogMatchEvidence.self, forKey: .catalogMatch)
     }
 }
 
@@ -109,9 +121,9 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
 public struct AYCESessionEntry: Codable, Identifiable, Equatable {
     public let id: String
     public var item: AYCECatalogItem
-    public var count: Int
+    public var count: Double
 
-    public init(id: String = UUID().uuidString, item: AYCECatalogItem, count: Int) {
+    public init(id: String = UUID().uuidString, item: AYCECatalogItem, count: Double) {
         self.id = id
         self.item = item
         self.count = count
@@ -132,6 +144,24 @@ public struct AYCESession: Codable, Identifiable, Equatable {
     /// AYCECityIndex slug scaling curated prices to the local market; nil = US average.
     /// Optional, so drafts persisted before city support still decode.
     public var citySlug: String?
+    /// A finished, unlogged session remains recoverable until accepted by the diary.
+    public var endedAt: Date?
+    /// Freeze the submitted payload on failure/relaunch so retry cannot change the meal.
+    public var submittedAt: Date?
+    /// Optional so older drafts and submitted receipts keep their original destination.
+    public var diaryDate: Date?
+    public var diaryMealName: String?
+    public var diaryFoodItems: [FoodItem]?
+    public var restaurantName: String?
+    public var roundBaseline: [AYCESessionEntry]?
+    public var lastRound: [AYCESessionEntry]?
+    /// Additive ledger; nil is a legacy accumulated-total draft and is migrated explicitly.
+    public var rounds: [AYCEStableRound]?
+    public var roundEdits: [AYCERoundEdit]?
+    public var undoneRoundEditIDs: [String]?
+    public var catalogVersion: String?
+    public var hidesLockScreenDetails: Bool?
+    public var reviewedImportIDs: [String]?
 
     public init(
         id: String = UUID().uuidString,
@@ -139,7 +169,10 @@ public struct AYCESession: Codable, Identifiable, Equatable {
         buffetPrice: Double,
         startedAt: Date = Date(),
         entries: [AYCESessionEntry] = [],
-        citySlug: String? = nil
+        citySlug: String? = nil,
+        endedAt: Date? = nil,
+        submittedAt: Date? = nil,
+        restaurantName: String? = nil
     ) {
         self.id = id
         self.cuisine = cuisine
@@ -147,9 +180,16 @@ public struct AYCESession: Codable, Identifiable, Equatable {
         self.startedAt = startedAt
         self.entries = entries
         self.citySlug = citySlug
+        self.endedAt = endedAt
+        self.submittedAt = submittedAt
+        self.restaurantName = restaurantName
     }
 
     public var city: AYCECity { AYCECityIndex.city(slug: citySlug) }
+    public var diaryLoggingDate: Date { diaryDate ?? startedAt }
+    public var diaryLoggingMealName: String {
+        diaryMealName ?? (submittedAt == nil ? DailyLogRules.determineMealType(for: startedAt) : AYCERules.mealName(for: cuisine))
+    }
 }
 
 public enum AYCESessionInputRules {
@@ -217,13 +257,14 @@ public enum AYCERules {
         public let protein: Double
         public let carbs: Double
         public let fats: Double
-        public let itemCount: Int
+        public let itemCount: Double
     }
 
     /// Restaurants buy wholesale — their ingredient cost runs below your grocery cost for
     /// the same portion, bounded so it never exceeds a plausible share of the menu price.
     public static func restaurantFoodCost(homeCost: Double, menuPrice: Double) -> Double {
-        max(0.15, min(homeCost * 0.7, menuPrice * 0.45))
+        guard homeCost.isFinite, menuPrice.isFinite else { return 0 }
+        return max(0, min(homeCost * 0.7, menuPrice * 0.45))
     }
 
     /// The menu price a single unit displays and sums at, in this session's city.
@@ -245,7 +286,7 @@ public enum AYCERules {
         var protein = 0.0
         var carbs = 0.0
         var fats = 0.0
-        var itemCount = 0
+        var itemCount = 0.0
 
         for entry in session.entries {
             let unit = unitPrices(for: entry.item, in: session)
@@ -333,26 +374,40 @@ public enum AYCERules {
     public static func kitchenLine(session: AYCESession) -> String {
         let spent = totals(for: session).restaurantFoodCost
         if hasBeatenKitchen(session: session) {
-            return "Their kitchen has spent \(money(spent)) on you — they're losing money"
+            return "Estimated ingredients: \(money(spent)) — above your buffet price"
         }
-        return "Their kitchen has spent about \(money(spent)) on you"
+        return "Estimated ingredients: about \(money(spent))"
     }
 
     /// Summary trophy line for the rare true win; nil when the kitchen kept its margin.
     public static func kitchenWinLine(session: AYCESession) -> String? {
         guard hasBeatenKitchen(session: session) else { return nil }
-        return "You out-ate their ingredient budget — the kitchen lost money on this one"
+        return "Your estimated ingredient value exceeded the buffet price"
     }
 
     public static func money(_ amount: Double) -> String {
-        String(format: "$%.2f", max(0, amount.isFinite ? amount : 0))
+        max(0, amount.isFinite ? amount : 0)
+            .formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
     }
 
     /// Bridges a session entry into the daily food log. The whole count collapses into one
     /// FoodItem line ("Salmon nigiri ×4") so the diary stays readable.
     public static func foodItem(from entry: AYCESessionEntry) -> FoodItem {
         let count = Double(entry.count)
-        let name = entry.count > 1 ? "\(entry.item.name) ×\(entry.count)" : entry.item.name
+        let name = entry.count != 1 ? "\(entry.item.name) ×\(AYCEPortionRules.formatted(entry.count))" : entry.item.name
+        let source: FoodSourceMetadata
+        if let match = entry.item.catalogMatch {
+            source = FoodSourceMetadata(sourceType: .chainBuilder, confidence: .estimated, reviewStatus: .userConfirmed,
+                sourceName: "Buffet meal · reviewed generic catalog match",
+                sourceID: "\(match.catalogVersion):\(match.sourceItemID)", evidenceLineage: .restaurantCatalog,
+                notes: "Original text: \(match.originalText ?? "not retained"). Matched \(match.sourceName), \(match.personalAmount.formatted()) × \(match.sourceUnit) per reviewed item. Generic source snapshot: \(match.caloriesPerSourceUnit) cal, P\(match.proteinPerSourceUnit)/C\(match.carbsPerSourceUnit)/F\(match.fatsPerSourceUnit) per unit. Nutrition remains estimated; price assumptions do not determine amount.")
+        } else {
+            source = entry.item.isAIEstimated ? .aiEstimate(.aiImage, sourceName: "Buffet meal")
+                : entry.item.isLocallyPriced ? .userEntered(sourceName: "Buffet meal")
+                : FoodSourceMetadata(sourceType: .chainBuilder, confidence: .estimated, reviewStatus: .userConfirmed,
+                    sourceName: "Buffet meal", sourceID: entry.item.id, evidenceLineage: .restaurantCatalog,
+                    notes: "Generic buffet estimate. Portion, cut, rice, marinade, and sauces vary by restaurant.")
+        }
         return FoodItem(
             id: "ayce_\(entry.id)",
             name: name,
@@ -360,10 +415,8 @@ public enum AYCERules {
             protein: entry.item.protein * count,
             carbs: entry.item.carbs * count,
             fats: entry.item.fats * count,
-            servingSize: "\(entry.count) \(entry.item.unit)",
-            sourceMetadata: entry.item.isAIEstimated
-                ? .aiEstimate(.aiImage, sourceName: "Beat the buffet")
-                : .userEntered(sourceName: "Beat the buffet")
+            servingSize: AYCEPortionRules.servingDescription(item: entry.item, quantity: entry.count),
+            sourceMetadata: source
         )
     }
 

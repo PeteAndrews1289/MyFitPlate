@@ -50,6 +50,11 @@ final class RoutineEditorModelsTests: XCTestCase {
         XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Yoga Session", category: "Full Body"), .flexibility)
         XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Plank", category: "Abs"), .flexibility)
         XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Bench Press", category: "Chest"), .strength)
+        XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Barbell Bent-over Row", category: "Back"), .strength)
+        XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Seated Cable Row", category: nil), .strength)
+        XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Rowing Machine", category: "Cardio"), .cardio)
+        XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Morning Run", category: nil), .cardio)
+        XCTAssertEqual(RoutineEditorDefaults.inferredType(name: "Treadmill Run", category: "Legs"), .cardio)
     }
     
     func testRoutineEditorDefaultsRestLabel() {

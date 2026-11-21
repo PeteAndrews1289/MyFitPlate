@@ -2,711 +2,315 @@ import MyFitPlateCore
 import SwiftUI
 
 struct MealPlanSurveyView: View {
-    @EnvironmentObject private var goalSettings: GoalSettings
-    @EnvironmentObject private var mealPlannerService: MealPlannerService
+    let startingDate: Date
+    @EnvironmentObject private var goals: GoalSettings
+    @EnvironmentObject private var planner: MealPlannerService
+    @EnvironmentObject private var recipes: RecipeService
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    @State private var selectedProteins: Set<String> = ["Chicken"]
-    @State private var selectedCarbs: Set<String> = ["Rice"]
-    @State private var selectedVeggies: Set<String> = ["Broccoli", "Bell peppers", "Onions"]
-    @State private var selectedSnacks: Set<String> = ["Yogurt", "Fruit"]
-    @State private var selectedCuisines: Set<String> = ["Any"]
-
-    @State private var customProtein = ""
-    @State private var customCarb = ""
-    @State private var customVeggies = ""
-    @State private var customSnack = ""
-
+    @State private var source = 0
+    @State private var practicalEnabled = true
+    @State private var weekBrief = MealPlanningWeekBrief()
+    @State private var diet: PlanningDiet = .unrestricted
+    @State private var exclusions = ""
+    @State private var equipment = ""
+    @State private var minutes = ""
+    @State private var budget = ""
+    @State private var household = 1
+    @State private var tolerance = 0.20
+    @State private var proteinMinimum = true
+    @State private var keepExisting = true
+    @State private var preferences = "Chicken, rice, broccoli, yogurt, fruit"
     @State private var isLoading = false
-    @State private var generationStage: MealPlanGenerationStage = .drafting
     @State private var generationError: String?
+    @State private var draft: MealPlanWeekDraft?
     @State private var generationTask: Task<Void, Never>?
-    @State private var currentStep: Int
-
-    private static let steps = [
-        MealPlanSurveyStep(
-            title: "Choose Proteins",
-            subtitle: "Select the foods you want the week built around.",
-            icon: "fish.fill"
-        ),
-        MealPlanSurveyStep(
-            title: "Choose Carbohydrates",
-            subtitle: "Pick the staples that fit your usual meals.",
-            icon: "takeoutbag.and.cup.and.straw.fill"
-        ),
-        MealPlanSurveyStep(
-            title: "Choose Vegetables",
-            subtitle: "Include the produce you will actually prepare.",
-            icon: "carrot.fill"
-        ),
-        MealPlanSurveyStep(
-            title: "Choose Snacks",
-            subtitle: "Add reliable options for the gaps between meals.",
-            icon: "fork.knife"
-        ),
-        MealPlanSurveyStep(
-            title: "Choose Cuisines",
-            subtitle: "Keep it broad or give the week a few directions.",
-            icon: "globe.americas.fill"
-        ),
-        MealPlanSurveyStep(
-            title: "Choose a Cooking Style",
-            subtitle: "Set the amount of prep and day-to-day variety you prefer.",
-            icon: "stove.fill"
-        )
-    ]
-
-    init(initialStep: Int = 0) {
-        let lastStep = Self.steps.count - 1
-        _currentStep = State(initialValue: min(max(initialStep, 0), lastStep))
+    @State private var briefReady = false
+    @State private var briefUnreadable = false
+    @State private var briefOwner: String?
+    @State private var editingRecipe: Recipe?
+    init(initialStep: Int = 0, startingDate: Date = Date()) {
+        self.startingDate = Calendar.current.startOfDay(for: startingDate)
     }
-
     var body: some View {
-        AppSheetScaffold(
-            title: "Generate a Meal Plan",
-            subtitle: "Six choices shape a practical seven-day plan.",
-            dismiss: { dismiss() }
-        ) {
-            VStack(spacing: 0) {
-                progressHeader
-                Divider()
-                stepScrollView
-            }
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        Picker("Build from", selection: $source) {
+                            Text("Saved recipes").tag(0)
+                            Text("Maia ideas").tag(1)
+                        }.pickerStyle(.segmented).accessibilityIdentifier("planner_generation_source")
+                        Text(source == 0 ? "Plan with your recipes and prepared portions." : "Explore new meals with estimated nutrition.")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                        DisclosureGroup("About this plan") {
+                            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                                Text("Review one brief, then approve the week. Existing meals stay locked unless you choose otherwise.")
+                                Text(source == 0 ? "Uses your saved recipe quantities and nutrition. Restrictions need current personal ingredient reviews. Prepared portions use recorded amounts and best-before dates."
+                                     : "Maia drafts new ideas with estimated nutrition. Cooking-day schedules, repeated batches and prepared-stock choices apply to Saved recipes. Unknown ingredients, costs or prep times cannot pass strict limits.")
+                            }
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                            .padding(.top, AppSpacing.compact)
+                        }
+                        .appTextRole(.secondary)
+                    }
+                }
+                if source == 0 {
+                    practicalWeekSection
+                    recipeReadinessSection
+                }
+                Section("Daily nutrition") {
+                    Text("\(Int(goals.calories ?? 2_000)) cal · \(Int(goals.protein)) g protein · \(Int(goals.carbs)) g carbs · \(Int(goals.fats)) g fat")
+                        .appTextRole(.control)
+                    Picker("Calorie flexibility", selection: $tolerance) {
+                        Text("±10%").tag(0.10); Text("±20%").tag(0.20); Text("±30%").tag(0.30)
+                    }
+                    Toggle("At least 85% of protein target each day", isOn: $proteinMinimum)
+                    Text("Carbs and fats are reviewed alongside calories. Your saved goals stay unchanged.").appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                Section("Cooking brief") {
+                    Stepper("Cook for \(household) original portion\(household == 1 ? "" : "s")", value: $household, in: 1...12)
+                        .accessibilityIdentifier("planner_household_portions")
+                    Text(practicalEnabled && source == 0
+                        ? "New batches cook at least this many original recipe portions, expanding to cover planned repeats. Personal portions stay separate; extra portions remain unallocated. Planning never marks food cooked or eaten."
+                        : "Your personal meal stays one selected recipe portion. Extra cooking portions remain unallocated for your household or future leftover plans; they are not marked cooked or eaten.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                    TextField("Maximum prep minutes · optional", text: $minutes).keyboardType(.numberPad)
+                    TextField("Equipment · stove, oven, or no cooking", text: $equipment)
+                    TextField("Weekly cooking budget in USD · optional", text: $budget).keyboardType(.decimalPad)
+                    Text("Budget includes the full cooking quantity using your recipe price estimates. Unknown prices block a requested budget.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                Section("Ingredients") {
+                    if let saved = goals.effectiveMealConstraintProfile, saved.hasRestrictions {
+                        Text("Saved constraints: " + saved.diet.title + (saved.hardExclusions.isEmpty ? "" : " · " + saved.hardExclusions.joined(separator: ", ")))
+                            .appTextRole(.secondary)
+                        Text("The choices below can add limits. Change your account-wide exclusions in Food preferences.").appTextRole(.caption).foregroundStyle(.secondary)
+                    }
+                    Picker("Ingredient pattern", selection: $diet) { ForEach(PlanningDiet.allCases) { Text($0.title).tag($0) } }
+                    TextField("Exclude ingredients · comma separated", text: $exclusions).accessibilityIdentifier("planner_generation_exclusions")
+                    Text("Exclusions require a personal review of every selected recipe. This does not establish allergen or cross-contact safety.").appTextRole(.caption).foregroundStyle(.secondary)
+                    if source == 1 { TextField("Foods and cuisines you prefer", text: $preferences) }
+                }
+                Section("Current plan") {
+                    Toggle("Keep existing meal slots locked", isOn: $keepExisting)
+                    Text("Stock is reconciled in Shop after review. Planning never deducts pantry or cooked food.").appTextRole(.caption).foregroundStyle(.secondary)
+                }
+            }.appFormStyle()
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Plan your week").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { generationTask?.cancel(); dismiss() }.disabled(isLoading) } }
             .safeAreaInset(edge: .bottom) {
-                bottomActionBar
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    if let generationError {
+                        Text(generationError).appTextRole(.secondary)
+                            .foregroundStyle(AppPalette.caution)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("meal_plan_generation_error")
+                    }
+                    Button(isLoading ? "Building and checking…" : "Build review draft") { generate() }
+                        .buttonStyle(AppActionButtonStyle(.primary)).disabled(isLoading)
+                        .accessibilityIdentifier("meal_plan_generate_plan")
+                }.padding().background(AppPalette.canvas)
             }
+            .sheet(item: $draft) { draft in MealPlanDraftReviewView(draft: draft) { dismiss() } }
+            .sheet(item: $editingRecipe, onDismiss: { Task { await recipes.fetchUserRecipes() } }) { recipe in
+                CreateRecipeView(recipeToEdit: recipe, planningDetailsInitiallyExpanded: true)
+            }
+            .task { restoreBrief(); await recipes.fetchUserRecipes() }
+            .onChange(of: briefData) { _, _ in keepBrief() }
+            .onDisappear { generationTask?.cancel() }
         }
-        .background(AppPalette.canvas.ignoresSafeArea())
         .interactiveDismissDisabled(isLoading)
-        .overlay {
-            if isLoading {
-                generationOverlay
-            }
-        }
-        .onDisappear {
-            generationTask?.cancel()
-            generationTask = nil
-        }
         .accessibilityIdentifier("meal_plan_survey_screen")
     }
-
-    private var progressHeader: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            HStack {
-                Text("Step \(currentStep + 1) of \(Self.steps.count)")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(Int(progress * 100))%")
-                    .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brandText)
-                    .monospacedDigit()
-            }
-
-            ProgressView(value: progress)
-                .tint(AppPalette.brand)
-                .accessibilityLabel("Meal plan setup progress")
-                .accessibilityValue("Step \(currentStep + 1) of \(Self.steps.count)")
-        }
-        .padding(.horizontal, AppSpacing.screenHorizontal)
-        .padding(.vertical, AppSpacing.row)
-        .accessibilityIdentifier("meal_plan_survey_progress")
+    private var preflightConstraints: MealPlanConstraints {
+        var c = MealPlanConstraints(calories: goals.calories ?? 2_000, protein: goals.protein, carbs: goals.carbs, fats: goals.fats)
+        c.ingredientProfile = goals.effectiveMealConstraintProfile; c.diet = diet; c.exclusions = list(exclusions)
+        c.availableEquipment = list(equipment); c.maxPrepMinutes = Int(minutes); c.weeklyBudget = Double(budget)
+        c.practicalWeek = practicalEnabled ? weekBrief : nil
+        return c
     }
-
-    private var stepScrollView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppSpacing.section) {
-                stepHeader
-                if generationError != nil {
-                    generationFailureCard
+    private var recipeReadinessSection: some View {
+        let readiness = MealPlanningPreflight.recipes(recipes.userRecipes, constraints: preflightConstraints)
+        return Section("Recipe readiness") {
+            Text("\(readiness.filter(\.usable).count) of \(readiness.count) saved recipes ready for this brief")
+                .appTextRole(.control).accessibilityIdentifier("planner_recipe_readiness")
+            Text("Ready recipes still need to fit each slot's portion, protein and cooking allowance. Missing slots remain explicit in the review; no restrictions are changed automatically.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+            ForEach(readiness.filter { !$0.usable }) { item in
+                DisclosureGroup(item.name) {
+                    ForEach(item.issues, id: \.self) { Text($0).appTextRole(.secondary) }
+                    Button("Review recipe details") {
+                        editingRecipe = recipes.userRecipes.first { ($0.id ?? $0.name) == item.id }
+                    }.accessibilityIdentifier("planner_repair_recipe_\(item.id)")
                 }
-                stepContent
             }
-            .padding(.horizontal, AppSpacing.screenHorizontal)
-            .padding(.top, AppSpacing.section)
-            .padding(.bottom, AppSpacing.section)
-            .id(currentStep)
-            .transition(.opacity)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .animation(AppMotion.visibility, value: currentStep)
-    }
-
-    private var stepHeader: some View {
-        let step = Self.steps[currentStep]
-        return AppScreenHeader(title: step.title, subtitle: step.subtitle) {
-            Image(systemName: step.icon)
-                .appFont(size: 20, weight: .semibold)
-                .foregroundStyle(AppPalette.brandText)
-                .frame(width: 44, height: 44)
-                .accessibilityHidden(true)
+            if readiness.isEmpty { Text("Save a recipe with confirmed portions and nutrition to use it here.").appTextRole(.secondary) }
         }
     }
-
-    @ViewBuilder
-    private var stepContent: some View {
-        switch currentStep {
-        case 0:
-            SurveySelectionView(
-                items: ProteinChoice.allCases.map(\.rawValue),
-                selectedItems: $selectedProteins,
-                customItem: $customProtein,
-                customPlaceholder: "Add another protein"
-            )
-        case 1:
-            SurveySelectionView(
-                items: CarbChoice.allCases.map(\.rawValue),
-                selectedItems: $selectedCarbs,
-                customItem: $customCarb,
-                customPlaceholder: "Add another carbohydrate"
-            )
-        case 2:
-            SurveySelectionView(
-                items: VeggieChoice.allCases.map(\.rawValue),
-                selectedItems: $selectedVeggies,
-                customItem: $customVeggies,
-                customPlaceholder: "Add another vegetable"
-            )
-        case 3:
-            SurveySelectionView(
-                items: SnackChoice.allCases.map(\.rawValue),
-                selectedItems: $selectedSnacks,
-                customItem: $customSnack,
-                customPlaceholder: "Add another snack"
-            )
-        case 4:
-            CuisineSelectionView(selectedCuisines: $selectedCuisines)
-        default:
-            CookingStyleSelectionView(selectedStyle: $goalSettings.cookingStyle)
-        }
-    }
-
-    private var bottomActionBar: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: AppSpacing.compact) {
-                    primaryActionButton
-                    if currentStep > 0 {
-                        backButton
+    private var practicalWeekSection: some View {
+        Section("Your actual week") {
+            Toggle("Plan around cooking days", isOn: $practicalEnabled)
+                .accessibilityIdentifier("planner_practical_week")
+            if practicalEnabled {
+                DisclosureGroup("Meals to plan · \(weekBrief.mealTypes.count) selected") {
+                    ForEach(MealPlanEditingRules.mealTypes, id: \.self) { slot in
+                        Toggle(slot, isOn: Binding(get: { weekBrief.mealTypes.contains(slot) }, set: { enabled in
+                            weekBrief.mealTypes.removeAll { $0 == slot }
+                            if enabled { weekBrief.mealTypes.append(slot) }
+                        })).accessibilityIdentifier("planner_slot_\(slot.lowercased())")
                     }
                 }
-            } else {
-                HStack(spacing: AppSpacing.row) {
-                    actionButtons
-                }
-            }
-        }
-        .padding(.horizontal, AppSpacing.screenHorizontal)
-        .padding(.vertical, AppSpacing.compact)
-        .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(AppPalette.separator)
-                .frame(height: 1)
-        }
-        .dynamicTypeSize(.xSmall ... .accessibility1)
-    }
-
-    @ViewBuilder
-    private var actionButtons: some View {
-        if currentStep > 0 {
-            backButton
-        }
-        primaryActionButton
-    }
-
-    private var backButton: some View {
-        Button("Back") {
-            HapticManager.instance.feedback(.light)
-            withAnimation(AppMotion.visibility) {
-                currentStep = max(0, currentStep - 1)
-            }
-        }
-        .buttonStyle(AppActionButtonStyle(.secondary))
-        .accessibilityIdentifier("meal_plan_survey_back")
-    }
-
-    private var primaryActionButton: some View {
-        Button {
-            if currentStep == Self.steps.count - 1 {
-                generateAndSavePlan()
-            } else {
-                HapticManager.instance.feedback(.light)
-                withAnimation(AppMotion.visibility) {
-                    currentStep = min(currentStep + 1, Self.steps.count - 1)
-                }
-            }
-        } label: {
-            Label(
-                currentStep == Self.steps.count - 1 ? "Generate Seven-Day Plan" : "Next",
-                systemImage: currentStep == Self.steps.count - 1 ? "wand.and.stars" : "arrow.right"
-            )
-        }
-        .buttonStyle(AppActionButtonStyle(.primary))
-        .disabled(isLoading || !canAdvance)
-        .accessibilityIdentifier("meal_plan_survey_primary_action")
-    }
-
-    private var generationOverlay: some View {
-        ZStack {
-            AppPalette.canvas.opacity(0.92)
-                .ignoresSafeArea()
-
-            VStack(spacing: AppSpacing.group) {
-                Image(systemName: generationStage.icon)
-                    .appTextRole(.screenTitle)
-                    .foregroundStyle(AppPalette.brandText)
-                    .frame(width: 58, height: 58)
-                    .background(AppPalette.control, in: Circle())
-                    .accessibilityHidden(true)
-
-                VStack(spacing: AppSpacing.compact) {
-                    Text(generationStage.title)
-                        .appTextRole(.sectionTitle)
-                        .foregroundStyle(AppPalette.text)
-
-                    Text(generationStage.detail)
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(AppPalette.brand)
-
-                Button("Cancel Generation", action: cancelGeneration)
-                    .buttonStyle(AppActionButtonStyle(.secondary))
-            }
-            .appSurface(.emphasized)
-            .padding(AppSpacing.screenHorizontal)
-            .accessibilityElement(children: .combine)
-        }
-        .accessibilityIdentifier("meal_plan_generation_loading")
-    }
-
-    private var generationFailureCard: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.row) {
-            Label("The plan was not saved", systemImage: "exclamationmark.triangle.fill")
-                .appTextRole(.control)
-                .foregroundStyle(AppPalette.caution)
-
-            Text(generationError ?? "Your choices are still here. Try again when you are ready.")
-                .appTextRole(.body)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button("Try Again", action: generateAndSavePlan)
-                .buttonStyle(AppActionButtonStyle(.secondary))
-        }
-        .appSurface(.quiet)
-        .accessibilityIdentifier("meal_plan_generation_error")
-    }
-
-    private var progress: Double {
-        Double(currentStep + 1) / Double(Self.steps.count)
-    }
-
-    private var canAdvance: Bool {
-        switch currentStep {
-        case 0:
-            return !normalized(selectedProteins, custom: customProtein).isEmpty
-        case 1:
-            return !normalized(selectedCarbs, custom: customCarb).isEmpty
-        case 2:
-            return !normalized(selectedVeggies, custom: customVeggies).isEmpty
-        case 3:
-            return !normalized(selectedSnacks, custom: customSnack).isEmpty
-        case 4:
-            return !MealPlanningPreferenceRules.normalizedCuisines(selectedCuisines).isEmpty
-        default:
-            return !goalSettings.cookingStyle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-    }
-
-    private func normalized(_ selected: Set<String>, custom: String) -> [String] {
-        MealPlanningPreferenceRules.normalizedItems(selected: selected, custom: custom)
-    }
-
-    private func generateAndSavePlan() {
-        HapticManager.instance.feedback(.medium)
-        generationTask?.cancel()
-        isLoading = true
-        generationStage = .drafting
-        generationError = nil
-
-        let foodList = normalized(selectedProteins, custom: customProtein)
-            + normalized(selectedCarbs, custom: customCarb)
-            + normalized(selectedVeggies, custom: customVeggies)
-        let cuisineList = MealPlanningPreferenceRules.normalizedCuisines(selectedCuisines)
-        let snackList = normalized(selectedSnacks, custom: customSnack)
-
-        generationTask = Task { @MainActor in
-            guard let userID = DIContainer.shared.authService.currentUserID else {
-                finishGenerationWithError("Sign in before generating a meal plan.")
-                return
-            }
-
-            let stageTask = Task { @MainActor in
-                do {
-                    try await Task.sleep(for: .milliseconds(900))
-                    generationStage = .balancing
-                    try await Task.sleep(for: .milliseconds(1_400))
-                    generationStage = .saving
-                } catch {
-                    return
-                }
-            }
-
-            let success = await mealPlannerService.generateAndSaveFullWeekPlan(
-                goals: goalSettings,
-                preferredFoods: foodList,
-                preferredCuisines: cuisineList,
-                preferredSnacks: snackList,
-                userID: userID
-            )
-
-            stageTask.cancel()
-            guard !Task.isCancelled else { return }
-            guard DIContainer.shared.authService.currentUserID == userID else {
-                isLoading = false
-                generationTask = nil
-                return
-            }
-
-            isLoading = false
-            generationTask = nil
-
-            if success {
-                HapticManager.instance.notification(.success)
-                ToastManager.shared.showToast(message: "Seven-day meal plan saved.")
-                dismiss()
-            } else {
-                finishGenerationWithError(
-                    "MyFitPlate could not finish saving all seven days. Your selections were preserved."
-                )
-            }
-        }
-    }
-
-    private func cancelGeneration() {
-        generationTask?.cancel()
-        generationTask = nil
-        isLoading = false
-        generationError = nil
-        HapticManager.instance.feedback(.light)
-    }
-
-    private func finishGenerationWithError(_ message: String) {
-        isLoading = false
-        generationTask = nil
-        generationError = message
-    }
-}
-
-private enum MealPlanGenerationStage {
-    case drafting
-    case balancing
-    case saving
-
-    var title: String {
-        switch self {
-        case .drafting: "Drafting Seven Days"
-        case .balancing: "Balancing the Week"
-        case .saving: "Saving Your Plan"
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .drafting: "Building meals from the foods, cuisines, and cooking style you chose."
-        case .balancing: "Checking daily calories, protein, variety, and repeat ingredients."
-        case .saving: "Writing each day and preparing the grocery handoff."
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .drafting: "wand.and.stars"
-        case .balancing: "slider.horizontal.3"
-        case .saving: "checkmark.circle"
-        }
-    }
-}
-
-private struct MealPlanSurveyStep {
-    let title: String
-    let subtitle: String
-    let icon: String
-}
-
-private struct SurveySelectionView: View {
-    let items: [String]
-    @Binding var selectedItems: Set<String>
-    @Binding var customItem: String
-    let customPlaceholder: String
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var columns: [GridItem] {
-        let count = dynamicTypeSize.isAccessibilitySize ? 1 : 2
-        return Array(repeating: GridItem(.flexible(), spacing: AppSpacing.row), count: count)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.group) {
-            LazyVGrid(columns: columns, spacing: AppSpacing.row) {
-                ForEach(items, id: \.self) { item in
-                    SurveyChoiceButton(
-                        title: item,
-                        icon: nil,
-                        isSelected: selectedItems.contains(item)
-                    ) {
-                        HapticManager.instance.feedback(.light)
-                        if selectedItems.contains(item) {
-                            selectedItems.remove(item)
-                        } else {
-                            selectedItems.insert(item)
+                Toggle("Repeat meals from one batch", isOn: $weekBrief.repeatMeals)
+                    .accessibilityIdentifier("planner_repeat_meals")
+                Toggle("Use verified prepared portions", isOn: $weekBrief.usePreparedStock)
+                    .accessibilityIdentifier("planner_use_prepared_stock")
+                DisclosureGroup("Cooking days and open meals") {
+                    Button("Use two cooking days") {
+                        weekBrief.days = (0..<7).map { offset in
+                            var day = weekBrief.days.first { $0.offset == offset } ?? .init(offset: offset)
+                            day.cookingMinutes = [0, 3].contains(offset) ? 90 : 0
+                            return day
                         }
+                    }.accessibilityIdentifier("planner_two_cooking_days")
+                    ForEach($weekBrief.days) { $day in
+                        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                            let date = Calendar.current.date(byAdding: .day, value: day.offset, to: startingDate) ?? startingDate
+                            Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())).appTextRole(.control)
+                            Stepper(day.cookingMinutes == 0 ? "No cooking" : "Up to \(day.cookingMinutes) min", value: $day.cookingMinutes, in: 0...480, step: 15)
+                                .accessibilityIdentifier("planner_cooking_day_\(day.offset)")
+                            Menu {
+                                ForEach(MealPlanEditingRules.mealTypes, id: \.self) { slot in
+                                    Button {
+                                        if day.openMealTypes.contains(slot) { day.openMealTypes.removeAll { $0 == slot } } else { day.openMealTypes.append(slot) }
+                                    } label: {
+                                        Label(slot, systemImage: day.openMealTypes.contains(slot) ? "checkmark" : "plus")
+                                    }
+                                }
+                            } label: {
+                                Text(day.openMealTypes.isEmpty ? "Leave a meal open" : "Open: " + day.openMealTypes.joined(separator: ", "))
+                                    .appTextRole(.secondary)
+                            }.accessibilityIdentifier("planner_open_meals_\(day.offset)")
+                        }.padding(.vertical, AppSpacing.compact)
                     }
                 }
+                Text("Leave restaurant meals or flexible slots open. Nutrition checks cover selected slots; existing meals remain locked. Repeats stay within three days of their planned cooking date. Actual storage and freshness still need your review.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
             }
-
-            customField
         }
     }
-
-    private var customField: some View {
-        HStack(spacing: AppSpacing.row) {
-            Image(systemName: "plus")
-                .appFont(size: 16, weight: .semibold)
-                .foregroundStyle(AppPalette.brandText)
-                .accessibilityHidden(true)
-            TextField(customPlaceholder, text: $customItem)
-                .appTextRole(.body)
-                .textInputAutocapitalization(.words)
-                .submitLabel(.done)
-        }
-        .padding(.horizontal, AppSpacing.group)
-        .frame(minHeight: 52)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(AppPalette.separator)
-                .frame(height: 1)
-        }
+    private func list(_ text: String) -> [String] {
+        text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
-}
-
-private struct SurveyChoiceButton: View {
-    let title: String
-    let icon: String?
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: AppSpacing.compact) {
-                if let icon {
-                    Image(systemName: icon)
-                        .appFont(size: 16, weight: .semibold)
-                        .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
-                        .accessibilityHidden(true)
+    private var brief: MealPlanningBrief {
+        .init(source: source, diet: diet, exclusions: exclusions, equipment: equipment, minutes: minutes, budget: budget,
+            household: household, tolerance: tolerance, proteinMinimum: proteinMinimum, keepExisting: keepExisting, preferences: preferences,
+            practicalWeek: practicalEnabled ? weekBrief : nil)
+    }
+    private var briefData: Data? {
+        let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+        return try? encoder.encode(brief)
+    }
+    private func restoreBrief() {
+        guard !briefReady else { return }
+        briefOwner = DIContainer.shared.authService.currentUserID
+        defer { briefReady = true }
+        guard let owner = briefOwner else { return }
+        do {
+            guard let value = try EditorDraftStore().load(MealPlanningBrief.self, userID: owner, scope: "meal-planning-brief")?.value else { return }
+            source = value.source; diet = value.diet; exclusions = value.exclusions; equipment = value.equipment
+            minutes = value.minutes; budget = value.budget; household = value.household; tolerance = value.tolerance
+            proteinMinimum = value.proteinMinimum; keepExisting = value.keepExisting; preferences = value.preferences
+            practicalEnabled = value.practicalWeek != nil; weekBrief = value.practicalWeek ?? .init()
+        } catch { briefUnreadable = true; generationError = "Your earlier planning brief couldn't be opened and has been kept. No plan has changed." }
+    }
+    private func keepBrief() {
+        guard briefReady, !briefUnreadable, let owner = briefOwner, DIContainer.shared.authService.currentUserID == owner else { return }
+        do { try EditorDraftStore().save(brief, userID: owner, scope: "meal-planning-brief") } catch { generationError = "Couldn't keep this brief on the device. Your plan is unchanged." }
+    }
+    private func generate() {
+        guard let owner = DIContainer.shared.authService.currentUserID, owner == briefOwner, !briefUnreadable else { return }
+        let pending = MealPlanWeekSaveSession(userID: owner)
+        if let saved = pending.checkpoint?.draft { draft = saved; return }
+        generationError = nil
+        var constraints = MealPlanConstraints(calories: goals.calories ?? 2_000, protein: goals.protein, carbs: goals.carbs, fats: goals.fats)
+        constraints.ingredientProfile = goals.effectiveMealConstraintProfile
+        constraints.diet = diet; constraints.exclusions = list(exclusions); constraints.availableEquipment = list(equipment)
+        constraints.householdPortions = Double(household); constraints.calorieTolerance = tolerance; constraints.enforceProtein = proteinMinimum
+        let rawMinutes = minutes.trimmingCharacters(in: .whitespaces), rawBudget = budget.trimmingCharacters(in: .whitespaces)
+        guard rawMinutes.isEmpty || Int(rawMinutes) != nil, rawBudget.isEmpty || Double(rawBudget) != nil else {
+            generationError = "Enter valid prep minutes and a budget, or leave them empty."; return
+        }
+        constraints.maxPrepMinutes = Int(rawMinutes); constraints.weeklyBudget = Double(rawBudget)
+        if practicalEnabled && source == 0 {
+            var schedule = weekBrief; schedule.notBefore = Calendar.current.startOfDay(for: Date())
+            constraints.practicalWeek = schedule
+        }
+        do { try constraints.validate() } catch { generationError = error.localizedDescription; return }
+        do { try EditorDraftStore().save(constraints, userID: owner, scope: "meal-planning-constraints") } catch { generationError = "Your planning constraints could not be kept. Try again before generating."; return }
+        let request = constraints, useSavedRecipes = source == 0, shouldLock = keepExisting
+        isLoading = true
+        generationTask = Task { @MainActor in
+            defer { isLoading = false }
+            do {
+                var locked: [MealPlanDay] = []
+                if shouldLock || request.practicalWeek != nil {
+                    planner.invalidateCache(for: owner)
+                    for offset in 0..<7 {
+                        guard let date = Calendar.current.date(byAdding: .day, value: offset, to: startingDate) else { throw MealPlanEditError.invalid }
+                        let old = try await planner.fetchBasePlanResult(for: date, userID: owner).get() ?? MealPlanEditingRules.emptyDay(date)
+                        locked.append(shouldLock || date < Calendar.current.startOfDay(for: Date()) ? old : MealPlanEditingRules.emptyDay(date))
+                    }
                 }
-
-                Text(title)
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-                    .multilineTextAlignment(.leading)
-
-                Spacer(minLength: AppSpacing.compact)
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .appFont(size: 18, weight: .semibold)
-                    .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, AppSpacing.compact)
-            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-            .contentShape(Rectangle())
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(AppPalette.separator)
-                    .frame(height: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-private struct CuisineSelectionView: View {
-    @Binding var selectedCuisines: Set<String>
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private let cuisines = ["Any", "Italian", "Mexican", "Asian", "Mediterranean", "American"]
-
-    private var columns: [GridItem] {
-        let count = dynamicTypeSize.isAccessibilitySize ? 1 : 2
-        return Array(repeating: GridItem(.flexible(), spacing: AppSpacing.row), count: count)
-    }
-
-    var body: some View {
-        LazyVGrid(columns: columns, spacing: AppSpacing.row) {
-            ForEach(cuisines, id: \.self) { cuisine in
-                SurveyChoiceButton(
-                    title: cuisine,
-                    icon: icon(for: cuisine),
-                    isSelected: selectedCuisines.contains(cuisine)
-                ) {
-                    HapticManager.instance.feedback(.light)
-                    selectedCuisines = MealPlanningPreferenceRules.toggledCuisine(
-                        cuisine,
-                        in: selectedCuisines
-                    )
+                try Task.checkCancellation()
+                let days: [MealPlanDay]
+                if useSavedRecipes {
+                    var stock: [PantryItem] = [], savedPlans: [MealPlanDay] = []
+                    if request.practicalWeek?.usePreparedStock == true {
+                        let repository = DIContainer.shared.nutritionRepository!
+                        stock = try await repository.fetchInventory(userID: owner)
+                        savedPlans = try await repository.fetchMealPlansForStockReservations(userID: owner)
+                    }
+                    days = try await SavedRecipeWeekPlanner.makeAsync(recipes: recipes.userRecipes.filter { RecipeLibraryRules.isVisible($0) },
+                        constraints: request, starting: startingDate, locked: locked, stock: stock, savedPlans: savedPlans, allowPartialReview: true)
+                } else {
+                    let ideas = try await planner.draftWeekPlan(goals: goals, preferredFoods: list(preferences), preferredCuisines: [], preferredSnacks: [], starting: startingDate, userID: owner)
+                    days = try ideas.map { day in
+                        var result = day
+                        let old = locked.first { MealPlanEditingRules.dayID($0.date) == MealPlanEditingRules.dayID(day.date) }?.meals ?? []
+                        let occupied = Set(old.map { MealPlanEditingRules.canonicalSlot($0.mealType) })
+                        let additions = try day.meals.filter { !occupied.contains(MealPlanEditingRules.canonicalSlot($0.mealType)) }.map { meal in
+                            request.householdPortions > 1 ? try MealPlanCookingRules.configuring(meal, date: day.date, cookingPortions: request.householdPortions) : meal
+                        }
+                        result.meals = old + additions
+                        return result
+                    }
                 }
-            }
-        }
-    }
-
-    private func icon(for cuisine: String) -> String {
-        switch cuisine {
-        case "Italian": "wineglass.fill"
-        case "Mexican": "flame.fill"
-        case "Asian": "globe.asia.australia.fill"
-        case "Mediterranean": "leaf.fill"
-        case "American": "flag.fill"
-        default: "globe.americas.fill"
-        }
-    }
-}
-
-private enum ProteinChoice: String, CaseIterable {
-    case chicken = "Chicken"
-    case beef = "Beef"
-    case fish = "Fish"
-    case tofu = "Tofu"
-    case eggs = "Eggs"
-    case pork = "Pork"
-}
-
-private enum CarbChoice: String, CaseIterable {
-    case rice = "Rice"
-    case quinoa = "Quinoa"
-    case potatoes = "Potatoes"
-    case pasta = "Pasta"
-    case bread = "Bread"
-    case oats = "Oats"
-}
-
-private enum VeggieChoice: String, CaseIterable {
-    case broccoli = "Broccoli"
-    case spinach = "Spinach"
-    case bellPeppers = "Bell peppers"
-    case onions = "Onions"
-    case carrots = "Carrots"
-    case zucchini = "Zucchini"
-}
-
-private enum SnackChoice: String, CaseIterable {
-    case yogurt = "Yogurt"
-    case nuts = "Nuts"
-    case fruit = "Fruit"
-    case proteinBar = "Protein bar"
-}
-
-private struct CookingStyleItem: Identifiable {
-    let id: String
-    let title: String
-    let description: String
-    let icon: String
-}
-
-private struct CookingStyleSelectionView: View {
-    @Binding var selectedStyle: String
-
-    private let styles = [
-        CookingStyleItem(
-            id: "Macro-Focused Prep",
-            title: "Macro-Focused Prep",
-            description: "Batch proteins, grains, and vegetables for flexible portions.",
-            icon: "shippingbox.fill"
-        ),
-        CookingStyleItem(
-            id: "Aesthetic Prep",
-            title: "Portioned Meal Prep",
-            description: "Prepare complete meals in individual containers.",
-            icon: "takeoutbag.and.cup.and.straw.fill"
-        ),
-        CookingStyleItem(
-            id: "Daily Fresh",
-            title: "Daily Fresh",
-            description: "Cook distinct meals with more day-to-day variety.",
-            icon: "frying.pan.fill"
-        ),
-        CookingStyleItem(
-            id: "Flexible",
-            title: "Flexible",
-            description: "Mix batch preparation with fresh cooking as needed.",
-            icon: "shuffle"
-        )
-    ]
-
-    var body: some View {
-        VStack(spacing: AppSpacing.row) {
-            ForEach(styles) { style in
-                Button {
-                    HapticManager.instance.feedback(.light)
-                    selectedStyle = style.id
-                } label: {
-                    CookingStyleRow(style: style, isSelected: selectedStyle == style.id)
-                }
-                .buttonStyle(.plain)
-                .accessibilityValue(selectedStyle == style.id ? "Selected" : "Not selected")
-                .accessibilityAddTraits(selectedStyle == style.id ? .isSelected : [])
-            }
+                try Task.checkCancellation()
+                guard DIContainer.shared.authService.currentUserID == owner else { throw MealPlanEditError.accountChanged }
+                guard goals.effectiveMealConstraintProfile == request.ingredientProfile else { throw MealConstraintError.reviewRequired }
+                var value = MealPlanWeekDraft(days: days, title: "Review your week", constraints: request, preserveCookingBatches: true)
+                value.lockedMealIDs = Set(locked.flatMap(\.meals).map(\.id))
+                value.existingLockedMealIDs = value.lockedMealIDs
+                let review = MealPlanWeekSaveSession(userID: owner, draft: value)
+                guard let stored = review.checkpoint else { throw MealPlanEditError.invalid }
+                draft = stored.draft
+            } catch is CancellationError { generationError = "Planning stopped. Your brief is still here." } catch { generationError = error.localizedDescription }
         }
     }
 }
 
-private struct CookingStyleRow: View {
-    let style: CookingStyleItem
-    let isSelected: Bool
-
-    var body: some View {
-        HStack(alignment: .top, spacing: AppSpacing.row) {
-            Image(systemName: style.icon)
-                .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
-                .frame(width: 40, height: 40)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(style.title)
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-                Text(style.description)
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: AppSpacing.compact)
-
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
-                .accessibilityHidden(true)
-        }
-        .padding(.vertical, AppSpacing.compact)
-        .contentShape(Rectangle())
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(AppPalette.separator)
-                .frame(height: 1)
-        }
-    }
+private struct MealPlanningBrief: Codable {
+    var source: Int
+    var diet: PlanningDiet
+    var exclusions: String
+    var equipment: String
+    var minutes: String
+    var budget: String
+    var household: Int
+    var tolerance: Double
+    var proteinMinimum: Bool
+    var keepExisting: Bool
+    var preferences: String
+    var practicalWeek: MealPlanningWeekBrief?
 }

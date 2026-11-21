@@ -1,5 +1,63 @@
 import Foundation
 
+enum USDAFoodRequestBuilder {
+    static func searchURL(query: String, apiKey: String, requireAllWords: Bool = true) -> URL? {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty,
+              var components = URLComponents(string: "https://api.nal.usda.gov/fdc/v1/foods/search") else { return nil }
+        components.queryItems = [
+            URLQueryItem(name: "query", value: String(query.prefix(160))),
+            URLQueryItem(name: "api_key", value: apiKey),
+            URLQueryItem(name: "pageSize", value: "20"),
+            URLQueryItem(name: "dataType", value: "Branded,Foundation,SR Legacy,Survey (FNDDS)"),
+            // USDA's default is an OR search: a named milk query can fill the entire
+            // response with unrelated generic milk before our ranker sees any brand.
+            URLQueryItem(name: "requireAllWords", value: requireAllWords ? "true" : "false")
+        ]
+        return components.url
+    }
+}
+
+/// Specific retrieval protects the small response window from unrelated generic foods.
+/// An empty successful response gets one broader attempt for portions, extra descriptors
+/// and typos. A rejected multiword query can retry a shorter family lookup.
+/// Both attempts share one budget; auth, rate-limit and transport failures return immediately.
+enum USDAFoodSearchPipeline {
+    enum RequestError: Error { case rejectedQuery }
+    static func search(query: String, apiKey: String, timeout: TimeInterval,
+                       now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                       load: (URL, TimeInterval) async throws -> Data) async throws -> [FoodItem] {
+        let deadline = now() + timeout
+        var rejectedPhrase = false
+        let words = query.split(whereSeparator: \.isWhitespace)
+        for requireAllWords in [true, false] {
+            try Task.checkCancellation()
+            let remaining = deadline - now()
+            guard remaining > 0 else { throw URLError(.timedOut) }
+            // A partial final word can empty the strict window. Retrieve the named
+            // product family and rank its variants against the full original input.
+            let retryPrefix = !requireAllWords && words.count >= 3 && words.first?.first?.isLetter == true &&
+                words.last.map { (2...3).contains($0.count) && $0.allSatisfy(\.isLetter) } == true
+            let lookup: String
+            if rejectedPhrase { lookup = words.prefix(2).joined(separator: " ") } else if retryPrefix { lookup = words.dropLast().joined(separator: " ") } else { lookup = query }
+            guard let url = USDAFoodRequestBuilder.searchURL(query: lookup, apiKey: apiKey, requireAllWords: requireAllWords || retryPrefix || rejectedPhrase) else {
+                throw APIError.invalidURL
+            }
+            let data: Data
+            do { data = try await load(url, remaining) } catch RequestError.rejectedQuery where requireAllWords && words.count > 2 {
+                rejectedPhrase = true
+                continue
+            }
+            try Task.checkCancellation()
+            let foods = try USDAFoodParser.foodItems(from: data)
+            if !foods.isEmpty || !requireAllWords {
+                return FoodSearchRanking.rankedRemoteMatches(query: query, foods: foods)
+            }
+        }
+        return []
+    }
+}
+
 // USDA FoodData Central API. Production search requires a dedicated key from
 // https://fdc.nal.usda.gov/api-key-signup.html; the shared DEMO_KEY is intentionally not used.
 public class USDAFoodAPIService {
@@ -8,38 +66,32 @@ public class USDAFoodAPIService {
     private let requestTimeout: TimeInterval = 6
     private let session: URLSession
 
-    public init() {
+    public init(apiKey: String? = nil, session: URLSession? = nil) {
         let plistKey = Bundle.main.object(forInfoDictionaryKey: "USDA_API_KEY") as? String
-        apiKey = (plistKey?.isEmpty == false && plistKey != "$(USDA_API_KEY)") ? plistKey : nil
+        self.apiKey = apiKey ?? ((plistKey?.isEmpty == false && plistKey != "$(USDA_API_KEY)") ? plistKey : nil)
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
-        session = URLSession(configuration: configuration)
+        self.session = session ?? URLSession(configuration: configuration)
     }
 
-    // Text search — lab/reference foods plus FNDDS prepared-food records.
-    // FatSecret covers branded foods, so USDA complements it with richer nutrient panels.
+    // A bounded text search includes named products as well as reference/prepared foods.
+    // Branded is the same supported USDA dataset used by the barcode lookup below.
     public func searchFoods(query: String) async -> [FoodItem] {
-        guard let apiKey else { return [] }
-        guard var components = URLComponents(string: "\(baseURL)/foods/search") else { return [] }
-        components.queryItems = [
-            URLQueryItem(name: "query", value: query),
-            URLQueryItem(name: "api_key", value: apiKey),
-            URLQueryItem(name: "pageSize", value: "20"),
-            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy,Survey (FNDDS)")
-        ]
-        guard let url = components.url else { return [] }
+        (try? await searchFoodsResult(query: query).get()) ?? []
+    }
+
+    public func searchFoodsResult(query: String) async -> Result<[FoodItem], Error> {
+        guard let apiKey else { return .failure(APIError.apiError("USDA search is not configured.")) }
         do {
-            let data = try await responseData(from: url)
-            return FoodSearchRanking.rankedRemoteMatches(
-                query: query,
-                foods: try USDAFoodParser.foodItems(from: data)
-            )
+            return .success(try await USDAFoodSearchPipeline.search(query: query, apiKey: apiKey, timeout: requestTimeout) { url, timeout in
+                try await self.responseData(from: url, timeout: timeout)
+            })
         } catch {
-            return []
+            return .failure(error)
         }
     }
 
@@ -65,14 +117,15 @@ public class USDAFoodAPIService {
         }
     }
 
-    private func responseData(from url: URL) async throws -> Data {
+    private func responseData(from url: URL, timeout: TimeInterval? = nil) async throws -> Data {
         var request = URLRequest(
             url: url,
             cachePolicy: .reloadIgnoringLocalCacheData,
-            timeoutInterval: requestTimeout
+            timeoutInterval: timeout ?? requestTimeout
         )
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
+        if (response as? HTTPURLResponse)?.statusCode == 400 { throw USDAFoodSearchPipeline.RequestError.rejectedQuery }
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
@@ -115,7 +168,10 @@ public enum USDAFoodParser {
         }
 
         // USDA reports per 100 g; scale to the item's declared serving size (grams only).
-        let servingGrams = (food.servingSizeUnit?.lowercased() == "g" ? food.servingSize : nil) ?? 100.0
+        let massUnit = food.servingSizeUnit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let measuredGrams = ["g", "grm", "gram", "grams"].contains(massUnit) ? food.servingSize : nil
+        let validGrams = measuredGrams.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        let servingGrams = validGrams ?? 100.0
         let scale = servingGrams / 100.0
 
         func v(_ num: String) -> Double { (nutrients[num] ?? 0) * scale }
@@ -124,11 +180,32 @@ public enum USDAFoodParser {
             return value * scale * multiplier
         }
 
+        // Foundation Foods may omit legacy Energy208/1008. USDA publishes the
+        // replacement kcal values as957/2047 (general) and958/2048 (specific).
+        // Preserve a reported legacy value, including zero; never fabricate energy
+        // from macros when a provider value exists. General factors are the default
+        // fallback, consistent with USDA's Foundation→FNDDS energy treatment.
+        let energyFields: [(number: String, id: Int, note: String?)] = [
+            ("208", 1008, nil),
+            ("957", 2047, "Energy reported by USDA using Atwater general factors."),
+            ("958", 2048, "Energy reported by USDA using Atwater specific factors.")
+        ]
+        let energy = energyFields.compactMap { field -> (value: Double, note: String?)? in
+            let candidates = food.foodNutrients.filter { $0.nutrientNumber == field.number || $0.nutrientId == field.id }
+            let candidate = candidates.compactMap { nutrient -> Double? in
+                let unit = nutrient.unitName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+                guard unit.isEmpty || unit == "kcal", let value = nutrient.value,
+                      value.isFinite, value >= 0, (value * scale).isFinite, value * scale >= 0 else { return nil }
+                return value * scale
+            }.first
+            return candidate.map { ($0, field.note) }
+        }.first
+
         let servingDescription: String
-        if let hh = food.householdServingFullText, !hh.isEmpty {
+        if validGrams != nil, let hh = food.householdServingFullText, !hh.isEmpty {
             servingDescription = hh
-        } else if let size = food.servingSize {
-            servingDescription = "\(Int(size.rounded())) \(food.servingSizeUnit ?? "g")"
+        } else if let size = validGrams {
+            servingDescription = "\(size.formatted(.number.precision(.fractionLength(0...2)))) g"
         } else {
             servingDescription = "100 g"
         }
@@ -141,10 +218,11 @@ public enum USDAFoodParser {
             .replacingOccurrences(of: ",", with: ", ")
             .replacingOccurrences(of: "  ", with: " ")
 
+        let brand = FoodSearchRanking.reportedBrandName(food.brandName) ?? FoodSearchRanking.reportedBrandName(food.brandOwner)
         let item = FoodItem(
             id: "usda_\(food.fdcId)",
-            name: displayName,
-            calories: v("208"),
+            name: FoodSearchRanking.productDisplayName(displayName, brandName: brand),
+            calories: energy?.value ?? 0,
             protein: v("203"),
             carbs: v("205"),
             fats: v("204"),
@@ -184,11 +262,17 @@ public enum USDAFoodParser {
             .usda,
             sourceName: "USDA FoodData Central",
             sourceID: "usda_\(food.fdcId)",
+            brandName: brand,
             barcode: food.gtinUpc
         )
         metadata.confidence = usdaConfidence(for: food.dataType)
         metadata.evidenceLineage = usdaLineage(for: food.dataType)
+        if validGrams == nil, let amount = food.servingSize, amount.isFinite, amount > 0, !massUnit.isEmpty {
+            let unit = ["mlt", "ml", "milliliters", "millilitres"].contains(massUnit) ? "ml" : massUnit
+            metadata.labeledServing = "\(amount.formatted(.number.precision(.fractionLength(0...2)))) \(unit)"
+        }
         metadata.sourceUpdatedAt = usdaDate(food.modifiedDate ?? food.publishedDate)
+        metadata.notes = energy?.note
         return item.withSourceMetadata(metadata)
     }
 
@@ -237,6 +321,7 @@ private struct USDAFood: Decodable {
     public let description: String
     public let dataType: String?
     public let brandOwner: String?
+    public let brandName: String?
     public let gtinUpc: String?
     public let servingSize: Double?
     public let servingSizeUnit: String?

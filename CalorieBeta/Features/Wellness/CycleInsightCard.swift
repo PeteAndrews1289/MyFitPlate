@@ -7,7 +7,7 @@ struct MaiaCycleInsightCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             AppSectionHeader(
-                title: "Maia Phase Guide",
+                title: "Maia phase guide",
                 subtitle: "AI guidance from your estimated phase and recent logs"
             ) {
                 Image(systemName: "sparkles")
@@ -27,16 +27,16 @@ struct MaiaCycleInsightCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .appSurface(.emphasized)
+            .appSurface(.interpreted)
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Estimated Pattern", value: insight.hormonalState, accent: AppPalette.recovery),
-                AppMetricItem(label: "Energy Cue", value: insight.energyLevel, accent: AppPalette.effort)
+                AppMetricItem(label: "Estimated pattern", value: insight.hormonalState, accent: AppPalette.recovery),
+                AppMetricItem(label: "Energy cue", value: insight.energyLevel, accent: AppPalette.effort)
             ])
             .appSurface(.quiet)
 
             VStack(alignment: .leading, spacing: AppSpacing.group) {
-                AppSectionHeader(title: "Suggested Focus")
+                AppSectionHeader(title: "Suggested focus")
 
                 VStack(spacing: 0) {
                     AppListRow(

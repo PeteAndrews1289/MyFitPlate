@@ -110,11 +110,11 @@ struct NutritionAuditView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Food data check")
+                    Text("Check your food data")
                         .appFont(size: 28, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("See what supports today's nutrition, then fix the entries with the greatest impact.")
+                    Text("Review the entries that matter most to today’s nutrition.")
                         .appFont(size: 14, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
@@ -322,7 +322,7 @@ private struct NutritionEvidenceMap: View {
     }
 
     private var evidenceMapSubtitle: some View {
-        Text("Support by field. Source documentation and cross-database agreement remain separate.")
+        Text("Source coverage and agreement are shown separately.")
             .appFont(size: 13, weight: .medium)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

@@ -1,25 +1,27 @@
 import MyFitPlateCore
 
 import SwiftUI
+import HealthKit
 
 struct IdentifiableFoodItems: Identifiable {
     let id = UUID()
     let items: [FoodItem]
     let photoReview: MealPhotoReviewContext?
+    let loggingDate: Date?
+    let mealName: String?
+    let source: String?
+    let isAIEstimate: Bool?
+    let reviewTitle: String?
+    let dayContext: DiaryDayContext?
 
-    init(items: [FoodItem], photoReview: MealPhotoReviewContext? = nil) {
+    init(items: [FoodItem], photoReview: MealPhotoReviewContext? = nil, loggingDate: Date? = nil, mealName: String? = nil,
+         source: String? = nil, isAIEstimate: Bool? = nil, reviewTitle: String? = nil, dayContext: DiaryDayContext? = nil) {
         self.items = items
         self.photoReview = photoReview
+        self.loggingDate = loggingDate
+        self.mealName = mealName
+        self.source = source; self.isAIEstimate = isAIEstimate; self.reviewTitle = reviewTitle; self.dayContext = dayContext
     }
-}
-
-private struct QuickLogOption: Identifiable {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let action: () -> Void
-
-    var id: String { title }
 }
 
 struct MainTabView: View {
@@ -31,43 +33,19 @@ struct MainTabView: View {
     @EnvironmentObject var mealPlannerService: MealPlannerService
     @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var pantryService: PantryService
-    @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @EnvironmentObject var insightsService: InsightsService
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
     @State private var showSettings = false
-    @State private var showingAddOptions = false
-    @State private var showingAllQuickLogActions = false
-    @State private var quickLogDetent: PresentationDetent = .medium
-
     @State private var showingFoodSearch = false
-    @State private var showingBarcodeScanner = false
-    @State private var showingAddExerciseView = false
+    @State private var maiaIsComposing = false
     @State private var showingRecipeListView = false
     @State private var showingGroceryList = false
     @State private var showingAITextLog = false
-    @State private var showingAddFoodManually = false
-    
-    @State private var showingImagePicker = false
-    @State private var isProcessingImage = false
-    @State private var imageAnalysisID: UUID?
-    @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
-
-    @State private var showingAYCESession = false
     @State private var showingRunHistory = false
     @State private var showingWeeklyReport = false
     
-    @State private var scannedFoodItem: FoodItem?
-    @State private var scannedFoodSource: String = "barcode_result"
-    @State private var pendingManualBarcode: String?
-    @State private var showingBarcodeRecovery = false
-    @State private var barcodeRecoveryMessage = ""
-    @State private var barcodeRecoveryResolved = false
-    @State private var isSearchingAfterScan = false
-    @State private var scanError: (Bool, String) = (false, "")
-    
-    @State private var showingSpotlightTour = false
     @State private var showingAIDataConsent = false
     @State private var livingDayTransition: LivingDayTransition?
     @State private var isLivingDayHomeEnabled: Bool
@@ -77,37 +55,26 @@ struct MainTabView: View {
     private let forcesLivingDayHome: Bool
     private let forcesLegacyHome: Bool
 
-    private let imageModel = MLImageModel()
-    private let barcodeLookupService = BarcodeFoodLookupService()
-    
-    private var suppressesSpotlightTours: Bool {
-        ScreenshotDemoMode.isEnabled || AppRuntime.isUITesting()
-    }
-
     private var isDirectScreenshotSurface: Bool {
         #if DEBUG
-        ScreenshotDemoMode.isEnabled && [
-            "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail",
-            "profile", "challenges", "pantry", "pantry-recipes", "receipt-review",
-            "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
+        ScreenshotDemoMode.isEnabled && (
+            ScreenshotDemoData.requestedScreen.hasPrefix("design-nutrition-") ||
+            ScreenshotDemoData.requestedScreen.hasPrefix("design-training-") ||
+            [
+            "weight-detail", "wellness-detail", "sleep-history", "fasting-detail", "cycle-detail",
+            "profile", "challenges", "pantry", "pantry-recipes", "receipt-review", "barcode-review",
+            "ayce-start", "ayce-resume", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
             "celebration", "add-meal-plan", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
             "meal-prep-steps", "meal-suggestion", "plate-calculator", "plate-math",
             "nutrition-trends", "adaptive-tdee-guardrail", "maia-insights", "maia-action-cards",
-            "muscle-recovery", "shoe-gear-add", "trust-hub"
-        ].contains(ScreenshotDemoData.requestedScreen)
+            "muscle-recovery", "shoe-gear-add", "trust-hub", "week-rescue", "meal-experiments", "useful-question",
+            "run-recorder", "run-recorder-workout", "run-detail-unassigned", "shoe-gear-lifetime",
+            "cycle-settings", "weight-target", "weight-entry", "design-tools", "design-maia-context", "design-maia-topics",
+            "insight-export", "insight-evidence", "design-fuel-history", "design-habit", "home-hydration-design"
+        ].contains(ScreenshotDemoData.requestedScreen))
         #else
         false
         #endif
-    }
-
-    private func contentBottomInset(for width: CGFloat) -> CGFloat {
-        if isDirectScreenshotSurface {
-            return 0
-        }
-        if dynamicTypeSize.isAccessibilitySize {
-            return 148
-        }
-        return width < 440 ? 108 : 96
     }
 
     init() {
@@ -132,10 +99,9 @@ struct MainTabView: View {
         #if DEBUG
         let screenshotScreen = ScreenshotDemoData.requestedScreen
         _showSettings = State(initialValue: screenshotScreen.hasPrefix("settings"))
-        _showingAddOptions = State(initialValue: screenshotScreen == "quick-log")
         _showingFoodSearch = State(
             initialValue: [
-                "food-search", "builder", "trust", "trust-sparse", "trust-correction",
+                "quick-log", "food-search", "builder", "trust", "trust-sparse", "trust-correction",
                 "my-foods", "add-food",
                 "quick-add-macros"
             ].contains(screenshotScreen)
@@ -143,7 +109,7 @@ struct MainTabView: View {
         _showingRecipeListView = State(initialValue: screenshotScreen == "recipes")
         _showingGroceryList = State(initialValue: screenshotScreen == "grocery")
         _showingRunHistory = State(initialValue: screenshotScreen == "runs")
-        _showingWeeklyReport = State(initialValue: screenshotScreen == "weekly-report")
+        _showingWeeklyReport = State(initialValue: screenshotScreen.hasPrefix("weekly-report"))
         _showingAITextLog = State(
             initialValue: ["ai-text-log", "ai-text-results"].contains(screenshotScreen)
         )
@@ -153,74 +119,25 @@ struct MainTabView: View {
     var body: some View {
         ZStack {
             ZStack(alignment: .bottom) {
-                GeometryReader { geometry in
-                    Group {
-                        switch appState.selectedTab {
-                        case 0:
-                            homeContent
-                        case 1:
-                            NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab) }.trackScreen(.maiaChat)
-                        case 2:
-                            WorkoutRoutinesView().trackScreen(.workoutsHome)
-                        case 3:
-                            NavigationStack { MealPlannerView() }.trackScreen(.mealPlanner)
-                        case 4:
-                            NavigationStack {
-                                ReportsView(
-                                    dailyLogService: dailyLogService,
-                                    weeklyRecapLoader: weeklyRecapLoader
-                                )
-                            }
-                            .trackScreen(.reports)
-                        default:
-                            NavigationStack {
-                                HomeView(
-                                    navigateToProfile: .constant(false),
-                                    showSettings: $showSettings,
-                                    livingDayTransition: livingDayTransition,
-                                    isLivingDayHomeEnabled: isLivingDayHomeEnabled
-                                )
-                            }
-                            .trackScreen(.homeDashboard)
+                // Give each navigation stack the space above the dock. A safe-area
+                // inset on the stack can be lost by nested scroll/presentation hosts,
+                // leaving their final controls underneath the dock.
+                VStack(spacing: 0) {
+                    selectedContent
+                        .id(appState.selectedTab)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if !isDirectScreenshotSurface && !(appState.selectedTab == 1 && maiaIsComposing) {
+                        CustomTabBar(selectedIndex: $appState.selectedTab) {
+                            HapticsService.shared.playImpact(style: .light)
+                            showingFoodSearch = true
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.bottom, contentBottomInset(for: geometry.size.width))
                 }
 
-                if !isDirectScreenshotSurface {
-                    CustomTabBar(
-                        selectedIndex: $appState.selectedTab,
-                        showingAddOptions: $showingAddOptions,
-                        centerButtonAction: {
-                            guard !showingAddOptions else { return }
-                            HapticsService.shared.playImpact(style: .light)
-                            withAnimation(AppMotion.standard) {
-                                showingAddOptions = true
-                            }
-                        }
-                    )
-                    .zIndex(showingAddOptions ? 0 : 1)
-                }
-                
-                if isSearchingAfterScan {
-                    Color.black.opacity(0.5).edgesIgnoringSafeArea(.all)
-                    ProgressView("Searching...")
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .foregroundColor(.white)
-                        .scaleEffect(1.5)
-                        .zIndex(3)
-                }
             }
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .background { AppPalette.canvas.ignoresSafeArea().accessibilityHidden(true) }
+            .ignoresSafeArea(appState.selectedTab == 1 ? [] : .keyboard, edges: .bottom)
             .sheet(isPresented: $showSettings) { NavigationStack { SettingsView(showSettings: $showSettings) } }
-            .sheet(isPresented: $showingAddOptions, onDismiss: resetQuickLogPresentation) {
-                quickLogSheet
-                    .presentationDetents([.medium, .large], selection: $quickLogDetent)
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(AppPalette.canvas)
-                    .interactiveDismissDisabled(showingSpotlightTour)
-            }
             .sheet(isPresented: $showingWeeklyReport) {
                 WeeklyRecapView()
             }
@@ -228,125 +145,19 @@ struct MainTabView: View {
                 AIDataConsentSheet()
             }
             .sheet(isPresented: $showingFoodSearch) {
-                FoodSearchView(dailyLog: $dailyLogService.currentDailyLog, onFoodItemLogged: {
-                    showingFoodSearch = false
-                }, searchContext: "general_search")
+                FoodSearchView(dailyLog: $dailyLogService.currentDailyLog, searchContext: "general_search")
             }
-            .sheet(isPresented: $showingAddFoodManually, onDismiss: { pendingManualBarcode = nil }) {
-                NavigationStack {
-                    AddFoodView(
-                        initialFoodItem: manualFoodSeed(),
-                        dailyLog: $dailyLogService.currentDailyLog,
-                        source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
-                        onLogUpdated: {
-                            showingAddFoodManually = false
-                            pendingManualBarcode = nil
-                        }
-                    )
-                }
-            }
-            .imageSourceDialog(isPresented: $showingImagePicker) { image in
-                let requestID = UUID()
-                imageAnalysisID = requestID
-                self.isProcessingImage = true
-                imageModel.analyzeNutritionFromImage(image: image) { result in
-                    guard imageAnalysisID == requestID else { return }
-                    imageAnalysisID = nil
-                    self.isProcessingImage = false
-                    switch result {
-                    case .success(let analysis):
-                        self.estimatedFoodItemsWrapper = IdentifiableFoodItems(
-                            items: analysis.items,
-                            photoReview: analysis.reviewContext
-                        )
-                    case .failure(let error):
-                        self.scanError = (true, "Could not analyze the image. Error: \(error.localizedDescription)")
-                    }
-                }
-            }
-            .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
-                 AISummaryView(estimatedItems: wrapper.items, photoReview: wrapper.photoReview)
-            }
-            .sheet(isPresented: $showingBarcodeScanner) {
-                BarcodeScannerView { barcode in
-                    let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
-                    self.showingBarcodeScanner = false
-                    self.isSearchingAfterScan = true
-                    self.pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
-                    DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
-                    Task { @MainActor in
-                        if let result = await barcodeLookupService.lookup(barcode) {
-                            self.isSearchingAfterScan = false
-                            self.pendingManualBarcode = nil
-                            self.scannedFoodSource = result.source
-                            self.scannedFoodItem = result.item
-                            showBarcodeResultFeedback(result)
-                            return
-                        }
-                        self.isSearchingAfterScan = false
-                        self.presentBarcodeRecovery(
-                            message: "No food or supplement label matched this barcode.",
-                            barcode: barcode
-                        )
-                    }
-                }
-            }
-            .sheet(item: $scannedFoodItem) { foodItem in
-                NavigationStack {
-                    FoodDetailView(
-                        initialFoodItem: foodItem,
-                        dailyLog: $dailyLogService.currentDailyLog,
-                        date: dailyLogService.activelyViewedDate,
-                        source: scannedFoodSource,
-                        onLogUpdated: { self.scannedFoodItem = nil }
-                    )
-                }
-            }
-            .sheet(isPresented: $showingAITextLog) { AITextLogView() }
-            .fullScreenCover(isPresented: $showingAYCESession) {
-                AYCEFlowView()
-                    .environmentObject(dailyLogService)
-                    .environmentObject(goalSettings)
+            .sheet(isPresented: $showingAITextLog) {
+                AITextLogView(date: dailyLogService.activelyViewedDate, mealName: FoodSearchViewModel.defaultMealName())
             }
             .sheet(isPresented: $showingRunHistory) {
                 NavigationStack { RunHistoryView() }
-            }
-            .sheet(isPresented: $showingAddExerciseView) {
-                AddExerciseView { newExercise in
-                    if let userID = DIContainer.shared.authService.currentUserID {
-                        dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: newExercise)
-                    }
-                }
             }
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
             }
             .sheet(isPresented: $showingGroceryList) {
                 NavigationStack { GroceryListView() }
-            }
-            .sheet(isPresented: $showingBarcodeRecovery, onDismiss: handleBarcodeRecoveryDismissed) {
-                BarcodeMissRecoveryView(
-                    message: barcodeRecoveryMessage,
-                    barcode: pendingManualBarcode,
-                    createFromLabel: createFoodFromBarcodeMiss,
-                    useCamera: useCameraFromBarcodeMiss,
-                    searchByName: searchByNameFromBarcodeMiss,
-                    dismiss: dismissBarcodeRecovery
-                )
-            }
-            .alert("Scan Error", isPresented: $scanError.0) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(scanError.1)
-            }
-            .onChange(of: showingAddOptions) { _, newValue in
-                if newValue &&
-                    !suppressesSpotlightTours &&
-                    !spotlightManager.isShown(id: "action-menu") {
-                    withAnimation(AppMotion.visibility) {
-                        showingSpotlightTour = true
-                    }
-                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .aiDataConsentRequired)) { _ in
                 showingAIDataConsent = true
@@ -358,14 +169,23 @@ struct MainTabView: View {
                 handleTrainingFuelTransition(from: previousPlan, to: currentPlan)
             }
             
-            if isProcessingImage {
-                ImageProcessingView(kind: .mealPhoto) {
-                    imageAnalysisID = nil
-                    isProcessingImage = false
-                }
-            }
         }
         .task { await refreshLivingDayFeatureFlagIfNeeded() }
+    }
+
+    // Keep the root layout independent of the size of the individual tab and demo views.
+    private var selectedContent: AnyView {
+        switch appState.selectedTab {
+        case 0: return AnyView(homeContent)
+        case 1: return AnyView(NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab, isComposing: $maiaIsComposing) }.trackScreen(.maiaChat))
+        case 2: return AnyView(WorkoutRoutinesView().trackScreen(.workoutsHome))
+        case 3: return AnyView(NavigationStack { MealPlannerView() }.trackScreen(.mealPlanner))
+        case 4:
+            return AnyView(NavigationStack {
+                ReportsView(dailyLogService: dailyLogService, weeklyRecapLoader: weeklyRecapLoader)
+            }.trackScreen(.reports))
+        default: return AnyView(standardHomeContent)
+        }
     }
 
     @ViewBuilder
@@ -376,7 +196,7 @@ struct MainTabView: View {
             NavigationStack { AppVisualSystemGallery() }
         } else if ScreenshotDemoMode.isEnabled,
                   isDirectScreenshotSurface {
-            directScreenshotContent
+            screenshotDestination()
         } else if ScreenshotDemoMode.isEnabled,
            ScreenshotDemoData.requestedScreen.hasPrefix("living-day") {
             NavigationStack {
@@ -393,11 +213,39 @@ struct MainTabView: View {
     }
 
     #if DEBUG
+    private func screenshotDestination() -> AnyView { AnyView(directScreenshotContent) }
+
     @ViewBuilder
     private var directScreenshotContent: some View {
         switch ScreenshotDemoData.requestedScreen {
-        case "weight-detail":
+        case let route where route.hasPrefix("design-nutrition-"):
+            NutritionDesignGallery(screen: String(route.dropFirst("design-nutrition-".count)))
+        case let route where route.hasPrefix("design-training-"):
+            TrainingDesignGallery(screen: String(route.dropFirst("design-training-".count)))
+        case "design-tools":
+            NavigationStack { ToolDirectoryView() }
+        case "design-maia-context", "design-maia-topics":
+            NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab, isComposing: $maiaIsComposing) }
+        case "design-fuel-history":
+            TrainingFuelHistoryView()
+        case "design-habit":
+            LoggingHabitView(onSaved: { _ in })
+        case "home-hydration-design":
+            NavigationStack { CompactHydrationDesignGallery() }
+        case "run-recorder":
+            RunRecorderView()
+        case "run-recorder-workout":
+            RunRecorderView(plan: RunWorkoutPlan.builtinTemplates(metric: true).first)
+        case "week-rescue":
+            NavigationStack { WeekRescueView() }
+        case "meal-experiments":
+            NavigationStack { MealExperimentsView() }
+        case "useful-question":
+            AISummaryView(estimatedItems: [ScreenshotDemoData.questionFood], photoReview: ScreenshotDemoData.questionReview)
+        case "weight-detail", "weight-target", "weight-entry":
             NavigationStack { WeightTrackingView() }
+        case "sleep-history":
+            NavigationStack { SleepHistoryDetailView(report: Wave3SleepPreview.report) }
         case "wellness-detail":
             WellnessScoreDetailView(
                 wellnessScore: ScreenshotDemoData.wellnessDemoScore,
@@ -407,14 +255,14 @@ struct MainTabView: View {
         case "fasting-detail":
             NavigationStack {
                 ScrollView {
-                    FastingTrackerCard()
+                    FastingTrackerCard(manager: ScreenshotDemoData.fastingFixtureManager())
                         .padding(.horizontal, AppSpacing.screenHorizontal)
                         .padding(.vertical, AppSpacing.group)
                 }
                 .accessibilityIdentifier("fasting_tracker_screen")
                 .background(AppPalette.canvas.ignoresSafeArea())
             }
-        case "cycle-detail":
+        case "cycle-detail", "cycle-settings":
             NavigationStack { CycleTrackingView() }
         case "profile":
             NavigationStack { UserProfileView() }
@@ -429,8 +277,12 @@ struct MainTabView: View {
             )
         case "receipt-review":
             ReceiptScannerView(initialItems: ScreenshotDemoData.receiptDemoItems)
+        case "barcode-review":
+            RapidBarcodeReviewView(date: Date(), mealName: "Dinner", session: ScreenshotDemoData.barcodeFixtureBatch(), lookupOverride: ScreenshotDemoData.barcodeFixtureLookup)
         case "ayce-start":
             AYCEFlowView(restoresDraft: false, managesLiveActivity: false)
+        case "ayce-resume":
+            AYCEFlowView(restoresDraft: true, managesLiveActivity: false)
         case "ayce-live":
             AYCEFlowView(
                 initialSession: ScreenshotDemoData.ayceLiveSession,
@@ -460,16 +312,7 @@ struct MainTabView: View {
         case "meal-prep-steps":
             MealPrepCookingView(days: ScreenshotDemoData.mealPrepDemoDays, initialTab: 1)
         case "meal-suggestion":
-            MealSuggestionDetailView(
-                suggestion: ScreenshotDemoData.mealSuggestionDemo,
-                pantryItemNames: ScreenshotDemoData.mealSuggestionDemoPantry,
-                remainingCalories: 670,
-                remainingProtein: 58,
-                remainingCarbs: 72,
-                remainingFats: 22,
-                onLog: { _ in },
-                onRegenerate: {}
-            )
+            SavedMealSuggestionDemoView()
         case "plate-calculator":
             PlateCalculatorView(initialTargetWeight: 225)
         case "plate-math":
@@ -484,7 +327,7 @@ struct MainTabView: View {
             }
         case "adaptive-tdee-guardrail":
             NavigationStack { MetabolismDashboardView(loadsData: false) }
-        case "maia-insights":
+        case "maia-insights", "insight-export", "insight-evidence":
             NavigationStack {
                 DetailedInsightsView(
                     insightsService: insightsService,
@@ -513,6 +356,10 @@ struct MainTabView: View {
                 }
                 .background(AppPalette.canvas.ignoresSafeArea())
             }
+        case "run-detail-unassigned":
+            NavigationStack { RunDetailView(run: ScreenshotDemoData.unassignedGearRun) }
+        case "shoe-gear-lifetime":
+            ShoeGearManagerView(runs: ScreenshotDemoData.recentGearRuns, lifetimeRuns: ScreenshotDemoData.lifetimeGearRuns)
         case "shoe-gear-add":
             ShoeGearManagerView(initiallyShowsAddShoe: true)
         case "trust-hub":
@@ -637,324 +484,74 @@ struct MainTabView: View {
         )
     }
     
-    private func finishTour() {
-        withAnimation(AppMotion.visibility) {
-            showingSpotlightTour = false
-        }
-        spotlightManager.markAsShown(id: "action-menu")
+}
+
+#if DEBUG
+@MainActor
+private struct SavedMealSuggestionDemoView: View {
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @StateObject private var review: MealReviewSaveSession
+    @State private var accepted = false
+
+    init() {
+        let owner = DIContainer.shared.authService.currentUserID ?? "mock_user"
+        let day = DiaryDayContext(userID: owner, date: Calendar.current.startOfDay(for: Date()))!
+        _review = StateObject(wrappedValue: ScreenshotDemoData.mealSuggestionDemo.makeReview(
+            userID: owner, day: day, source: "ui_test_suggestion", meal: "Lunch"))
     }
 
-    private func manualFoodSeed() -> FoodItem {
-        let metadata: FoodSourceMetadata?
-        if let pendingManualBarcode, !pendingManualBarcode.isEmpty {
-            metadata = FoodSourceMetadata(
-                sourceType: .manual,
-                confidence: .userVerified,
-                reviewStatus: .userConfirmed,
-                sourceName: "Manual Barcode Entry",
-                barcode: pendingManualBarcode,
-                notes: "Created after a barcode lookup miss."
-            )
+    var body: some View {
+        if accepted {
+            VStack(spacing: 12) {
+                Text("Suggestion saved").accessibilityIdentifier("meal_suggestion_accepted")
+                let count = dailyLogService.currentDailyLog?.meals.flatMap(\.foodItems)
+                    .filter { $0.name == ScreenshotDemoData.mealSuggestionDemo.mealName }.count ?? 0
+                Text("Matching food records: \(count)").accessibilityIdentifier("meal_suggestion_saved_count")
+            }
         } else {
-            metadata = nil
-        }
-
-        return FoodItem(
-            id: UUID().uuidString,
-            name: "",
-            calories: 0,
-            protein: 0,
-            carbs: 0,
-            fats: 0,
-            servingSize: "",
-            servingWeight: 0,
-            sourceMetadata: metadata
-        )
-    }
-
-    private func showBarcodeResultFeedback(_ result: BarcodeFoodLookupResult) {
-        if result.source == "custom_barcode" {
-            ToastManager.shared.showToast(message: "Matched from My Foods.")
-        } else if result.usedRelatedBarcode {
-            ToastManager.shared.showToast(message: "Found a related barcode match.")
-        }
-    }
-
-    private func presentBarcodeRecovery(message: String, barcode: String?) {
-        let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode ?? "")
-        pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
-        barcodeRecoveryMessage = message
-        barcodeRecoveryResolved = false
-        showingBarcodeRecovery = true
-        DIContainer.shared.analyticsManager.barcodeMissRecovery(
-            .selected(action: "recovery_shown", barcode: pendingManualBarcode)
-        )
-    }
-
-    private func handleBarcodeRecoveryDismissed() {
-        if !barcodeRecoveryResolved {
-            DIContainer.shared.analyticsManager.barcodeMissRecovery(
-                .selected(action: "dismissed", barcode: pendingManualBarcode)
-            )
-            pendingManualBarcode = nil
-        }
-        barcodeRecoveryMessage = ""
-    }
-
-    private func resolveBarcodeRecovery(action: String) {
-        barcodeRecoveryResolved = true
-        DIContainer.shared.analyticsManager.barcodeMissRecovery(
-            .selected(action: action, barcode: pendingManualBarcode)
-        )
-        showingBarcodeRecovery = false
-    }
-
-    private func createFoodFromBarcodeMiss() {
-        resolveBarcodeRecovery(action: "create_from_label")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            showingAddFoodManually = true
-        }
-    }
-
-    private func useCameraFromBarcodeMiss() {
-        resolveBarcodeRecovery(action: "use_camera")
-        pendingManualBarcode = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            showingImagePicker = true
-        }
-    }
-
-    private func searchByNameFromBarcodeMiss() {
-        resolveBarcodeRecovery(action: "search_by_name")
-        pendingManualBarcode = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            showingFoodSearch = true
-        }
-    }
-
-    private func dismissBarcodeRecovery() {
-        barcodeRecoveryResolved = true
-        DIContainer.shared.analyticsManager.barcodeMissRecovery(
-            .selected(action: "dismissed", barcode: pendingManualBarcode)
-        )
-        pendingManualBarcode = nil
-        showingBarcodeRecovery = false
-    }
-
-    private var primaryQuickLogOptions: [QuickLogOption] {
-        [
-            QuickLogOption(
-                title: "Search food",
-                subtitle: "Find from the food database",
-                icon: "magnifyingglass",
-                action: { showingFoodSearch = true }
-            ),
-            QuickLogOption(
-                title: "Scan barcode",
-                subtitle: "Fast packaged food lookup",
-                icon: "barcode.viewfinder",
-                action: { showingBarcodeScanner = true }
-            ),
-            QuickLogOption(
-                title: "Describe your meal",
-                subtitle: "Tell Maia what you ate",
-                icon: "text.bubble.fill",
-                action: { showingAITextLog = true }
-            )
-        ]
-    }
-
-    private var additionalQuickLogOptions: [QuickLogOption] {
-        [
-            QuickLogOption(
-                title: "Log with camera",
-                subtitle: "Estimate nutrition from a photo",
-                icon: "camera.fill",
-                action: { showingImagePicker = true }
-            ),
-            QuickLogOption(
-                title: "Log exercise",
-                subtitle: "Record activity and calories",
-                icon: "figure.walk",
-                action: { showingAddExerciseView = true }
-            ),
-            QuickLogOption(
-                title: "Log recipe or meal",
-                subtitle: "Use saved recipes and meals",
-                icon: "list.clipboard",
-                action: { showingRecipeListView = true }
-            ),
-            QuickLogOption(
-                title: "Beat the buffet",
-                subtitle: "Log an all-you-can-eat session",
-                icon: "fork.knife",
-                action: { showingAYCESession = true }
-            ),
-            QuickLogOption(
-                title: "Running",
-                subtitle: "Your runs from every watch",
-                icon: "figure.run",
-                action: { showingRunHistory = true }
-            )
-        ]
-    }
-
-    private var quickLogSheet: some View {
-        ZStack {
-            AppSheetScaffold(
-                title: "Quick Log",
-                subtitle: "The fastest ways to capture food and activity.",
-                dismiss: dismissQuickLog
-            ) {
-                ScrollView {
-                    VStack(spacing: AppSpacing.group) {
-                        quickLogGroup(primaryQuickLogOptions, highlightsFirst: true)
-                        quickLogMoreButton
-
-                        if showingAllQuickLogActions {
-                            quickLogGroup(additionalQuickLogOptions)
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        }
-                    }
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-                    .padding(.vertical, AppSpacing.group)
+            SavedMealSuggestionDetailView(review: review,
+                pantryItemNames: ScreenshotDemoData.mealSuggestionDemoPantry,
+                remainingCalories: 670, remainingProtein: 58, remainingCarbs: 72, remainingFats: 22,
+                onRegenerate: regenerationAction,
+                onAccepted: { accepted = true })
+                .task {
+                    guard ScreenshotDemoMode.isEnabled,
+                          DIContainer.shared.authService.currentUserID == ScreenshotDemoData.userID,
+                          ProcessInfo.processInfo.arguments.contains("-ui-testing-meal-constraints") else { return }
+                    goalSettings.mealConstraintProfile = MealConstraintProfile(revisionID: "ui-test-constraints", hardExclusions: ["sesame"])
                 }
-                .scrollIndicators(.hidden)
-                .scrollBounceBehavior(.basedOnSize)
-            }
-
-            if showingSpotlightTour {
-                Color.black.opacity(0.6)
-                    .ignoresSafeArea()
-                    .onTapGesture(perform: finishTour)
-                    .transition(.opacity)
-
-                SpotlightTextView(
-                    content: (
-                        title: "Quick Actions",
-                        text: "Search, scan, describe a meal, or open specialty logging tools from one place."
-                    ),
-                    currentIndex: 0,
-                    total: 1,
-                    position: .top,
-                    onNext: finishTour
-                )
-            }
-        }
-        .onAppear {
-            if dynamicTypeSize.isAccessibilitySize {
-                quickLogDetent = .large
-            }
         }
     }
-
-    private func quickLogGroup(_ options: [QuickLogOption], highlightsFirst: Bool = false) -> some View {
-        VStack(spacing: 0) {
-            ForEach(options) { option in
-                Button {
-                    openQuickLogOption(option)
-                } label: {
-                    AppListRow(
-                        icon: option.icon,
-                        iconColor: highlightsFirst && option.id == options.first?.id
-                            ? AppPalette.brand
-                            : AppPalette.text,
-                        title: option.title,
-                        subtitle: dynamicTypeSize.isAccessibilitySize ? nil : option.subtitle,
-                        hidesTextFromAccessibility: true
-                    ) {
-                        Image(systemName: "chevron.right")
-                            .appTextRole(.caption)
-                            .foregroundStyle(.tertiary)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(option.title)
-                .accessibilityHint(option.subtitle)
-                .accessibilityIdentifier("quick_log_\(quickLogIdentifier(for: option.title))")
-
-                if option.id != options.last?.id {
-                    Divider().padding(.leading, 68)
-                }
-            }
-        }
-        .appSurface(.quiet, padding: 0)
+    private var regenerationAction: (() -> Void)? {
+        guard ProcessInfo.processInfo.arguments.contains("-ui-testing-suggestion-alternatives") else { return nil }
+        return { regenerate() }
     }
-
-    private var quickLogMoreButton: some View {
-        Button {
-            HapticsService.shared.playImpact(style: .light)
-            let willExpand = !showingAllQuickLogActions
-            withAnimation(AppMotion.standard) {
-                showingAllQuickLogActions = willExpand
-                quickLogDetent = willExpand ? .large : .medium
-            }
-            DIContainer.shared.analyticsManager?.logEvent("quick_log_more_toggled", parameters: [
-                "expanded": willExpand
-            ])
-        } label: {
-            AppListRow(
-                icon: showingAllQuickLogActions ? "chevron.up.circle" : "ellipsis.circle",
-                title: showingAllQuickLogActions ? "Fewer options" : "More options",
-                subtitle: dynamicTypeSize.isAccessibilitySize
-                    ? nil
-                    : (
-                        showingAllQuickLogActions
-                            ? "Hide specialty logging tools"
-                            : "Camera, exercise, recipes, buffet, and running"
-                    ),
-                hidesTextFromAccessibility: true
-            ) {
-                Image(systemName: showingAllQuickLogActions ? "chevron.up" : "chevron.down")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-            .appSurface(.quiet, padding: 0)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(showingAllQuickLogActions ? "Fewer options" : "More options")
-        .accessibilityHint(showingAllQuickLogActions ? "Hide specialty logging tools" : "Show specialty logging tools")
-        .accessibilityIdentifier("quick_log_more_options")
-        .accessibilityAddTraits(.isButton)
-    }
-
-    private func quickLogIdentifier(for title: String) -> String {
-        title
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "_")
-    }
-
-    private func openQuickLogOption(_ option: QuickLogOption) {
-        HapticsService.shared.playImpact(style: .light)
-        let action = option.action
-
-        withAnimation(AppMotion.visibility) {
-            showingAddOptions = false
-        }
-        showingAllQuickLogActions = false
-        quickLogDetent = .medium
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-            action()
-        }
-    }
-
-    private func dismissQuickLog() {
-        if showingSpotlightTour {
-            finishTour()
-        }
-        withAnimation(AppMotion.visibility) {
-            showingAddOptions = false
-        }
-    }
-
-    private func resetQuickLogPresentation() {
-        if showingSpotlightTour {
-            finishTour()
-        }
-        showingAllQuickLogActions = false
-        quickLogDetent = .medium
+    private func regenerate() {
+        guard ScreenshotDemoMode.isEnabled, DIContainer.shared.authService.currentUserID == ScreenshotDemoData.userID,
+              ProcessInfo.processInfo.arguments.contains("-ui-testing-suggestion-alternatives") else { return }
+        let idea = MealSuggestion(title: "Quick QA bowl", calories: 450, mealName: "Quick QA bowl", protein: 25, carbs: 65, fats: 10,
+            ingredients: ["150 g cooked rice", "100 g beans"], instructions: "Combine and warm.", prepMinutes: 8).withGeneratedEvidence()
+        _ = review.replaceMealSuggestion(idea)
     }
 }
+
+private enum Wave3SleepPreview {
+    static var report: EnhancedSleepReport {
+        let calendar = Calendar.current
+        let day = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: Date()))!
+        let start = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: day)!
+        let end = start.addingTimeInterval(7 * 3600)
+        let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+        let samples = [HKCategorySample(type: type, value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: start, end: end),
+                       HKCategorySample(type: type, value: HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue, start: start, end: end)]
+        let nights = SleepNightEvidence.normalize(samples)
+        let days = nights.map { EnhancedSleepReport.DailySleepStageData(date: $0.night, timeInBed: $0.timeInBed,
+            timeAsleep: $0.timeAsleep, timeCore: $0.timeCore, timeDeep: $0.timeDeep, timeREM: $0.timeREM, timeAwake: $0.timeAwake) }
+        return EnhancedSleepReport(dateRange: "Three-day QA window", averageSleepScore: 0, averageTimeInBed: 0,
+            averageTimeAsleep: 7 * 3600, averageTimeInCore: 7 * 3600, averageTimeInDeep: 0, averageTimeInREM: 0,
+            averageTimeAwake: 0, sleepConsistencyScore: 0, sleepConsistencyMessage: "One recorded night; no consistency estimate.",
+            dailySleepData: days, nightEvidence: nights, requestedDayCount: 3)
+    }
+}
+#endif

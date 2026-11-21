@@ -40,7 +40,7 @@ final class CoreModelSmokeTests: XCTestCase {
         let result = await service.performRequest(messages: [["role": "user", "content": "hello"]])
 
         XCTAssertEqual(try? result.get(), "ok")
-        XCTAssertEqual(service.recordedModel, "gpt-4o-mini")
+        XCTAssertEqual(service.recordedModel, "gpt-6-luna")
         XCTAssertEqual(service.recordedMaxTokens, 2048)
         XCTAssertEqual(service.recordedTemperature, 0.7)
         XCTAssertNil(service.recordedResponseFormat)

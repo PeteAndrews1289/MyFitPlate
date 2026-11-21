@@ -283,16 +283,17 @@ final class AdaptiveTDEETests: XCTestCase {
         Calendar.current.date(byAdding: .day, value: -n, to: Date())!
     }
 
-    private func log(cal: Double, daysAgo n: Int) -> DailyLog {
-        DailyLog(date: daysAgo(n), meals: [Meal(name: "Lunch", foodItems: [makeFood(cal: cal)])])
+    private func log(cal: Double, daysAgo n: Int, status: NutritionDayStatus = .complete) -> DailyLog {
+        DailyLog(date: daysAgo(n), meals: [Meal(name: "Lunch", foodItems: [makeFood(cal: cal)])], nutritionDayStatus: status)
     }
 
     @MainActor
     func testFlatWeightYieldsTDEEEqualToIntake() async throws {
         let service = AdaptiveGoalService()
-        // 8 stable weigh-ins (no trend) + 12 days logging 2000 kcal => TDEE ≈ intake.
-        let weights = (1...8).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
-        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+        // Reviewed whole-day intake is required: 10 weigh-ins and 13 complete days
+        // produce usable evidence, while flat weight makes TDEE equal to intake.
+        let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0) }
 
         service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
         try await Task.sleep(nanoseconds: 400_000_000)
@@ -300,6 +301,8 @@ final class AdaptiveTDEETests: XCTestCase {
         XCTAssertNotNil(service.calculatedTDEE)
         XCTAssertEqual(service.calculatedTDEE ?? 0, 2000, accuracy: 1.0)
         XCTAssertEqual(service.last21DaysCalorieAverage ?? 0, 2000, accuracy: 1.0)
+        XCTAssertEqual(service.recentValidLogCount, 13)
+        XCTAssertTrue(service.isEstimateActionable)
     }
 
     @MainActor
@@ -307,7 +310,7 @@ final class AdaptiveTDEETests: XCTestCase {
         let service = AdaptiveGoalService()
         // Declining weight on 2000 kcal/day means the body burns MORE than intake.
         let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 176.0 + Double($0) * 0.8) }
-        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0) }
 
         service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
         try await Task.sleep(nanoseconds: 400_000_000)
@@ -321,12 +324,45 @@ final class AdaptiveTDEETests: XCTestCase {
         let service = AdaptiveGoalService()
         // Only 3 weigh-ins — below the 7-weight minimum.
         let weights = (1...3).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
-        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0) }
 
         service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
         try await Task.sleep(nanoseconds: 400_000_000)
 
         XCTAssertNil(service.calculatedTDEE)
         XCTAssertEqual(service.dataConfidence, .insufficient)
+    }
+
+    @MainActor
+    func testUnreviewedDaysCannotProduceAnAdaptiveEstimate() async throws {
+        let service = AdaptiveGoalService()
+        let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0, status: .unknown) }
+
+        service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertNil(service.calculatedTDEE)
+        XCTAssertNil(service.last21DaysCalorieAverage)
+        XCTAssertEqual(service.recentValidLogCount, 0)
+        XCTAssertEqual(service.partialLogCount, 13)
+        XCTAssertEqual(service.dataConfidence, .insufficient)
+        XCTAssertFalse(service.isEstimateActionable)
+    }
+
+    @MainActor
+    func testTwelveCompleteDaysKeepTheEstimateBehindItsEvidenceGuardrail() async throws {
+        let service = AdaptiveGoalService()
+        let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
+        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+
+        service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertNil(service.calculatedTDEE)
+        XCTAssertEqual(service.recentValidLogCount, 12)
+        XCTAssertEqual(service.dataConfidence, .low)
+        XCTAssertNotNil(service.tdeeGuardrailMessage)
+        XCTAssertFalse(service.isEstimateActionable)
     }
 }

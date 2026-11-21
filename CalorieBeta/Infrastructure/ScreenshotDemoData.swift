@@ -67,9 +67,10 @@ enum ScreenshotDemoData {
             overallScore: 84,
             nutritionScore: 82,
             sleepScore: 86,
-            recoveryScore: 85,
-            summary: "Your signals support a steady, productive day.",
-            color: AppPalette.brand
+            recoveryScore: nil,
+            summary: "Your recorded nutrition and sleep are on track.",
+            color: AppPalette.brand,
+            hasRecoveryReadings: true
         )
     }
 
@@ -556,7 +557,7 @@ enum ScreenshotDemoData {
             )
         ]
 
-        return [
+        let recipes = [
             Recipe(
                 id: "demo-recipe-chicken-bowl",
                 name: "Weeknight Chicken Power Bowl",
@@ -610,6 +611,37 @@ enum ScreenshotDemoData {
                 servings: 1
             )
         ]
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-recipe-quantity") {
+            let metadata = FoodSourceMetadata(sourceType: .fatSecret, confidence: .databaseMatch, reviewStatus: .notRequired,
+                sourceName: "Synthetic quantity regression reference", sourceID: "qa-quantity-reference", createdAt: today)
+            let ingredient = FoodItem(id: "qa-quantity-rice", name: "QA quantity rice", calories: 640, protein: 12, carbs: 144, fats: 0,
+                servingSize: "180 g", servingWeight: 180, sourceMetadata: metadata, quantityValue: 180, servingUnit: "g")
+            var fixture = Recipe(id: "qa-quantity-recipe", name: "QA quantity batch", ingredients: ["180 g QA quantity rice"],
+                detailedIngredients: [ingredient], instructions: ["Cook rice.", "Weigh the cooked batch."],
+                nutrition: Nutrition.total(for: [ingredient]), servings: 4, nutritionBasis: .wholeRecipe,
+                nutritionOrigin: .ingredients, unresolvedIngredients: [], cookedWeightGrams: 800)
+            fixture.revisionID = try? RecipePortionRules.revisionID(for: fixture)
+            return [fixture] + recipes
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-constrained-recipes") {
+            var bowl = Recipe(id: "wave2-reviewed-bowl", name: "Reviewed bean bowl", ingredients: ["200 g beans", "100 g rice"], instructions: ["Cook rice.", "Mix beans and rice."], nutrition: Nutrition(calories: 500, protein: 40, carbs: 60, fats: 10), servings: 1, nutritionBasis: .perServing)
+            bowl.planningProfile = RecipePlanningProfile(prepMinutes: 20, equipment: ["stove"], diet: .vegan, reviewedExclusions: ["peanut"], costPerServing: 2, reviewedAt: today, contentFingerprint: try? RecipePlanningProfile.fingerprint(bowl))
+            return [bowl] + recipes
+        }
+        return ProcessInfo.processInfo.arguments.contains("-ui-testing-recipe-portions") ? [recipePortionFixture] + recipes : recipes
+    }
+
+    private static var recipePortionFixture: Recipe {
+        var metadata = FoodSourceMetadata.userEntered(sourceName: "QA ingredient label")
+        metadata.createdAt = today; metadata.sourceObservedAt = today
+        let rice = FoodItem(id: "wave2-rice", name: "Rice", calories: 1_600, protein: 40, carbs: 300, fats: 16,
+            servingSize: "400 g", servingWeight: 400, sourceMetadata: metadata, quantityValue: 400, servingUnit: "g")
+        var recipe = Recipe(id: "demo-wave2-batch", name: "Four-serving rice batch", ingredients: ["400 g rice"],
+            detailedIngredients: [rice], instructions: ["Cook the rice.", "Weigh the finished batch before portioning."],
+            nutrition: Nutrition.total(for: [rice]), servings: 4, nutritionBasis: .wholeRecipe,
+            nutritionOrigin: .ingredients, unresolvedIngredients: [], cookedWeightGrams: 800)
+        recipe.revisionID = try? RecipePortionRules.revisionID(for: recipe)
+        return recipe
     }
 
     static var receiptDemoItems: [PantryItem] {
@@ -943,7 +975,7 @@ enum ScreenshotDemoData {
             )
         ]
 
-        return runs.map { fixture in
+        let generated = runs.map { fixture in
             let startDate = calendar.date(byAdding: .day, value: -fixture.daysAgo, to: today) ?? today
             return Run(
                 id: fixture.id,
@@ -962,9 +994,41 @@ enum ScreenshotDemoData {
                 hasRoute: true
             )
         }
+        if ScreenshotDemoMode.isEnabled,
+           ProcessInfo.processInfo.arguments.contains("-ui-testing-run-pacing-fixtures") {
+            let start = day(offset: -1).addingTimeInterval(9 * 60 * 60)
+            let pacing = Run(id: "demo-run-pacing-tail", source: .recorded, startDate: start,
+                             endDate: start.addingTimeInterval(720), distanceMeters: 2_500, movingSeconds: 720,
+                             averageHeartRate: 150, splits: [RunSplit(index: 1, distanceMeters: 1_000, seconds: 360),
+                                 RunSplit(index: 2, distanceMeters: 1_000, seconds: 300),
+                                 RunSplit(index: 3, distanceMeters: 500, seconds: 60)], hasRoute: false,
+                             pauseTimeline: RunPauseTimeline(completeness: .complete, intervals: []))
+            let manual = Run(id: "demo-run-pacing-manual", source: .recorded, startDate: start.addingTimeInterval(-3_600),
+                             endDate: start.addingTimeInterval(-3_600 + 780), distanceMeters: 3_000, movingSeconds: 780,
+                             isIndoor: true, splits: ManualRunEntryRules.splits(distanceMeters: 3_000, movingSeconds: 780, metric: true), hasRoute: false)
+            return [pacing, manual] + generated
+        }
+        guard ScreenshotDemoMode.isEnabled,
+              ProcessInfo.processInfo.arguments.contains("-ui-testing-run-timing-fixtures") else { return generated }
+        let start = day(offset: -1).addingTimeInterval(8 * 60 * 60)
+        let timeline = RunPauseTimeline(completeness: .complete, intervals: [
+            RunPauseInterval(startDate: start.addingTimeInterval(5 * 60), endDate: start.addingTimeInterval(8 * 60), origin: .explicitPause),
+            RunPauseInterval(startDate: start.addingTimeInterval(15 * 60), endDate: start.addingTimeInterval(17 * 60), origin: .recoveryGap)
+        ])
+        let paused = Run(id: "demo-run-timing-known", source: .recorded, startDate: start,
+                         endDate: start.addingTimeInterval(25 * 60), distanceMeters: 5_000, movingSeconds: 20 * 60,
+                         averageHeartRate: 150, hasRoute: false, pauseTimeline: timeline)
+        let legacyStart = day(offset: -2).addingTimeInterval(8 * 60 * 60)
+        let legacy = Run(id: "demo-run-timing-legacy", source: .recorded, startDate: legacyStart,
+                         endDate: legacyStart.addingTimeInterval(21 * 60), distanceMeters: 6_000, movingSeconds: 18 * 60,
+                         averageHeartRate: 145, hasRoute: false)
+        return [paused, legacy] + generated
     }
 
     static func prepareUserDefaults() {
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-run-draft") {
+            try? RunRecordingDraftStore().remove(userID: userID)
+        }
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "cached_user_goals_\(userID)")
         defaults.removeObject(forKey: "chatHistory_\(userID)")
@@ -978,13 +1042,29 @@ enum ScreenshotDemoData {
         if let mealPlanCacheKey = AccountScopedStorageKey.make(prefix: "mealPlanCache", userID: userID) {
             defaults.removeObject(forKey: mealPlanCacheKey)
         }
+        if let undoKey = AccountScopedStorageKey.make(prefix: "mealPlanUndo", userID: userID) {
+            defaults.removeObject(forKey: undoKey)
+        }
         defaults.set(programID, forKey: "activeWorkoutProgramID")
         defaults.set(false, forKey: "activeWorkoutProgramCleared")
         defaults.set(false, forKey: "useMetricBodyUnits")
-        defaults.set(GroceryUnitSystem.imperial.rawValue, forKey: "groceryUnitSystem")
+        let usesCookingFixture = ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-cooking")
+            || (ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-cooking-batch") || ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-inventory"))
+        let groceryUnits: GroceryUnitSystem = usesCookingFixture ? .metric : .imperial
+        defaults.set(groceryUnits.rawValue, forKey: "groceryUnitSystem")
+        if let key = AccountScopedStorageKey.make(prefix: "groceryUnitSystem", userID: userID),
+           ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-editor-drafts")
+            || ProcessInfo.processInfo.arguments.contains("-ui-testing-grocery-design") || defaults.object(forKey: key) == nil {
+            defaults.set(groceryUnits.rawValue, forKey: key)
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-editor-drafts"),
+           let key = AccountScopedStorageKey.make(prefix: "meal-planner-workspace", userID: userID) {
+            defaults.set("Plan", forKey: key)
+        }
         defaults.set(false, forKey: "hasRequestedAppleHealthAccess")
-        defaults.set(true, forKey: "firstSessionChoiceCompleted")
-        defaults.set(false, forKey: "firstSessionChoicePending")
+        let showsFirstSession = ProcessInfo.processInfo.arguments.contains("-ui-testing-first-session")
+        defaults.set(!showsFirstSession, forKey: "firstSessionChoiceCompleted")
+        defaults.set(showsFirstSession, forKey: "firstSessionChoicePending")
         AIDataConsentStore.shared.revoke(for: userID)
     }
 
@@ -993,11 +1073,47 @@ enum ScreenshotDemoData {
         workout: MockWorkoutRepository,
         settings: MockSettingsRepository
     ) {
-        let logs = nutritionHistory()
+        let logs = requestedScreen == "weekly-checkin-ready" ? weeklyReviewHistory() : nutritionHistory()
         nutrition.mockLogsByDay = logs
         nutrition.mockFetchDailyHistoryResult = .success(logs)
         nutrition.filtersHistoryByRequestedRange = true
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-day-review-persistence") {
+            nutrition.persistsDailyLogUpdates = true
+            nutrition.seedCommittedDailyLogs(userID: userID, logs: logs)
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-day-review-save-failure") {
+            nutrition.updateLogSuccess = false
+        }
         nutrition.mockRecipes = recipeDemoRecipes
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-recipe-version-history") {
+            var original = recipePortionFixture
+            original.nutritionOrigin = nil
+            original.revisionID = try? RecipePortionRules.revisionID(for: original)
+            var edited = original; edited.servings = 8
+            edited.revisionID = try? RecipePortionRules.revisionID(for: edited)
+            let opening = original, updated = edited
+            nutrition.mockRecipes = [opening] + recipeDemoRecipes.filter { $0.id != opening.id }
+            // The actual checked-save path creates immutable version records. Repeated
+            // fetches replay this fixed receipt without undoing a later reviewed restore.
+            nutrition.fetchRecipesHandler = { owner in
+                guard owner == "mock_user" else { throw RecipeRevisionError.accountChanged }
+                _ = try await nutrition.saveRecipeRevision(userID: owner, expected: opening, updated: updated,
+                    operationID: UUID(uuidString: "D9000000-0000-0000-0000-000000000037")!)
+                return nutrition.mockRecipes
+            }
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-transfer-failure") {
+            nutrition.diaryTransferError = CocoaError(.fileWriteUnknown)
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-export-failure") {
+            nutrition.mockFetchDailyHistoryResult = .failure(CocoaError(.fileReadUnknown))
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-grocery-save-failure") {
+            nutrition.groceryMutationError = CocoaError(.fileWriteUnknown)
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-receipt-partial"), let itemID = receiptDemoItems.dropFirst().first?.id {
+            nutrition.pantryItemErrors[itemID] = CocoaError(.fileWriteUnknown)
+        }
 
         let foods = discoveryFoods()
         nutrition.mockRecommendedFoods = Array(foods.prefix(5))
@@ -1037,10 +1153,66 @@ enum ScreenshotDemoData {
             PantryItem(name: "Blueberries", quantity: 2, unit: "cups", category: "Produce")
         ])
 
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-inventory") {
+            let stockDate = ProcessInfo.processInfo.arguments.contains("-ui-testing-inventory-yesterday-batch") ? day(offset: -1) : today
+            var raw = PantryItem(id: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!, name: "dry rice", quantity: 1_000, unit: "g", category: "Grains", dateAdded: stockDate)
+            raw.quantityVerified = true; raw.preparation = "Raw"; raw.revisionID = "wave2-raw-initial"
+            let legacy = PantryItem(id: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!, name: "Legacy pantry amount", quantity: 1, unit: "item", dateAdded: today)
+            nutrition.mockPantryItemsByID = [raw.id: raw, legacy.id: legacy]
+            nutrition.mockPantrySnapshotResult = .success([raw, legacy])
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-inventory-save-failure") {
+            nutrition.inventoryFailureBeforeCommit = CocoaError(.fileWriteUnknown)
+        }
+
         let plans = mealPlans()
         nutrition.mockMealPlansByDateString = Dictionary(
             uniqueKeysWithValues: plans.map { (dateString($0.date), $0) }
         )
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-independent-prep"),
+           ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-editor-drafts") {
+            var checkpoint = MealCookingCheckpoint()
+            checkpoint.completedStepIndexes = [0, 1, 2]
+            checkpoint.currentStepID = "repeated-sauce-step-0"
+            let context = MealCookingCheckpointSession.contextID(days: plans,
+                starting: MealPlanEditingRules.week(containing: today).first)
+            do {
+                try EditorDraftStore().save(checkpoint, userID: userID, scope: "meal-cooking-\(context)")
+            } catch { AppLog.app.error("Could not seed synthetic prep checks: \(error.localizedDescription, privacy: .public)") }
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-stock-reservations") {
+            let future = day(offset: 14)
+            let food = FoodItem(id: "reservation-later-food", name: "Later rice cooking", calories: 400, protein: 25, carbs: 60, fats: 7)
+            var meal = PlannedMeal(id: "reservation-later-meal", mealType: "Dinner", foodItem: food, ingredients: ["800 g dry rice"])
+            meal.cookingBatch = MealCookingBatch(id: "reservation-later-batch", revisionID: "reservation-later-v1", sourceMealID: meal.id,
+                cookingDate: future, name: "Later rice cooking", totalPortions: 1,
+                ingredientsPerPortion: meal.plannedIngredients.map(MealCookingIngredient.init), instructions: nil,
+                allocations: [.init(mealID: meal.id, date: future, portions: 1)])
+            nutrition.mockMealPlansByDateString[dateString(future)] = MealPlanDay(id: dateString(future), date: future, meals: [meal])
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-meal-workspace") {
+            let rice = FoodItem(id: "workspace-rice", name: "QA rice", calories: 400, protein: 25, carbs: 50, fats: 10, servingSize: "100 g", servingWeight: 100)
+            let egg = FoodItem(id: "workspace-egg", name: "QA egg", calories: 100, protein: 8, carbs: 1, fats: 6, servingSize: "1 egg", servingWeight: 50)
+            var composition = SavedMealComposition(id: "workspace-composition", name: "QA composed bowl", components: [rice, egg])
+            composition.revisionID = "workspace-composition-initial"; composition.updatedAt = today
+            var template = SavedMealWeekTemplate(id: "workspace-week", name: "QA saved week", days: plans)
+            template.revisionID = "workspace-week-initial"; template.updatedAt = today
+            nutrition.savedMealCompositionsByUserID[userID] = [composition]
+            nutrition.savedMealWeekTemplatesByUserID[userID] = [template]
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-workspace-pending"),
+               ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-editor-drafts") {
+                var changedComposition = composition; changedComposition.name = "QA recovered bowl"; changedComposition.revisionID = "workspace-composition-pending"
+                var changedTemplate = template; changedTemplate.name = "QA recovered week"; changedTemplate.revisionID = "workspace-week-pending"
+                let compositionReview = PlanningDocumentCheckpoint(proposal: MealCompositionSaveProposal(userID: userID,
+                    operationID: UUID(uuidString: "00000000-0000-0000-0000-000000000301")!, expected: composition, updated: changedComposition), submitted: true)
+                let weekReview = PlanningDocumentCheckpoint(proposal: MealWeekTemplateSaveProposal(userID: userID,
+                    operationID: UUID(uuidString: "00000000-0000-0000-0000-000000000302")!, expected: template, updated: changedTemplate), submitted: true)
+                do {
+                    try EditorDraftStore().save(compositionReview, userID: userID, scope: "meal-composition-library-save")
+                    try EditorDraftStore().save(weekReview, userID: userID, scope: "meal-week-template-save")
+                } catch { AppLog.app.error("Could not seed synthetic meal workspace review: \(error.localizedDescription, privacy: .public)") }
+            }
+        }
         let groceryPlanStart = Calendar.current.startOfDay(for: Date())
         nutrition.mockFetchGroceryListResult = [
             GroceryListItem(
@@ -1118,22 +1290,82 @@ enum ScreenshotDemoData {
             )
         ]
 
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-grocery-design") {
+            do {
+                let plan = try groceryDesignPlan(items: nutrition.mockFetchGroceryListResult, starting: groceryPlanStart)
+                nutrition.mockMealPlansByDateString = [dateString(plan.date): plan]
+            } catch {
+                assertionFailure("The synthetic grocery plan must retain its explicit measurements: \(error)")
+            }
+        }
+
         let program = strengthProgram()
+        if requestedScreen == "week-rescue", ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-editor-drafts") {
+            do {
+                try EditorDraftStore().remove(userID: userID, scope: "week-rescue-review-\(programID)")
+                try EditorDraftStore().remove(userID: userID, scope: "week-rescue-review-\(programID)-history")
+            } catch { AppLog.app.error("Could not reset isolated rescue review: \(error.localizedDescription, privacy: .public)") }
+        }
         let sessionLogs = workoutLogs(for: program)
-        workout.onProgramsSnapshotListenerAdded = { _, update in
-            update(.success([program]))
+        workout.onProgramsSnapshotListenerAdded = { [weak workout] _, update in
+            update(.success([workout?.committedBlockPrograms.first(where: { $0.id == program.id }) ?? program]))
+            if requestedScreen == "week-rescue" {
+                workout?.afterProgramEditCommit = { accepted in update(.success(accepted.map { [$0] } ?? [])) }
+            }
         }
         workout.onRoutinesSnapshotListenerAdded = { _, update in
             update(.success(program.routines))
         }
         workout.mockFetchSessionLogsResult = sessionLogs
         workout.mockFetchRecentSessionLogsResult = sessionLogs
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-comparison-workout"), let routine = program.routines.first {
+            workout.mockFetchRecentSessionLogsResult = [WorkoutSessionLog(id: "comparison-completed", date: Date(), routineID: routine.id,
+                completedExercises: routine.exercises.map { exercise in
+                    CompletedExercise(exerciseName: exercise.name, exercise: exercise,
+                        sets: exercise.sets.map { set in CompletedSet(reps: set.reps, weight: set.weight, effort: SetEffort(scale: .rpe, value: 7)) })
+                })]
+        }
         workout.mockFetchHistoryResult = sessionLogs
         workout.mockFetchSessionLogResult = sessionLogs.first.map(Result.success)
-        workout.mockSaveProgramResult = program
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-workout-correction"), let summary = workoutSummaryLog {
+            workout.mockFetchSessionLogResult = .success(summary)
+            if let mirror = summary.generatedDiaryExercise {
+                var days = nutrition.mockLogsByDay
+                if let index = days.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: summary.date) }) {
+                    if days[index].exercises == nil { days[index].exercises = [] }
+                    days[index].exercises?.append(mirror)
+                    nutrition.mockLogsByDay = days
+                }
+            }
+        }
+        let seedsLegacyDraft = ProcessInfo.processInfo.arguments.contains("-ui-testing-legacy-program-draft")
+        workout.mockSaveProgramResult = seedsLegacyDraft || requestedScreen == "meal-experiments" ? nil : program
+        if seedsLegacyDraft, let slot = program.currentProgressIndex,
+           let routine = program.routine(forSlot: slot)?.deepCopy(),
+           !routine.exercises.isEmpty, !routine.exercises[0].sets.isEmpty {
+            routine.exercises[0].sets[0].reps = 8
+            routine.exercises[0].sets[0].weight = 135
+            routine.exercises[0].sets[0].isCompleted = true
+            var draft = WorkoutSessionDraft(routine: routine)
+            draft.programContext = nil
+            draft.programLinkDecision = nil
+            draft.elapsed = 120
+            try? WorkoutDraftStore().save(draft, userID: userID)
+        }
 
         settings.mockFetchUserGoalsResult = goalPayload()
-        settings.mockWeightHistory = weightHistory()
+        if ScreenshotDemoMode.isEnabled, ProcessInfo.processInfo.arguments.contains("-ui-testing-meal-constraints") {
+            var payload = settings.mockFetchUserGoalsResult ?? [:]
+            var goals = payload["goals"] as? [String: Any] ?? [:]
+            goals["mealConstraintProfile"] = MealConstraintProfile(revisionID: "ui-test-constraints", hardExclusions: ["sesame"]).fields
+            payload["goals"] = goals; settings.mockFetchUserGoalsResult = payload
+        }
+        settings.mockWeightHistory = requestedScreen == "weekly-checkin-ready" ? weeklyReviewWeights() : weightHistory()
+        if requestedScreen == "weekly-checkin-ready", ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-editor-drafts") {
+            for scope in ["weekly-target-review-v1", "weekly-target-history-v1", "adaptive-estimate-history-v1", "adaptive-evidence-review-v1"] {
+                do { try EditorDraftStore().remove(userID: userID, scope: scope) } catch { AppLog.app.error("Could not reset synthetic weekly review: \(error.localizedDescription, privacy: .public)") }
+            }
+        }
     }
 
     static func configureAchievementRepository(_ repository: MockAchievementRepository) {
@@ -1150,6 +1382,43 @@ enum ScreenshotDemoData {
         repository.mockActiveChallenges = fixture.challenges
     }
 
+    static let gearAcceptanceShoeID = "qa-wave0-lifetime-shoe"
+
+    static var unassignedGearRun: Run {
+        gearAcceptanceRun(id: "qa-wave0-unassigned-run", daysAgo: 500, meters: 5_000)
+    }
+
+    static var recentGearRuns: [Run] {
+        [gearAcceptanceRun(id: "qa-wave0-gear-recent", daysAgo: 1, meters: 5_000)]
+    }
+
+    static var lifetimeGearRuns: [Run] {
+        recentGearRuns + [gearAcceptanceRun(id: "qa-wave0-gear-old", daysAgo: 500, meters: 45_000)]
+    }
+
+    private static func gearAcceptanceRun(id: String, daysAgo: Int, meters: Double) -> Run {
+        let start = calendar.date(byAdding: .day, value: -daysAgo, to: today) ?? today
+        return Run(id: id, source: .recorded, startDate: start,
+                   endDate: start.addingTimeInterval(1_800), distanceMeters: meters,
+                   movingSeconds: 1_800, activeCalories: nil, averageHeartRate: nil,
+                   splits: [], hasRoute: false)
+    }
+
+    private static func configureGearAcceptance() {
+        guard ["run-detail-unassigned", "shoe-gear-lifetime"].contains(requestedScreen) else { return }
+        let store = RunningShoeStore()
+        if store.shoe(for: gearAcceptanceShoeID) == nil {
+            store.addShoe(RunningShoe(id: gearAcceptanceShoeID, name: "Wave 0 trainer", brand: "QA",
+                                     initialMeters: 0, maxMeters: 100_000))
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-gear-assignment") {
+            store.tagRun(unassignedGearRun, withShoeID: nil)
+        }
+        if requestedScreen == "shoe-gear-lifetime" {
+            for run in lifetimeGearRuns { store.tagRun(run, withShoeID: gearAcceptanceShoeID) }
+        }
+    }
+
     static func configureServices(
         goalSettings: GoalSettings,
         dailyLogService: DailyLogService,
@@ -1162,6 +1431,33 @@ enum ScreenshotDemoData {
         goalSettings.activateAccount(userID)
         dailyLogService.activateAccount(userID)
         applyGoals(to: goalSettings)
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-hydration-preferences") {
+            goalSettings.loadHydrationPreferences(userID: userID)
+        }
+        if requestedScreen == "home-water-tracking" {
+            var preferences = HydrationPreferences()
+            preferences.unit = .milliliters
+            let bottle = WaterContainer(name: "Bottle", amount: 500, unit: .milliliters)
+            preferences.containers = [bottle]
+            preferences.preferredContainerID = bottle.id
+            try? preferences.acceptTarget(nil)
+            // The demo goal load also restores owner-scoped preferences asynchronously.
+            // Seed that same mock-account source so the real Home projection stays stable.
+            try? EditorDraftStore().save(preferences, userID: userID, scope: HydrationPreferences.scope)
+            goalSettings.hydrationPreferences = preferences
+        }
+        configureGearAcceptance()
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-ai-outline"),
+           (try? WorkoutAIProposalStore().load(userID: userID)) == nil {
+            let movement = RoutineExercise(name: "Push-up", type: .strength, sets: [ExerciseSet(target: "8 reps")], targetSets: 1, targetReps: "8 reps")
+            let routine = WorkoutRoutine(id: "qa-ai-outline-day", userID: userID, name: "Floor strength", dateCreated: today, exercises: [movement])
+            let program = WorkoutProgram(id: "qa-ai-outline-proposal", userID: userID, name: "Original proposal", dateCreated: today,
+                routines: [routine], startDate: today, daysOfWeek: [2], currentProgressIndex: 0)
+            let request = WorkoutAIRequestSnapshot(goal: "Strength", daysPerWeek: 1, maximumSessionMinutes: 30,
+                experience: "Beginner", equipmentClass: "Bodyweight Only", details: "Synthetic proposal; no provider request",
+                gym: nil, movementMappings: [:], startDate: today, weekdays: [2])
+            try? WorkoutAIProposalStore().save(WorkoutAIProposal(ownerID: userID, request: request, program: program))
+        }
         goalSettings.weightHistory = weightHistory()
         dailyLogService.activelyViewedDate = today
         dailyLogService.publishCurrentDailyLog(nutritionHistory()[0])
@@ -1179,6 +1475,20 @@ enum ScreenshotDemoData {
         cycleTrackingService.cycleSettings = CycleSettings(typicalCycleLength: 28, typicalPeriodLength: 5)
         cycleTrackingService.cycleDay = cycleDemoDay
         cycleTrackingService.aiInsight = cycleDemoInsight
+
+        if requestedScreen == "weekly-checkin-ready" {
+            goalSettings.weightHistory = weeklyReviewWeights()
+            if let settings = DIContainer.shared.settingsRepository as? MockSettingsRepository {
+                settings.mockFetchUserGoalsResult = goalSettings.makeGoalEditorDraft().payload(updatedAt: Date())
+                if ProcessInfo.processInfo.arguments.contains("-ui-testing-weekly-save-failure") {
+                    settings.saveUserGoalsError = URLError(.notConnectedToInternet)
+                }
+            }
+            Task { @MainActor in
+                await adaptiveGoalService.fetchAndCalculate(userID: userID, goalSettings: goalSettings,
+                    dailyLogService: dailyLogService, requireServer: true)
+            }
+        }
 
         if requestedScreen == "adaptive-tdee-guardrail" {
             adaptiveGoalService.calculatedTDEE = nil
@@ -1198,7 +1508,7 @@ enum ScreenshotDemoData {
         case "train", "runs", "saved-programs", "program-builder", "routine-builder", "workout-player",
              "program-detail", "workout-history", "workout-summary":
             appState.selectedTab = 2
-        case "meal-plan": appState.selectedTab = 3
+        case "meal-plan", "pantry-photo-recipes": appState.selectedTab = 3
         case "reports": appState.selectedTab = 4
         default: appState.selectedTab = 0
         }
@@ -1341,6 +1651,21 @@ enum ScreenshotDemoData {
         ]
     }
 
+    private static func weeklyReviewWeights() -> [(id: String, date: Date, weight: Double)] {
+        (0..<42).map { index in ("qa-weekly-weight-\(index)", day(offset: -index), 180 + Double(index) * 0.05) }
+    }
+
+    private static func weeklyReviewHistory() -> [DailyLog] {
+        (0..<42).map { index in
+            let date = day(offset: -index)
+            let food = FoodItem(id: "qa-weekly-food-\(index)", name: "Complete QA food day", calories: 2_400,
+                                protein: 180, carbs: 300, fats: 53)
+            var log = DailyLog(id: dateString(date), date: date, meals: [Meal(name: "Meals", foodItems: [food])], exercises: [])
+            log.nutritionDayStatus = .complete
+            return log
+        }
+    }
+
     private static func nutritionHistory() -> [DailyLog] {
         let todayFoods = [
             trustedFood(id: "today-parfait", name: "Greek Yogurt Parfait", calories: 410, protein: 36, carbs: 55, fats: 10, fiber: 8, servingSize: "1 bowl"),
@@ -1348,7 +1673,7 @@ enum ScreenshotDemoData {
             trustedFood(id: "today-snack", name: "Apple & Almond Butter", calories: 280, protein: 7, carbs: 36, fats: 14, fiber: 7, servingSize: "1 plate")
         ]
         let todayLog = DailyLog(
-            id: "demo-log-0",
+            id: dateString(today),
             date: today,
             meals: [
                 Meal(name: "Breakfast", foodItems: [todayFoods[0]]),
@@ -1361,7 +1686,7 @@ enum ScreenshotDemoData {
 
         let yesterday = day(offset: -1)
         let yesterdayLog = DailyLog(
-            id: "demo-log-1",
+            id: dateString(yesterday),
             date: yesterday,
             meals: [
                 Meal(name: "Breakfast", foodItems: [trustedFood(id: "yesterday-oats", name: "Protein Overnight Oats", calories: 430, protein: 30, carbs: 58, fats: 11, fiber: 10, servingSize: "1 jar")]),
@@ -1393,7 +1718,22 @@ enum ScreenshotDemoData {
                 workoutName: template.workoutName
             )
         }
-        return [todayLog, yesterdayLog] + olderLogs
+        // Persisted diary fixtures must keep meal placement and source snapshots
+        // through a process restart, just like canonical repository records.
+        return ([todayLog, yesterdayLog] + olderLogs).map { value in
+            var log = value
+            let digits = dateString(log.date).filter(\.isNumber)
+            let numericDay = Int(digits) ?? 0
+            for index in log.meals.indices {
+                let suffix = String(format: "%010d%02d", numericDay, index)
+                log.meals[index].id = UUID(uuidString: "00000000-0000-4000-8000-\(suffix)")!
+                for foodIndex in log.meals[index].foodItems.indices {
+                    log.meals[index].foodItems[foodIndex].sourceMetadata?.createdAt = calendar.startOfDay(for: log.date)
+                    log.meals[index].foodItems[foodIndex].sourceMetadata?.sourceObservedAt = calendar.startOfDay(for: log.date)
+                }
+            }
+            return log
+        }
     }
 
     private static func historyLog(
@@ -1426,7 +1766,7 @@ enum ScreenshotDemoData {
             [LoggedExercise(name: $0, durationMinutes: 45, caloriesBurned: 290, date: date.addingTimeInterval(18 * 60 * 60), source: $0.contains("Run") ? "HealthKit" : "routine")]
         }
         return DailyLog(
-            id: "demo-log-\(-offset)",
+            id: dateString(date),
             date: date,
             meals: zip(mealNames, foods).map { Meal(name: $0.0, foodItems: [$0.1]) },
             waterTracker: WaterTracker(totalOunces: 80 + Double((-offset * 3) % 16), goalOunces: 96, date: date),
@@ -1483,7 +1823,63 @@ enum ScreenshotDemoData {
         .withCrossVerification(sourceType == .usda ? ["FatSecret"] : ["USDA FoodData Central"])
     }
 
+    /// Keep the grocery-only UI fixture coherent with the actual plan refresh path.
+    /// Explicit ingredient snapshots preserve package units instead of guessing their mass.
+    static func groceryDesignPlan(items: [GroceryListItem], starting date: Date) throws -> MealPlanDay {
+        let ingredients = items.filter { $0.source == "mealPlan" }.map { item in
+            FoodItem(id: "grocery-design-\(item.id.uuidString)", name: item.name, calories: 0,
+                servingSize: "\(item.quantity.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))) \(item.unit)",
+                servingWeight: 0, quantityValue: item.quantity, servingUnit: item.unit)
+        }
+        let recipe = Recipe(id: "grocery-design-recipe", name: "QA shopping requirements",
+            ingredients: ingredients.map { "\($0.servingSize) \($0.name)" }, detailedIngredients: ingredients,
+            instructions: [], nutrition: .zero, servings: 1, nutritionBasis: .wholeRecipe,
+            nutritionOrigin: .ingredients, unresolvedIngredients: [], ingredientBasis: .wholeRecipe)
+        let selection = RecipePortionRules.defaultSelection(for: recipe)
+        let meal = PlannedMeal(id: "grocery-design-meal", mealType: "Dinner", recipeID: recipe.id,
+            foodItem: try RecipePortionRules.foodItem(for: recipe, selection: selection), ingredients: recipe.ingredients)
+        return MealPlanDay(id: dateString(date), date: date, meals: [meal])
+    }
+
     private static func mealPlans() -> [MealPlanDay] {
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-planner-blank") { return [] }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-independent-prep") {
+            let dates = MealPlanEditingRules.week(containing: today)
+            return dates.prefix(2).enumerated().map { offset, date in
+                let food = FoodItem(id: "repeated-rice-food", name: "QA repeated rice", calories: 400, protein: 25, carbs: 60, fats: 7)
+                var meals = [PlannedMeal(id: "repeated-rice-\(offset)", mealType: "Dinner", foodItem: food,
+                    ingredients: ["100 g rice"], instructions: "Rinse rice\nCook rice")]
+                if offset == 1 {
+                    meals.append(.init(id: "repeated-sauce", mealType: "Sauce", ingredients: ["10 g oil"], instructions: "Mix sauce"))
+                }
+                return MealPlanDay(id: dateString(date), date: date, meals: meals)
+            }
+        }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-cooking")
+            || (ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-cooking-batch") || ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-inventory")) {
+            // The later-day acceptance journey uses yesterday's real plan date so
+            // today's leftovers can be eaten without bypassing future-log checks.
+            let cookingDate = ProcessInfo.processInfo.arguments.contains("-ui-testing-inventory-yesterday-batch") ? day(offset: -1) : today
+            let food = trustedFood(id: "wave2-cooking-rice", name: "Four-portion rice batch",
+                calories: 400, protein: 25, carbs: 60, fats: 7, fiber: 3,
+                servingSize: "1 portion", sourceType: .mealPlan, sourceName: "Synthetic cooking fixture")
+            var dinner = PlannedMeal(id: "wave2-cooking-dinner", mealType: "Dinner", foodItem: food,
+                ingredients: ["100 g dry rice"],
+                instructions: ProcessInfo.processInfo.arguments.contains("-ui-testing-instruction-times")
+                    ? "1. Simmer for 12 minutes.\n2. Rest for 10–15 minutes.\n3. Divide into portions."
+                    : "1. Rinse the rice.\n2. Cook the rice with water.\n3. Divide into portions.")
+            if ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-cooking-batch") || ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-inventory"),
+               var batchMeal = try? MealPlanCookingRules.configuring(dinner, date: cookingDate, cookingPortions: 4) {
+                batchMeal.cookingBatch?.id = "wave2-cooking-batch"
+                batchMeal.cookingBatch?.revisionID = "wave2-cooking-batch-initial"
+                dinner = batchMeal
+            }
+            return [
+                MealPlanDay(id: dateString(cookingDate), date: cookingDate, meals: [dinner]),
+                MealPlanDay(id: dateString(calendar.date(byAdding: .day, value: 1, to: cookingDate)!),
+                            date: calendar.date(byAdding: .day, value: 1, to: cookingDate)!, meals: [])
+            ]
+        }
         let mealNames: [[String]] = [
             ["Berry Protein Oats", "Chicken Pesto Grain Bowl", "Miso Salmon with Rice"],
             ["Veggie Egg Scramble", "Turkey Avocado Wrap", "Beef & Broccoli Stir-Fry"],
@@ -1527,17 +1923,66 @@ enum ScreenshotDemoData {
     }
 
     private static func strengthProgram() -> WorkoutProgram {
+        if ["week-rescue", "meal-experiments"].contains(requestedScreen) {
+            let routine = WorkoutRoutine(id: "adaptive-upper", userID: userID, name: "Upper body", dateCreated: today,
+                exercises: ["Dumbbell press", "Dumbbell row", "Lateral raise", "Curl"].map { name in
+                    RoutineExercise(id: "adaptive-" + name, name: name,
+                        sets: (0..<3).map { index in ExerciseSet(id: "adaptive-\(name)-\(index)", target: "8", reps: 8, weight: 30) }, targetSets: 3)
+                })
+            return WorkoutProgram(id: programID, userID: userID, name: "Your strength plan", dateCreated: today,
+                                  routines: [routine], startDate: today, daysOfWeek: [calendar.component(.weekday, from: today)], currentProgressIndex: 0)
+        }
+
+        let completedPHUL = ProcessInfo.processInfo.arguments.contains("-ui-testing-completed-phul")
+        let waveTwoPHUL = ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-phul") || completedPHUL
+            || ProcessInfo.processInfo.arguments.contains("-ui-testing-migration-review")
+        let usesPHUL = ProcessInfo.processInfo.arguments.contains("-ui-testing-legacy-program-draft") || waveTwoPHUL
         var program = WorkoutRules.generatePreBuiltPrograms().first {
-            $0.id == "prebuilt_dumbbell_hypertrophy_4_day"
+            $0.id == (usesPHUL ? "prebuilt_phul" : "prebuilt_dumbbell_hypertrophy_4_day")
         } ?? WorkoutProgram(userID: userID, name: "Dumbbell Strength & Hypertrophy")
         program.id = programID
         program.userID = userID
-        program.name = "Dumbbell Strength & Hypertrophy"
+        program.name = usesPHUL ? "PHUL Power Hypertrophy Upper Lower" : "Dumbbell Strength & Hypertrophy"
         program.dateCreated = day(offset: -21)
         program.startDate = day(offset: -14)
         program.currentProgressIndex = 5
         program.routines.forEach { $0.userID = userID }
+        if waveTwoPHUL {
+            // A separate disposable fixture exercises the finished-block navigation
+            // without completing or changing any real workout or active program.
+            program.currentProgressIndex = completedPHUL ? program.totalSlots : 39
+            program.skippedIndices = [2, 9, 20]
+            for (routineIndex, routine) in program.routines.enumerated() {
+                routine.dateCreated = program.dateCreated
+                routine.exercises = routine.exercises.enumerated().map { exerciseIndex, original in
+                    var exercise = original
+                    exercise.id = "wave2-exercise-\(routineIndex)-\(exerciseIndex)"
+                    exercise.sets = exercise.sets.enumerated().map { setIndex, originalSet in
+                        var set = originalSet
+                        set.id = "wave2-set-\(routineIndex)-\(exerciseIndex)-\(setIndex)"
+                        return set
+                    }
+                    return exercise
+                }
+            }
+        }
         return program
+    }
+
+    static var questionFood: FoodItem {
+        var food = FoodItem(id: "question-rice", name: "Rice bowl", calories: 600, protein: 30, carbs: 80, fats: 18,
+                 servingSize: "300 g", servingWeight: 300).withAIEstimateSource(.aiImage, sourceName: "Maia Vision fixture")
+        food.sourceMetadata?.portionAnchors = [.init(unit: .package, gramsPerUnit: 450,
+            sourceID: "qa-package-label", sourceName: "QA package label")]
+        return food
+    }
+
+    static var questionReview: MealPhotoReviewContext {
+        MealPhotoReviewContext(overallConfidence: 0.7, analysisNotes: "The portion is estimated from the photo.",
+            clarificationQuestions: [], groundedItemCount: 0,
+            itemReviews: ["question-rice": MealPhotoItemReview(itemID: "question-rice", confidence: 0.7,
+                portionLowGrams: 200, portionHighGrams: 450, requiresConfirmation: true,
+                clarificationQuestion: nil, hiddenIngredientRisks: ["Cooking oil"], referenceSourceName: nil)])
     }
 
     static var workoutBuilderProgram: WorkoutProgram {
@@ -1545,11 +1990,19 @@ enum ScreenshotDemoData {
     }
 
     static var routineBuilderRoutine: WorkoutRoutine {
-        strengthProgram().routines.first ?? WorkoutRoutine(
+        let routine = strengthProgram().routines.first ?? WorkoutRoutine(
             userID: userID,
             name: "Upper Strength",
             dateCreated: today
         )
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-wave2-interval"),
+           let copy = routine.deepCopy() {
+            // A focused mixed-workout fixture avoids scrolling through unrelated
+            // catalog work while retaining real set controls and draft recovery.
+            copy.exercises = Array(copy.exercises.prefix(1))
+            return copy
+        }
+        return routine
     }
 
     static var programDetailProgram: WorkoutProgram {
@@ -1561,7 +2014,56 @@ enum ScreenshotDemoData {
     }
 
     static var workoutSummaryLog: WorkoutSessionLog? {
-        workoutHistoryLogs.first
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-workout-correction") {
+            return workoutCorrectionFixture
+        }
+        return workoutHistoryLogs.first
+    }
+
+    private static let workoutCorrectionFixture: WorkoutSessionLog? = {
+        guard var log = workoutHistoryLogs.first else { return nil }
+        log.id = "qa-wave0-workout-correction"
+        log.elapsedSeconds = 600
+        log.projectionBodyWeightPounds = 180
+        log.generatedDiaryExercise = WorkoutDiaryProjectionRules.make(log: log, name: "Fixture strength session", elapsed: 600, weightPounds: 180)
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-workout-correction") {
+            let store = WorkoutCorrectionStore()
+            while var pending = try? store.pending(sessionID: "qa-wave0-workout-correction", userID: userID) {
+                pending.abandonedAt = Date()
+                do { try store.save(pending) } catch { break }
+            }
+        }
+        return log
+    }()
+
+    private static var retainedFastingFixture: FastingManager?
+
+    static func fastingFixtureManager() -> FastingManager {
+        guard ProcessInfo.processInfo.arguments.contains("-ui-testing-fasting-no-projection") else { return .shared }
+        if let retainedFastingFixture { return retainedFastingFixture }
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MyFitPlate/qa-fixtures/fasting")
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-reset-fasting") {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let unavailable = ProcessInfo.processInfo.arguments.contains("-ui-testing-fasting-storage-failure")
+        let manager = FastingManager(store: FastingSessionStore(directory: unavailable ? nil : directory), projectsActivities: false)
+        retainedFastingFixture = manager
+        return manager
+    }
+
+    static func barcodeFixtureBatch() -> RapidBarcodeBatchSession {
+        let batch = RapidBarcodeBatchSession(userID: userID, date: day(offset: -1), mealName: "Dinner")
+        if batch.checkpoint.entries.isEmpty {
+            for code in ["000000000001", "000000000002", "000000000003", "000000000001"] { _ = batch.append(code) }
+        }
+        return batch
+    }
+
+    static func barcodeFixtureLookup(_ code: String) async -> FoodItem? {
+        guard code != "000000000003" else { return nil }
+        return FoodItem(id: "fixture-\(code)", name: code.hasSuffix("1") ? "Fixture oats" : "Fixture yogurt",
+            calories: 180, protein: 15, carbs: 21, fats: 4, servingSize: "1 portion", servingWeight: 150)
     }
 
     static var muscleRecoveryEstimates: [MuscleRecoveryEstimate] {
@@ -1588,6 +2090,20 @@ enum ScreenshotDemoData {
 
     private static func workoutLogs(for program: WorkoutProgram) -> [WorkoutSessionLog] {
         guard !program.routines.isEmpty else { return [] }
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-long-term-trend") {
+            return program.routines.flatMap { routine in
+                [1, 8, 15, 22].map { days in
+                    WorkoutSessionLog(id: "trend-\(routine.id)-\(days)", date: day(offset: -days), routineID: routine.id,
+                        completedExercises: routine.exercises.map { exercise in
+                            CompletedExercise(exerciseName: exercise.name, exercise: exercise,
+                                sets: exercise.sets.map { set in
+                                    CompletedSet(reps: ProgressionRules.repRange(set.target ?? exercise.targetReps)?.lowerBound ?? 8,
+                                                 weight: 100, setType: set.resolvedSetType, effort: SetEffort(scale: .rpe, value: 9))
+                                })
+                        })
+                }
+            }
+        }
 
         var logs: [WorkoutSessionLog] = []
         logs.reserveCapacity(5)

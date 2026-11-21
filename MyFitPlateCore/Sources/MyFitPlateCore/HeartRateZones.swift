@@ -39,7 +39,7 @@ public enum HeartRateZones {
     /// Classify a single heart rate (bpm) into its zone. A HR below Z1's floor still
     /// reports Z1 (it's simply very easy); nil only when the inputs are non-positive.
     public static func zone(forHeartRate hr: Double, maxHR: Double) -> HeartRateZone? {
-        guard hr > 0, maxHR > 0 else { return nil }
+        guard hr.isFinite, maxHR.isFinite, hr > 0, maxHR > 0 else { return nil }
         let fraction = hr / maxHR
         return zones.last(where: { fraction >= $0.lowerPercent }) ?? zones.first
     }

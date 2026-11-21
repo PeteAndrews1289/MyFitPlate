@@ -6,6 +6,8 @@ struct SettingsSupportSection: View {
     @Environment(\.openURL) private var openURL
     @State private var showingSupportFallback = false
     @State private var copiedSupportAddress = false
+    @State private var showingDataSources = false
+    @State private var didPresentScreenshotDestination = false
     @Binding var showingHealthDisclaimer: Bool
     @Binding var showingResetTourConfirmation: Bool
     @Binding var showingAIDataConsent: Bool
@@ -15,118 +17,56 @@ struct SettingsSupportSection: View {
 
     var body: some View {
         VStack(spacing: AppSpacing.section) {
-            SettingsSectionCard(title: "Help & Support") {
-                Button {
-                    showingHealthDisclaimer = true
-                } label: {
-                    SettingsLabel(
-                        icon: "cross.case.fill",
-                        title: "Health disclaimers",
-                        subtitle: "Review medical, nutrition, and AI estimate guidance.",
-                        showsDisclosure: true
-                    )
-                }
-                .padding(AppSpacing.group)
-
-                Divider().padding(.leading, 50)
-
-                Link(destination: MyFitPlateLinks.privacyPolicyURL) {
-                    SettingsLabel(
-                        icon: "lock.shield.fill",
-                        title: "Privacy & data",
-                        subtitle: "See how health, nutrition, and AI data are handled."
-                    )
-                }
-                .padding(AppSpacing.group)
-
-                Divider().padding(.leading, 50)
-
-                Button {
-                    showingAIDataConsent = true
-                } label: {
-                    SettingsLabel(
-                        icon: "brain.head.profile",
-                        title: "AI data sharing",
-                        subtitle: "Review or change what Maia may send for processing.",
-                        showsDisclosure: true
-                    )
-                }
-                .padding(AppSpacing.group)
-
-                Divider().padding(.leading, 50)
-
-                Link(destination: MyFitPlateLinks.termsOfServiceURL) {
-                    SettingsLabel(
-                        icon: "doc.text.fill",
-                        title: "Terms of service",
-                        subtitle: "Read our terms, conditions, and usage policies."
-                    )
-                }
-                .padding(AppSpacing.group)
-
-                Divider().padding(.leading, 50)
-
-                NavigationLink {
-                    NutritionDataSourcesView()
-                } label: {
-                    SettingsLabel(
-                        icon: "books.vertical.fill",
-                        title: "Nutrition data sources",
-                        subtitle: "See where food and supplement values come from.",
-                        showsDisclosure: true
-                    )
-                }
-                .padding(AppSpacing.group)
-
-                Divider().padding(.leading, 50)
-
-                Button {
-                    openFeedbackEmail()
-                } label: {
-                    SettingsLabel(
-                        icon: "bubble.left.and.bubble.right.fill",
-                        title: "Feedback & support",
-                        subtitle: "Tell us what worked or where you got stuck."
-                    )
-                }
-                .padding(AppSpacing.group)
-
-                Divider().padding(.leading, 50)
-
-                ShareLink(
-                    item: MyFitPlateLinks.appStoreURL,
-                    subject: Text("MyFitPlate"),
-                    message: Text("Nutrition built for people who train.")
-                ) {
-                    SettingsLabel(
-                        icon: "square.and.arrow.up",
-                        title: "Share MyFitPlate",
-                        subtitle: "Send the App Store link to someone who trains."
-                    )
+            SettingsSectionCard(title: "Help") {
+                Button { openFeedbackEmail() } label: {
+                    SettingsLabel(icon: "bubble.left.and.bubble.right", title: "Feedback & support",
+                                  subtitle: "Get help or suggest an improvement", showsDisclosure: true)
+                }.padding(AppSpacing.group)
+                Divider().padding(.leading, 64)
+                Button { showingResetTourConfirmation = true } label: {
+                    SettingsLabel(icon: "questionmark.circle", title: "Replay the app tour",
+                                  subtitle: "See the guided tips again")
+                }.padding(AppSpacing.group)
+                Divider().padding(.leading, 64)
+                ShareLink(item: MyFitPlateLinks.appStoreURL, subject: Text("MyFitPlate"),
+                          message: Text("Nutrition built for people who train.")) {
+                    SettingsLabel(icon: "square.and.arrow.up", title: "Share MyFitPlate",
+                                  subtitle: "Send the App Store link")
                 }
                 .simultaneousGesture(TapGesture().onEnded {
-                    DIContainer.shared.analyticsManager?.logEvent("app_store_share_opened", parameters: [
-                        "source": "settings"
-                    ])
+                    DIContainer.shared.analyticsManager?.logEvent("app_store_share_opened", parameters: ["source": "settings"])
                 })
-                .padding(AppSpacing.group)
-
-                Divider().padding(.leading, 50)
-
-                Button {
-                    showingResetTourConfirmation = true
-                } label: {
-                    SettingsLabel(
-                        icon: "questionmark.circle.fill",
-                        title: "Reset feature tooltips",
-                        subtitle: "Replay the guided app tips."
-                    )
-                }
                 .padding(AppSpacing.group)
             }
             .accessibilityIdentifier("settings_help_support")
-            
-            SettingsSectionCard(title: "Account Access") {
+
+            SettingsSectionCard(title: "Privacy & information") {
+                Button { showingAIDataConsent = true } label: {
+                    SettingsLabel(icon: "brain.head.profile", title: "AI data sharing",
+                                  subtitle: "Choose what Maia can use", showsDisclosure: true)
+                }.padding(AppSpacing.group)
+                Divider().padding(.leading, 64)
+                Link(destination: MyFitPlateLinks.privacyPolicyURL) {
+                    SettingsLabel(icon: "lock.shield", title: "Privacy & data",
+                                  subtitle: "How your information is handled")
+                }.padding(AppSpacing.group)
+                Divider().padding(.leading, 64)
+                Button { showingDataSources = true } label: {
+                    SettingsLabel(icon: "books.vertical", title: "Nutrition data sources",
+                                  subtitle: "Food and supplement attribution", showsDisclosure: true)
+                }.padding(AppSpacing.group)
+                Divider().padding(.leading, 64)
+                Button { showingHealthDisclaimer = true } label: {
+                    SettingsLabel(icon: "cross.case", title: "Health guidance",
+                                  subtitle: "Medical, nutrition and AI estimates", showsDisclosure: true)
+                }.padding(AppSpacing.group)
+                Divider().padding(.leading, 64)
+                Link(destination: MyFitPlateLinks.termsOfServiceURL) {
+                    SettingsLabel(icon: "doc.text", title: "Terms of service", subtitle: "Terms and usage policies")
+                }.padding(AppSpacing.group)
+            }
+
+            SettingsSectionCard(title: "Account access") {
                 Button(role: .destructive) {
                     showingSignOutAlert = true
                 } label: {
@@ -161,6 +101,15 @@ struct SettingsSupportSection: View {
         }
         .sheet(isPresented: $showingSupportFallback) {
             supportFallbackSheet
+        }
+        .navigationDestination(isPresented: $showingDataSources) { NutritionDataSourcesView() }
+        .onAppear {
+            #if DEBUG
+            guard ScreenshotDemoMode.isEnabled, !didPresentScreenshotDestination else { return }
+            didPresentScreenshotDestination = true
+            if ScreenshotDemoData.requestedScreen == "settings-sources" { showingDataSources = true }
+            if ScreenshotDemoData.requestedScreen == "settings-support-fallback" { showingSupportFallback = true }
+            #endif
         }
     }
 
@@ -209,19 +158,24 @@ struct SettingsSupportSection: View {
 
     private var supportFallbackSheet: some View {
         AppSheetScaffold(
-            title: "Contact Support",
+            title: "Contact support",
             subtitle: "Your mail app did not open. The address and diagnostic details are still available below.",
             dismiss: { showingSupportFallback = false }
         ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    AppListRow(
-                        icon: "envelope.fill",
-                        iconColor: AppPalette.brandText,
-                        title: MyFitPlateLinks.supportEmailAddress,
-                        subtitle: "Include what you were trying to do and what happened."
-                    )
-                    .appSurface(.interpreted, padding: 0)
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        Label("Email support", systemImage: "envelope")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                        Text(MyFitPlateLinks.supportEmailAddress)
+                            .appTextRole(.control)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                            .textSelection(.enabled)
+                        Text("Include what you were trying to do and what happened.")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .appSurface(.quiet)
 
                     Button {
                         UIPasteboard.general.string = MyFitPlateLinks.supportEmailAddress
@@ -229,17 +183,17 @@ struct SettingsSupportSection: View {
                         HapticsService.shared.playSuccess()
                     } label: {
                         Label(
-                            copiedSupportAddress ? "Support Address Copied" : "Copy Support Address",
+                            copiedSupportAddress ? "Address copied" : "Copy email address",
                             systemImage: copiedSupportAddress ? "checkmark" : "doc.on.doc"
                         )
                     }
-                    .buttonStyle(AppActionButtonStyle(.secondary))
+                    .buttonStyle(AppActionButtonStyle(.primary))
 
                     ShareLink(
                         item: "Email \(MyFitPlateLinks.supportEmailAddress)\n\n\(feedbackBody)",
                         subject: Text("MyFitPlate support details")
                     ) {
-                        Label("Share Support Details", systemImage: "square.and.arrow.up")
+                        Label("Share support details", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(AppActionButtonStyle(.ghost))
 
@@ -261,10 +215,8 @@ struct NutritionDataSourcesView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppSectionHeader(
-                    title: "Nutrition Data Sources",
-                    subtitle: "MyFitPlate preserves the source and evidence type on each matched food."
-                )
+                Text("Every matched food keeps its source and evidence type.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
 
                 sourceGroup(
                     title: "Health Canada CNF",
@@ -289,7 +241,7 @@ struct NutritionDataSourcesView: View {
                 )
 
                 sourceGroup(
-                    title: "Other Food Sources",
+                    title: "Other food sources",
                     icon: "fork.knife",
                     detail: "MyFitPlate also uses USDA FoodData Central, FatSecret, and Open Food Facts. Trust distinguishes analytical references, licensed records, public label data, and manufacturer labels instead of treating every database match as independent proof.",
                     links: [
@@ -303,7 +255,7 @@ struct NutritionDataSourcesView: View {
             .padding(.vertical, AppSpacing.group)
         }
         .background(AppPalette.canvas.ignoresSafeArea())
-        .navigationTitle("Data Sources")
+        .navigationTitle("Data sources")
         .navigationBarTitleDisplayMode(.inline)
         .tint(AppPalette.brand)
         .accessibilityIdentifier("nutrition_data_sources_screen")
@@ -340,6 +292,7 @@ struct NutritionDataSourcesView: View {
                             HStack {
                                 Text(label)
                                     .appTextRole(.control)
+                                    .multilineTextAlignment(.leading)
                                 Spacer()
                                 Image(systemName: "arrow.up.right")
                                     .appTextRole(.caption)
@@ -365,7 +318,7 @@ struct AIDataConsentSheet: View {
 
     var body: some View {
         AppEditorScaffold(
-            title: "AI Data Sharing",
+            title: "AI data sharing",
             subtitle: "Choose what MyFitPlate may use only when you ask for an AI-powered result.",
             dismiss: { dismiss() }
         ) {
@@ -373,7 +326,7 @@ struct AIDataConsentSheet: View {
                 VStack(alignment: .leading, spacing: AppSpacing.group) {
                     Label {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Your AI consent receipt")
+                            Text("What you share")
                                 .appTextRole(.sectionTitle)
                                 .foregroundStyle(AppPalette.text)
                             Text("Text or images you submit, plus only the app context needed to answer.")
@@ -396,7 +349,7 @@ struct AIDataConsentSheet: View {
                         consentRow(
                             icon: "lock.fill",
                             title: "Secured route",
-                            detail: "Requests pass through MyFitPlate's protected Firebase service."
+                            detail: "Requests pass through MyFitPlate's protected service."
                         )
                         Divider().padding(.leading, 52)
                         consentRow(
@@ -418,11 +371,11 @@ struct AIDataConsentSheet: View {
                             .foregroundStyle(AppPalette.brandText)
                     }
                 }
-                .appSurface(.interpreted)
+                .appSurface(.quiet)
 
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
                     AppSectionHeader(
-                        title: "Optional Health Context",
+                        title: "Optional health context",
                         subtitle: "This is separate from the core AI permission."
                     )
 
@@ -445,7 +398,7 @@ struct AIDataConsentSheet: View {
                     AppListRow(
                         icon: "doc.text",
                         iconColor: AppPalette.brandText,
-                        title: "Read the Privacy Policy",
+                        title: "Privacy policy",
                         subtitle: "Review the complete data-use terms."
                     ) {
                         Image(systemName: "arrow.up.right")
@@ -457,7 +410,7 @@ struct AIDataConsentSheet: View {
                 .appSurface(.quiet, padding: 0)
             }
         } actions: {
-            Button(hasExistingConsent ? "Save AI Preferences" : "Allow AI Features") {
+            Button(hasExistingConsent ? "Save preferences" : "Allow AI features") {
                 AIDataConsentStore.shared.grant(
                     for: userID,
                     includesHealthData: includeHealthData
@@ -469,14 +422,14 @@ struct AIDataConsentSheet: View {
             .accessibilityIdentifier("settings_ai_allow")
 
             if hasExistingConsent {
-                Button("Turn Off AI Data Sharing") {
+                Button("Turn Off AI data sharing") {
                     AIDataConsentStore.shared.revoke(for: userID)
                     dismiss()
                 }
                 .buttonStyle(AppActionButtonStyle(.destructive))
                 .accessibilityIdentifier("settings_ai_revoke")
             } else {
-                Button("Not Now") { dismiss() }
+                Button("Not now") { dismiss() }
                     .buttonStyle(AppActionButtonStyle(.ghost))
             }
         }
@@ -491,11 +444,18 @@ struct AIDataConsentSheet: View {
     }
 
     private func consentRow(icon: String, title: String, detail: String) -> some View {
-        AppListRow(
-            icon: icon,
-            iconColor: AppPalette.brandText,
-            title: title,
-            subtitle: detail
-        )
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            Image(systemName: icon)
+                .appTextRole(.secondary)
+                .foregroundStyle(AppPalette.brandText)
+                .frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).appTextRole(.control).foregroundStyle(AppPalette.text)
+                Text(detail).appTextRole(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, AppSpacing.compact)
     }
 }

@@ -157,7 +157,7 @@ public enum TrainingFuelNotificationRules {
         case .within30Minutes: leadMinutes = 20
         case .thirtyTo120Minutes: leadMinutes = 75
         case .overTwoHours: leadMinutes = 120
-        case .afterSession: return nil
+        case .afterSession, .duringSession: return nil
         }
         let ideal = plan.draft.scheduledAt.addingTimeInterval(Double(-leadMinutes * 60))
         let earliestAfterConfirmation = plan.confirmedAt.addingTimeInterval(60)

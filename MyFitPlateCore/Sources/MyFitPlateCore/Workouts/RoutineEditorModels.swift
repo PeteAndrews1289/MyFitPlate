@@ -10,11 +10,13 @@ public struct ExercisePickerDraft {
     public let name: String
     public let category: String?
     public let type: ExerciseType
+    public let movementIdentity: WorkoutMovementIdentity?
 
-    public init(name: String, category: String?, type: ExerciseType) {
+    public init(name: String, category: String?, type: ExerciseType, movementIdentity: WorkoutMovementIdentity? = nil) {
         self.name = name
         self.category = category
         self.type = type
+        self.movementIdentity = movementIdentity
     }
 }
 
@@ -144,6 +146,11 @@ public enum RoutineEditorDefaults {
             return .cardio
         }
 
+        // Only verified catalog lifts override ambiguous words such as ‘row’.
+        // A legacy/custom category alone must not turn “Morning Run” into strength.
+        if let canonical = WorkoutMovementCatalog.canonicalName(name),
+           let entry = ExerciseList.entries.first(where: { $0.name == canonical }),
+           ["Chest", "Back", "Shoulders", "Biceps", "Triceps", "Legs", "Glutes", "Calves", "Forearms"].contains(entry.category) { return .strength }
         let lower = name.lowercased()
         if lower.contains("run") || lower.contains("cycling") || lower.contains("bike") || lower.contains("elliptical") || lower.contains("row") || lower.contains("swim") || lower.contains("jump rope") || lower.contains("burpee") || lower.contains("stair") {
             return .cardio

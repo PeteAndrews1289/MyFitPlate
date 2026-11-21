@@ -37,7 +37,10 @@ enum OpenFoodFactsRequestBuilder {
             URLQueryItem(name: "search_simple", value: "1"),
             URLQueryItem(name: "action", value: "process"),
             URLQueryItem(name: "json", value: "1"),
-            URLQueryItem(name: "page_size", value: "25")
+            URLQueryItem(name: "page_size", value: "25"),
+            // Retain every field consumed by Product/Nutriments, without downloading
+            // unused images, ingredient taxonomies and translated product records.
+            URLQueryItem(name: "fields", value: "code,product_name,brands,serving_size,serving_quantity,last_modified_t,nutriments")
         ]
         return components.url
     }
@@ -49,13 +52,13 @@ public class OpenFoodFactsAPIService {
     private let requestTimeout: TimeInterval = 6
     private let session: URLSession
 
-    public init() {
+    public init(session: URLSession? = nil) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
         configuration.httpShouldSetCookies = false
         configuration.httpCookieStorage = nil
-        session = URLSession(configuration: configuration)
+        self.session = session ?? URLSession(configuration: configuration)
     }
 
     public func fetchFoodItem(barcode: String, completion: @escaping (Result<FoodItem, APIError>) -> Void) {
@@ -109,8 +112,12 @@ public class OpenFoodFactsAPIService {
 
     /// Asynchronous text search across Open Food Facts global database (~3.2M products).
     public func searchFoods(query: String) async -> [FoodItem] {
+        (try? await searchFoodsResult(query: query).get()) ?? []
+    }
+
+    public func searchFoodsResult(query: String) async -> Result<[FoodItem], Error> {
         guard let url = OpenFoodFactsRequestBuilder.searchURL(query: query) else {
-            return []
+            return .failure(APIError.invalidURL)
         }
 
         do {
@@ -120,11 +127,11 @@ public class OpenFoodFactsAPIService {
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
-                return []
+                return .failure(URLError(.badServerResponse))
             }
-            return try OpenFoodFactsParser.searchFoods(from: data)
+            return .success(try OpenFoodFactsParser.searchFoods(from: data))
         } catch {
-            return []
+            return .failure(error)
         }
     }
 }
@@ -144,7 +151,7 @@ public enum OpenFoodFactsParser {
     /// Parses an Open Food Facts multi-item search response into clean FoodItem models.
     public static func searchFoods(from data: Data) throws -> [FoodItem] {
         let response = try JSONDecoder().decode(SearchResponse.self, from: data)
-        guard let products = response.products else { return [] }
+        guard let products = response.products else { throw APIError.noData }
         return products.compactMap { foodItem(from: $0, allowsUnknownName: false) }
     }
 
@@ -152,7 +159,9 @@ public enum OpenFoodFactsParser {
         let trimmedName = product.productName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard allowsUnknownName || !trimmedName.isEmpty else { return nil }
 
-        let n = product.nutriments
+        // Community entries can omit nutrition entirely. Keep valid neighbors in
+        // the same search response; an incomplete product is not a zero-calorie food.
+        guard let n = product.nutriments else { return nil }
         let hasNutrition = n.energyKcalServing != nil || n.energyKcal100g != nil
             || n.proteinsServing != nil || n.proteins100g != nil
             || n.carbohydratesServing != nil || n.carbohydrates100g != nil
@@ -179,7 +188,7 @@ public enum OpenFoodFactsParser {
 
         let item = FoodItem(
             id: "off_\(product.id)",
-            name: trimmedName.isEmpty ? "Unknown Product" : trimmedName,
+            name: FoodSearchRanking.productDisplayName(trimmedName.isEmpty ? "Unknown Product" : trimmedName, brandName: product.brands),
             calories: preferred(n.energyKcalServing, n.energyKcal100g),
             protein: preferred(n.proteinsServing, n.proteins100g),
             carbs: preferred(n.carbohydratesServing, n.carbohydrates100g),
@@ -234,6 +243,7 @@ public enum OpenFoodFactsParser {
             .openFoodFacts,
             sourceName: "Open Food Facts",
             sourceID: "off_\(product.id)",
+            brandName: FoodSearchRanking.reportedBrandName(product.brands),
             barcode: product.id,
             evidenceLineage: .publicDatabase,
             sourceUpdatedAt: updatedAt
@@ -271,14 +281,16 @@ private struct SearchResponse: Codable {
 private struct Product: Codable {
     public let id: String
     public let productName: String?
+    public let brands: String?
     public let servingSize: String?
     public let servingQuantity: Double?
     public let lastModifiedTimestamp: Double?
-    public let nutriments: Nutriments
+    public let nutriments: Nutriments?
 
     public enum CodingKeys: String, CodingKey {
         case id = "code"
         case productName = "product_name"
+        case brands
         case servingSize = "serving_size"
         case servingQuantity = "serving_quantity"
         case lastModifiedTimestamp = "last_modified_t"

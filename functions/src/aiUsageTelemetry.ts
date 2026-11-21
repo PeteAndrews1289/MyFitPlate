@@ -3,6 +3,7 @@ import { AIRequestKind } from "./aiRequestRouting";
 
 export const ACCOUNT_DELETION_USAGE_COLLECTIONS = [
   "aiUsage",
+  "aiBudgetUsage",
   "aiUsageBreakdown",
   "aiVisionUsage",
   "fatSecretUsage",
@@ -19,7 +20,10 @@ export function aiUsageRequestPrefix(kind: AIRequestKind): string {
     case "menu_photo": return "menuPhoto";
     case "receipt_photo": return "receiptPhoto";
     case "recipe_photo": return "recipePhoto";
+    case "pantry_observation": return "pantryObservation";
     case "general": return "general";
+    case "coaching": return "coaching";
+    case "planning": return "planning";
   }
 }
 

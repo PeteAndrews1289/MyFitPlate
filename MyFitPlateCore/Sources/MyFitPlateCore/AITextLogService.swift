@@ -136,7 +136,7 @@ public class AITextLogService {
     private func fetchAIResponse(prompt: String) async throws -> AILogResponse {
         let result = await DIContainer.shared.aiService.performRequest(
             messages: [["role": "user", "content": prompt]],
-            model: "gpt-4o-mini",
+            model: "gpt-6-luna",
             responseFormat: ["type": "json_object"]
         )
 

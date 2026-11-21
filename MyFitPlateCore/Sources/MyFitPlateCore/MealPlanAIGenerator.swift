@@ -4,10 +4,13 @@ public struct MealPlanAIGenerator {
     
     // MARK: - Single Meal Regeneration
     public func regenerateSingleMeal(for day: MealPlanDay, mealToReplace: PlannedMeal, goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], retryCount: Int = 1) async -> PlannedMeal? {
+        let constraints = goals.effectiveMealConstraintProfile
+        do { try constraints?.validate() } catch { return nil }
         let otherMeals = day.meals.filter { $0.id != mealToReplace.id }
         let otherMealsSummary = otherMeals.compactMap { $0.foodItem?.name }.joined(separator: ", ")
 
         let prompt = """
+        \(goals.effectiveMealConstraintProfile?.prompt ?? "")
         You are regenerating a single meal for a user's meal plan.
 
         **Details:**
@@ -17,6 +20,9 @@ public struct MealPlanAIGenerator {
         - Daily Goals: \(Int(goals.calories ?? 2000)) cal, \(Int(goals.protein))g P, \(Int(goals.carbs))g C, \(Int(goals.fats))g F.
         - Prefs: \(preferredFoods.joined(separator: ", ")).
         - Cuisines: \(preferredCuisines.joined(separator: ", ")).
+        - Snack preferences when replacing a snack: \(preferredSnacks.joined(separator: ", ")).
+
+        Return ONE personal portion. Nutrition and ingredient quantities must describe that same portion. Use explicit units and raw/cooked state, including fractional quantities where needed; the app combines these amounts for shopping.
 
         **Format:** Valid JSON object: "mealType", "mealName", "calories", "protein", "carbs", "fats", "ingredients", "instructions".
         
@@ -24,12 +30,15 @@ public struct MealPlanAIGenerator {
         """
 
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
-        let result = await DIContainer.shared.aiService.performRequest(messages: messages, responseFormat: ["type": "json_object"])
+        let result = await DIContainer.shared.aiService.performRequest(messages: messages, responseFormat: ["type": "json_object"], requestKind: .planning)
 
         switch result {
         case .success(let jsonString):
             do {
-                return try parseSingleMealFromAIResponse(jsonString)
+                let meal = try parseSingleMealFromAIResponse(jsonString)
+                guard goals.effectiveMealConstraintProfile == constraints,
+                      !MealConstraintRules.report(candidate: meal.constraintCandidate, profile: constraints).isBlocked else { return nil }
+                return meal
             } catch {
                 AIResponseTelemetry.recordDecodeFailure(
                     error,
@@ -47,15 +56,22 @@ public struct MealPlanAIGenerator {
     }
 
     // MARK: - Week Generation Orchestrator
-    public func generateWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String]) async -> [MealPlanDay] {
+    public func generateWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], allowLocalFallback: Bool = true) async -> [MealPlanDay] {
+        let constraints = goals.effectiveMealConstraintProfile
+        do { try constraints?.validate() } catch { return [] }
+        func permitted(_ days: [MealPlanDay]) -> Bool {
+            goals.effectiveMealConstraintProfile == constraints && days.flatMap(\.meals).allSatisfy {
+                !MealConstraintRules.report(candidate: $0.constraintCandidate, profile: constraints).isBlocked
+            }
+        }
         if let fullWeekPlan = await generateFullWeekPlanAI(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks) {
-            return fullWeekPlan
+            return permitted(fullWeekPlan) ? fullWeekPlan : []
         }
         guard !Task.isCancelled else { return [] }
         if let legacyPlan = await generateLegacyFullWeekPlanAI(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks) {
-            return legacyPlan
+            return permitted(legacyPlan) ? legacyPlan : []
         }
-        guard !Task.isCancelled else { return [] }
+        guard !Task.isCancelled, allowLocalFallback, constraints?.hasRestrictions != true else { return [] }
         return generateLocalFullWeekPlan(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks)
     }
 
@@ -70,6 +86,7 @@ public struct MealPlanAIGenerator {
         }.joined(separator: "\n")
 
         let prompt = """
+        \(goals.effectiveMealConstraintProfile?.prompt ?? "")
         Generate a complete 7-day meal plan.
 
         Dates:
@@ -90,8 +107,9 @@ public struct MealPlanAIGenerator {
         Rules:
         - Create Breakfast, Lunch, Dinner, and Snack for each day.
         - Adapt recipes to the Cooking Style. If 'Macro-Focused Prep', generate bulk batch-cooking meals using heavy proteins and frozen/bulk vegetables for extreme convenience. If 'Aesthetic Prep', use traditional tupperware-friendly distinct meals. If 'Daily Fresh', vary meals daily.
-        - GROCERY FRIENDLY INGREDIENTS (CRITICAL): Never use fractional whole foods or granular amounts (e.g., DO NOT use '0.5 cup pineapple' or '0.25 onion'). Specify ingredients exactly as bought at the store (e.g., '1 bag frozen broccoli', '1 lb chicken breast', '1 medium onion', '1 carton eggs').
-        - Avoid repeating the exact same meal name more than twice, though base ingredients can repeat.
+        - Every meal describes ONE personal portion. Calories, macros, ingredients, and instructions must refer to that same portion.
+        - Give ingredient amounts actually used, with explicit units and preparation state, e.g. '150 g cooked chicken breast', '100 g cooked rice', '0.5 cup broccoli'. Fractional amounts are allowed. Do not substitute whole shopping packages such as a carton of eggs for the amount eaten. The app combines ingredient amounts into a grocery list.
+        - For prep cooking styles, reuse two or three main recipes across the week to support batch cooking. Keep repeated recipe names, ingredients, and instructions consistent. For Daily Fresh, vary recipes while reusing ingredients.
         - Instructions should be concise.
         - **Medical Disclaimer**: Note that generated nutritional values and meal plans are AI estimates and should not be considered medical advice.
 
@@ -119,10 +137,10 @@ public struct MealPlanAIGenerator {
 
         let result = await DIContainer.shared.aiService.performRequest(
             messages: [["role": "user", "content": prompt]],
-            model: "gpt-4o-mini",
+            model: "gpt-6-astra",
             maxTokens: 5000,
             temperature: 0.55,
-            responseFormat: ["type": "json_object"]
+            responseFormat: ["type": "json_object"], requestKind: .planning
         )
 
         guard !Task.isCancelled else { return nil }
@@ -189,6 +207,7 @@ public struct MealPlanAIGenerator {
         let dateStringForPrompt = formatter.string(from: date)
 
         let prompt = """
+        \(goals.effectiveMealConstraintProfile?.prompt ?? "")
         Generate a one-day meal plan for \(dateStringForPrompt).
         - Cooking Style: \(goals.cookingStyle)
         - Breakfast, Lunch, Dinner, 1 Snack.
@@ -197,13 +216,13 @@ public struct MealPlanAIGenerator {
         - Snack Prefs: \(preferredSnacks.joined(separator: ", ")).
         - Target: ~\(Int(goals.calories ?? 2000)) cal, \(Int(goals.protein))g P.
 
-        CRITICAL: Adapt to the Cooking Style (e.g., batch-cooking slop bowls vs daily fresh). Ensure all ingredients are GROCERY FRIENDLY (e.g., '1 bag frozen broccoli', '1 lb beef', NOT '0.5 cup' or '0.25 pepper').
+        Adapt to the Cooking Style. Every meal is ONE personal portion: its nutrition, ingredients, and instructions must agree. Specify amounts actually used with units and raw/cooked state, e.g. '150 g cooked chicken' and '0.5 cup rice'. Fractional amounts are allowed; do not round each ingredient up to a shopping package. Reuse consistent recipes for batch cooking styles.
 
         **Format:** JSON object with root "meals" (array). Each meal: "mealType", "mealName", "calories", "protein", "carbs", "fats", "ingredients" (array), "instructions" (array).
         """
 
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
-        let result = await DIContainer.shared.aiService.performRequest(messages: messages, responseFormat: ["type": "json_object"])
+        let result = await DIContainer.shared.aiService.performRequest(messages: messages, responseFormat: ["type": "json_object"], requestKind: .planning)
 
         guard !Task.isCancelled else { return nil }
         switch result {

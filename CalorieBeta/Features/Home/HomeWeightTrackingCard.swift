@@ -7,14 +7,16 @@ struct HomeWeightTrackingCard: View {
     @Binding var showingWeightEntrySheet: Bool
 
     var body: some View {
-        let history = goalSettings.weightHistory.sorted { $0.date < $1.date }
+        let history = goalSettings.weightHistory.filter { $0.weight.isFinite && $0.weight > 0 && $0.date <= Date() }.sorted { $0.date < $1.date }
         let current = history.last?.weight ?? goalSettings.weight
         let displayWeight = BodyUnits.weightDisplayValue(lbs: current, metric: useMetric)
         let displayUnit = BodyUnits.weightUnit(metric: useMetric)
         let recent = Array(history.suffix(30))
         let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-        let prior = history.last(where: { $0.date <= weekAgo })?.weight ?? history.first?.weight
-        let delta = prior.map { current - $0 }
+        let prior = history.last(where: { $0.date <= weekAgo }) ?? history.first
+        let delta = prior.flatMap { entry in
+            history.last?.id != entry.id ? current - entry.weight : nil
+        }
 
         return Button(action: { showingWeightEntrySheet = true }) {
             HStack(spacing: 14) {
@@ -35,15 +37,15 @@ struct HomeWeightTrackingCard: View {
                             .appFont(size: 13, weight: .semibold)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
-                    if let delta, abs(delta) >= 0.05 {
+                    if let delta, let prior, abs(delta) >= 0.05 {
                         let down = delta < 0
                         HStack(spacing: 3) {
                             Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
                                 .appFont(size: 10, weight: .bold)
-                            Text("\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: delta, metric: useMetric)))) \(BodyUnits.weightUnit(metric: useMetric)) · 7d")
+                            Text("\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: delta, metric: useMetric)))) \(displayUnit) since \(prior.date.formatted(.dateTime.month(.abbreviated).day()))")
                                 .appFont(size: 11, weight: .semibold)
                         }
-                        .foregroundColor(down ? .accentPositive : AppPalette.caution)
+                        .foregroundStyle(.secondary)
                     } else {
                         Text("Tap to log today's weight")
                             .appFont(size: 11, weight: .medium)
@@ -57,9 +59,12 @@ struct HomeWeightTrackingCard: View {
                     Chart {
                         ForEach(recent, id: \.id) { entry in
                             LineMark(x: .value("Date", entry.date), y: .value("Weight", entry.weight))
-                                .interpolationMethod(.catmullRom)
+                                .interpolationMethod(.linear)
                                 .foregroundStyle(AppPalette.effort)
-                                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                            PointMark(x: .value("Date", entry.date), y: .value("Measured weight", entry.weight))
+                                .foregroundStyle(AppPalette.effort)
+                                .symbolSize(12)
                         }
                     }
                     .chartXAxis(.hidden)

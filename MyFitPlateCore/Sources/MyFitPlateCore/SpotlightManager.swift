@@ -7,6 +7,14 @@ public class SpotlightManager: ObservableObject {
     /// (the "Replay feature tour" button) without relying on `onAppear` re-firing.
     @Published public private(set) var replayToken = 0
 
+    /// First-run sheets own the user's attention. Pausing must never consume unseen steps.
+    @Published public private(set) var isPresentationPaused = false
+
+    public func setPresentationPaused(_ paused: Bool) {
+        guard isPresentationPaused != paused else { return }
+        isPresentationPaused = paused
+    }
+
     private let userDefaultsKey = "shownSpotlightIDs"
     private let defaults: UserDefaults
 

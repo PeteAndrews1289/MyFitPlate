@@ -218,12 +218,13 @@ private struct WatchNextActionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundStyle(color)
-
-                Text(action.title)
-                    .font(.headline)
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.headline)
+                        .foregroundStyle(color)
+                    Text(action.title)
+                        .font(.headline)
+                }
                 Text(action.detail)
                     .font(.body)
                     .foregroundStyle(.secondary)
@@ -239,7 +240,7 @@ private struct WatchNextActionView: View {
                     }
                 }
 
-                Text("Continue in MyFitPlate on iPhone")
+                Label("Continue on iPhone", systemImage: "iphone")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

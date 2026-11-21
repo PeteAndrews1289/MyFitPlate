@@ -1,7 +1,10 @@
 import SwiftUI
 import MyFitPlateCore
 
+enum SettingsPreferenceSection { case integrations, notifications, training, maia }
+
 struct SettingsPreferencesSection: View {
+    let section: SettingsPreferenceSection
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var goalSettings: GoalSettings
@@ -21,216 +24,137 @@ struct SettingsPreferencesSection: View {
 
     var body: some View {
         VStack(spacing: AppSpacing.section) {
-            SettingsSectionCard(title: "Integrations") {
-                Button(action: {
-                    healthKitViewModel.requestAuthorization()
-                }) {
-                    HStack {
-                        Image("Apple_Health")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 20, height: 20)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(healthKitViewModel.isAuthorized ? "Review Health access" : "Connect Apple Health")
-                                .appTextRole(.control)
-                            Text(healthKitViewModel.isAuthorized ? "Refresh workouts, sleep, and recovery permissions." : "Import workouts and sleep where available.")
-                                .appTextRole(.secondary)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        
-                        Spacer()
-                        
-                        if healthKitViewModel.isSyncing {
-                            ProgressView()
+            if section == .integrations {
+                SettingsSectionCard(title: "Integrations") {
+                    Button(action: {
+                        healthKitViewModel.requestAuthorization()
+                    }) {
+                        HStack {
+                            Image("Apple_Health")
+                                .resizable()
+                                .scaledToFit()
                                 .frame(width: 20, height: 20)
-                        } else if healthKitViewModel.isAuthorized {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.accentPositive)
+                        
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(healthKitViewModel.isAuthorized ? "Review Health access" : "Connect Apple Health")
+                                    .appTextRole(.control)
+                                Text(healthKitViewModel.isAuthorized ? "Refresh workouts, sleep, and recovery permissions." : "Import workouts and sleep where available.")
+                                    .appTextRole(.secondary)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        
+                            Spacer()
+                        
+                            if healthKitViewModel.isSyncing {
+                                ProgressView()
+                                    .frame(width: 20, height: 20)
+                            } else if healthKitViewModel.isAuthorized {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.accentPositive)
+                            }
                         }
                     }
-                }
-                .foregroundColor(.textPrimary)
-                .disabled(healthKitViewModel.isSyncing)
-                .opacity(healthKitViewModel.isSyncing ? 0.55 : 1.0)
-                .padding(16)
+                    .foregroundColor(.textPrimary)
+                    .disabled(healthKitViewModel.isSyncing)
+                    .opacity(healthKitViewModel.isSyncing ? 0.55 : 1.0)
+                    .padding(16)
                 
-                if healthKitViewModel.isAuthorized {
-                    Divider().padding(.leading, 50)
-                    Toggle(isOn: $includeActiveCaloriesInGoal) {
+                    if healthKitViewModel.isAuthorized {
+                        Divider().padding(.leading, 50)
+                        Toggle(isOn: $includeActiveCaloriesInGoal) {
+                            SettingsLabel(
+                                icon: "flame.fill",
+                                title: "Include active calories",
+                                subtitle: "Add exercise calories burned to your daily food allowance."
+                            )
+                        }
+                        .padding(AppSpacing.group)
+                    }
+                }
+                .accessibilityIdentifier("settings_integrations")
+            }
+
+            if section == .notifications { ReminderSettingsView() }
+
+            if section == .training {
+                SettingsSectionCard(title: "Training") {
+                    VStack(alignment: .leading, spacing: 12) {
                         SettingsLabel(
-                            icon: "flame.fill",
-                            title: "Include active calories",
-                            subtitle: "Add exercise calories burned to your daily food allowance."
+                            icon: "figure.strengthtraining.traditional",
+                            title: "Set effort metric",
+                            subtitle: "Choose RPE for effort from 6 to 10, or RIR for reps left in the tank."
                         )
+                        effortPicker
                     }
                     .padding(AppSpacing.group)
                 }
+                .accessibilityIdentifier("settings_training")
             }
-            .accessibilityIdentifier("settings_integrations")
 
-            SettingsSectionCard(title: "Notifications") {
-                VStack(alignment: .leading, spacing: 10) {
-                    SettingsLabel(
-                        icon: "bell.fill",
-                        title: "Daily log reminder",
-                        subtitle: "Nightly check-in to log your meals."
-                    )
-                    DatePicker("", selection: $notificationTimeBinding, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .onChange(of: notificationTimeBinding) { _, _ in
-                            NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
-                        }
-
-                    Divider()
-
-                    Toggle(isOn: $hydrationRemindersEnabled) {
-                        SettingsLabel(
-                            icon: "drop.fill",
-                            title: "Hydration reminders",
-                            subtitle: "Gentle nudges to drink water through the day."
-                        )
-                    }
-                    .onChange(of: hydrationRemindersEnabled) { _, enabled in
-                        NotificationManager.shared.setHydrationReminders(enabled: enabled)
-                    }
-
-                    Divider()
-
-                    Toggle(isOn: $weighInReminderEnabled) {
-                        SettingsLabel(
-                            icon: "scalemass.fill",
-                            title: "Weigh-in reminder",
-                            subtitle: "A morning nudge to log your weight."
-                        )
-                    }
-                    .onChange(of: weighInReminderEnabled) { _, enabled in
-                        NotificationManager.shared.setWeighInReminder(enabled: enabled)
-                    }
-
-                    Divider()
-
+            if section == .maia {
+                SettingsSectionCard(title: "Maia") {
                     VStack(alignment: .leading, spacing: 12) {
                         SettingsLabel(
-                            icon: "bolt.fill",
-                            title: "Training & Fuel",
-                            subtitle: "Choose only the moments when a reminder would help."
+                            icon: "sparkles",
+                            title: "Assistant tone",
+                            subtitle: "Choose Balanced, motivating Coach, or data-first Analyst."
+                        )
+                        tonePicker
+                        .onChange(of: goalSettings.maiaTone) { _, _ in
+                            guard let userID = DIContainer.shared.authService.currentUserID else { return }
+                            goalSettings.saveUserGoals(userID: userID)
+                        }
+
+                        Divider()
+
+                        SettingsLabel(
+                            icon: "waveform",
+                            title: "Spoken voice",
+                            subtitle: spokenVoiceSubtitle
                         )
 
-                        Toggle("Before training", isOn: $preSessionFuelRemindersEnabled)
-                            .onChange(of: preSessionFuelRemindersEnabled) { _, enabled in
-                                trainingFuelPreferenceChanged(requestPermission: enabled)
+                        if !ttsManager.availableVoices.isEmpty {
+                            Picker(
+                                "Spoken voice",
+                                selection: Binding(
+                                    get: { ttsManager.selectedVoiceIdentifier },
+                                    set: { ttsManager.selectVoice(identifier: $0) }
+                                )
+                            ) {
+                                ForEach(ttsManager.availableVoices) { voice in
+                                    Text(voice.pickerLabel)
+                                        .tag(voice.id)
+                                }
                             }
-                        Toggle("Recovery target", isOn: $recoveryFuelRemindersEnabled)
-                            .onChange(of: recoveryFuelRemindersEnabled) { _, enabled in
-                                trainingFuelPreferenceChanged(requestPermission: enabled)
-                            }
-                        Toggle("Evening protein catch-up", isOn: $eveningProteinRemindersEnabled)
-                            .onChange(of: eveningProteinRemindersEnabled) { _, enabled in
-                                trainingFuelPreferenceChanged(requestPermission: enabled)
-                            }
+                            .pickerStyle(.menu)
 
-                        if trainingFuelRemindersEnabled {
-                            Divider()
-                            quietHoursControls
-                            .onChange(of: quietStartBinding) { _, _ in
-                                if quietHoursAreValid { postTrainingFuelPreferenceChange() }
+                            Button {
+                                if ttsManager.isSpeaking {
+                                    ttsManager.stopSpeaking()
+                                } else {
+                                    ttsManager.previewSelectedVoice()
+                                }
+                            } label: {
+                                Label(
+                                    ttsManager.isSpeaking ? "Stop preview" : "Preview voice",
+                                    systemImage: ttsManager.isSpeaking ? "stop.fill" : "speaker.wave.2.fill"
+                                )
                             }
-                            .onChange(of: quietEndBinding) { _, _ in
-                                if quietHoursAreValid { postTrainingFuelPreferenceChange() }
-                            }
-
-                            Label(quietHoursStatusText, systemImage: quietHoursAreValid ? "moon.zzz" : "exclamationmark.triangle")
-                                .appTextRole(.caption)
-                                .foregroundStyle(quietHoursAreValid ? Color.secondary : AppPalette.caution)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            if eveningProteinRemindersEnabled {
-                                eveningReminderControl
-                                .onChange(of: eveningProteinTimeBinding) { _, _ in postTrainingFuelPreferenceChange() }
-                            }
+                            .buttonStyle(AppActionButtonStyle(.secondary))
                         }
                     }
+                    .padding(AppSpacing.group)
                 }
-                .padding(AppSpacing.group)
+                .accessibilityIdentifier("settings_maia")
             }
-            .accessibilityIdentifier("settings_notifications")
-
-            SettingsSectionCard(title: "Training") {
-                VStack(alignment: .leading, spacing: 12) {
-                    SettingsLabel(
-                        icon: "figure.strengthtraining.traditional",
-                        title: "Set effort metric",
-                        subtitle: "Choose RPE for effort from 6 to 10, or RIR for reps left in the tank."
-                    )
-                    effortPicker
-                }
-                .padding(AppSpacing.group)
-            }
-            .accessibilityIdentifier("settings_training")
-
-            SettingsSectionCard(title: "Maia") {
-                VStack(alignment: .leading, spacing: 12) {
-                    SettingsLabel(
-                        icon: "sparkles",
-                        title: "Assistant tone",
-                        subtitle: "Choose Balanced, motivating Coach, or data-first Analyst."
-                    )
-                    tonePicker
-                    .onChange(of: goalSettings.maiaTone) { _, _ in
-                        guard let userID = DIContainer.shared.authService.currentUserID else { return }
-                        goalSettings.saveUserGoals(userID: userID)
-                    }
-
-                    Divider()
-
-                    SettingsLabel(
-                        icon: "waveform",
-                        title: "Spoken voice",
-                        subtitle: spokenVoiceSubtitle
-                    )
-
-                    if !ttsManager.availableVoices.isEmpty {
-                        Picker(
-                            "Spoken voice",
-                            selection: Binding(
-                                get: { ttsManager.selectedVoiceIdentifier },
-                                set: { ttsManager.selectVoice(identifier: $0) }
-                            )
-                        ) {
-                            ForEach(ttsManager.availableVoices) { voice in
-                                Text(voice.pickerLabel)
-                                    .tag(voice.id)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        Button {
-                            if ttsManager.isSpeaking {
-                                ttsManager.stopSpeaking()
-                            } else {
-                                ttsManager.previewSelectedVoice()
-                            }
-                        } label: {
-                            Label(
-                                ttsManager.isSpeaking ? "Stop Preview" : "Preview Voice",
-                                systemImage: ttsManager.isSpeaking ? "stop.fill" : "speaker.wave.2.fill"
-                            )
-                        }
-                        .buttonStyle(AppActionButtonStyle(.secondary))
-                    }
-                }
-                .padding(AppSpacing.group)
-            }
-            .accessibilityIdentifier("settings_maia")
         }
         .tint(AppPalette.brand)
         .onAppear {
-            ttsManager.refreshAvailableVoices()
+            if section == .maia { ttsManager.refreshAvailableVoices() }
         }
         .onDisappear {
-            ttsManager.stopSpeaking()
+            if section == .maia { ttsManager.stopSpeaking() }
         }
     }
 

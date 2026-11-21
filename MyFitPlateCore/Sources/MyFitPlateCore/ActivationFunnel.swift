@@ -27,6 +27,9 @@ public enum ActivationFunnel {
         userDefaults: UserDefaults = .standard,
         parameters: [String: Any] = [:]
     ) {
+        AccountProgressStore(defaults: userDefaults).record(
+            eventName, userID: DIContainer.shared.authService.currentUserID, at: now
+        )
         let key = "activation_funnel_" + eventName
         if !userDefaults.bool(forKey: key) {
             if eventName == onboardingCompleted {

@@ -177,6 +177,32 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(corrected.sourceMetadata?.userCorrection?.calories, 250)
     }
 
+    func testSavingEstimateToMyFoodsDoesNotClaimVerificationOrReview() {
+        let estimated = FoodItem(id: "ai-rice", name: "Rice bowl", calories: 600, protein: 30, carbs: 80, fats: 18)
+            .withAIEstimateSource(.aiImage, sourceName: "Meal photo")
+        let saved = estimated.savedAsCustomFood(originalItem: estimated)
+        XCTAssertEqual(saved.sourceMetadata?.confidence, .estimated)
+        XCTAssertEqual(saved.sourceMetadata?.reviewStatus, .unreviewed)
+        XCTAssertEqual(saved.sourceMetadata?.effectiveEvidenceLineage, .modelEstimate)
+        XCTAssertEqual(saved.sourceMetadata?.originSourceType, .aiImage)
+        var adjusted = estimated
+        adjusted.calories = 550
+        let corrected = adjusted.savedAsCustomFood(originalItem: estimated)
+        XCTAssertEqual(corrected.sourceMetadata?.reviewStatus, .userEdited)
+        XCTAssertEqual(corrected.sourceMetadata?.confidence, .estimated)
+        XCTAssertEqual(corrected.sourceMetadata?.originalEstimate?.calories, 600)
+        XCTAssertEqual(corrected.sourceMetadata?.userCorrection?.calories, 550)
+    }
+
+    func testSavingUnchangedDatabaseFoodRetainsOriginalEvidenceConfidence() {
+        let original = FoodItem(id: "source-rice", name: "Rice", calories: 200)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "source-rice")
+        let saved = original.savedAsCustomFood(originalItem: original)
+        XCTAssertEqual(saved.sourceMetadata?.confidence, .databaseMatch)
+        XCTAssertEqual(saved.sourceMetadata?.reviewStatus, .notRequired)
+        XCTAssertEqual(saved.sourceMetadata?.originSourceType, .fatSecret)
+    }
+
     func testBarcodeCorrectionRulesPreferUserEditedSavedFoods() {
         let barcode = "000777"
         let confirmed = FoodItem(

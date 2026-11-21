@@ -15,14 +15,14 @@ struct WorkoutInsightRowView: View {
         default: return "sparkle"
         }
     }
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: iconName)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(AppPalette.brandText)
+                .foregroundStyle(AppPalette.effort)
                 .frame(width: 34, height: 34)
-                .background(AppPalette.brand.opacity(0.1), in: Circle())
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {

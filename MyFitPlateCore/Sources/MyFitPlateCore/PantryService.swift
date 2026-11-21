@@ -8,14 +8,35 @@ public struct PantryItem: Identifiable, Codable, Equatable, Sendable {
     public var unit: String
     public var category: String = "Misc"
     public var dateAdded: Date? = Date()
+    public var quantityUnknown: Bool?
+    /// Nil legacy amounts remain visible but need explicit confirmation before automatic coverage.
+    public var quantityVerified: Bool?
+    public var bestBefore: Date?
+    public var preparation: String?
+    public var location: String?
+    public var revisionID: String?
+    public var cookedBatch: MealCookingBatch?
+    public var portionFood: FoodItem?
+    public var cookedAt: Date?
+    public var isArchived: Bool?
+    public var creationUndone: Bool?
+    public var recordedPlannedPortions: [String]?
+    public var productSnapshot: GroceryProductSnapshot?
+    public var purchaseEvidence: PantryPurchaseEvidence?
 
-    public init(id: UUID = UUID(), name: String, quantity: Double, unit: String, category: String = "Misc", dateAdded: Date? = Date()) {
+    public var availableQuantity: Double { quantityUnknown == true || quantityVerified != true || isArchived == true ? 0 : max(0, quantity) }
+    public var isCookedBatch: Bool { cookedBatch != nil }
+
+    public init(id: UUID = UUID(), name: String, quantity: Double, unit: String, category: String = "Misc", dateAdded: Date? = Date(),
+                productSnapshot: GroceryProductSnapshot? = nil, purchaseEvidence: PantryPurchaseEvidence? = nil) {
         self.id = id
         self.name = name
         self.quantity = quantity
         self.unit = unit
         self.category = category
         self.dateAdded = dateAdded
+        self.productSnapshot = productSnapshot
+        self.purchaseEvidence = purchaseEvidence
     }
 }
 
@@ -28,6 +49,7 @@ public enum PantryReceiptReviewRules {
             reviewed.category = item.category.trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard !reviewed.name.isEmpty,
+                  reviewed.purchaseEvidence?.isValid != false,
                   reviewed.quantity.isFinite,
                   reviewed.quantity > 0 else { return nil }
 
@@ -42,35 +64,16 @@ public enum PantryReceiptReviewRules {
 public class PantryService: ObservableObject {
     @Published public var pantryItems: [PantryItem] = []
     @Published public var isLoading = false
+    @Published public private(set) var errorMessage: String?
 
     private var listenerRegistration: Any?
     private var listeningUserID: String?
-    private var foodLoggedObserver: NSObjectProtocol?
-
-    public init() {
-        foodLoggedObserver = NotificationCenter.default.addObserver(
-            forName: .foodItemLogged,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            Task { @MainActor in
-                guard let self,
-                      let userInfo = notification.userInfo,
-                      let foodItem = userInfo[DailyLogNotificationUserInfoKey.foodItem] as? FoodItem,
-                      let userID = userInfo[DailyLogNotificationUserInfoKey.userID] as? String,
-                      self.listeningUserID == userID,
-                      DIContainer.shared.authService.currentUserID == userID else { return }
-
-                self.removeIngredient(named: foodItem.name, userID: userID)
-            }
-        }
-    }
+    public var activeUserID: String? { listeningUserID }
+    // A diary food does not identify a stock item or its consumed mass. Preserve accepted
+    // inventory until the user edits it or a future explicit stock-consumption ledger maps it.
+    public init() {}
 
     deinit {
-        if let foodLoggedObserver {
-            NotificationCenter.default.removeObserver(foodLoggedObserver)
-        }
-
         let handle = listenerRegistration
         Task { @MainActor in
             if let handle {
@@ -101,8 +104,10 @@ public class PantryService: ObservableObject {
                 self.isLoading = false
                 switch result {
                 case .success(let items):
+                    self.errorMessage = nil
                     self.pantryItems = items.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
                 case .failure(let error):
+                    self.errorMessage = "Couldn’t refresh pantry stock. Previously loaded amounts remain visible; reconnect and retry before using them."
                     AppLog.data.error("Error fetching pantry items: \(error.localizedDescription, privacy: .public)")
                 }
             }
@@ -116,6 +121,7 @@ public class PantryService: ObservableObject {
         listenerRegistration = nil
         listeningUserID = nil
         isLoading = false
+        errorMessage = nil
         if clearItems {
             pantryItems = []
         }

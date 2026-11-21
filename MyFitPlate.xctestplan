@@ -1,43 +1,50 @@
 {
-  "configurations" : [
+  "configurations": [
     {
-      "id" : "C91E1B77-12E7-478E-A473-B3E7425ECE49",
-      "name" : "Test Scheme Action",
-      "options" : {
-
-      }
+      "id": "C91E1B77-12E7-478E-A473-B3E7425ECE49",
+      "name": "Test Scheme Action",
+      "options": {}
     }
   ],
-  "defaultOptions" : {
-    "commandLineArgumentEntries" : [
+  "defaultOptions": {
+    "commandLineArgumentEntries": [
       {
-        "argument" : "-noFIRAnalyticsDebugEnabled"
+        "argument": "-noFIRAnalyticsDebugEnabled"
+      },
+      {
+        "argument": "-ui-testing"
       }
     ],
-    "performanceAntipatternCheckerEnabled" : true,
-    "targetForVariableExpansion" : {
-      "containerPath" : "container:MyFitPlate.xcodeproj",
-      "identifier" : "3EB297752CAEEDC90093E1B9",
-      "name" : "MyFitPlate"
-    }
+    "performanceAntipatternCheckerEnabled": true,
+    "targetForVariableExpansion": {
+      "containerPath": "container:MyFitPlate.xcodeproj",
+      "identifier": "3EB297752CAEEDC90093E1B9",
+      "name": "MyFitPlate"
+    },
+    "environmentVariableEntries": [
+      {
+        "key": "MYFITPLATE_EMULATOR_TESTS",
+        "value": "$(MYFITPLATE_EMULATOR_TESTS)"
+      }
+    ]
   },
-  "testTargets" : [
+  "testTargets": [
     {
-      "parallelizable" : false,
-      "target" : {
-        "containerPath" : "container:MyFitPlate.xcodeproj",
-        "identifier" : "4BCF27062FE6F92B0054378E",
-        "name" : "MyFitPlateTests"
+      "parallelizable": false,
+      "target": {
+        "containerPath": "container:MyFitPlate.xcodeproj",
+        "identifier": "4BCF27062FE6F92B0054378E",
+        "name": "MyFitPlateTests"
       }
     },
     {
-      "parallelizable" : false,
-      "target" : {
-        "containerPath" : "container:MyFitPlate.xcodeproj",
-        "identifier" : "4BC912E62FF0481C00C46AA9",
-        "name" : "MyFitPlateUITests"
+      "parallelizable": false,
+      "target": {
+        "containerPath": "container:MyFitPlate.xcodeproj",
+        "identifier": "4BC912E62FF0481C00C46AA9",
+        "name": "MyFitPlateUITests"
       }
     }
   ],
-  "version" : 1
+  "version": 1
 }

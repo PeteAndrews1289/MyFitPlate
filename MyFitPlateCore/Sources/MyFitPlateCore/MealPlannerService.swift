@@ -2,11 +2,14 @@ import Foundation
 
 public enum MealPlannerServiceError: LocalizedError {
     case groceryListSaveFailed
+    case planChanged
 
     public var errorDescription: String? {
         switch self {
         case .groceryListSaveFailed:
             "The grocery list could not be saved."
+        case .planChanged:
+            "Your rescue changed while the grocery list was updating. Refresh the list to use the current plan."
         }
     }
 }
@@ -18,6 +21,7 @@ public class MealPlannerService: ObservableObject {
     private var planCache: [String: MealPlanDay] = [:]
     private var loadedCacheUserIDs: Set<String> = []
     private var grocerySaveTasks: [String: Task<Bool, Never>] = [:]
+    private var editingUsers = Set<String>()
     private let legacyCacheKey = "mealPlanCache"
     private let cacheKeyPrefix = "mealPlanCache"
 
@@ -103,6 +107,29 @@ public class MealPlannerService: ObservableObject {
         return regeneratedMeal
     }
 
+    public func draftWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String],
+                              preferredSnacks: [String], starting date: Date, userID: String) async throws -> [MealPlanDay] {
+        guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
+        let generated = await MealPlanAIGenerator().generateWeekPlan(goals: goals, preferredFoods: preferredFoods,
+            preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks, allowLocalFallback: false)
+        try Task.checkCancellation()
+        guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
+        guard generated.count == 7, Set(generated.map { MealPlanEditingRules.dayID($0.date) }).count == 7 else {
+            throw MealPlanEditError.generationFailed
+        }
+        guard generated.allSatisfy({ day in
+            Set(["Breakfast", "Lunch", "Dinner"]).isSubset(of: Set(day.meals.map { MealPlanEditingRules.canonicalSlot($0.mealType) }))
+                && day.meals.allSatisfy { $0.plannedFood != nil }
+        }) else { throw MealPlanEditError.generationFailed }
+        try MealPlanEditingRules.validate(MealPlanChange(title: "Draft", before: generated.map { MealPlanEditingRules.emptyDay($0.date) }, after: generated))
+        return generated.sorted { $0.date < $1.date }.enumerated().compactMap { index, day in
+            guard let destination = Calendar.current.date(byAdding: .day, value: index, to: Calendar.current.startOfDay(for: date)) else { return nil }
+            var result = MealPlanEditingRules.emptyDay(destination)
+            result.meals = day.meals
+            return result
+        }
+    }
+
     public func generateAndSaveFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], userID: String) async -> Bool {
         guard DIContainer.shared.authService.currentUserID == userID else { return false }
         let generator = MealPlanAIGenerator()
@@ -117,6 +144,9 @@ public class MealPlannerService: ObservableObject {
         guard DIContainer.shared.authService.currentUserID == userID else { return false }
         guard generatedPlans.count == 7 else { return false }
 
+        guard generatedPlans.flatMap(\.meals).allSatisfy({
+            MealConstraintRules.report(candidate: $0.constraintCandidate, profile: goals.effectiveMealConstraintProfile).canAccept
+        }) else { return false }
         guard await saveFullMealPlan(days: generatedPlans, for: userID) else {
             DIContainer.shared.analyticsManager?.logEvent(
                 "meal_plan_generation_failed",
@@ -184,10 +214,13 @@ public class MealPlannerService: ObservableObject {
         case .success(let items): existingItems = items
         case .failure(let error): return .failure(error)
         }
-        guard !existingItems.isEmpty else { return .success([]) }
+        let rescueToken = activeGroceryRescueToken(userID)
+        let previousRescue = groceryRescueKey(userID).flatMap { userDefaults.string(forKey: $0) } ?? ""
+        let rescueChanged = rescueToken != previousRescue
+        guard !existingItems.isEmpty || rescueChanged else { return .success([]) }
 
         let planItems = existingItems.filter { $0.source == "mealPlan" }
-        guard !planItems.isEmpty else { return .success(existingItems) }
+        guard !planItems.isEmpty || rescueChanged else { return .success(existingItems) }
 
         let currentStart = Calendar.current.startOfDay(for: startDate)
         let isCurrentWindow = planItems.allSatisfy { item in
@@ -195,7 +228,7 @@ public class MealPlannerService: ObservableObject {
             return Calendar.current.isDate(sourcePlanStart, inSameDayAs: currentStart)
         }
 
-        if isCurrentWindow {
+        if isCurrentWindow && !rescueChanged {
             return .success(existingItems)
         }
         return await refreshGroceryListResult(
@@ -218,6 +251,7 @@ public class MealPlannerService: ObservableObject {
         starting startDate: Date = Date(),
         existingItems suppliedExistingItems: [GroceryListItem]? = nil
     ) async -> Result<[GroceryListItem], Error> {
+        let rescueToken = activeGroceryRescueToken(userID)
         let startOfDay = Calendar.current.startOfDay(for: startDate)
         var days: [MealPlanDay] = []
 
@@ -242,13 +276,38 @@ public class MealPlannerService: ObservableObject {
             case .failure(let error): return .failure(error)
             }
         }
-        let generatedItems = GroceryListBuilder.makeGroceryList(from: days, starting: startOfDay)
+        let cookedIDs: Set<String>
+        if days.flatMap(\.meals).contains(where: { $0.cookingBatch != nil }) {
+            do {
+                let actualStock = try await DIContainer.shared.nutritionRepository.fetchInventory(userID: userID)
+                cookedIDs = Set(actualStock.filter { $0.creationUndone != true }.compactMap { $0.cookedBatch?.id })
+            } catch { return .failure(error) }
+        } else { cookedIDs = [] }
+        let generatedItems = GroceryListBuilder.makeGroceryList(from: days, starting: startOfDay, unitSystem: GroceryListBuilder.currentUnitSystem(userID: userID), cookedBatchIDs: cookedIDs)
         let mergedItems = GroceryListBuilder.mergeGroceryItems(generatedItems: generatedItems, existingItems: existingItems)
 
-        guard await enqueueGroceryListSave(mergedItems, for: userID).value else {
-            return .failure(MealPlannerServiceError.groceryListSaveFailed)
-        }
-        return .success(mergedItems)
+        guard activeGroceryRescueToken(userID) == rescueToken else { return .failure(MealPlannerServiceError.planChanged) }
+        let changed = mergedItems.filter { item in existingItems.first(where: { $0.id == item.id }) != item }
+        let removed = Set(existingItems.map(\.id)).subtracting(mergedItems.map(\.id))
+        let touched = Set(changed.map(\.id)).union(removed)
+        let patch = GroceryListMutation(before: existingItems.filter { touched.contains($0.id) }, upserts: changed, removedIDs: removed)
+        let committedItems: [GroceryListItem]
+        do {
+            guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
+            committedItems = try await DIContainer.shared.nutritionRepository.applyGroceryMutation(userID: userID, mutation: patch)
+        } catch { return .failure(error) }
+        if let key = groceryRescueKey(userID) { userDefaults.set(rescueToken, forKey: key) }
+        guard activeGroceryRescueToken(userID) == rescueToken else { return .failure(MealPlannerServiceError.planChanged) }
+        return .success(committedItems)
+    }
+
+    private func activeGroceryRescueToken(_ userID: String) -> String {
+        guard let rescue = activeWeekRescue?(userID), !rescue.meals.isEmpty else { return "" }
+        return rescue.id
+    }
+
+    private func groceryRescueKey(_ userID: String) -> String? {
+        AccountScopedStorageKey.make(prefix: "grocery-week-rescue", userID: userID)
     }
 
     private func generateAndSaveGroceryListFromAI(for mealNames: [String], userID: String) async {
@@ -268,6 +327,55 @@ public class MealPlannerService: ObservableObject {
     public func cachedPlan(for date: Date, userID: String) -> MealPlanDay? {
         prepareCache(for: userID)
         return planCache[cacheKey(for: date, userID: userID)]
+    }
+
+    public func lastPlanChange(for userID: String) -> MealPlanChange? {
+        guard DIContainer.shared.authService.currentUserID == userID,
+              let key = AccountScopedStorageKey.make(prefix: "mealPlanUndo", userID: userID),
+              let data = userDefaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(MealPlanChange.self, from: data)
+    }
+
+    /// Commits every affected day together and retains one account-scoped undo receipt.
+    public func applyPlanChange(_ change: MealPlanChange, for userID: String, isUndo: Bool = false) async throws {
+        guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
+        guard !editingUsers.contains(userID) else { throw MealPlanEditError.changed }
+        guard activeWeekRescue?(userID)?.meals.isEmpty != false else { throw MealPlanEditError.rescueActive }
+        try MealPlanEditingRules.validate(change)
+        editingUsers.insert(userID)
+        defer { editingUsers.remove(userID) }
+        // Capture the repository before suspending so a later account change cannot redirect the write.
+        guard let repository = DIContainer.shared.nutritionRepository else { throw MealPlanEditError.accountChanged }
+        var normalized = change
+        normalized.after = change.after.map {
+            var day = $0; day.id = MealPlanEditingRules.dayID(day.date)
+            day.meals = MealPlanEditingRules.sorted(day.meals); return day
+        }
+        try await repository.applyMealPlanChange(userID: userID, change: normalized)
+        // A permanent accepted receipt can be replayed after later edits. Publish the
+        // current canonical days, never the old proposal merely because retry succeeded.
+        var canonical: [MealPlanDay] = []
+        for day in normalized.after {
+            guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
+            let actual = try await repository.fetchMealPlan(userID: userID, dateString: MealPlanEditingRules.dayID(day.date))
+            canonical.append(actual ?? MealPlanEditingRules.emptyDay(day.date))
+        }
+        guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
+        prepareCache(for: userID)
+        for day in canonical { planCache[cacheKey(for: day.date, userID: userID)] = day }
+        saveCacheToDisk(for: userID)
+        if let key = AccountScopedStorageKey.make(prefix: "mealPlanUndo", userID: userID) {
+            if isUndo { userDefaults.removeObject(forKey: key) } else if canonical.allSatisfy({ actual in normalized.after.contains { expected in
+                MealPlanEditingRules.dayID(actual.date) == MealPlanEditingRules.dayID(expected.date)
+                    && MealPlanEditingRules.matches(actual, expected: expected)
+            } }), let data = try? JSONEncoder().encode(normalized) { userDefaults.set(data, forKey: key) }
+        }
+        if DIContainer.shared.authService.currentUserID == userID { notifyMealPlanChanged(for: userID) }
+    }
+
+    public func undoLastPlanChange(for userID: String) async throws {
+        guard let change = lastPlanChange(for: userID) else { throw MealPlanEditError.changed }
+        try await applyPlanChange(change.reversed, for: userID, isUndo: true)
     }
 
     /// Clears the in-memory + disk plan cache so the next fetch reads fresh from Firestore.
@@ -293,7 +401,18 @@ public class MealPlannerService: ObservableObject {
         }
     }
 
-    private func fetchPlanResult(for date: Date, userID: String) async -> Result<MealPlanDay?, Error> {
+    /// Rescue overlays are stored atomically with the active workout program, never in this cache.
+    public var activeWeekRescue: ((String) -> WeekRescueAdjustment?)?
+
+    public func fetchPlanResult(for date: Date, userID: String) async -> Result<MealPlanDay?, Error> {
+        let result = await fetchBasePlanResult(for: date, userID: userID)
+        return result.map { plan in
+            guard let rescue = activeWeekRescue?(userID) else { return plan }
+            return rescue.resolving(plan, on: date)
+        }
+    }
+
+    public func fetchBasePlanResult(for date: Date, userID: String) async -> Result<MealPlanDay?, Error> {
         prepareCache(for: userID)
         let key = cacheKey(for: date, userID: userID)
         if let cachedPlan = planCache[key] {
@@ -359,6 +478,18 @@ public class MealPlannerService: ObservableObject {
         let dateStrings = dates.map(dateString(for:))
 
         do {
+            // Removing only one side of a cross-window batch would strand its allocation.
+            // Every referenced planning day must be inside this deliberate discard scope.
+            let discardedDates = Set(dateStrings)
+            for key in dateStrings {
+                if let plan = try await DIContainer.shared.nutritionRepository.fetchMealPlan(userID: userID, dateString: key) {
+                    for batch in plan.meals.compactMap(\.cookingBatch) {
+                        guard Set(batch.allocations.map { MealPlanEditingRules.dayID($0.date) }).isSubset(of: discardedDates) else {
+                            throw MealCookingError.linkedBatch
+                        }
+                    }
+                }
+            }
             let groceryItems = try await DIContainer.shared.nutritionRepository.fetchGroceryList(userID: userID)
             let retainedItems = groceryItems.filter { $0.source != "mealPlan" }
 

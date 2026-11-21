@@ -73,6 +73,22 @@ final class NutritionLogModelsTests: XCTestCase {
 
     // MARK: - ServingNutritionCalculator Tests
 
+    func testPortionEditorOffersMassOnlyForAnExplicitMass() throws {
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("8 x oz"), "8 oz")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("8 × oz"), "8 oz")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("g"), "1 g")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("4 oz"), "4 oz")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("2 x 100 g"), "2 × 100 g")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("2 x 1 small apple"), "2 × 1 small apple")
+        XCTAssertEqual(try XCTUnwrap(ServingNutritionCalculator.measuredGrams(in: "4 oz")), 113.3980925, accuracy: 0.00001)
+        XCTAssertEqual(ServingNutritionCalculator.measuredGrams(in: "1 container (150 g)"), 150)
+        XCTAssertEqual(ServingNutritionCalculator.measuredGrams(in: "grams"), 1)
+        XCTAssertEqual(ServingNutritionCalculator.measuredGrams(in: "0.25 kg"), 250)
+        for serving in ["1 cup", "serving", "8 fl oz", "100 ml", "0 g", "1 bar (14 g protein)"] {
+            XCTAssertNil(ServingNutritionCalculator.measuredGrams(in: serving), serving)
+        }
+    }
+
     func testServingNutritionCalculatorParseQuantity() {
         let parsed1 = ServingNutritionCalculator.parseQuantity(from: "2 x slices")
         XCTAssertEqual(parsed1.quantity, 2.0)

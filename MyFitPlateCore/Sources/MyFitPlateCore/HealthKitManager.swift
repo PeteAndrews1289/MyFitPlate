@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import CryptoKit
 
 
 public protocol HealthKitManaging {
@@ -16,6 +17,12 @@ public protocol HealthKitManaging {
     func fetchTodayFlights(completion: @escaping (Double) -> Void)
     func fetchTodayExerciseTime(completion: @escaping (Double) -> Void)
     func saveNutrition(for foodItem: FoodItem)
+    func canSaveCopiedNutrition(for foodItem: FoodItem) -> Bool
+    func saveCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void)
+    func deleteCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void)
+    func canSaveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID) -> Bool
+    func saveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void)
+    func deleteInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void)
     func appFoodMetadataPredicate(for foodItem: FoodItem) -> NSPredicate
     func deleteNutrition(for foodItem: FoodItem, completion: ((Bool) -> Void)?)
     func replaceNutrition(oldItem: FoodItem, newItem: FoodItem)
@@ -26,6 +33,15 @@ public protocol HealthKitManaging {
     func isHealthDataAvailable() -> Bool
     func fetchLatestWeight(completion: @escaping (HKQuantitySample?) -> Void)
     func fetchRecentWeightSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void)
+}
+
+public extension HealthKitManaging {
+    func canSaveCopiedNutrition(for foodItem: FoodItem) -> Bool { false }
+    func saveCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) { completion(false) }
+    func deleteCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) { completion(false) }
+    func canSaveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID) -> Bool { false }
+    func saveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void) { completion(false) }
+    func deleteInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void) { completion(false) }
 }
 
 public class HealthKitManager: HealthKitManaging {
@@ -44,6 +60,7 @@ public class HealthKitManager: HealthKitManaging {
         static let loggedAt = "MyFitPlateLoggedAt"
         static let macroDerivedCalories = "MyFitPlateMacroDerivedCalories"
         static let calorieMacroDelta = "MyFitPlateCalorieMacroDelta"
+        static let transferCopy = "MyFitPlateTransferCopy"
     }
 
     public init(store: HealthStoreScheduling = SystemHealthStore()) {
@@ -108,8 +125,7 @@ public class HealthKitManager: HealthKitManaging {
             exerciseTimeType,
             biologicalSexType,
             hrvType,
-            bodyMassType,
-            waterType
+            bodyMassType
         ]
 
         store.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
@@ -421,6 +437,112 @@ public class HealthKitManager: HealthKitManaging {
             if !success, let error = error {
                 AppLog.health.error("Failed to save nutrition samples to HealthKit: \(error.localizedDescription, privacy: .public)")
             }
+        }
+    }
+
+    /// Stable, owner-scoped identifiers apply only to fresh diary COPY samples. Legacy
+    /// exports retain their existing metadata and write behavior.
+    public static func copiedNutritionSyncIdentifier(foodID: String, userID: String, nutrientIdentifier: String) -> String {
+        let data = (try? JSONEncoder().encode([userID, foodID, nutrientIdentifier])) ?? Data()
+        return "MyFitPlate.copy." + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    public func canSaveCopiedNutrition(for foodItem: FoodItem) -> Bool {
+        guard let samples = copiedNutritionSamples(for: foodItem, userID: "permission-check") else { return false }
+        return samples.isEmpty || (isHealthDataAvailable() && samples.allSatisfy { store.authorizationStatus(for: $0.quantityType) == .sharingAuthorized })
+    }
+
+    public func saveCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) {
+        guard !userID.isEmpty, let samples = copiedNutritionSamples(for: foodItem, userID: userID),
+              canSaveCopiedNutrition(for: foodItem) else { completion(false); return }
+        guard !samples.isEmpty else { completion(true); return }
+        // HealthKit rejects duplicate sync identifiers at the same version. A crash
+        // after saving but before our acknowledgement can safely replay this batch.
+        store.save(samples) { success, _ in DispatchQueue.main.async { completion(success) } }
+    }
+
+    public func deleteCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) {
+        guard !userID.isEmpty, !foodItem.id.isEmpty, isHealthDataAvailable() else { completion(false); return }
+        let group = DispatchGroup()
+        let state = NutritionDeletionState()
+        for type in nutritionSampleTypes() {
+            let identifier = Self.copiedNutritionSyncIdentifier(foodID: foodItem.id, userID: userID, nutrientIdentifier: type.identifier)
+            let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier, operatorType: .equalTo, value: identifier),
+                HKQuery.predicateForObjects(withMetadataKey: MetadataKey.transferCopy, operatorType: .equalTo, value: true),
+                appFoodMetadataPredicate(for: foodItem)
+            ])
+            group.enter()
+            store.deleteObjects(of: type, predicate: predicate) { success, count, error in
+                state.record(success: success && error == nil, deletedCount: count)
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) { completion(state.snapshot().0) }
+    }
+
+    public static func inventoryNutritionSyncIdentifier(foodID: String, userID: String, operationID: UUID, nutrientIdentifier: String) -> String {
+        let data = (try? JSONEncoder().encode([userID, operationID.uuidString, foodID, nutrientIdentifier])) ?? Data()
+        return "MyFitPlate.inventory." + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func inventoryNutritionSamples(for food: FoodItem, userID: String, operationID: UUID) -> [HKQuantitySample]? {
+        guard let source = copiedNutritionSamples(for: food, userID: userID) else { return nil }
+        return source.map { sample in
+            var metadata = sample.metadata ?? [:]
+            metadata.removeValue(forKey: MetadataKey.transferCopy)
+            metadata["inventoryOperationID"] = operationID.uuidString
+            metadata[HKMetadataKeySyncIdentifier] = Self.inventoryNutritionSyncIdentifier(foodID: food.id, userID: userID, operationID: operationID, nutrientIdentifier: sample.quantityType.identifier)
+            return HKQuantitySample(type: sample.quantityType, quantity: sample.quantity, start: sample.startDate, end: sample.endDate, metadata: metadata)
+        }
+    }
+
+    public func canSaveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID) -> Bool {
+        guard let samples = inventoryNutritionSamples(for: foodItem, userID: userID, operationID: operationID) else { return false }
+        return samples.isEmpty || (isHealthDataAvailable() && samples.allSatisfy { store.authorizationStatus(for: $0.quantityType) == .sharingAuthorized })
+    }
+
+    public func saveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void) {
+        guard !userID.isEmpty, canSaveInventoryNutrition(for: foodItem, userID: userID, operationID: operationID),
+              let samples = inventoryNutritionSamples(for: foodItem, userID: userID, operationID: operationID) else { completion(false); return }
+        guard !samples.isEmpty else { completion(true); return }
+        store.save(samples) { success, _ in DispatchQueue.main.async { completion(success) } }
+    }
+
+    public func deleteInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void) {
+        guard !userID.isEmpty, !foodItem.id.isEmpty, isHealthDataAvailable() else { completion(false); return }
+        let group = DispatchGroup(), state = NutritionDeletionState()
+        for type in nutritionSampleTypes() {
+            let identifier = Self.inventoryNutritionSyncIdentifier(foodID: foodItem.id, userID: userID, operationID: operationID, nutrientIdentifier: type.identifier)
+            let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier, operatorType: .equalTo, value: identifier),
+                HKQuery.predicateForObjects(withMetadataKey: "inventoryOperationID", operatorType: .equalTo, value: operationID.uuidString)
+            ])
+            group.enter()
+            store.deleteObjects(of: type, predicate: predicate) { success, count, error in
+                state.record(success: success && error == nil, deletedCount: count); group.leave()
+            }
+        }
+        group.notify(queue: .main) { completion(state.snapshot().0) }
+    }
+
+    private func copiedNutritionSamples(for food: FoodItem, userID: String) -> [HKQuantitySample]? {
+        guard !food.id.isEmpty, let timestamp = food.timestamp, timestamp.timeIntervalSince1970.isFinite,
+              [food.calories, food.protein, food.carbs, food.fats].allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
+        let nutrients: [(HKQuantityTypeIdentifier, Double, HKUnit)] = [
+            (.dietaryEnergyConsumed, food.calories, .kilocalorie()), (.dietaryProtein, food.protein, .gram()),
+            (.dietaryCarbohydrates, food.carbs, .gram()), (.dietaryFatTotal, food.fats, .gram())
+        ]
+        return nutrients.compactMap { identifier, amount, unit in
+            guard amount > 0, let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
+            let metadata: [String: Any] = [
+                HKMetadataKeyFoodType: food.name, MetadataKey.source: "MyFitPlate", MetadataKey.foodItemID: food.id,
+                MetadataKey.transferCopy: true, MetadataKey.loggedAt: timestamp.timeIntervalSince1970,
+                MetadataKey.macroDerivedCalories: food.macroDerivedCalories, MetadataKey.calorieMacroDelta: food.calorieConsistencyStatus.delta,
+                HKMetadataKeySyncIdentifier: Self.copiedNutritionSyncIdentifier(foodID: food.id, userID: userID, nutrientIdentifier: type.identifier),
+                HKMetadataKeySyncVersion: NSNumber(value: 1)
+            ]
+            return HKQuantitySample(type: type, quantity: HKQuantity(unit: unit, doubleValue: amount), start: timestamp, end: timestamp, metadata: metadata)
         }
     }
 

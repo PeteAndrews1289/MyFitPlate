@@ -60,7 +60,7 @@ final class WorkoutRulesTests: XCTestCase {
         XCTAssertEqual(updated.currentProgressIndex, 5)
     }
 
-    func testAdvanceAfterCompletionRepairsStalePointerForNextMatchingRoutine() {
+    func testRoutineOnlyCompletionCannotSearchAheadPastUnfinishedSlot() {
         let upper = WorkoutRoutine(id: "upper", userID: "user1", name: "Upper", dateCreated: Date())
         let lower = WorkoutRoutine(id: "lower", userID: "user1", name: "Lower", dateCreated: Date())
         var program = WorkoutProgram(
@@ -74,11 +74,11 @@ final class WorkoutRulesTests: XCTestCase {
 
         let updated = WorkoutRules.advanceAfterCompletion(in: program, completedRoutineID: lower.id)
 
-        XCTAssertEqual(updated.currentProgressIndex, 6)
+        XCTAssertEqual(updated.currentProgressIndex, 4)
         XCTAssertNil(updated.skippedIndices)
     }
 
-    func testReconcileProgressFromSessionLogsAdvancesStaleProgram() {
+    func testUndatedLegacyLogsCannotReplaceStoredProgressWithACount() {
         let upper = WorkoutRoutine(id: "upper", userID: "user1", name: "Upper", dateCreated: Date())
         let lower = WorkoutRoutine(id: "lower", userID: "user1", name: "Lower", dateCreated: Date())
         var program = WorkoutProgram(
@@ -101,12 +101,12 @@ final class WorkoutRulesTests: XCTestCase {
 
         let updated = WorkoutRules.reconcileProgressFromSessionLogs(in: program, sessionLogs: logs)
 
-        XCTAssertEqual(updated.currentProgressIndex, 6)
+        XCTAssertEqual(updated.currentProgressIndex, 4)
     }
 
     // MARK: - Routine-ID drift (logs whose routineID no longer matches the program)
 
-    func testReconcileAdvancesWhenRoutineIDsDriftedButExercisesMatch() {
+    func testReconcilePreservesStoredProgressWhenOnlyExerciseNamesMatch() {
         let upper = driftRoutine(id: "upper_v2", name: "Upper Power",
                                  exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"])
         let lower = driftRoutine(id: "lower_v2", name: "Lower Power",
@@ -115,9 +115,8 @@ final class WorkoutRulesTests: XCTestCase {
                                      routines: [upper, lower], daysOfWeek: [2, 3])
         program.currentProgressIndex = 4
 
-        // The six completions were written against the PREVIOUS routine IDs (v1). The IDs no longer
-        // match the program, but the exercise names still do — progress must still reconcile. This
-        // reproduces the real "stuck on Week 2 Day 1 even though I did the workouts" report.
+        // These could belong to an earlier adoption of the same plan. Preserve the
+        // stored pointer instead of guessing program membership from exercise names.
         let logs = [
             driftLog(routineID: "upper_v1", exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"]),
             driftLog(routineID: "lower_v1", exercises: ["Barbell Back Squat", "Hack Squat", "Leg Extension"]),
@@ -129,19 +128,19 @@ final class WorkoutRulesTests: XCTestCase {
 
         let updated = WorkoutRules.reconcileProgressFromSessionLogs(in: program, sessionLogs: logs)
 
-        XCTAssertEqual(updated.currentProgressIndex, 6,
-                       "Logs with drifted routine IDs should still advance progress via exercise signature")
+        XCTAssertEqual(updated.currentProgressIndex, 4,
+                       "Ambiguous old history must not advance or reset this program")
     }
 
-    func testLogBelongsToProgramMatchesByExerciseSignatureDespiteIDDrift() {
+    func testLogBelongsToProgramRejectsExerciseSignatureWithoutIdentity() {
         let upper = driftRoutine(id: "upper_v2", name: "Upper Power",
                                  exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"])
         let program = WorkoutProgram(id: "prog1", userID: "user1", name: "PHAT",
                                      routines: [upper], daysOfWeek: [2])
-        // Different routine ID, and one movement swapped mid-session — still a confident match.
+        // Similar exercises do not prove membership in this program instance.
         let drifted = driftLog(routineID: "totally-different", exercises: ["Pendlay Row", "Pull-Up", "Lat Pulldown"])
 
-        XCTAssertTrue(WorkoutRules.logBelongsToProgram(drifted, program: program))
+        XCTAssertFalse(WorkoutRules.logBelongsToProgram(drifted, program: program))
     }
 
     func testLogBelongsToProgramRejectsUnrelatedWorkout() {
@@ -261,7 +260,7 @@ final class WorkoutRulesTests: XCTestCase {
         }
     }
 
-    func testPreBuiltProgramExercisesExistInMasterExerciseList() {
+    func testPreBuiltProgramExercisesExistInCatalog() {
         let knownExercises = Set(ExerciseList.allExercises)
         let programs = WorkoutRules.generatePreBuiltPrograms()
 

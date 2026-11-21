@@ -45,18 +45,15 @@ struct ChallengesView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppScreenHeader(
-                    eyebrow: "Progress",
-                    title: "Weekly Challenges",
-                    subtitle: "Focused goals that reward the habits you are already building."
-                )
+                Text("This week's milestones")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
 
                 challengeSummary
 
                 if sortedChallenges.isEmpty {
                     GuidanceEmptyState(
                         icon: "flag.checkered",
-                        title: "No Active Challenges",
+                        title: "No active challenges",
                         message: "Your next set will appear here when it is ready."
                     )
                     .appSurface(.quiet)
@@ -77,7 +74,7 @@ struct ChallengesView: View {
         AppMetricStrip(items: [
             AppMetricItem(label: "Open", value: openCount.formatted(), accent: AppPalette.caution),
             AppMetricItem(label: "Complete", value: completedCount.formatted(), accent: AppPalette.brand),
-            AppMetricItem(label: "Points Left", value: pointsRemaining.formatted(), accent: AppPalette.effort)
+            AppMetricItem(label: "Points left", value: pointsRemaining.formatted(), accent: AppPalette.effort)
         ])
         .appSurface(.emphasized)
         .accessibilityIdentifier("challenges_summary")

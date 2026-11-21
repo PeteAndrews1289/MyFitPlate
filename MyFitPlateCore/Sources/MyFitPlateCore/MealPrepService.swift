@@ -7,6 +7,7 @@ public struct BulkIngredient: Identifiable, Hashable {
     public let quantity: Double
     public let unit: String
     public let originalRecipes: [String]
+    public var quantityUnknown: Bool = false
 }
 
 @MainActor
@@ -15,22 +16,24 @@ public class MealPrepService: ObservableObject {
 
     @Published public var bulkIngredients: [String: [BulkIngredient]] = [:]
     @Published public var prepSteps: [(recipeName: String, step: String)] = []
+    @Published public var structuredSteps: [CookingSessionStep] = []
 
-    public func aggregate(days: [MealPlanDay]) {
+    public func aggregate(days: [MealPlanDay], starting startDate: Date? = nil, selectedRequirementIDs: Set<String>? = nil) {
         var rawIngredients: [String: BulkIngredient] = [:]
         var allSteps: [(recipeName: String, step: String)] = []
+        var structured: [CookingSessionStep] = []
 
-        let allMeals = days.flatMap { $0.meals }
+        let requirements = MealPlanCookingRules.requirements(from: days, starting: startDate)
 
-        for meal in allMeals {
-            let recipeName = meal.foodItem?.name ?? meal.mealType
+        for requirement in requirements {
+            let recipeName = requirement.name
 
-            if let ingredients = meal.ingredients {
-                for ingredient in ingredients {
-                    let parsed = IngredientLineParser.normalizedIngredient(from: ingredient)
+            if !requirement.ingredients.isEmpty, selectedRequirementIDs?.contains(requirement.id) ?? true {
+                for parsed in requirement.ingredients {
                     guard !parsed.name.isEmpty else { continue }
 
-                    let key = "\(IngredientNameMatcher.normalized(parsed.name))_\(parsed.unit)"
+                    let unknown = InventoryQuantityRules.explicitLeadingAmount(parsed.originalString) == nil
+                    let key = GroceryListBuilder.requirementIdentity(name: parsed.name, unit: parsed.unit) + (unknown ? "|unknown" : "")
 
                     if let existing = rawIngredients[key] {
                         var combinedRecipes = existing.originalRecipes
@@ -39,22 +42,25 @@ public class MealPrepService: ObservableObject {
                         }
                         rawIngredients[key] = BulkIngredient(
                             name: parsed.name,
-                            quantity: existing.quantity + parsed.quantity,
-                            unit: parsed.unit,
-                            originalRecipes: combinedRecipes
+                            quantity: existing.quantity + (InventoryQuantityRules.convert(parsed.quantity, from: parsed.unit, to: existing.unit) ?? parsed.quantity),
+                            unit: existing.unit,
+                            originalRecipes: combinedRecipes, quantityUnknown: unknown
                         )
                     } else {
                         rawIngredients[key] = BulkIngredient(
                             name: parsed.name,
                             quantity: parsed.quantity,
                             unit: parsed.unit,
-                            originalRecipes: [recipeName]
+                            originalRecipes: [recipeName], quantityUnknown: unknown
                         )
                     }
                 }
             }
 
-            if let instructions = meal.instructions {
+            // Explicit shared batches have already been deduplicated by the cooking rules.
+            // Independent meals retain their own steps, even when their recipes are identical.
+            if let instructions = requirement.instructions {
+                structured += CookingSessionRules.steps(requirements: [requirement])
                 for step in MealSuggestionReviewRules.instructionSteps(instructions) {
                     allSteps.append((recipeName: recipeName, step: step))
                 }
@@ -75,5 +81,6 @@ public class MealPrepService: ObservableObject {
 
         self.bulkIngredients = grouped
         self.prepSteps = allSteps
+        self.structuredSteps = structured
     }
 }

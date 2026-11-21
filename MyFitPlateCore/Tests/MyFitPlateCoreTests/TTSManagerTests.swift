@@ -23,14 +23,13 @@ final class TTSManagerTests: XCTestCase {
         XCTAssertNil(manager.currentSpokenText)
     }
     
-    func testDelegateDidStartAndFinish() {
+    func testStaleDelegateCannotFinishNewPlayback() {
         let manager = TTSManager()
-        let utterance = AVSpeechUtterance(string: "Test")
-        
-        manager.speechSynthesizer(AVSpeechSynthesizer(), didStart: utterance)
-        XCTAssertTrue(manager.isSpeaking)
-        
-        manager.speechSynthesizer(AVSpeechSynthesizer(), didFinish: utterance)
+        manager.speak("Keep this response available.")
+        let stale = AVSpeechUtterance(string: "Previous response")
+        manager.speechSynthesizer(AVSpeechSynthesizer(), didFinish: stale)
+        XCTAssertEqual(manager.currentSpokenText, "Keep this response available.")
+        manager.stopSpeaking()
         XCTAssertFalse(manager.isSpeaking)
         XCTAssertEqual(manager.mouthShape, "mouth_neutral")
     }

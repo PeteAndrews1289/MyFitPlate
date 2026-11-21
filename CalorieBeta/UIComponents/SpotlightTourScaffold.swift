@@ -16,6 +16,7 @@ struct SpotlightTourStep {
 /// tour to another screen is just a list of steps rather than a copy of the whole state machine.
 struct SpotlightTourScaffold<Content: View>: View {
     @EnvironmentObject private var spotlightManager: SpotlightManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let steps: [SpotlightTourStep]
     @ViewBuilder let content: (_ isActive: (String) -> Bool) -> Content
@@ -27,9 +28,9 @@ struct SpotlightTourScaffold<Content: View>: View {
     var body: some View {
         content(isActive)
             .overlayPreferenceValue(SpotlightBoundsKey.self) { anchor in
-                GeometryReader { proxy in
-                    if running, index < activeIDs.count,
-                       let step = steps.first(where: { $0.id == activeIDs[index] }) {
+                if running, !spotlightManager.isPresentationPaused, index < activeIDs.count,
+                   let step = steps.first(where: { $0.id == activeIDs[index] }) {
+                    GeometryReader { proxy in
                         SpotlightTourOverlay(
                             targetRect: anchor.map { proxy[$0] },
                             containerSize: proxy.size,
@@ -37,14 +38,18 @@ struct SpotlightTourScaffold<Content: View>: View {
                             currentIndex: index,
                             total: activeIDs.count,
                             onNext: advance,
-                            onSkip: skip
+                            onSkip: skip,
+                            onBack: { withAnimation(reduceMotion ? nil : AppMotion.standard) { index = max(0, index - 1) } }
                         )
-                        .animation(.easeInOut(duration: 0.25), value: index)
+                        .animation(reduceMotion ? nil : AppMotion.standard, value: index)
                     }
                 }
             }
             .onAppear(perform: startIfNeeded)
             .onChange(of: spotlightManager.replayToken) { _, _ in startIfNeeded() }
+            .onChange(of: spotlightManager.isPresentationPaused) { _, paused in
+                if paused { running = false } else { startIfNeeded() }
+            }
     }
 
     private func isActive(_ id: String) -> Bool {
@@ -52,15 +57,12 @@ struct SpotlightTourScaffold<Content: View>: View {
     }
 
     private func startIfNeeded() {
-        guard !ScreenshotDemoMode.isEnabled,
-              !AppRuntime.isUITesting() else { return }
+        guard SpotlightPresentation.isEnabled, !spotlightManager.isPresentationPaused, !running else { return }
         let needed = steps.map(\.id).filter { !spotlightManager.isShown(id: $0) }
         guard !needed.isEmpty else { return }
         activeIDs = needed
         index = 0
-        // Mark the first step shown immediately so it doesn't replay if the user leaves now.
-        spotlightManager.markAsShown(id: needed[0])
-        withAnimation { running = true }
+        withAnimation(reduceMotion ? nil : AppMotion.standard) { running = true }
     }
 
     private func advance() {
@@ -68,7 +70,7 @@ struct SpotlightTourScaffold<Content: View>: View {
             spotlightManager.markAsShown(id: activeIDs[index])
         }
         if index < activeIDs.count - 1 {
-            withAnimation { index += 1 }
+            withAnimation(reduceMotion ? nil : AppMotion.standard) { index += 1 }
         } else {
             finish()
         }
@@ -80,6 +82,16 @@ struct SpotlightTourScaffold<Content: View>: View {
     }
 
     private func finish() {
-        withAnimation { running = false }
+        withAnimation(reduceMotion ? nil : AppMotion.standard) { running = false }
+    }
+}
+
+/// Explicit fixture opt-in lets acceptance tests exercise the real overlay.
+enum SpotlightPresentation {
+    static var isEnabled: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-spotlights") { return true }
+        #endif
+        return !ScreenshotDemoMode.isEnabled && !AppRuntime.isUITesting()
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 @MainActor
 class AIChatbotViewModel: ObservableObject {
@@ -8,12 +9,37 @@ class AIChatbotViewModel: ObservableObject {
     @Published var showAlert = false
     @Published var alertMessage = ""
     @Published var showingClearChatConfirmation = false
-    @Published var requestStage = "Reading today's context"
+    @Published var showingMealPlanBuilder = false
+    @Published var requestStage = "Waiting for Maia"
+    @Published private(set) var partialResponse = ""
+    @Published private(set) var conversationLibrary = MaiaConversationLibrary()
+    @Published private(set) var storageError: String?
+    @Published private(set) var hasConversationConflict = false
+    @Published var showingConversations = false
+    @Published var showingContextControls = false
+    @Published private(set) var isSavingCommunication = false
     @Published var inlineErrorMessage: String?
+    @Published private(set) var isSavingAction = false
+    @Published private(set) var conversationClearReview = MaiaConversationClearReview()
+    @Published private(set) var retainedMaiaActions: [MaiaSavedActionReceipt] = []
+
+    private var currentActionSession: MaiaActionSaveSession?
+    private var activeActionRequestID: UUID?
+    private let actionStore: EditorDraftStore
+    private let chatDefaults: UserDefaults
+    private let conversationStore: MaiaConversationStore
+    private var requestTask: Task<Void, Never>?
+    private var communicationRequestID: UUID?
+    private var pendingResponse: (ownerID: String, conversationID: UUID, requestID: UUID, response: MaiaAIResponse)?
+    var canStartNewRequest: Bool { !isLoading && pendingResponse == nil }
+
+    init(actionStore: EditorDraftStore = EditorDraftStore(), chatDefaults: UserDefaults = .standard) {
+        self.actionStore = actionStore; self.chatDefaults = chatDefaults
+        conversationStore = MaiaConversationStore(drafts: actionStore)
+    }
 
     private var retryMessage: String?
     private var retryContextContract: MaiaContextContract?
-    private var requestStageTask: Task<Void, Never>?
     private var activeRequestID: UUID?
     private var activeAccountID: String?
     
@@ -29,14 +55,24 @@ class AIChatbotViewModel: ObservableObject {
     func setupView() {
         let userID = DIContainer.shared.authService.currentUserID
         if activeAccountID != userID {
-            requestStageTask?.cancel()
-            requestStageTask = nil
+            requestTask?.cancel()
+            requestTask = nil
+            pendingResponse = nil
+            partialResponse = ""
+            conversationLibrary = .init()
+            userMessage = ""; storageError = nil; hasConversationConflict = false
+            showingConversations = false; showingContextControls = false
+            communicationRequestID = nil; isSavingCommunication = false
             activeRequestID = nil
             activeAccountID = userID
             isLoading = false
             inlineErrorMessage = nil
             retryMessage = nil
             retryContextContract = nil
+            isSavingAction = false
+            currentActionSession = nil
+            activeActionRequestID = nil
+            showingMealPlanBuilder = false
             chatMessages.removeAll()
             loadMessages()
         } else if chatMessages.isEmpty {
@@ -45,15 +81,42 @@ class AIChatbotViewModel: ObservableObject {
         if let userID {
             dailyLogService?.fetchLog(for: userID, date: dailyLogService?.activelyViewedDate ?? Date()) { _ in }
         }
+        refreshRetainedMaiaActions()
         if chatMessages.isEmpty {
             let initialMessage = ChatMessage(id: UUID(), text: welcomeMessage(), isUser: false)
             chatMessages.append(initialMessage)
+            saveMessages()
         }
     }
     
-    func clearChat() {
-        requestStageTask?.cancel()
-        requestStageTask = nil
+    func reviewClearChat() {
+        guard let userID = activeAccountID, DIContainer.shared.authService.currentUserID == userID else { return }
+        do {
+            conversationClearReview = try MaiaActionSaveSession.reviewConversationClear(userID: userID, messages: chatMessages, store: actionStore)
+            showingClearChatConfirmation = true
+        } catch {
+            alertMessage = "The saved action review could not be opened. Your conversation and actions are kept; retry safely."
+            showAlert = true
+        }
+    }
+
+    func clearChat(discardUnsubmitted: Bool = false) {
+        guard let userID = activeAccountID, DIContainer.shared.authService.currentUserID == userID else { return }
+        do {
+            try MaiaActionSaveSession.clearConversation(userID: userID, messages: chatMessages,
+                                                       discardUnsubmitted: discardUnsubmitted, store: actionStore)
+        } catch {
+            alertMessage = "Chat could not be cleared completely. Saved logs remain. Your conversation is kept; retry safely."
+            showAlert = true
+            return
+        }
+        requestTask?.cancel()
+        requestTask = nil
+        pendingResponse = nil
+        partialResponse = ""
+        updateCurrentConversation { $0.request = nil; $0.draft = ""; $0.title = "New conversation"; $0.context.notes = "" }
+        TTSManager.shared.clearCachedSpeech(for: userID)
+        userMessage = ""
         activeRequestID = nil
         isLoading = false
         inlineErrorMessage = nil
@@ -62,6 +125,21 @@ class AIChatbotViewModel: ObservableObject {
         chatMessages.removeAll()
         chatMessages.append(ChatMessage(id: UUID(), text: welcomeMessage(), isUser: false))
         saveMessages()
+        refreshRetainedMaiaActions()
+    }
+
+    private func refreshRetainedMaiaActions() {
+        guard let userID = activeAccountID, DIContainer.shared.authService.currentUserID == userID,
+              let review = try? MaiaActionSaveSession.reviewConversationClear(userID: userID, store: actionStore) else {
+            retainedMaiaActions = []
+            return
+        }
+        retainedMaiaActions = (review.submittedActions + review.unsubmittedActions).filter(\.conversationCleared)
+    }
+
+    func retryRetainedMaiaAction(_ receipt: MaiaSavedActionReceipt) {
+        guard let command = receipt.command else { return }
+        performSavedCommand(command, actionID: receipt.actionID) { [weak self] _ in self?.refreshRetainedMaiaActions() }
     }
     
     // MARK: - Computed Properties for Context
@@ -108,7 +186,10 @@ class AIChatbotViewModel: ObservableObject {
     }
 
     var waterGoal: Double {
-        relevantDailyLog?.waterTracker?.goalOunces ?? goalSettings?.waterGoal ?? 100
+        if let goalSettings {
+            return goalSettings.hydrationTarget(for: relevantDailyLog?.date ?? Date(), recordedGoal: relevantDailyLog?.waterTracker?.goalOunces) ?? 0
+        }
+        return relevantDailyLog?.waterTracker?.goalOunces ?? 0
     }
 
     private var canShareHealthDataWithAI: Bool {
@@ -180,6 +261,7 @@ class AIChatbotViewModel: ObservableObject {
         if contract.allows(.todayLog) {
             sections.append("""
             Today's logged food totals:
+            - Whole-day review: \(log.map { NutritionDayEvidence.status(of: $0).title } ?? "Not reviewed"). These are entries so far; do not infer full-day intake or adherence unless fully logged.
             - Calories logged: \(Int(caloriesLogged.rounded())) of \(Int((goalSettings?.calories ?? 0).rounded())) target
             - Protein logged: \(Int(macros.protein.rounded()))g of \(Int((goalSettings?.protein ?? 0).rounded()))g target
             - Carbs logged: \(Int(macros.carbs.rounded()))g of \(Int((goalSettings?.carbs ?? 0).rounded()))g target
@@ -200,7 +282,7 @@ class AIChatbotViewModel: ObservableObject {
         if contract.allows(.water) {
             sections.append("""
             Water progress:
-            - Water logged: \(Int(waterOunces.rounded())) oz of \(Int(waterGoal.rounded())) oz target
+            - Water logged: \(Int(waterOunces.rounded())) oz. \(waterGoal > 0 ? "Daily target: \(Int(waterGoal.rounded())) oz." : "Tracking only: no daily target or remaining amount. Do not suggest catching up to a target.")
             """)
         }
 
@@ -245,9 +327,9 @@ class AIChatbotViewModel: ObservableObject {
     
     func sendMessage(contextContract: MaiaContextContract? = nil) {
         let trimmedMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedMessage.isEmpty else { return }
+        guard !trimmedMessage.isEmpty, canStartNewRequest else { return }
         let mayShareHealthData = canShareHealthDataWithAI
-        let effectiveContract = (contextContract ?? .generalChat(includeHealthKit: mayShareHealthData))
+        let effectiveContract = currentConversationContext.restricting(contextContract ?? .generalChat(includeHealthKit: mayShareHealthData))
             .respectingHealthDataConsent(mayShareHealthData)
 
         let userMsg = ChatMessage(id: UUID(), text: trimmedMessage, isUser: true)
@@ -260,73 +342,104 @@ class AIChatbotViewModel: ObservableObject {
         ])
         HapticManager.instance.feedback(.light)
 
-        let msgToSend = userMessage
         userMessage = ""
-        submitRequest(message: msgToSend, contextContract: effectiveContract)
+        submitRequest(message: trimmedMessage, questionMessageID: userMsg.id, contextContract: effectiveContract)
     }
 
     func retryLastMessage() {
-        guard let retryMessage, let retryContextContract, !isLoading else { return }
-        DIContainer.shared.analyticsManager?.logEvent("maia_message_retry", parameters: [
-            "action": retryContextContract.action
-        ])
-        submitRequest(message: retryMessage, contextContract: retryContextContract)
+        guard let request = currentConversation?.request, !request.isPending, !isLoading,
+              request.state != .completed else { return }
+        let contract = currentConversationContext.restricting(request.contract).respectingHealthDataConsent(canShareHealthDataWithAI)
+        submitRequest(message: request.question, questionMessageID: request.questionMessageID, contextContract: contract, retry: request)
     }
 
-    private func submitRequest(message: String, contextContract: MaiaContextContract) {
+    func cancelRequest() {
+        requestTask?.cancel(); requestTask = nil
+        activeRequestID = nil; isLoading = false; partialResponse = ""
+        inlineErrorMessage = "Request cancelled. Your question is kept; nothing was logged or changed."
+        updateCurrentConversation { conversation in
+            guard conversation.request?.isPending == true else { return }
+            conversation.request?.state = .cancelled
+            conversation.request?.partialText = ""
+            conversation.request?.errorMessage = self.inlineErrorMessage
+        }
+        saveMessages()
+    }
+
+    private func submitRequest(message: String, questionMessageID: UUID, contextContract: MaiaContextContract,
+                               retry: MaiaConversationRequest? = nil) {
         guard let requestAccountID = DIContainer.shared.authService.currentUserID,
-              requestAccountID == activeAccountID else {
+              requestAccountID == activeAccountID, let conversationID = currentConversation?.id else {
             inlineErrorMessage = "Sign in again before asking Maia."
             return
         }
-        let requestID = UUID()
-        activeRequestID = requestID
-        isLoading = true
-        inlineErrorMessage = nil
-        retryMessage = message
-        retryContextContract = contextContract
-        startRequestStages()
-
-        fetchGPT3Response(for: message, contextContract: contextContract) { [weak self] result in
-            guard let self,
-                  self.activeRequestID == requestID,
-                  self.activeAccountID == requestAccountID,
-                  DIContainer.shared.authService.currentUserID == requestAccountID else { return }
-            self.activeRequestID = nil
-            self.requestStageTask?.cancel()
-            self.requestStageTask = nil
-            self.isLoading = false
-
-            switch result {
-            case .success(let content):
-                self.inlineErrorMessage = nil
-                self.retryMessage = nil
-                self.retryContextContract = nil
-                self.chatMessages.append(ChatMessage(id: UUID(), text: content, isUser: false))
-                HapticManager.instance.feedback(.light)
-            case .failure(let error):
-                self.inlineErrorMessage = self.userFacingRequestError(error)
-                HapticManager.instance.notification(.warning)
-            }
+        let attemptID = UUID()
+        var request = retry ?? MaiaConversationRequest(questionMessageID: questionMessageID, question: message,
+            contextDate: dailyLogService?.activelyViewedDate ?? Date(), contract: contextContract)
+        if retry != nil { request.attempts += 1 }
+        request.state = .waiting; request.partialText = ""; request.errorMessage = nil
+        request.contract = contextContract; request.contextDate = dailyLogService?.activelyViewedDate ?? Date()
+        updateCurrentConversation { $0.request = request }
+        guard saveMessages() else {
+            inlineErrorMessage = "Your question is kept, but it could not be saved or sent. Retry saving before asking again."
+            updateCurrentConversation { $0.request?.state = .failed; $0.request?.errorMessage = self.inlineErrorMessage }
+            return
         }
-    }
-
-    private func startRequestStages() {
-        requestStageTask?.cancel()
-        requestStage = "Reading today's context"
-        requestStageTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(for: .milliseconds(800))
-                self?.requestStage = "Working through your request"
-                try await Task.sleep(for: .milliseconds(1_800))
-                self?.requestStage = "Preparing a practical answer"
-            } catch {
+        activeRequestID = attemptID
+        isLoading = true; partialResponse = ""; inlineErrorMessage = nil
+        retryMessage = message; retryContextContract = contextContract
+        requestStage = "Waiting for Maia"
+        let requestID = request.id
+        let messages = requestMessages(for: message, contextContract: contextContract)
+        requestTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result: Result<MaiaAIResponse, AIError>
+            if let streaming = DIContainer.shared.aiService as? AIStreamingServiceProtocol {
+                result = await streaming.performStreamingRequest(messages: messages, model: "gpt-6-astra", maxTokens: 1000,
+                    temperature: 0.5, requestKind: .coaching, requestID: requestID) { [weak self] delta in
+                        guard let self, self.activeRequestID == attemptID, self.currentConversation?.id == conversationID,
+                              DIContainer.shared.authService.currentUserID == requestAccountID else { return }
+                        self.partialResponse += delta
+                        self.requestStage = "Maia is answering"
+                        self.updateCurrentConversation { $0.request?.state = .streaming; $0.request?.partialText = self.partialResponse }
+                    }
+            } else {
+                result = await DIContainer.shared.aiService.performRequest(messages: messages, model: "gpt-6-astra",
+                    maxTokens: 1000, temperature: 0.5, requestKind: .coaching).map { MaiaAIResponse(content: $0) }
+            }
+            guard !Task.isCancelled, self.activeRequestID == attemptID,
+                  self.currentConversation?.id == conversationID, self.activeAccountID == requestAccountID,
+                  DIContainer.shared.authService.currentUserID == requestAccountID else { return }
+            self.activeRequestID = nil; self.requestTask = nil; self.isLoading = false; self.partialResponse = ""
+            if let saved = try? self.conversationStore.load(userID: requestAccountID), saved.revisionID != self.conversationLibrary.revisionID {
+                self.hasConversationConflict = true
+                self.storageError = MaiaConversationStoreError.changed.localizedDescription
                 return
             }
+            switch result {
+            case .success(let response):
+                self.pendingResponse = (requestAccountID, conversationID, requestID, response)
+                _ = self.persistPendingResponse()
+                return
+            case .failure(let error):
+                self.inlineErrorMessage = self.userFacingRequestError(error)
+                self.updateCurrentConversation {
+                    $0.request?.state = .failed; $0.request?.partialText = ""; $0.request?.errorMessage = self.inlineErrorMessage
+                }
+                HapticManager.instance.notification(.warning)
+            }
+            self.saveMessages()
         }
     }
 
     private func userFacingRequestError(_ error: Error) -> String {
+        if let error = error as? AIError {
+            switch error {
+            case .consentRequired, .consentChanged, .accountChanged, .featureUnavailable: return error.localizedDescription
+            case .apiError(let message): return message
+            default: break
+            }
+        }
         let description = error.localizedDescription.lowercased()
         if description.contains("offline") ||
             description.contains("internet") ||
@@ -337,22 +450,18 @@ class AIChatbotViewModel: ObservableObject {
         return "Maia could not reach the response service. Your question is still here and nothing was logged or changed."
     }
     
-    func fetchGPT3Response(
-        for message: String,
-        contextContract: MaiaContextContract,
-        completion: @escaping (Result<String, Error>) -> Void
-    ) {
+    private func requestMessages(for message: String, contextContract: MaiaContextContract) -> [[String: Any]] {
         let systemPrompt = """
         You are Maia, the personal nutrition and training coach inside MyFitPlate.
         Your style is warm, concise, practical, and specific to the user's logged day. Avoid generic wellness filler.
         Do not diagnose medical conditions or present estimates as clinical truth.
         Respect the user's coaching preferences in the context. If reminder style is Minimal, be brief. If Direct, be crisp and action-oriented. If Gentle, be encouraging without being vague.
-        \(MaiaConversationStyle.promptInstructions(for: goalSettings?.maiaTone))
+        \(effectiveCommunicationProfile.promptInstructions)
         If the nutrition audit says calories and macros meaningfully disagree, mention that logged calories remain official but the item should be reviewed before making precise calorie-budget claims.
         Respect the user's calorie target. Training fuel should be planned before hard sessions and kept inside the user's chosen target unless the user explicitly changes the target. If the user is already over target, do not give it a special mode label, do not celebrate it, and do not frame accidental over-target intake as performance fuel; give a neutral review and the next best on-target choice.
         \(contextContract.promptSummary)
 
-        You have the ability to automatically perform actions for the user! When the user asks you to log a workout, generate a meal plan, log a meal, log water, start/stop a fast, or log their weight, you MUST provide a structured JSON block AT THE END of your message.
+        You can propose reviewed actions. Never claim an action was saved or performed before the user explicitly confirms the app's review. When the user asks you to log a workout, generate a meal plan, log a meal, log water, start/stop a fast, or log their weight, you MUST provide a structured JSON block AT THE END of your message.
         
         Action: Generate Meal Plan (and Grocery List)
         (Note: this action ALWAYS generates a full 7-day meal plan overwriting their current week. If the user asks for a shorter plan, tell them this tool generates a full week but you can suggest single meals instead. Do not output text for the meal plan yourself if you are using this action, just say "I've prepared a 7-day meal plan for you. Tap the button below to generate it!" and then use the json block.)
@@ -420,132 +529,184 @@ class AIChatbotViewModel: ObservableObject {
         If data is missing, say what assumption you are making.
         For your own AI estimates, keep calories reasonably consistent with protein*4 + carbs*4 + fats*9. Do not invent exact precision for restaurant or packaged foods.
 
+        Context date: \((dailyLogService?.activelyViewedDate ?? Date()).formatted(date: .complete, time: .omitted)). Only describe this as today if it is actually today's date.
         \(promptContextSummary(for: contextContract))
-        \(chatContext.map { "Additional context: \($0)" } ?? "")
+        \(currentConversationContext.includeRecentMessages ? (chatContext.map { "Additional context: \($0)" } ?? "") : "")
         """
 
         var messagesForAPI: [[String: Any]] = [["role": "system", "content": systemPrompt]]
+        let topicSummary = currentConversationContext.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !topicSummary.isEmpty {
+            // This is user-authored context, never a privileged summary of other source text.
+            messagesForAPI.append(["role": "user", "content": "My saved topic summary (written by me, not verified measurements): " + topicSummary])
+        }
 
-        let history = chatMessages.dropLast().suffix(6)
+        let history = currentConversationContext.includeRecentMessages ? Array(chatMessages.dropLast().suffix(6)) : []
         for chatMessage in history where !chatMessage.text.isEmpty {
             messagesForAPI.append(["role": chatMessage.isUser ? "user" : "assistant", "content": chatMessage.text])
         }
 
         messagesForAPI.append(["role": "user", "content": message])
 
-        Task { @MainActor in
-            let result = await DIContainer.shared.aiService.performRequest(
-                messages: messagesForAPI,
-                model: "gpt-4o-mini",
-                maxTokens: 1000,
-                temperature: 0.5
-            )
-
-            switch result {
-            case .success(let content):
-                completion(.success(content))
-            case .failure(let error):
-                AppLog.ai.error("Maia chat request failed: \(error.localizedDescription, privacy: .public)")
-                completion(.failure(error))
-            }
-        }
+        return messagesForAPI
     }
-    
+
     // MARK: - Action Handling
 
-    func logRecipe(recipeText: String) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { alertMessage = "Not logged in."; showAlert = true; return }
-        let nutritionalBreakdown = parseNutritionalBreakdown(from: recipeText)
-        guard let calories = nutritionalBreakdown["calories"], let protein = nutritionalBreakdown["protein"], let fats = nutritionalBreakdown["fats"], let carbs = nutritionalBreakdown["carbs"] else {
-            alertMessage = "Missing macro info in AI response. Please try asking in a different way."; showAlert = true; return
-        }
-        let calcium = nutritionalBreakdown["calcium"]; let iron = nutritionalBreakdown["iron"]
-        let potassium = nutritionalBreakdown["potassium"]; let sodium = nutritionalBreakdown["sodium"]
-        let vitaminA = nutritionalBreakdown["vitaminA"]; let vitaminC = nutritionalBreakdown["vitaminC"]
-        let vitaminD = nutritionalBreakdown["vitaminD"]
-        let foodName = extractFoodName(from: recipeText)
-        let loggedFoodItem = FoodItem(id: UUID().uuidString, name: foodName, calories: calories, protein: protein, carbs: carbs, fats: fats, servingSize: "1 serving (AI Est.)", servingWeight: 0, timestamp: Date(), calcium: calcium, iron: iron, potassium: potassium, sodium: sodium, vitaminA: vitaminA, vitaminC: vitaminC, vitaminD: vitaminD)
-            .withAIEstimateSource(.aiChat, sourceName: "Maia Chat")
-        let mealType = determineMealType()
-        dailyLogService?.addMealToLog(for: userID, date: dailyLogService?.activelyViewedDate ?? Date(), mealName: mealType, foodItems: [loggedFoodItem], source: "ai_chat")
-        let haptic = UINotificationFeedbackGenerator(); haptic.notificationOccurred(.success); alertMessage = "\(foodName) logged!"; showAlert = true
-        Task { @MainActor in self.achievementService?.checkFeatureUsedAchievement(userID: userID, featureType: .aiRecipeLogged) }
-    }
-
-    func handleMaiaAction(_ action: MaiaAction) {
-        guard let userID = DIContainer.shared.authService.currentUserID else {
-            alertMessage = "Not logged in."
+    func logRecipe(recipeText: String, actionID: String? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
+        let nutrients = parseNutritionalBreakdown(from: recipeText)
+        guard let calories = nutrients["calories"], let protein = nutrients["protein"],
+              let fats = nutrients["fats"], let carbs = nutrients["carbs"],
+              [calories, protein, fats, carbs].allSatisfy({ $0.isFinite && $0 >= 0 }) else {
+            alertMessage = "This response needs complete nutrition details before it can be logged."
             showAlert = true
+            completion(false)
             return
         }
+        let food = FoodItem(
+            id: "maia-food", name: extractFoodName(from: recipeText), calories: calories,
+            protein: protein, carbs: carbs, fats: fats, servingSize: "1 serving (AI Est.)",
+            servingWeight: 0, calcium: nutrients["calcium"], iron: nutrients["iron"],
+            potassium: nutrients["potassium"], sodium: nutrients["sodium"], vitaminA: nutrients["vitaminA"],
+            vitaminC: nutrients["vitaminC"], vitaminD: nutrients["vitaminD"]
+        ).withAIEstimateSource(.aiChat, sourceName: "Maia Chat")
+        performSavedCommand(.meal(food), actionID: actionID, completion: completion)
+    }
 
+    func handleMaiaAction(_ action: MaiaAction, actionID: String? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
+        if case .generateMealPlan = action {
+            guard !isSavingAction, DIContainer.shared.authService.currentUserID != nil,
+                  mealPlannerService != nil, goalSettings != nil else { completion(false); return }
+            // Opening a builder is navigation; only its reviewed Save can claim a result.
+            showingMealPlanBuilder = true
+            completion(false)
+            return
+        }
+        let command: MaiaSavedCommand
         switch action {
-        case .generateMealPlan:
-            Task {
-                guard let mealPlannerService = self.mealPlannerService, let goalSettings = self.goalSettings else { return }
-                let success = await mealPlannerService.generateAndSaveFullWeekPlan(
-                    goals: goalSettings,
-                    preferredFoods: [],
-                    preferredCuisines: [],
-                    preferredSnacks: [],
-                    userID: userID
-                )
-                
-                await MainActor.run {
-                    guard DIContainer.shared.authService.currentUserID == userID else { return }
-                    if success {
-                        let haptic = UINotificationFeedbackGenerator()
-                        haptic.notificationOccurred(.success)
-                        self.alertMessage = "Meal Plan generated! Check the Meal Plan tab."
-                    } else {
-                        self.alertMessage = "Failed to generate meal plan. Please try again."
-                    }
-                    self.showAlert = true
-                }
+        case .logWorkout(let name, let minutes, let calories): command = .workout(name: name, minutes: minutes, calories: calories)
+        case .logWater(let ounces): command = .water(ounces: ounces)
+        case .logWeight(let pounds): command = .weight(pounds: pounds)
+        case .startFast(let hours): command = .startFast(hours: hours)
+        case .stopFast: command = .stopFast
+        case .generateMealPlan: return
+        }
+        performSavedCommand(command, actionID: actionID, completion: completion)
+    }
+
+    private func performSavedCommand(_ command: MaiaSavedCommand, actionID: String?, completion: @escaping (Bool) -> Void) {
+        guard !isSavingAction else { completion(false); return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let dailyLogService else {
+            alertMessage = "Sign in before saving this action."
+            showAlert = true
+            completion(false)
+            return
+        }
+        let session = MaiaActionSaveSession(userID: userID, actionID: actionID, store: actionStore)
+        var fastSessionID: UUID?
+        if case .stopFast = command {
+            FastingManager.shared.activateAccount(userID)
+            fastSessionID = FastingManager.shared.session?.id
+            guard fastSessionID != nil || session.receipt?.fastSessionID != nil || session.receipt?.isAccepted == true else {
+                alertMessage = "There is no active saved fast to end."
+                showAlert = true
+                completion(false)
+                return
             }
-        case .logWorkout(let exerciseName, let durationMinutes, let caloriesBurned):
-            dailyLogService?.addWorkoutToCurrentLog(
-                for: userID,
-                exerciseName: exerciseName,
-                durationMinutes: durationMinutes,
-                caloriesBurned: caloriesBurned
-            )
-            let haptic = UINotificationFeedbackGenerator()
-            haptic.notificationOccurred(.success)
-            alertMessage = "\(exerciseName) logged!"
+        }
+        guard session.prepare(command: command, date: dailyLogService.activelyViewedDate,
+                              mealName: determineMealType(), fastSessionID: fastSessionID) else {
+            alertMessage = session.errorMessage ?? "Your pending action is kept. Review it before retrying."
             showAlert = true
-            
-        case .logWater(let amountOunces):
-            dailyLogService?.addWaterToCurrentLog(for: userID, amount: amountOunces, goalOunces: goalSettings?.waterGoal ?? 100)
-            let haptic = UINotificationFeedbackGenerator()
-            haptic.notificationOccurred(.success)
-            alertMessage = "\(Int(amountOunces.rounded())) oz of water logged!"
-            showAlert = true
-            
-        case .startFast(let hours):
-            FastingManager.shared.startFast(hours: hours)
-            let haptic = UINotificationFeedbackGenerator()
-            haptic.notificationOccurred(.success)
-            alertMessage = "Started a \(hours)-hour fast!"
-            showAlert = true
-            
-        case .stopFast:
-            FastingManager.shared.endFast()
-            let haptic = UINotificationFeedbackGenerator()
-            haptic.notificationOccurred(.success)
-            alertMessage = "Fast ended!"
-            showAlert = true
-            
-        case .logWeight(let weightPounds):
-            goalSettings?.updateUserWeight(weightPounds)
-            let haptic = UINotificationFeedbackGenerator()
-            haptic.notificationOccurred(.success)
-            let useMetric = BodyUnits.prefersMetric()
-            alertMessage = "Weight updated to \(String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: weightPounds, metric: useMetric))) \(BodyUnits.weightUnit(metric: useMetric))!"
-            showAlert = true
+            completion(false)
+            return
+        }
+        isSavingAction = true
+        currentActionSession = session
+        let alreadyAccepted = session.receipt?.isAccepted == true
+        let requestID = UUID()
+        activeActionRequestID = requestID
+        session.save(using: dailyLogService, goals: goalSettings, waterGoal: waterGoal,
+            external: { [weak self] receipt, done in
+                guard let self else { done(false); return }
+                self.performFastingCommand(receipt, userID: userID, completion: done)
+            },
+            completion: { [weak self] accepted in
+                guard let self, self.activeActionRequestID == requestID else { completion(false); return }
+                self.activeActionRequestID = nil
+                if accepted, !alreadyAccepted {
+                    switch command {
+                    case .meal: self.achievementService?.checkFeatureUsedAchievement(userID: userID, featureType: .aiRecipeLogged)
+                    case .workout: DIContainer.shared.analyticsManager?.logEvent("workout_logged_ai", parameters: nil)
+                    default: break
+                    }
+                }
+                let failure = session.errorMessage ?? "Your action is kept. Retry safely."
+                let message = accepted ? self.savedActionMessage(session.receipt)
+                    : failure.localizedCaseInsensitiveContains("was saved") ? failure : "Couldn't save this action. \(failure)"
+                self.finishAction(accepted, userID: userID, message: message, completion: completion)
+            })
+    }
+
+    private func performFastingCommand(_ receipt: MaiaSavedActionReceipt, userID: String, completion: @escaping (Bool) -> Void) {
+        guard DIContainer.shared.authService.currentUserID == userID,
+              let ownerScope = FastingSessionStore.ownerScope(userID: userID),
+              let command = receipt.command else { completion(false); return }
+        let manager = FastingManager.shared
+        manager.activateAccount(userID)
+        do {
+            let history = try FastingSessionStore().load(ownerScope: ownerScope)
+            switch command {
+            case .startFast(let hours):
+                let source = "maia:\(receipt.entryID)"
+                if history.sessions.contains(where: { $0.source == source }) {
+                    manager.recoverState()
+                    completion(true)
+                } else {
+                    completion(manager.startFast(hours: hours, source: source))
+                }
+            case .stopFast:
+                guard let target = receipt.fastSessionID, let recorded = history.sessions.first(where: { $0.id == target }) else {
+                    completion(false)
+                    return
+                }
+                if !recorded.isActive {
+                    manager.recoverState()
+                    completion(true)
+                } else {
+                    guard manager.session?.id == target else { completion(false); return }
+                    completion(manager.endFast())
+                }
+            default: completion(false)
+            }
+        } catch { completion(false) }
+    }
+
+    private func savedActionMessage(_ receipt: MaiaSavedActionReceipt?) -> String {
+        guard let receipt, let command = receipt.command else { return "Action saved." }
+        switch command {
+        case .water(let ounces): return "\(ounces.formatted(.number.precision(.fractionLength(0...1)))) oz of water logged."
+        case .workout(let name, _, _): return "\(name) logged."
+        case .meal(let food): return "\(food.name) added to \(receipt.mealName.lowercased())."
+        case .weight(let pounds):
+            let metric = BodyUnits.prefersMetric()
+            return "Weight updated to \(String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: pounds, metric: metric))) \(BodyUnits.weightUnit(metric: metric))."
+        case .startFast: return "Fast started."
+        case .stopFast: return "Fast ended."
         }
     }
-    
+
+    private func finishAction(_ accepted: Bool, userID: String, message: String, completion: (Bool) -> Void) {
+        isSavingAction = false
+        currentActionSession = nil
+        guard DIContainer.shared.authService.currentUserID == userID else { completion(false); return }
+        refreshRetainedMaiaActions()
+        if accepted { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+        alertMessage = message
+        showAlert = true
+        completion(accepted)
+    }
+
     // MARK: - Parsing Helpers
     
     private func parseNutrient(from text: String, for nutrient: String) -> Double? {
@@ -635,31 +796,166 @@ class AIChatbotViewModel: ObservableObject {
 
     // MARK: - Persistence
     
-    private func loadMessages() {
-        guard let userID = activeAccountID,
-              let key = AccountScopedStorageKey.make(prefix: "chatHistory", userID: userID) else { return }
-        let legacyKey = "chatHistory_\(userID)"
-        if UserDefaults.standard.data(forKey: key) == nil,
-           let legacyData = UserDefaults.standard.data(forKey: legacyKey) {
-            UserDefaults.standard.set(legacyData, forKey: key)
+    var currentConversation: MaiaConversation? {
+        conversationLibrary.conversations.first { $0.id == conversationLibrary.selectedID }
+    }
+
+    var currentConversationContext: MaiaConversationContext { currentConversation?.context ?? .init() }
+    var effectiveCommunicationProfile: MaiaCommunicationProfile {
+        if let override = currentConversation?.communicationOverride { return override }
+        var profile = conversationLibrary.profile
+        profile.tone = goalSettings?.maiaTone ?? profile.tone
+        return profile
+    }
+    var contextSummary: String {
+        let count = currentConversationContext.includedScopes.count
+        let memory = currentConversationContext.includeRecentMessages ? "Recent messages included" : "No message history shared"
+        return "\(count) context categories · \(memory)"
+    }
+
+    func updateContext(_ context: MaiaConversationContext, profile: MaiaCommunicationProfile, onlyThisTopic: Bool) async -> Bool {
+        guard !isSavingCommunication, let owner = activeAccountID, owner == DIContainer.shared.authService.currentUserID,
+              let conversationID = currentConversation?.id else { return false }
+        let requestID = UUID()
+        communicationRequestID = requestID; isSavingCommunication = true
+        defer {
+            if communicationRequestID == requestID { isSavingCommunication = false; communicationRequestID = nil }
         }
-        UserDefaults.standard.removeObject(forKey: legacyKey)
-        if let data = UserDefaults.standard.data(forKey: key),
-           let decodedMessages = try? JSONDecoder().decode([ChatMessage].self, from: data) {
-            self.chatMessages = decodedMessages
+        if !onlyThisTopic, profile.tone != goalSettings?.maiaTone {
+            do {
+                // A tone-only merge must not replay nutrition targets or any other profile snapshot.
+                try await DIContainer.shared.settingsRepository.saveUserGoals(userID: owner, data: ["goals": ["maiaTone": profile.tone]])
+                guard owner == activeAccountID, owner == DIContainer.shared.authService.currentUserID,
+                      conversationID == currentConversation?.id else { return false }
+                goalSettings?.maiaTone = profile.tone
+            } catch {
+                guard owner == activeAccountID, owner == DIContainer.shared.authService.currentUserID else { return false }
+                storageError = "Communication settings could not be saved. Your choices are kept in this review; retry when connected."
+                return false
+            }
+        }
+        updateCurrentConversation { $0.context = context; $0.communicationOverride = onlyThisTopic ? profile : nil }
+        if !onlyThisTopic { conversationLibrary.profile = profile }
+        return saveMessages()
+    }
+
+    func newConversation() {
+        guard activeAccountID == DIContainer.shared.authService.currentUserID else { return }
+        if isLoading { cancelRequest() }
+        guard saveMessages() else { return }
+        let conversation = MaiaConversation(messages: [ChatMessage(text: welcomeMessage(), isUser: false)])
+        conversationLibrary.conversations.insert(conversation, at: 0)
+        conversationLibrary.selectedID = conversation.id
+        projectSelectedConversation()
+        saveMessages()
+    }
+
+    func selectConversation(_ id: UUID) {
+        guard activeAccountID == DIContainer.shared.authService.currentUserID,
+              conversationLibrary.conversations.contains(where: { $0.id == id }) else { return }
+        if isLoading { cancelRequest() }
+        guard saveMessages() else { return }
+        conversationLibrary.selectedID = id
+        projectSelectedConversation()
+        saveMessages()
+    }
+
+    private func updateCurrentConversation(_ edit: (inout MaiaConversation) -> Void) {
+        guard let index = conversationLibrary.conversations.firstIndex(where: { $0.id == conversationLibrary.selectedID }) else { return }
+        edit(&conversationLibrary.conversations[index])
+    }
+
+    private func projectSelectedConversation() {
+        guard let conversation = currentConversation else { return }
+        chatMessages = conversation.messages; userMessage = conversation.draft
+        partialResponse = ""; inlineErrorMessage = conversation.request?.errorMessage
+        retryMessage = conversation.request?.question; retryContextContract = conversation.request?.contract
+        isLoading = false
+    }
+
+    private func loadMessages() {
+        guard let userID = activeAccountID, userID == DIContainer.shared.authService.currentUserID else { return }
+        do {
+            conversationLibrary = try conversationStore.loadOrMigrate(userID: userID, defaults: chatDefaults, legacyTone: goalSettings?.maiaTone)
+            for index in conversationLibrary.conversations.indices { conversationLibrary.conversations[index].recoverInterruptedRequest() }
+            conversationLibrary = try conversationStore.save(conversationLibrary, userID: userID)
+            storageError = nil; hasConversationConflict = false
+            projectSelectedConversation()
+        } catch {
+            storageError = "Conversation history could not be opened. Existing history is kept; retry before sending another question."
         }
     }
 
-    func saveMessages() {
-        guard let userID = activeAccountID,
-              DIContainer.shared.authService.currentUserID == userID,
-              let key = AccountScopedStorageKey.make(prefix: "chatHistory", userID: userID) else { return }
-        let max = 12
-        let messagesToSave = Array(chatMessages.suffix(max))
-
-        if let encoded = try? JSONEncoder().encode(messagesToSave) {
-            UserDefaults.standard.set(encoded, forKey: key)
-            UserDefaults.standard.removeObject(forKey: "chatHistory_\(userID)")
+    @discardableResult
+    func saveMessages() -> Bool {
+        if pendingResponse != nil { return persistPendingResponse() }
+        guard let userID = activeAccountID, DIContainer.shared.authService.currentUserID == userID,
+              currentConversation != nil else { return false }
+        updateCurrentConversation {
+            $0.messages = chatMessages; $0.draft = userMessage; $0.updatedAt = Date()
+            if $0.title == "New conversation", let question = chatMessages.first(where: \.isUser) { $0.title = String(question.text.prefix(60)) }
         }
+        do {
+            conversationLibrary = try conversationStore.save(conversationLibrary, userID: userID)
+            storageError = nil; hasConversationConflict = false
+            return true
+        } catch MaiaConversationStoreError.changed {
+            hasConversationConflict = true
+            storageError = MaiaConversationStoreError.changed.localizedDescription
+            return false
+        } catch {
+            storageError = "This conversation could not be saved on this device. Keep this screen open and retry; existing history is kept."
+            return false
+        }
+    }
+
+    private func persistPendingResponse() -> Bool {
+        guard let pending = pendingResponse, pending.ownerID == activeAccountID,
+              pending.ownerID == DIContainer.shared.authService.currentUserID,
+              pending.conversationID == currentConversation?.id,
+              let index = conversationLibrary.conversations.firstIndex(where: { $0.id == pending.conversationID }),
+              conversationLibrary.conversations[index].request?.id == pending.requestID else { return false }
+        var candidate = conversationLibrary
+        candidate.conversations[index].draft = userMessage
+        guard candidate.conversations[index].acceptResponse(pending.response.content, requestID: pending.requestID,
+            metadata: pending.response.metadata) else { return false }
+        do {
+            conversationLibrary = try conversationStore.save(candidate, userID: pending.ownerID)
+            pendingResponse = nil; storageError = nil; hasConversationConflict = false
+            chatMessages = currentConversation?.messages ?? chatMessages
+            inlineErrorMessage = nil; retryMessage = nil; retryContextContract = nil
+            HapticManager.instance.feedback(.light)
+            return true
+        } catch MaiaConversationStoreError.changed {
+            hasConversationConflict = true; storageError = MaiaConversationStoreError.changed.localizedDescription
+        } catch {
+            storageError = "The answer arrived but could not be saved. Retry saving to keep it before using any action. Your question stays here."
+        }
+        return false
+    }
+
+    func retryConversationStorage() {
+        guard hasConversationConflict else {
+            if currentConversation == nil { loadMessages() } else { saveMessages() }
+            return
+        }
+        guard let owner = activeAccountID, owner == DIContainer.shared.authService.currentUserID,
+              let original = currentConversation else { return }
+        do {
+            guard var latest = try conversationStore.load(userID: owner) else { return }
+            var recovered = MaiaConversation(title: "Recovered: " + original.title, messages: chatMessages)
+            recovered.draft = userMessage; recovered.context = original.context
+            recovered.communicationOverride = original.communicationOverride; recovered.request = original.request
+            if let pending = pendingResponse, pending.conversationID == original.id,
+               pending.ownerID == owner, pending.requestID == recovered.request?.id {
+                _ = recovered.acceptResponse(pending.response.content, requestID: pending.requestID, metadata: pending.response.metadata)
+            }
+            recovered.recoverInterruptedRequest()
+            latest.conversations.insert(recovered, at: 0); latest.selectedID = recovered.id
+            conversationLibrary = try conversationStore.save(latest, userID: owner)
+            pendingResponse = nil
+            storageError = nil; hasConversationConflict = false
+            projectSelectedConversation()
+        } catch { storageError = error.localizedDescription }
     }
 }

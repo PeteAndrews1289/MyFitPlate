@@ -8,7 +8,7 @@ struct WorkoutInsightListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
-                title: "Maia Workout Insights",
+                title: "Training insights",
                 subtitle: insights.isEmpty
                     ? "Patterns will appear as your training history grows."
                     : "Patterns detected across your recent training."

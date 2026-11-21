@@ -2,6 +2,28 @@ import MyFitPlateCore
 
 import SwiftUI
 
+struct WorkoutSyncNotice: View {
+    @ObservedObject var service: WorkoutService
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        if service.syncState != .synced || service.loadErrorMessage != nil {
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.compact))
+             : AnyLayout(HStackLayout(spacing: AppSpacing.row))) {
+                Label(service.loadErrorMessage ?? (service.syncState == .failed
+                      ? "Saved on this device. Sync needs a retry." : "Saved on this device. Waiting to sync…"),
+                      systemImage: "icloud.and.arrow.up")
+                    .appTextRole(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Retry", action: service.retryPendingSaves).frame(minWidth: 44, minHeight: 44)
+            }
+            .appSurface(.quiet)
+            .accessibilityIdentifier("workout_sync_notice")
+        }
+    }
+}
+
 struct TrainingHeroCard: View {
     let activeProgramName: String?
     let routineCount: Int
@@ -46,25 +68,15 @@ struct TrainingHeroCard: View {
 
 struct TrainingReadinessCard: View {
     let brief: TrainingReadinessBrief
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppSectionHeader(
-                title: "Training Readiness",
-                subtitle: dynamicTypeSize.isAccessibilitySize ? nil : brief.message
-            ) {
-                Text("\(brief.score)%")
-                    .appTextRole(.control)
-                    .foregroundStyle(brief.role.color)
-                    .monospacedDigit()
-                    .accessibilityLabel("Readiness score \(brief.score) out of 100")
-            }
+                title: "Fuel & activity",
+                subtitle: brief.message
+            )
 
-            HStack(spacing: AppSpacing.row) {
-                AppStatusBadge(brief.status, icon: brief.icon, role: brief.role)
-                AppProgressTrack(progress: Double(brief.score) / 100, role: brief.role, height: 7)
-            }
+            AppStatusBadge(brief.status, icon: brief.icon, role: brief.role)
 
             VStack(spacing: 0) {
                 ForEach(Array(brief.signals.enumerated()), id: \.element.id) { index, signal in
@@ -84,26 +96,29 @@ struct TrainingReadinessCard: View {
 
 struct TrainingSignalPill: View {
     let signal: TrainingSignal
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: AppSpacing.row) {
+        HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: AppSpacing.row) {
             Image(systemName: signal.icon)
                 .appFont(size: 15, weight: .semibold)
                 .foregroundStyle(signal.role.color)
                 .frame(width: 32, height: 32)
                 .accessibilityHidden(true)
 
-            Text(signal.title)
-                .appTextRole(.secondary)
-                .foregroundStyle(.secondary)
-
-            Spacer(minLength: 0)
-
-            Text(signal.value)
-                .appTextRole(.control)
-                .foregroundStyle(AppPalette.text)
-                .multilineTextAlignment(.trailing)
-                .fixedSize(horizontal: false, vertical: true)
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.compact))
+             : AnyLayout(HStackLayout(spacing: AppSpacing.row))) {
+                Text(signal.title)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+                Text(signal.value)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, AppSpacing.group)
         .padding(.vertical, AppSpacing.compact)
@@ -114,163 +129,240 @@ struct TrainingSignalPill: View {
 
 struct TrainingWeekPreviewCard: View {
     let program: WorkoutProgram
-    let nextWorkout: (program: WorkoutProgram, routine: WorkoutRoutine, title: String)?
+    var history: [WorkoutSessionLog] = []
+    @State private var selectedSession: UpcomingTrainingSession?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private let weekdays: [(value: Int, label: String)] = [
-        (1, "S"), (2, "M"), (3, "T"), (4, "W"), (5, "T"), (6, "F"), (7, "S")
-    ]
+    private var sessions: [UpcomingTrainingSession] { TrainingScheduleOverview.upcoming(program) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(
-                title: "Program Week",
-                subtitle: dynamicTypeSize.isAccessibilitySize
-                    ? nil
-                    : (program.daysOfWeek?.isEmpty == false
-                        ? "Your training rhythm at a glance."
-                        : "Choose training days to unlock scheduling.")
-            ) {
-                // DESIGN.md rule 3: progress in words, not bare fractions ("5/7" read as
-                // program progress when it meant training days per week).
-                Text("\(program.daysOfWeek?.count ?? 0) training days")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(AppPalette.control, in: Capsule())
+            AppSectionHeader(title: "Coming up", subtitle: "Tap a session to see the exercises and equipment.")
+                .accessibilityIdentifier("train_program_week")
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(spacing: AppSpacing.row))
+             : AnyLayout(HStackLayout(spacing: AppSpacing.row))) {
+                NavigationLink(destination: ProgramDetailView(program: program)) {
+                    Label("Full program", systemImage: "calendar")
+                }.buttonStyle(AppActionButtonStyle(.secondary)).accessibilityIdentifier("training_full_program")
+                NavigationLink(destination: WeekRescueView()) {
+                    Label("Adjust week", systemImage: "calendar.badge.clock")
+                }.buttonStyle(AppActionButtonStyle(.secondary)).accessibilityIdentifier("training_adjust_week")
             }
-
-            if dynamicTypeSize.isAccessibilitySize {
-                Label(accessibilityScheduleText, systemImage: "calendar")
-                    .appTextRole(.body)
-                    .foregroundStyle(AppPalette.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(AppSpacing.row)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        AppPalette.control,
-                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    )
-            } else {
-                HStack(spacing: 7) {
-                    ForEach(weekdays, id: \.value) { weekday in
-                        let routine = routine(for: weekday.value)
-                        TrainingWeekDayChip(
-                            label: weekday.label,
-                            detail: routine.map { initials(for: $0.name) },
-                            isActive: routine != nil,
-                            isNext: routine?.id == nextWorkout?.routine.id
-                        )
+            if sessions.isEmpty {
+                Text("No sessions left in this block. Review your program to plan what comes next.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+            }
+            ForEach(sessions) { session in
+                Button { selectedSession = session } label: {
+                    HStack(alignment: .top, spacing: AppSpacing.row) {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(session.date?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? "Not scheduled")
+                                .appTextRole(.caption).foregroundStyle(.secondary)
+                            Text(session.routine.name).appTextRole(.control).foregroundStyle(AppPalette.text)
+                            Text("Week \(session.week) · Day \(session.day) · \(session.routine.exercises.count) exercises · \(session.workingSets) working sets")
+                                .appTextRole(.secondary).foregroundStyle(.secondary)
+                            if session.isOverdue {
+                                Text("Still in your plan — adjust the date when you need to.")
+                                    .appTextRole(.caption).foregroundStyle(AppPalette.caution)
+                            }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").foregroundStyle(.secondary).accessibilityHidden(true)
                     }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).appSurface(.quiet)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain).accessibilityIdentifier("training_preview_\(session.slot)")
             }
 
-            // DESIGN.md rule 1: no "Next: ..." row here — the hero card above already
-            // names the next workout. The schedule hint only appears when it adds info.
-            if nextWorkout == nil {
-                Text("Set a schedule in program details.")
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-            }
         }
-        .accessibilityIdentifier("train_program_week")
-    }
-
-    private var routineByWeekday: [Int: WorkoutRoutine] {
-        guard let scheduledDays = program.daysOfWeek,
-              !scheduledDays.isEmpty,
-              !program.routines.isEmpty else {
-            return [:]
+        .sheet(item: $selectedSession) { session in
+            TrainingSessionPreview(session: session, history: history, program: program)
         }
-
-        let normalizedDays = Set(scheduledDays)
-        let calendar = Calendar.current
-
-        if let startDate = program.startDate {
-            var routineMap: [Int: WorkoutRoutine] = [:]
-            var routineIndex = 0
-
-            for offset in 0..<7 {
-                guard let date = calendar.date(byAdding: .day, value: offset, to: startDate) else { continue }
-                let weekday = calendar.component(.weekday, from: date)
-                guard normalizedDays.contains(weekday), routineMap[weekday] == nil else { continue }
-
-                routineMap[weekday] = program.routines[routineIndex % program.routines.count]
-                routineIndex += 1
-
-                if routineMap.count == normalizedDays.count { break }
-            }
-
-            return routineMap
-        }
-
-        let sortedDays = normalizedDays.sorted()
-        return Dictionary(uniqueKeysWithValues: sortedDays.compactMap { weekday in
-            guard let dayIndex = sortedDays.firstIndex(of: weekday) else { return nil }
-            return (weekday, program.routines[dayIndex % program.routines.count])
-        })
-    }
-
-    private func routine(for weekday: Int) -> WorkoutRoutine? {
-        routineByWeekday[weekday]
-    }
-
-    private func initials(for routineName: String) -> String {
-        let words = routineName
-            .split(separator: " ")
-            .prefix(2)
-            .compactMap { $0.first }
-
-        let initials = String(words).uppercased()
-        return initials.isEmpty ? "W" : initials
-    }
-
-    private var accessibilityScheduleText: String {
-        guard let scheduledDays = program.daysOfWeek, !scheduledDays.isEmpty else {
-            return "No training days scheduled"
-        }
-
-        let symbols = Calendar.current.weekdaySymbols
-        let names = scheduledDays.sorted().compactMap { weekday -> String? in
-            let index = weekday - 1
-            guard symbols.indices.contains(index) else { return nil }
-            return symbols[index]
-        }
-        return "Scheduled \(names.joined(separator: ", "))"
     }
 }
 
-struct TrainingWeekDayChip: View {
-    let label: String
-    let detail: String?
-    let isActive: Bool
-    let isNext: Bool
+private struct TrainingSessionPreview: View {
+    let session: UpcomingTrainingSession
+    let history: [WorkoutSessionLog]
+    let program: WorkoutProgram
+    @Environment(\.dismiss) private var dismiss
+    private var hasActiveDraft: Bool {
+        guard let owner = DIContainer.shared.authService.currentUserID else { return true }
+        do { return try WorkoutDraftStore().load(userID: owner) != nil } catch { return true }
+    }
+    @State private var showingAdaptation = false
+    @State private var reviewedWorkout: WorkoutPlayerLaunch?
+    @State private var adaptation: WorkoutSessionEditReceipt?
+    @State private var preparedRoutine: WorkoutRoutine?
+    private var previewExercises: [RoutineExercise] { preparedRoutine?.exercises ?? session.routine.exercises.map(configuredExercise) }
+    private var previewRoutine: WorkoutRoutine { preparedRoutine ?? session.routine }
 
-    // DESIGN.md rule 2: green marks "now", not "scheduled" — only the next session's
-    // chip carries brand color; other training days are neutral so the week reads at
-    // a glance instead of as a wall of green.
-    var body: some View {
-        VStack(spacing: 5) {
-            Text(label)
-                .appTextRole(.caption)
-                .foregroundStyle(isNext ? AppPalette.brandText : Color.secondary)
+    private var equipment: [String] {
+        Array(Set(previewExercises.map { exercise in
+            if let setup = exercise.loadEquipment {
+                guard setup.isValid else { return "Review equipment setup" }
+                return "\(setup.name ?? setup.kind.title) (\(setup.unit.rawValue))"
+            }
+            let named = ["Dumbbell", "Kettlebell", "Barbell", "Cable"].filter {
+                exercise.name.localizedCaseInsensitiveContains($0)
+            }
+            if !named.isEmpty { return named.joined(separator: exercise.name.contains("/") ? " or " : ", ") }
+            let family = ExerciseList.equipment(for: exercise.name)
+            return family == .flexible ? "Other equipment choices: see exercises" : family.rawValue
+        })).sorted()
+    }
 
-            Text(detail ?? "-")
-                .appFont(size: 11, weight: .bold)
-                .foregroundStyle(isNext ? AppPalette.brandText : (isActive ? AppPalette.text : Color.secondary))
-                .frame(width: 30, height: 30)
-                .background(
-                    Circle()
-                        .fill(isNext ? AppPalette.brand.opacity(0.10) : AppPalette.control.opacity(isActive ? 1 : 0.45))
-                )
-                .overlay(
-                    Circle()
-                        .stroke(isNext ? AppPalette.brand : Color.clear, lineWidth: 1.5)
-                )
+    /// Preview the same remembered setup used by a fresh session without editing
+    /// the saved program's shared WorkoutRoutine reference.
+    @MainActor
+    private func configuredExercise(_ exercise: RoutineExercise) -> RoutineExercise {
+        guard let owner = DIContainer.shared.authService.currentUserID else { return exercise }
+        var copy = exercise
+        if let remembered = StrengthEquipmentPreferenceStore().load(userID: owner, routineID: session.routine.id,
+            exerciseID: exercise.id, exerciseName: exercise.name) {
+            copy.loadEquipment = remembered
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 7)
+        return copy
+    }
+
+    @ViewBuilder private func previousPerformance(_ exercise: RoutineExercise) -> some View {
+        if let log = ProgressionRules.history(for: exercise, in: history, routineID: session.routine.id).first,
+           let result = ProgressionRules.performance(for: exercise, in: log), !WorkoutSetMath.workingSets(in: result).isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Last comparable result · \(log.date.formatted(date: .abbreviated, time: .omitted))").appTextRole(.control)
+                Text(WorkoutSetMath.contextLabel(result.exercise)).appTextRole(.caption).foregroundStyle(.secondary)
+                ForEach(Array(WorkoutSetMath.workingSets(in: result).enumerated()), id: \.offset) { index, set in
+                    Text("Set \(index + 1) · " + previousSetText(set, exercise: result.exercise)).appTextRole(.secondary)
+                }
+                Text("Recorded results from this plan day and a compatible movement/setup. Today's targets and proposed changes are shown separately.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }.accessibilityElement(children: .contain).accessibilityIdentifier("training_preview_previous_\(exercise.id)")
+        } else {
+            Text("No recorded comparable working sets for this plan day and setup yet.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func previousSetText(_ set: CompletedSet, exercise: RoutineExercise) -> String {
+        var pieces: [String] = []
+        if exercise.type == .strength {
+            let unit = exercise.loadEquipment?.unit ?? .lb
+            if exercise.loadEquipment?.loadingMeaning == .bodyweightOnly { pieces.append("Bodyweight") } else {
+                pieces.append("\(unit.displayWeight(set.weight).formatted(.number.precision(.fractionLength(0...2)))) \(unit.rawValue)")
+            }
+            pieces.append("\(set.reps) reps")
+        }
+        if let seconds = set.durationInSeconds, seconds > 0 { pieces.append("\(seconds) sec") }
+        if let miles = set.distance, miles > 0 { pieces.append("\(miles.formatted(.number.precision(.fractionLength(0...2)))) mi") }
+        if let effort = set.effort { pieces.append("\(effort.scale.rawValue.uppercased()) \(effort.value.formatted())") } else { pieces.append("Effort not recorded") }
+        return pieces.joined(separator: " · ")
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text(session.routine.name).appTextRole(.sectionTitle).accessibilityIdentifier("training_session_preview")
+                    Text(session.date?.formatted(date: .complete, time: .omitted) ?? "Choose dates in Full program")
+                        .foregroundStyle(.secondary)
+                    Text("Week \(session.week) · Day \(session.day) · \(session.workingSets) working sets")
+                        .appTextRole(.secondary)
+                    if let minutes = WorkoutPlanningEligibility.estimatedMinutes(previewRoutine) {
+                        Text("About \(max(5, minutes - 5))–\(minutes + 5) min · prescription and rest estimate").appTextRole(.secondary)
+                    }
+                    if let first = previewExercises.first { Text("First: " + first.name).appTextRole(.control) }
+                    if let notes = session.routine.notes, !notes.isEmpty { Text(notes).appTextRole(.secondary) }
+                }
+                Section("Equipment to have ready") {
+                    Text(equipment.isEmpty ? "No equipment listed" : equipment.joined(separator: " · "))
+                        .accessibilityIdentifier("training_preview_equipment")
+                    Text("Uses your saved equipment setups when available. Check exercise notes for substitutions.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                Section("Fit today's time") {
+                    Button("Review a shorter session or substitution") { showingAdaptation = true }
+                        .frame(minHeight: 44).accessibilityIdentifier("training_preview_adapt")
+                    Text("Preview remaining work without changing your saved program. An accepted adaptation starts as a separate recoverable session draft.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                    if let adaptation {
+                        Text(adaptation.explanation).appTextRole(.secondary)
+                        Text("Estimated remaining work: \(adaptation.beforeMinutes) → \(adaptation.afterMinutes) min").appTextRole(.control)
+                    }
+                }
+                Section {
+                    Button(adaptation == nil ? "Start this session" : "Start reviewed session") {
+                        guard let launch = WorkoutPlayerLaunch(routine: previewRoutine, program: program, slot: session.slot) else {
+                            ToastManager.shared.showToast(message: "Reopen your program to choose its current session.")
+                            return
+                        }
+                        reviewedWorkout = launch
+                    }
+                        .buttonStyle(AppActionButtonStyle(.primary)).accessibilityIdentifier("training_preview_start")
+                        .disabled(hasActiveDraft || program.id == nil || preparedRoutine == nil || session.slot < (program.currentProgressIndex ?? 0))
+                    if hasActiveDraft { Text("Finish or discard the active session before starting another.").appTextRole(.caption).foregroundStyle(.secondary) }
+                }
+                Section("Session plan") {
+                    ForEach(Array(previewExercises.enumerated()), id: \.element.id) { index, exercise in
+                        DisclosureGroup {
+                            ForEach(Array(exercise.sets.enumerated()), id: \.offset) { setIndex, set in
+                                Text("\(set.resolvedSetType == .warmup ? "Warm-up" : "Set \(setIndex + 1)") · \(set.target ?? exercise.targetReps)")
+                                    .appTextRole(.secondary)
+                            }
+                            if exercise.restTimeInSeconds > 0 {
+                                Text("Rest: \(exercise.restTimeInSeconds) sec").appTextRole(.secondary)
+                            }
+                            if let notes = exercise.notes, !notes.isEmpty { Text(notes).appTextRole(.secondary) }
+                            if let alternatives = exercise.alternatives, !alternatives.isEmpty {
+                                Text("Alternatives: " + alternatives.joined(separator: ", ")).appTextRole(.secondary)
+                            }
+                            previousPerformance(exercise)
+                            if let plan = ProgressionRules.plan(for: exercise, history: history, routineID: session.routine.id) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(plan.headline).appTextRole(.control)
+                                    Text(plan.rationale).appTextRole(.secondary)
+                                    Text("Based on your current history. Review and apply targets when you start the workout.")
+                                        .appTextRole(.caption).foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, AppSpacing.compact)
+                            } else {
+                                Text("Progression guidance appears when your history and this exercise's targets support a comparison.")
+                                    .appTextRole(.caption).foregroundStyle(.secondary)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(index + 1). \(exercise.name)").appTextRole(.control)
+                                Text(exercise.type == .strength
+                                     ? "\(exercise.sets.isEmpty ? max(0, exercise.targetSets) : exercise.sets.filter { $0.resolvedSetType != .warmup }.count) working sets · Tap for targets"
+                                     : exercise.type.rawValue.capitalized)
+                                    .appTextRole(.secondary).foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .buttonStyle(AppListButtonStyle())
+            .onAppear {
+                if preparedRoutine == nil, let copy = session.routine.deepCopy() {
+                    copy.exercises = copy.exercises.map(configuredExercise); preparedRoutine = copy
+                }
+            }
+            .sheet(isPresented: $showingAdaptation) {
+                WorkoutSessionAdaptationView(exercises: previewExercises, history: history) { reviewed in
+                    _ = try WorkoutSessionAdaptationRules.applying(reviewed, to: previewExercises)
+                    adaptation = reviewed
+                }
+            }
+            .fullScreenCover(item: $reviewedWorkout) { launch in
+                WorkoutPlayerView(routine: launch.routine, programContext: launch.programContext,
+                    initialSessionEdit: adaptation, freezesReviewedSetup: true) { reviewedWorkout = nil; dismiss() }
+            }
+            .navigationTitle("Session preview").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
     }
 }
 
@@ -283,77 +375,27 @@ struct TrainingDecisionCard: View {
     let onChooseOneOff: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: nextWorkout == nil ? "point.topleft.down.curvedto.point.bottomright.up" : "play.circle.fill")
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandForeground)
-                    .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(nextWorkout == nil ? "Choose Your Training Path" : "Today's Best Next Step")
-                        .appFont(size: 19, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text(decisionText)
-                        .appFont(size: 13, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            Text(nextWorkout == nil ? "Choose your next workout" : "Ready for your next session")
+                .appTextRole(.sectionTitle).foregroundStyle(AppPalette.text)
+            Text("Follow a plan for guided progression, or start a saved routine.")
+                .appTextRole(.body).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if let nextWorkout {
-                Button(action: onStartWorkout) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(nextWorkout.title)
-                                .appFont(size: 13, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-
-                            Text(nextWorkout.routine.name)
-                                .appFont(size: 17, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
-                        Label("Start", systemImage: "play.fill")
-                            .appFont(size: 14, weight: .bold)
-                            .foregroundColor(AppPalette.onBrand)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(Color.brandPrimary, in: Capsule())
-                    }
-                    .padding(14)
-                    .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                Text(nextWorkout.routine.name).appTextRole(.control)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(action: onStartWorkout) { Label("Start workout", systemImage: "play.fill") }
+                    .buttonStyle(AppActionButtonStyle(.primary))
             } else {
-                HStack(spacing: 10) {
-                    Button(action: onChoosePlan) {
-                        TrainingPathPill(title: "Start a Plan", subtitle: "Use Plan Library", icon: "rectangle.stack.fill", color: AppPalette.achievement)
-                    }
-                    .buttonStyle(.plain)
+                Button(action: onChoosePlan) { Label("Choose a plan", systemImage: "rectangle.stack") }
+                    .buttonStyle(AppActionButtonStyle(.primary))
                     .accessibilityIdentifier("start_plan_button")
-
-                    Button(action: onChooseOneOff) {
-                        TrainingPathPill(title: "One-off", subtitle: "\(routineCount) saved", icon: "bolt.fill", color: AppPalette.effort)
-                    }
-                    .buttonStyle(.plain)
+                Button(action: onChooseOneOff) { Label("Saved routines", systemImage: "dumbbell") }
+                    .buttonStyle(AppActionButtonStyle(.secondary))
                     .accessibilityIdentifier("one_off_workouts_button")
-                }
             }
         }
-        .appSurface(.emphasized)
-    }
-
-    private var decisionText: String {
-        if let activeProgramName {
-            return "Continue \(activeProgramName), or choose another route below if today's session needs to change."
-        }
-        return "Pick a full program for guided progression, or run a one-off routine when you just need a session."
+        .appSurface(.emphasized, radius: AppRadius.hero)
     }
 }
 
@@ -395,36 +437,59 @@ struct ActiveProgramManagementCard<Destination: View>: View {
     let destination: () -> Destination
 
     private var progressText: String {
-        guard let currentIndex = program.currentProgressIndex else { return "Open" }
-        let daysPerWeek = max(program.daysOfWeek?.count ?? 0, 1)
-        let totalWorkouts = max(daysPerWeek * 12, program.routines.count)
-        return "\(min(currentIndex, totalWorkouts))/\(totalWorkouts)"
+        guard let currentIndex = program.currentProgressIndex, program.totalSlots > 0 else { return "Progress not set" }
+        guard currentIndex < program.totalSlots else { return "Block complete" }
+        return "Session \(max(currentIndex, 0) + 1) of \(program.totalSlots.formatted())"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(title: "Current Program", subtitle: program.name) {
-                Text(progressText)
-                    .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brandText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(AppPalette.brand.opacity(0.10), in: Capsule())
-            }
-
-            HStack(spacing: AppSpacing.compact) {
-                NavigationLink(destination: destination()) {
-                    Label("Manage", systemImage: "folder.fill")
+            AppSectionHeader(title: "Program options", subtitle: progressText) {
+                Menu {
+                    Button("Delete program", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis")
                 }
-                .buttonStyle(AppActionButtonStyle(.secondary))
-
-                Button(role: .destructive, action: onDelete) {
-                    Label("Delete", systemImage: "trash.fill")
-                }
-                .buttonStyle(AppActionButtonStyle(.destructive))
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Program options")
+                .accessibilityIdentifier("train_program_options")
             }
+            Text(program.name).appTextRole(.control)
+                .foregroundStyle(AppPalette.text).fixedSize(horizontal: false, vertical: true)
+            NavigationLink(destination: destination()) {
+                Label("Saved plans", systemImage: "folder")
+            }
+            .buttonStyle(AppActionButtonStyle(.secondary))
         }
         .appSurface(.quiet)
+    }
+}
+
+/// A quiet, full-width destination inside the Train navigation group.
+/// Keep detailed reports and management controls on their own pages.
+struct TrainingNavigationRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: AppSpacing.row) {
+            Image(systemName: icon)
+                .appTextRole(.control).foregroundStyle(.secondary)
+                .frame(width: 32, height: 32).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).appTextRole(.control).foregroundStyle(AppPalette.text)
+                Text(subtitle).appTextRole(.secondary).foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: AppSpacing.compact)
+            Image(systemName: "chevron.right")
+                .appTextRole(.caption).foregroundStyle(.tertiary).accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(AppSpacing.group)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 

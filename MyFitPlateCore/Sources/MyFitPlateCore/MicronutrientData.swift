@@ -217,6 +217,23 @@ public extension FoodItem {
         scaled.saturatedFat = saturatedFat.map { $0 * multiplier }
         scaled.polyunsaturatedFat = polyunsaturatedFat.map { $0 * multiplier }
         scaled.monounsaturatedFat = monounsaturatedFat.map { $0 * multiplier }
+        if let recipePortionSnapshot {
+            if let portion = recipePortionSnapshot.scaled(by: multiplier) { scaled.recipePortionSnapshot = portion } else if multiplier != 1 {
+                // Preserve unsupported evidence verbatim. Its amount cannot be reinterpreted
+                // by this version, so a changed portion explicitly needs review.
+                scaled.sourceMetadata?.confidence = .needsReview
+                scaled.sourceMetadata?.notes = "Recipe portion evidence uses an unsupported version. Review the changed amount with a compatible app."
+            }
+        }
+        if var composition = mealComposition {
+            if composition.components.allSatisfy({ $0.mealComposition == nil }) {
+                composition.components = composition.components.compactMap { FoodRepeatRules.adjusting($0, by: multiplier) }
+                scaled.mealComposition = composition
+            } else {
+                scaled.sourceMetadata?.confidence = .needsReview
+                scaled.sourceMetadata?.notes = "Nested meal composition needs review before changing its amount."
+            }
+        }
         for key in MicronutrientKey.allCases {
             guard let value = micronutrientValue(for: key) else { continue }
             scaled.setMicronutrientValue(value * multiplier, for: key)

@@ -11,12 +11,12 @@ struct MaiaActionBoardView: View {
     let healthKitEnabled: Bool
     let pantryCount: Int
     let isGeneratingMeal: Bool
+    var waterUnit: WaterVolumeUnit = .ounces
+    var waterTrackingOnly = false
     var onFillMacros: () -> Void
     var onProteinOrRecovery: () -> Void
     var onTrustOrToday: () -> Void
     var onHydrate: () -> Void
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private enum ActionKind: String, CaseIterable, Identifiable {
         case fillMacros
@@ -28,25 +28,25 @@ struct MaiaActionBoardView: View {
     }
 
     private var proteinCardTitle: String {
-        hasWorkoutToday ? "Recovery meal" : "Protein anchor"
+        hasWorkoutToday ? "Plan a recovery meal" : "Find a high-protein meal"
     }
 
     private var proteinCardSubtitle: String? {
         if hasWorkoutToday {
-            return "\(Int(remainingProtein.rounded()))g left"
+            return "\(Int(remainingProtein.rounded())) g left"
         }
-        return remainingProtein >= 15 ? "\(Int(remainingProtein.rounded()))g left" : nil
+        return remainingProtein >= 15 ? "\(Int(remainingProtein.rounded())) g left" : nil
     }
 
     private var trustCardTitle: String {
-        hasNutritionMismatch ? "Review trust" : "Read today"
+        hasNutritionMismatch ? "Check food estimates" : "Review my day"
     }
 
     private var recommendedAction: ActionKind {
         if hasNutritionMismatch { return .trustOrToday }
         if hasWorkoutToday && remainingProtein >= 10 { return .proteinOrRecovery }
         if remainingCalories >= 150 { return .fillMacros }
-        if waterRemaining > 0 { return .hydrate }
+        if !waterTrackingOnly && waterRemaining > 0 { return .hydrate }
         return .trustOrToday
     }
 
@@ -74,12 +74,7 @@ struct MaiaActionBoardView: View {
                     )
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Best next step")
-                            .appTextRole(.caption)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-
-                        Text(title(for: recommendedAction))
+                        Text(recommendedAction == .hydrate ? "Log " + waterAmount(16) + " of water" : title(for: recommendedAction))
                             .appTextRole(.sectionTitle)
                             .foregroundStyle(AppPalette.text)
 
@@ -102,39 +97,26 @@ struct MaiaActionBoardView: View {
             .disabled(recommendedAction == .fillMacros && isGeneratingMeal)
             .accessibilityIdentifier("maia_recommended_action")
 
-            MaiaDataBoundaryStrip(
-                healthKitEnabled: healthKitEnabled,
-                pantryCount: pantryCount
-            )
-
-            Text("More options")
-                .appTextRole(.caption)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: AppSpacing.compact) {
-                    ForEach(secondaryActions) { action in
-                        secondaryActionChip(action, showsSubtitle: true)
-                    }
-                }
-            } else {
-                HStack(spacing: AppSpacing.compact) {
-                    ForEach(secondaryActions) { action in
-                        secondaryActionChip(action, showsSubtitle: false)
-                    }
+            VStack(spacing: 0) {
+                ForEach(secondaryActions) { action in
+                    if action != secondaryActions.first { Divider().padding(.leading, 48) }
+                    secondaryActionRow(action)
                 }
             }
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+
+            MaiaDataBoundaryStrip(healthKitEnabled: healthKitEnabled, pantryCount: pantryCount)
+
         }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     private func title(for action: ActionKind) -> String {
         switch action {
-        case .fillMacros: "Fill macros"
+        case .fillMacros: "Find a meal for my macros"
         case .proteinOrRecovery: proteinCardTitle
         case .trustOrToday: trustCardTitle
-        case .hydrate: "Hydrate"
+        case .hydrate: "Log water"
         }
     }
 
@@ -143,7 +125,7 @@ struct MaiaActionBoardView: View {
         case .fillMacros: "\(Int(remainingCalories.rounded())) cal"
         case .proteinOrRecovery: proteinCardSubtitle
         case .trustOrToday: nil
-        case .hydrate: waterRemaining > 0 ? "+16 oz" : "Covered"
+        case .hydrate: waterAmount(16)
         }
     }
 
@@ -173,15 +155,21 @@ struct MaiaActionBoardView: View {
             "\(Int(remainingCalories.rounded()).formatted()) calories remain in today's target."
         case .proteinOrRecovery:
             hasWorkoutToday
-                ? "You trained today and have \(Int(remainingProtein.rounded()).formatted())g protein left."
-                : "You have \(Int(remainingProtein.rounded()).formatted())g protein left today."
+                ? "You trained today and have \(Int(remainingProtein.rounded()).formatted()) g protein left."
+                : "You have \(Int(remainingProtein.rounded()).formatted()) g protein left today."
         case .trustOrToday:
             hasNutritionMismatch
                 ? "A nutrition mismatch is worth reviewing before you use today's totals."
                 : "See what today's food, water, and training point to."
         case .hydrate:
-            "\(Int(waterRemaining.rounded()).formatted()) oz remains toward today's water target."
+            "Log " + waterAmount(16) + " of water. " + (waterTrackingOnly
+                ? "You are tracking without a daily target."
+                : waterAmount(max(0, waterRemaining)) + " remains toward today's target.")
         }
+    }
+
+    private func waterAmount(_ ounces: Double) -> String {
+        "\(waterUnit.amount(fromOunces: ounces).formatted(.number.precision(.fractionLength(0...1)))) \(waterUnit.symbol)"
     }
 
     private func perform(_ action: ActionKind) {
@@ -196,75 +184,32 @@ struct MaiaActionBoardView: View {
     private func isDisabled(_ action: ActionKind) -> Bool {
         switch action {
         case .fillMacros: isGeneratingMeal
-        case .hydrate: waterRemaining <= 0
+        case .hydrate: !waterTrackingOnly && waterRemaining <= 0
         case .proteinOrRecovery, .trustOrToday: false
         }
     }
 
-    private func secondaryActionChip(_ action: ActionKind, showsSubtitle: Bool) -> some View {
-        MaiaActionChip(
-            title: title(for: action),
-            subtitle: showsSubtitle ? subtitle(for: action) : nil,
-            icon: icon(for: action),
-            tint: tint(for: action),
-            isLoading: action == .fillMacros && isGeneratingMeal,
-            isDisabled: isDisabled(action),
-            fillsWidth: true,
-            action: { perform(action) }
-        )
-    }
-}
-
-private struct MaiaActionChip: View {
-    let title: String
-    let subtitle: String?
-    let icon: String
-    let tint: Color
-    var isLoading = false
-    var isDisabled = false
-    var fillsWidth = false
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.7)
+    private func secondaryActionRow(_ action: ActionKind) -> some View {
+        Button { perform(action) } label: {
+            HStack(spacing: AppSpacing.row) {
+                if action == .fillMacros && isGeneratingMeal {
+                    ProgressView().frame(width: 24)
                 } else {
-                    Image(systemName: icon)
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(tint)
+                    Image(systemName: icon(for: action)).foregroundStyle(tint(for: action)).frame(width: 24)
                 }
-
-                Text(title)
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text("· \(subtitle)")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                if fillsWidth {
-                    Spacer(minLength: 0)
+                Text(title(for: action)).appTextRole(.control).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                if let detail = subtitle(for: action) {
+                    Text(detail).appTextRole(.caption).foregroundStyle(.secondary).monospacedDigit()
                 }
             }
-            .padding(.horizontal, 13)
-            .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 44, alignment: .leading)
-            .background(
-                AppPalette.control.opacity(isDisabled ? 0.35 : 1),
-                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    .stroke(AppPalette.separator, lineWidth: 0.5)
-            )
+            .frame(minHeight: 44)
+            .padding(.horizontal, AppSpacing.row)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isDisabled || isLoading)
-        .accessibilityLabel("\(title)\(subtitle.map { ", \($0)" } ?? "")")
+        .disabled(isDisabled(action))
+        .accessibilityIdentifier("maia_shortcut_" + action.rawValue)
     }
 }
 
@@ -278,7 +223,7 @@ private struct MaiaDataBoundaryStrip: View {
                 MaiaDataChip(icon: "calendar", text: "Today", color: AppPalette.brand)
                 MaiaDataChip(icon: "target", text: "Goals", color: .accentPositive)
                 if healthKitEnabled {
-                    MaiaDataChip(icon: "applewatch", text: "HealthKit", color: AppPalette.recovery)
+                    MaiaDataChip(icon: "applewatch", text: "Apple Health", color: AppPalette.recovery)
                 }
                 if pantryCount > 0 {
                     MaiaDataChip(icon: "cabinet.fill", text: "\(pantryCount) pantry", color: AppPalette.achievement)
@@ -311,13 +256,14 @@ private struct MaiaDataChip: View {
 
 struct ChatBubble: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var goalSettings: GoalSettings
 
     let message: ChatMessage
-    let onLogRecipe: (String) -> Void
+    let onLogRecipe: (String, String, @escaping (Bool) -> Void) -> Void
     let onSpeak: (String) -> Void
     let onStopSpeaking: () -> Void
     let currentSpokenText: String?
-    let onAction: (MaiaAction) -> Void
+    let onAction: (MaiaAction, String, @escaping (Bool) -> Void) -> Void
     @Binding var showAlert: Bool
     @Binding var alertMessage: String
     private let canBeLogged: Bool
@@ -325,11 +271,11 @@ struct ChatBubble: View {
 
     init(
         message: ChatMessage,
-        onLogRecipe: @escaping (String) -> Void,
+        onLogRecipe: @escaping (String, String, @escaping (Bool) -> Void) -> Void,
         onSpeak: @escaping (String) -> Void,
         onStopSpeaking: @escaping () -> Void,
         currentSpokenText: String?,
-        onAction: @escaping (MaiaAction) -> Void,
+        onAction: @escaping (MaiaAction, String, @escaping (Bool) -> Void) -> Void,
         showAlert: Binding<Bool>,
         alertMessage: Binding<String>
     ) {
@@ -358,9 +304,21 @@ struct ChatBubble: View {
         let kind: String
     }
 
-    private func parseStructuredPayloads(from text: String) -> (String, [MaiaActionPayload], [ActionPayloadIssue]) {
+    private struct PositionedAction: Identifiable {
+        let index: Int
+        let payload: MaiaActionPayload
+        var id: Int { index }
+    }
+
+    private func frozenWeight(actionID: String) -> Double? {
+        guard let receipt = MaiaActionSaveSession.savedReceipt(userID: DIContainer.shared.authService.currentUserID, actionID: actionID),
+              case .weight(let pounds)? = receipt.command else { return nil }
+        return pounds
+    }
+
+    private func parseStructuredPayloads(from text: String) -> (String, [PositionedAction], [ActionPayloadIssue]) {
         var cleanText = text
-        var payloads: [MaiaActionPayload] = []
+        var payloads: [PositionedAction] = []
         var issues: [ActionPayloadIssue] = []
 
         let pattern = "```json\\s*(\\{.*?\\})\\s*```"
@@ -371,12 +329,12 @@ struct ChatBubble: View {
         let nsString = text as NSString
         let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
 
-        for match in matches.reversed() {
+        for (index, match) in matches.enumerated().reversed() {
             let jsonString = nsString.substring(with: match.range(at: 1))
             if let data = jsonString.data(using: .utf8) {
                 do {
                     let payload = try JSONDecoder().decode(MaiaActionPayload.self, from: data)
-                    payloads.append(payload)
+                    payloads.append(PositionedAction(index: index, payload: payload))
                 } catch {
                     issues.append(ActionPayloadIssue(kind: "decode_failed"))
                 }
@@ -411,12 +369,12 @@ struct ChatBubble: View {
                     let parsed = parseStructuredPayloads(from: message.text)
                     let displayText = parsed.0
                     let payloads = parsed.1
-                    let validationIssues = payloads.compactMap { payload -> ActionPayloadIssue? in
-                        guard let issueKind = payload.validationIssueKind else { return nil }
+                    let validationIssues = payloads.compactMap { positioned -> ActionPayloadIssue? in
+                        guard let issueKind = positioned.payload.validationIssueKind else { return nil }
                         return ActionPayloadIssue(kind: issueKind)
                     }
                     let payloadIssues = parsed.2 + validationIssues
-                    let renderablePayloads = payloads.filter(\.isRenderableAction)
+                    let renderablePayloads = payloads.filter { $0.payload.isRenderableAction }
 
                     if !displayText.isEmpty {
                         Text(.init(displayText))
@@ -439,10 +397,12 @@ struct ChatBubble: View {
                     }
 
                     if !renderablePayloads.isEmpty && !message.isUser {
-                        ForEach(renderablePayloads) { payload in
+                        ForEach(renderablePayloads) { positioned in
+                            let payload = positioned.payload
+                            let actionID = "\(message.id.uuidString)-action-\(positioned.index)"
                             if payload.type == "meal_suggestion" || payload.type == nil {
                                 if let name = payload.mealName, let c = payload.calories, let p = payload.protein, let cb = payload.carbs, let f = payload.fats {
-                                    AIChatActionCard(mealName: name, calories: c, protein: p, carbs: cb, fats: f, onLog: {
+                                    AIChatActionCard(mealName: name, calories: c, protein: p, carbs: cb, fats: f, actionID: actionID, onLog: { completion in
                                         let legacyFormat = """
                                         \(name)
                                         ---Nutritional Breakdown---
@@ -451,43 +411,44 @@ struct ChatBubble: View {
                                         Carbs: \(cb)g
                                         Fats: \(f)g
                                         """
-                                        onLogRecipe(legacyFormat)
+                                        onLogRecipe(legacyFormat, actionID, completion)
                                     })
                                     .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
                             } else if payload.type == "generate_meal_plan" {
-                                AIChatMealPlanActionCard(onConfirm: {
-                                    onAction(.generateMealPlan)
+                                AIChatMealPlanActionCard(onConfirm: { completion in
+                                    onAction(.generateMealPlan, actionID, completion)
                                 })
                                 .frame(maxWidth: messageMaxWidth, alignment: .leading)
                             } else if payload.type == "log_workout" {
                                 if let ex = payload.exerciseName, let d = payload.durationMinutes, let c = payload.caloriesBurned {
-                                    AIChatWorkoutActionCard(exerciseName: ex, durationMinutes: d, caloriesBurned: c, onConfirm: {
-                                        onAction(.logWorkout(exerciseName: ex, durationMinutes: d, caloriesBurned: c))
+                                    AIChatWorkoutActionCard(exerciseName: ex, durationMinutes: d, caloriesBurned: c, actionID: actionID, onConfirm: { completion in
+                                        onAction(.logWorkout(exerciseName: ex, durationMinutes: d, caloriesBurned: c), actionID, completion)
                                     })
                                     .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
                             } else if payload.type == "log_water" {
                                 if let oz = payload.amountOunces {
-                                    AIChatWaterActionCard(amountOunces: oz, onConfirm: {
-                                        onAction(.logWater(amountOunces: oz))
+                                    AIChatWaterActionCard(amountOunces: oz, actionID: actionID, waterUnit: goalSettings.hydrationPreferences.unit, onConfirm: { completion in
+                                        onAction(.logWater(amountOunces: oz), actionID, completion)
                                     })
                                     .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
                             } else if payload.type == "start_fast" {
-                                AIChatFastActionCard(fastHours: payload.fastHours, isStop: false, onConfirm: {
-                                    onAction(.startFast(hours: payload.fastHours ?? 16))
+                                AIChatFastActionCard(fastHours: payload.fastHours, isStop: false, actionID: actionID, onConfirm: { completion in
+                                    onAction(.startFast(hours: payload.fastHours ?? 16), actionID, completion)
                                 })
                                 .frame(maxWidth: messageMaxWidth, alignment: .leading)
                             } else if payload.type == "stop_fast" {
-                                AIChatFastActionCard(fastHours: nil, isStop: true, onConfirm: {
-                                    onAction(.stopFast)
+                                AIChatFastActionCard(fastHours: nil, isStop: true, actionID: actionID, onConfirm: { completion in
+                                    onAction(.stopFast, actionID, completion)
                                 })
                                 .frame(maxWidth: messageMaxWidth, alignment: .leading)
                             } else if payload.type == "log_weight" {
                                 if let w = payload.weightPounds {
-                                    AIChatWeightActionCard(weightPounds: w, onConfirm: {
-                                        onAction(.logWeight(weightPounds: w))
+                                    let shownWeight = frozenWeight(actionID: actionID) ?? w
+                                    AIChatWeightActionCard(weightPounds: shownWeight, actionID: actionID, onConfirm: { completion in
+                                        onAction(.logWeight(weightPounds: shownWeight), actionID, completion)
                                     })
                                     .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
@@ -527,15 +488,9 @@ struct ChatBubble: View {
                     .accessibilityHint("Reads Maia's visible response using the selected voice.")
                 }
                 if canBeLogged {
-                    Button(action: { onLogRecipe(message.text) }) {
-                        Label("Log Food", systemImage: "plus.circle.fill")
-                            .appFont(size: 12, weight: .semibold)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 12)
-                            .background(Color.brandPrimary, in: Capsule())
-                            .foregroundColor(AppPalette.onBrand)
+                    MaiaConfirmedActionButton(title: "Log food", savedTitle: "Logged", identifier: "maia_legacy_log", actionID: "\(message.id.uuidString)-legacy-meal") {
+                        onLogRecipe(message.text, "\(message.id.uuidString)-legacy-meal", $0)
                     }
-                    .buttonStyle(.plain)
                 }
                 if !message.isUser { Spacer() }
             }
@@ -557,10 +512,10 @@ private struct MaiaActionParseFallbackCard: View {
                 .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("Action needs retry")
+                Text("This action is not ready")
                     .appFont(size: 13, weight: .bold)
                     .foregroundColor(.textPrimary)
-                Text("Maia's answer is still shown, but the action button payload was incomplete.")
+                Text("The suggested action was incomplete. Ask Maia to prepare it again; the rest of the answer is still available.")
                     .appFont(size: 11, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
@@ -631,81 +586,153 @@ private struct AIChatActionHeader<Action: View>: View {
     }
 }
 
+private struct MaiaConfirmedActionButton: View {
+    let title: String
+    let savedTitle: String
+    let identifier: String
+    var actionID: String?
+    let action: (@escaping (Bool) -> Void) -> Void
+    @State private var isSaving = false
+    @State private var isSaved = false
+
+    var body: some View {
+        Button {
+            guard !isSaving, !isSaved else { return }
+            isSaving = true
+            action { accepted in
+                isSaving = false
+                isSaved = accepted
+            }
+        } label: {
+            HStack(spacing: AppSpacing.compact) {
+                if isSaving { ProgressView().controlSize(.small) }
+                Text(isSaving ? "Saving…" : isSaved ? savedTitle : title)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .appTextRole(.control)
+            .frame(minHeight: 44)
+        }
+        .disabled(isSaving || isSaved)
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier(identifier)
+        .onAppear(perform: restoreSavedReceipt)
+        .onChange(of: actionID) { _, _ in restoreSavedReceipt() }
+        .onReceive(NotificationCenter.default.publisher(for: MaiaActionSaveSession.receiptDidChange)) { notification in
+            if notification.userInfo?["actionID"] as? String == actionID { restoreSavedReceipt() }
+        }
+    }
+
+    private func restoreSavedReceipt() {
+        isSaved = MaiaActionSaveSession.savedReceipt(userID: DIContainer.shared.authService.currentUserID, actionID: actionID)?.isAccepted == true
+    }
+}
+
+struct MaiaRetainedActionsView: View {
+    let receipts: [MaiaSavedActionReceipt]
+    let isSaving: Bool
+    let onRetry: (MaiaSavedActionReceipt) -> Void
+
+    var body: some View {
+        DisclosureGroup("\(receipts.count) kept Maia actions") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Submitted saves may already be logged. Retrying uses each original entry and date to avoid a duplicate. Clearing chat does not cancel them.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(receipts, id: \.actionID) { receipt in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(receipt.actionDescription).font(.subheadline)
+                            Text("\(receipt.hasBeenSubmitted ? "Submitted or unconfirmed" : "Not submitted") · \(receipt.destinationDescription)")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(receipt.hasBeenSubmitted ? "Retry" : "Save") { onRetry(receipt) }
+                            .disabled(isSaving)
+                            .accessibilityIdentifier("maia_retained_action_retry")
+                    }
+                }
+            }
+            .padding(.top, 8)
+        }
+        .padding(12)
+        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("maia_retained_actions")
+    }
+}
+
+private struct MaiaActionReceiptHint: View {
+    let actionID: String?
+    @State private var receipt: MaiaSavedActionReceipt?
+
+    var body: some View {
+        Group {
+            if let receipt {
+                Text("\(receipt.isAccepted ? "Saved" : "Pending") · \(receipt.destinationDescription)")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("maia_action_receipt")
+            }
+        }
+        .onAppear(perform: reload)
+        .onReceive(NotificationCenter.default.publisher(for: MaiaActionSaveSession.receiptDidChange)) { notification in
+            if notification.userInfo?["actionID"] as? String == actionID { reload() }
+        }
+    }
+
+    private func reload() {
+        receipt = MaiaActionSaveSession.savedReceipt(userID: DIContainer.shared.authService.currentUserID, actionID: actionID)
+    }
+}
+
 struct AIChatActionCard: View {
     let mealName: String
     let calories: Double
     let protein: Double
     let carbs: Double
     let fats: Double
-    let onLog: () -> Void
-    @State private var didLog = false
+    var actionID: String?
+    let onLog: (@escaping (Bool) -> Void) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             AIChatActionHeader(title: mealName) {
-                Button(action: {
-                    guard !didLog else { return }
-                    didLog = true
-                    onLog()
-                }) {
-                    Text(didLog ? "Logged" : "Log Food")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didLog ? .accentPositive : AppPalette.onBrand)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            didLog ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
-                            in: Capsule()
-                        )
-                }
-                .disabled(didLog)
-                .buttonStyle(AnimatedCardButtonStyle())
+                MaiaConfirmedActionButton(
+                    title: "Log food", savedTitle: "Logged", identifier: "maia_meal_log", actionID: actionID, action: onLog
+                )
             }
 
             Text(
-                "\(Int(calories.rounded())) cal  ·  " +
-                "\(Int(protein.rounded()))g protein  ·  " +
-                "\(Int(carbs.rounded()))g carbs  ·  " +
-                "\(Int(fats.rounded()))g fat"
+                "\(calories.formatted(.number.precision(.fractionLength(0)))) cal  ·  " +
+                "\(protein.formatted(.number.precision(.fractionLength(0))))g protein  ·  " +
+                "\(carbs.formatted(.number.precision(.fractionLength(0))))g carbs  ·  " +
+                "\(fats.formatted(.number.precision(.fractionLength(0))))g fat"
             )
             .appTextRole(.secondary)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+            MaiaActionReceiptHint(actionID: actionID)
         }
-        .appSurface(.interpreted)
+        .appSurface(.quiet)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("maia_action_meal")
     }
 }
 
 struct AIChatMealPlanActionCard: View {
-    let onConfirm: () -> Void
-    @State private var didConfirm = false
+    let onConfirm: (@escaping (Bool) -> Void) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             AIChatActionHeader(
-                title: "7-Day Meal Plan",
-                subtitle: "Includes grocery list generation"
+                title: "Plan your week",
+                subtitle: "Choose preferences and review before saving"
             ) {
-                Button(action: {
-                    didConfirm = true
-                    onConfirm()
-                }) {
-                    Text(didConfirm ? "Generated" : "Generate")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
-                            in: Capsule()
-                        )
-                }
-                .disabled(didConfirm)
-                .buttonStyle(AnimatedCardButtonStyle())
+                MaiaConfirmedActionButton(
+                    title: "Plan week", savedTitle: "Opened", identifier: "maia_plan_generate", action: onConfirm
+                )
             }
         }
-        .appSurface(.interpreted)
+        .appSurface(.quiet)
         .accessibilityIdentifier("maia_action_meal_plan")
     }
 }
@@ -714,28 +741,15 @@ struct AIChatWorkoutActionCard: View {
     let exerciseName: String
     let durationMinutes: Int
     let caloriesBurned: Double
-    let onConfirm: () -> Void
-    @State private var didConfirm = false
+    var actionID: String?
+    let onConfirm: (@escaping (Bool) -> Void) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             AIChatActionHeader(title: exerciseName) {
-                Button(action: {
-                    didConfirm = true
-                    onConfirm()
-                }) {
-                    Text(didConfirm ? "Logged" : "Log Workout")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
-                            in: Capsule()
-                        )
-                }
-                .disabled(didConfirm)
-                .buttonStyle(AnimatedCardButtonStyle())
+                MaiaConfirmedActionButton(
+                    title: "Log workout", savedTitle: "Logged", identifier: "maia_workout_log", actionID: actionID, action: onConfirm
+                )
             }
 
             LazyVGrid(
@@ -743,48 +757,42 @@ struct AIChatWorkoutActionCard: View {
                 spacing: AppSpacing.compact
             ) {
                 MacroLabel(title: "Time", value: "\(durationMinutes)m")
-                MacroLabel(title: "Burn", value: "\(Int(caloriesBurned.rounded())) cal")
+                MacroLabel(title: "Burn", value: "\(caloriesBurned.formatted(.number.precision(.fractionLength(0)))) cal")
             }
+            MaiaActionReceiptHint(actionID: actionID)
         }
-        .appSurface(.interpreted)
+        .appSurface(.quiet)
         .accessibilityIdentifier("maia_action_workout")
     }
 }
 
 struct AIChatWaterActionCard: View {
     let amountOunces: Double
-    let onConfirm: () -> Void
-    @State private var didConfirm = false
+    var actionID: String?
+    var waterUnit: WaterVolumeUnit = .ounces
+    let onConfirm: (@escaping (Bool) -> Void) -> Void
+
+    private var amountText: String {
+        "\(waterUnit.amount(fromOunces: amountOunces).formatted(.number.precision(.fractionLength(0...1)))) \(waterUnit.symbol)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            AIChatActionHeader(title: "Log Water") {
-                Button(action: {
-                    didConfirm = true
-                    onConfirm()
-                }) {
-                    Text(didConfirm ? "Logged" : "Confirm")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
-                            in: Capsule()
-                        )
-                }
-                .disabled(didConfirm)
-                .buttonStyle(AnimatedCardButtonStyle())
+            AIChatActionHeader(title: "Water") {
+                MaiaConfirmedActionButton(
+                    title: "Add " + amountText, savedTitle: "Logged", identifier: "maia_water_log", actionID: actionID, action: onConfirm
+                )
             }
 
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 128), spacing: AppSpacing.compact)],
                 spacing: AppSpacing.compact
             ) {
-                MacroLabel(title: "Amount", value: "\(Int(amountOunces.rounded())) oz")
+                MacroLabel(title: "Amount", value: amountText)
             }
+            MaiaActionReceiptHint(actionID: actionID)
         }
-        .appSurface(.interpreted)
+        .appSurface(.quiet)
         .accessibilityIdentifier("maia_action_water")
     }
 }
@@ -792,28 +800,15 @@ struct AIChatWaterActionCard: View {
 struct AIChatFastActionCard: View {
     let fastHours: Int?
     let isStop: Bool
-    let onConfirm: () -> Void
-    @State private var didConfirm = false
+    var actionID: String?
+    let onConfirm: (@escaping (Bool) -> Void) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             AIChatActionHeader(title: isStop ? "End Fast" : "Start Fast") {
-                Button(action: {
-                    didConfirm = true
-                    onConfirm()
-                }) {
-                    Text(didConfirm ? "Confirmed" : "Confirm")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
-                            in: Capsule()
-                        )
-                }
-                .disabled(didConfirm)
-                .buttonStyle(AnimatedCardButtonStyle())
+                MaiaConfirmedActionButton(
+                    title: "Confirm", savedTitle: "Confirmed", identifier: "maia_fast_confirm", actionID: actionID, action: onConfirm
+                )
             }
 
             if let hours = fastHours, !isStop {
@@ -824,37 +819,25 @@ struct AIChatFastActionCard: View {
                     MacroLabel(title: "Duration", value: "\(hours) hrs")
                 }
             }
+            MaiaActionReceiptHint(actionID: actionID)
         }
-        .appSurface(.interpreted)
+        .appSurface(.quiet)
         .accessibilityIdentifier("maia_action_fast")
     }
 }
 
 struct AIChatWeightActionCard: View {
     let weightPounds: Double
-    let onConfirm: () -> Void
+    var actionID: String?
+    let onConfirm: (@escaping (Bool) -> Void) -> Void
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
-    @State private var didConfirm = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             AIChatActionHeader(title: "Log Weight") {
-                Button(action: {
-                    didConfirm = true
-                    onConfirm()
-                }) {
-                    Text(didConfirm ? "Logged" : "Confirm")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
-                            in: Capsule()
-                        )
-                }
-                .disabled(didConfirm)
-                .buttonStyle(AnimatedCardButtonStyle())
+                MaiaConfirmedActionButton(
+                    title: "Confirm", savedTitle: "Logged", identifier: "maia_weight_log", actionID: actionID, action: onConfirm
+                )
             }
 
             LazyVGrid(
@@ -870,8 +853,9 @@ struct AIChatWeightActionCard: View {
                     )
                 )
             }
+            MaiaActionReceiptHint(actionID: actionID)
         }
-        .appSurface(.interpreted)
+        .appSurface(.quiet)
         .accessibilityIdentifier("maia_action_weight")
     }
 }
@@ -900,6 +884,10 @@ struct MacroLabel: View {
 
 #if DEBUG
 struct MaiaActionCardGalleryView: View {
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @StateObject private var viewModel = AIChatbotViewModel()
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
@@ -915,21 +903,30 @@ struct MaiaActionCardGalleryView: View {
                     protein: 31,
                     carbs: 55,
                     fats: 9,
-                    onLog: {}
+                    onLog: { completion in
+                        viewModel.logRecipe(recipeText: """
+                        Greek yogurt, berries, and oats
+                        ---Nutritional Breakdown---
+                        Calories: 430
+                        Protein: 31g
+                        Carbs: 55g
+                        Fats: 9g
+                        """, completion: completion)
+                    }
                 )
 
-                AIChatMealPlanActionCard(onConfirm: {})
+                AIChatMealPlanActionCard(onConfirm: { $0(true) })
 
                 AIChatWorkoutActionCard(
                     exerciseName: "Full-body strength session",
                     durationMinutes: 48,
                     caloriesBurned: 325,
-                    onConfirm: {}
+                    onConfirm: { $0(true) }
                 )
 
-                AIChatWaterActionCard(amountOunces: 16, onConfirm: {})
-                AIChatFastActionCard(fastHours: 16, isStop: false, onConfirm: {})
-                AIChatWeightActionCard(weightPounds: 184.6, onConfirm: {})
+                AIChatWaterActionCard(amountOunces: 16, onConfirm: { $0(true) })
+                AIChatFastActionCard(fastHours: 16, isStop: false, onConfirm: { $0(true) })
+                AIChatWeightActionCard(weightPounds: 184.6, onConfirm: { $0(true) })
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.vertical, AppSpacing.group)
@@ -938,17 +935,26 @@ struct MaiaActionCardGalleryView: View {
         .background(AppPalette.canvas.ignoresSafeArea())
         .navigationTitle("Maia Actions")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            viewModel.dailyLogService = dailyLogService
+            viewModel.goalSettings = goalSettings
+        }
+        .alert("Maia", isPresented: $viewModel.showAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.alertMessage)
+        }
     }
 }
 #endif
 
 struct ChatHistoryListView<TopContent: View, BottomContent: View>: View {
     @Binding var chatMessages: [ChatMessage]
-    var onLogRecipe: (String) -> Void
+    var onLogRecipe: (String, String, @escaping (Bool) -> Void) -> Void
     var onSpeak: (String) -> Void
     var onStopSpeaking: () -> Void
     var currentSpokenText: String?
-    var onAction: (MaiaAction) -> Void
+    var onAction: (MaiaAction, String, @escaping (Bool) -> Void) -> Void
     @Binding var showAlert: Bool
     @Binding var alertMessage: String
     let topContent: TopContent
@@ -956,11 +962,11 @@ struct ChatHistoryListView<TopContent: View, BottomContent: View>: View {
 
     init(
         chatMessages: Binding<[ChatMessage]>,
-        onLogRecipe: @escaping (String) -> Void,
+        onLogRecipe: @escaping (String, String, @escaping (Bool) -> Void) -> Void,
         onSpeak: @escaping (String) -> Void,
         onStopSpeaking: @escaping () -> Void,
         currentSpokenText: String?,
-        onAction: @escaping (MaiaAction) -> Void,
+        onAction: @escaping (MaiaAction, String, @escaping (Bool) -> Void) -> Void,
         showAlert: Binding<Bool>,
         alertMessage: Binding<String>,
         @ViewBuilder topContent: () -> TopContent,
@@ -1038,40 +1044,34 @@ struct MaiaBriefingCard: View {
     let waterGoal: Double
     let mealCount: Int
     let workoutCount: Int
+    var waterUnit: WaterVolumeUnit = .ounces
+    var waterTrackingOnly = false
+    @State private var showsDetails = false
 
     private var contextSummary: String {
         let mealText = mealCount == 1 ? "1 meal" : "\(mealCount) meals"
         let workoutText = workoutCount == 1 ? "1 workout" : "\(workoutCount) workouts"
-        let waterText = "\(Int(water.rounded()).formatted()) of \(Int(waterGoal.rounded()).formatted()) oz water"
+        let amount = waterUnit.amount(fromOunces: water).formatted(.number.precision(.fractionLength(0...1)))
+        let target = waterUnit.amount(fromOunces: waterGoal).formatted(.number.precision(.fractionLength(0...1)))
+        let waterText = waterTrackingOnly ? "\(amount) \(waterUnit.symbol) water · tracking only" : "\(amount) of \(target) \(waterUnit.symbol) water"
         return [mealText, workoutText, waterText].joined(separator: " · ")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(title: "Today in context", subtitle: contextSummary)
-
-            AppMetricStrip(items: [
-                AppMetricItem(
-                    label: "Calories left",
-                    value: Int(calories.rounded()).formatted(),
-                    accent: AppPalette.energy
-                ),
-                AppMetricItem(
-                    label: "Protein left",
-                    value: "\(Int(protein.rounded()).formatted())g",
-                    accent: .accentProtein
-                ),
-                AppMetricItem(
-                    label: "Carbs left",
-                    value: "\(Int(carbs.rounded()).formatted())g",
-                    accent: .accentCarbs
-                ),
-                AppMetricItem(
-                    label: "Fats left",
-                    value: "\(Int(fats.rounded()).formatted())g",
-                    accent: .accentFats
-                )
-            ])
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text("\(Int(abs(calories).rounded()).formatted()) cal \(calories >= 0 ? "left" : "over") · \(Int(max(0, protein).rounded()).formatted()) g protein left")
+                .appTextRole(.control).monospacedDigit()
+                .fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup("Today's context", isExpanded: $showsDetails) {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Text(contextSummary)
+                    Text("\(Int(max(0, carbs).rounded()).formatted()) g carbs · \(Int(max(0, fats).rounded()).formatted()) g fat remaining")
+                }
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, AppSpacing.compact)
+            }
+            .appTextRole(.secondary)
         }
         .appSurface(.quiet)
         .accessibilityIdentifier("maia_daily_context")

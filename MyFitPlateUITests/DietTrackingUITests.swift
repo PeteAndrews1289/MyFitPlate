@@ -7,7 +7,7 @@ final class DietTrackingUITests: XCTestCase {
         continueAfterFailure = false
 
         app = XCUIApplication()
-        app.launchArguments.append("-ui-testing")
+        app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "home"]
         app.launch()
     }
 
@@ -16,41 +16,15 @@ final class DietTrackingUITests: XCTestCase {
         XCTAssertTrue(quickLogButton.waitForExistence(timeout: 5), "Quick log button should be visible")
         let quickLogHittable = expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: quickLogButton)
         XCTAssertEqual(XCTWaiter.wait(for: [quickLogHittable], timeout: 5), .completed)
-        XCTAssertEqual(
-            quickLogButton.frame.midX,
-            app.frame.midX,
-            accuracy: 4,
-            "Quick log should remain centered when navigation tabs change"
-        )
+        XCTAssertTrue(app.frame.contains(quickLogButton.frame))
+        XCTAssertLessThanOrEqual(app.buttons["tab_reports"].frame.maxX, quickLogButton.frame.minX)
 
-        let scanBarcodeBtn = app.buttons["quick_log_scan_barcode"]
-        quickLogButton.press(forDuration: 0.1)
-        if !scanBarcodeBtn.waitForExistence(timeout: 5) {
-            XCTContext.runActivity(named: "Recover from a simulator-dropped input event") { _ in
-                XCTAssertTrue(quickLogButton.isHittable, "Quick log should remain tappable after a dropped simulator event")
-                quickLogButton.press(forDuration: 0.1)
-            }
-        }
-        XCTAssertTrue(scanBarcodeBtn.waitForExistence(timeout: 5), "Primary Quick Log options should appear")
-
-        let moreOptionsButton = app.buttons["quick_log_more_options"]
-        XCTAssertTrue(moreOptionsButton.exists, "Specialty logging tools should be collapsible")
-        moreOptionsButton.tap()
-
-        let logCameraBtn = app.buttons["quick_log_log_with_camera"]
-        if !logCameraBtn.waitForExistence(timeout: 5), moreOptionsButton.label == "More options" {
-            XCTContext.runActivity(named: "Recover from a simulator-dropped expansion event") { _ in
-                XCTAssertTrue(moreOptionsButton.isHittable, "More options should remain tappable after a dropped simulator event")
-                moreOptionsButton.tap()
-            }
-        }
-        XCTAssertTrue(logCameraBtn.waitForExistence(timeout: 5), "Expanded Quick Log options should appear")
-
-        let runningButton = app.buttons["quick_log_running"]
-        XCTAssertTrue(runningButton.waitForExistence(timeout: 5), "The final specialty action should be present")
-        for _ in 0..<3 where !runningButton.isHittable {
-            app.swipeUp()
-        }
-        XCTAssertTrue(runningButton.isHittable, "Every expanded Quick Log action should be reachable on compact screens")
+        quickLogButton.tap()
+        XCTAssertTrue(app.textFields["food_search_field"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["food_search_action_barcode"].isHittable)
+        XCTAssertTrue(app.buttons["food_search_action_camera"].isHittable)
+        app.buttons["food_search_more_actions"].tap()
+        XCTAssertTrue(app.buttons["Running"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Log exercise"].isHittable)
     }
 }

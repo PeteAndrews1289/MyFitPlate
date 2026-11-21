@@ -3,7 +3,7 @@ import FirebaseFunctions
 import MyFitPlateCore
 
 @MainActor
-public class AIService: AIServiceProtocol {
+public class AIService: AIStreamingServiceProtocol {
 
     public static let shared = AIService()
     private lazy var functions = Functions.functions()
@@ -14,7 +14,7 @@ public class AIService: AIServiceProtocol {
     /// Handles retries automatically for network errors or empty responses.
     public func performRequest(
         messages: [[String: Any]],
-        model: String = "gpt-4o-mini",
+        model: String = "gpt-6-luna",
         maxTokens: Int = 2048,
         temperature: Double = 0.7,
         responseFormat: [String: Any]? = nil,
@@ -30,7 +30,7 @@ public class AIService: AIServiceProtocol {
         }
 
         guard let userID = DIContainer.shared.authService.currentUserID,
-              AIDataConsentStore.shared.hasCurrentConsent(for: userID) else {
+              let consent = AIDataConsentStore.shared.consent(for: userID) else {
             NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
             return .failure(.consentRequired)
         }
@@ -43,8 +43,27 @@ public class AIService: AIServiceProtocol {
             responseFormat: responseFormat,
             requestKind: requestKind,
             retryCount: retryCount,
-            requestingUserID: userID
+            requestingUserID: userID,
+            consent: consent
         )
+    }
+
+    public func performStreamingRequest(messages: [[String: Any]], model: String, maxTokens: Int, temperature: Double,
+                                        requestKind: AIRequestKind, requestID: UUID,
+                                        onDelta: @escaping @MainActor (String) -> Void) async -> Result<MaiaAIResponse, AIError> {
+        guard let owner = DIContainer.shared.authService.currentUserID,
+              let consent = AIDataConsentStore.shared.consent(for: owner) else {
+            NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
+            return .failure(.consentRequired)
+        }
+        do {
+            let payload: [String: Any] = ["messages": messages, "maxTokens": maxTokens, "temperature": temperature,
+                                          "requestKind": requestKind.rawValue, "requestID": requestID.uuidString]
+            let response = try await MaiaStreamingTransport().send(payload: payload, requestID: requestID, ownerID: owner,
+                                                                  consent: consent, onDelta: onDelta)
+            try Task.checkCancellation()
+            return .success(response)
+        } catch let error as AIError { return .failure(error) } catch { return .failure(.networkError(error)) }
     }
 
     private func performRequest(
@@ -55,14 +74,22 @@ public class AIService: AIServiceProtocol {
         responseFormat: [String: Any]?,
         requestKind: AIRequestKind,
         retryCount: Int,
-        requestingUserID: String
+        requestingUserID: String,
+        consent: AIDataConsent
     ) async -> Result<String, AIError> {
         guard DIContainer.shared.authService.currentUserID == requestingUserID else {
             return .failure(.accountChanged)
         }
+        if let flag = requestKind.requiredFeatureFlag,
+           !(DIContainer.shared.featureFlagService?.boolValue(for: flag) ?? flag.defaultValue) {
+            return .failure(.featureUnavailable)
+        }
         
+        guard !Task.isCancelled else { return .failure(.networkError(CancellationError())) }
+        guard AIDataConsentStore.shared.matches(consent, for: requestingUserID) else {
+            return .failure(.consentChanged)
+        }
         var requestData: [String: Any] = [
-            "model": model,
             "messages": messages,
             "maxTokens": maxTokens,
             "temperature": temperature,
@@ -74,9 +101,17 @@ public class AIService: AIServiceProtocol {
         }
 
         do {
-            let result = try await functions.httpsCallable("generateAIResponse").call(requestData)
+            let callable = functions.httpsCallable("generateAIResponse")
+            callable.timeoutInterval = 130
+            let result = try await callable.call(requestData)
+            guard !Task.isCancelled else { return .failure(.networkError(CancellationError())) }
             guard DIContainer.shared.authService.currentUserID == requestingUserID else {
                 return .failure(.accountChanged)
+            }
+            guard AIDataConsentStore.shared.matches(consent, for: requestingUserID) else { return .failure(.consentChanged) }
+            if let flag = requestKind.requiredFeatureFlag,
+               !(DIContainer.shared.featureFlagService?.boolValue(for: flag) ?? flag.defaultValue) {
+                return .failure(.featureUnavailable)
             }
             guard let data = result.data as? [String: Any],
                   let content = data["content"] as? String else {
@@ -84,12 +119,22 @@ public class AIService: AIServiceProtocol {
             }
             return .success(content.trimmingCharacters(in: .whitespacesAndNewlines))
         } catch {
-            if retryCount > 0 {
+            let nsError = error as NSError
+            let code = nsError.domain == FunctionsErrorDomain ? FunctionsErrorCode(rawValue: nsError.code) : nil
+            if code == .resourceExhausted {
+                return .failure(.apiError("You've reached the AI usage limit. Try again later; saved food search still works."))
+            }
+            if code == .invalidArgument { return .failure(.apiError("This request is too large or invalid. Try a shorter request.")) }
+            if code == .failedPrecondition || code == .permissionDenied || code == .unauthenticated {
+                return .failure(.apiError("AI is unavailable for this session. Check your account and try again."))
+            }
+            let isTransient = code == .unavailable || code == .deadlineExceeded || nsError.domain == NSURLErrorDomain
+            if retryCount > 0, isTransient, !Task.isCancelled {
                 guard DIContainer.shared.authService.currentUserID == requestingUserID else {
                     return .failure(.accountChanged)
                 }
                 AppLog.ai.warning("AI request failed. Retrying: \(error.localizedDescription, privacy: .public)")
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return .failure(.networkError(error)) }
                 guard DIContainer.shared.authService.currentUserID == requestingUserID else {
                     return .failure(.accountChanged)
                 }
@@ -101,7 +146,8 @@ public class AIService: AIServiceProtocol {
                     responseFormat: responseFormat,
                     requestKind: requestKind,
                     retryCount: retryCount - 1,
-                    requestingUserID: requestingUserID
+                    requestingUserID: requestingUserID,
+                    consent: consent
                 )
             }
             return .failure(.networkError(error))

@@ -14,11 +14,17 @@ struct GenderButtonPicker: View {
     }
 }
 
+@MainActor
 struct CaloricCalculatorView: View {
-    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var liveGoals: GoalSettings
+    @StateObject private var goalSettings = GoalSettings(isEditingPreview: true)
+    @State private var baseline: GoalEditorDraft?
+    @State private var ownerID: String?
+    @State private var isSaving = false
+    @State private var saveError: String?
+    @State private var seeded = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var showSaveConfirmation = false
     @FocusState private var numericFieldIsFocused: Bool
     
     @State private var calorieInput: String = ""
@@ -52,22 +58,28 @@ struct CaloricCalculatorView: View {
         AppEditorScaffold(
             title: "Calorie & Macro Goals",
             subtitle: "Review the assumptions behind your estimate, then save the target you want to use.",
-            dismiss: { dismiss() }
+            dismiss: { if !isSaving { dismiss() } }
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
                 personalInfoSection
                 weightGoalsSection
                 dailyCalorieSection
                 macronutrientSection
+                Text("Changes apply to current goals. Diary and workout history are not rewritten.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
                 citationSection
             }
         } actions: {
-            Button("Save Goals") {
+            if let saveError {
+                Text(saveError).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                    .accessibilityIdentifier("settings_goals_save_error")
+            }
+            Button(isSaving ? "Saving…" : "Save goals") {
                 numericFieldIsFocused = false
                 saveCaloricGoal()
             }
             .buttonStyle(AppActionButtonStyle(.primary))
-            .disabled(!hasValidCalorieInput)
+            .disabled(!hasValidCalorieInput || isSaving)
             .accessibilityIdentifier("settings_goals_save")
         }
         .toolbar {
@@ -77,53 +89,13 @@ struct CaloricCalculatorView: View {
             }
         }
         .onAppear(perform: fetchAndSetGoals)
-        .alert(isPresented: $showSaveConfirmation) {
-            Alert(
-                title: Text("Goals saved"),
-                message: Text("Your nutrition goals are updated."),
-                dismissButton: .default(Text("OK")) { dismiss() }
-            )
+        .onChange(of: resolvedDraft?.calories) { _, value in
+            if goalSettings.calorieGoalMethod != .custom, let value { calorieInput = String(format: "%.0f", value) }
         }
-        .onChange(of: goalSettings.activityLevel) { _, newLevel in
-            let newString = activityString(for: newLevel)
-            if selectedActivityString != newString {
-                selectedActivityString = newString
-            }
-            goalSettings.recalculateAllGoals()
-        }
-        .onChange(of: goalSettings.goal) { _, newGoal in
-            if goals.contains(newGoal) && selectedGoal != newGoal {
-                selectedGoal = newGoal
-            }
-            goalSettings.recalculateAllGoals()
-        }
-        .onChange(of: goalSettings.weeklyChangeLbs) {
-            if goalSettings.calorieGoalMethod == .custom {
-                goalSettings.calorieGoalMethod = .mifflinWithActivity
-            }
-            goalSettings.recalculateAllGoals()
-        }
-        .onChange(of: goalSettings.age) {
-            if goalSettings.calorieGoalMethod == .custom {
-                goalSettings.calorieGoalMethod = .mifflinWithActivity
-            }
-            goalSettings.recalculateAllGoals()
-        }
-        .onChange(of: goalSettings.gender) {
-            if goalSettings.calorieGoalMethod == .custom {
-                goalSettings.calorieGoalMethod = .mifflinWithActivity
-            }
-            goalSettings.recalculateAllGoals()
-        }
-        .onChange(of: goalSettings.proteinPercentage) { goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.carbsPercentage) { goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.fatsPercentage) { goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.calories) { _, newRecommendedCalories in
-            if Double(calorieInput) != newRecommendedCalories {
-                calorieInput = String(format: "%.0f", newRecommendedCalories ?? 0)
-            }
-        }
+        .interactiveDismissDisabled(isSaving)
+        .disabled(isSaving)
         .tint(AppPalette.brand)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings_goals_screen")
     }
 
@@ -255,10 +227,6 @@ struct CaloricCalculatorView: View {
                 .appTextRole(.control)
             .onChange(of: selectedActivityString) { _, newValue in
                 if let index = activityLevelStrings.firstIndex(of: newValue) {
-                    if goalSettings.activityLevel != activityLevelValues[index],
-                       goalSettings.calorieGoalMethod == .custom {
-                        goalSettings.calorieGoalMethod = .mifflinWithActivity
-                    }
                     goalSettings.activityLevel = activityLevelValues[index]
                 }
             }
@@ -270,10 +238,6 @@ struct CaloricCalculatorView: View {
                 }
                 .appTextRole(.control)
                 .onChange(of: selectedGoal) { _, newValue in
-                    if goalSettings.goal != newValue,
-                       goalSettings.calorieGoalMethod == .custom {
-                        goalSettings.calorieGoalMethod = .mifflinWithActivity
-                    }
                     if newValue != "Maintain" {
                         goalSettings.weeklyChangeLbs = GoalSettingsRules.normalizedWeeklyChange(
                             goalSettings.weeklyChangeLbs,
@@ -320,22 +284,44 @@ struct CaloricCalculatorView: View {
                 subtitle: "The calculated value remains editable before you save."
             )
 
+            Picker("Calorie method", selection: $goalSettings.calorieGoalMethod) {
+                ForEach(CalorieGoalMethod.allCases) { Text($0.rawValue).tag($0) }
+            }.accessibilityIdentifier("settings_goals_method")
+            Text("Editing other fields keeps your chosen method.").appTextRole(.secondary).foregroundStyle(.secondary)
+            if goalSettings.calorieGoalMethod != .custom {
+                Text("Calculated target: \(resolvedDraft?.calories.formatted(.number.precision(.fractionLength(0))) ?? "—") cal")
+                    .appTextRole(.control).accessibilityIdentifier("settings_goals_preview")
+                if goalSettings.calorieGoalMethod == .dynamicTDEE, liveGoals.adaptiveGoalService?.calculatedTDEE == nil {
+                    Text("Adaptive stays selected. Until enough evidence is available, its formula and logged-activity fallback is used.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                }
+            }
             HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-                TextField("Calories", text: $calorieInput)
+                if goalSettings.calorieGoalMethod == .custom {
+                    TextField("Calories", text: $calorieInput)
                     .keyboardType(.numberPad)
+                    .accessibilityIdentifier("settings_goals_calories")
                     .appTextRole(.metric)
                     .foregroundStyle(AppPalette.energy)
                     .monospacedDigit()
                     .focused($numericFieldIsFocused)
+                } else {
+                    Text((resolvedDraft?.calories ?? goalSettings.calories ?? 0).formatted(.number.precision(.fractionLength(0))))
+                        .appTextRole(.metric).foregroundStyle(AppPalette.energy).monospacedDigit()
+                        .accessibilityIdentifier("settings_goals_calories")
+                }
 
                 Text("cal")
                     .appTextRole(.control)
                     .foregroundStyle(.secondary)
             }
             .appSurface(.interpreted)
-
+            if let value = resolvedDraft, goalSettings.calorieGoalMethod == .custom, value.calories > (Double(calorieInput) ?? 0) {
+                Text("Saving uses the app minimum of \(value.calories.formatted(.number.precision(.fractionLength(0)))) cal.")
+                    .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+            }
             if !calorieInput.isEmpty, !hasValidCalorieInput {
-                Text("Enter a calorie target greater than zero.")
+                Text("Check your body inputs and target. Macro percentages must total 100%.")
                     .appTextRole(.caption)
                     .foregroundStyle(AppPalette.critical)
             }
@@ -346,7 +332,7 @@ struct CaloricCalculatorView: View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
                 title: "Macronutrient Distribution",
-                subtitle: "Percentages are converted to gram targets from the calorie goal."
+                subtitle: "Percentages must total 100%. Invalid splits are kept for correction."
             )
 
             VStack(spacing: 15) {
@@ -399,63 +385,48 @@ struct CaloricCalculatorView: View {
      }
 
     private func fetchAndSetGoals() {
-        // goalSettings is already loaded app-wide; re-loading it here on every appear re-ran the
-        // full @Published assignment churn and could recompute the goal from partially-loaded
-        // state. Seed the local fields from what's already loaded so opening this screen is
-        // read-only for the model — nothing changes unless the user edits and taps Save.
-        calorieInput = String(format: "%.0f", goalSettings.calories ?? 0)
-        if let targetWeight = goalSettings.targetWeight {
-            targetWeightInput = String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: targetWeight, metric: useMetric))
-        }
-        selectedActivityString = activityString(for: goalSettings.activityLevel)
-        selectedGoal = goals.contains(goalSettings.goal) ? goalSettings.goal : "Maintain"
-        if selectedGoal != "Maintain" {
-            let supportedPace = GoalSettingsRules.normalizedWeeklyChange(goalSettings.weeklyChangeLbs, forGoal: selectedGoal)
-            if supportedPace != goalSettings.weeklyChangeLbs {
-                goalSettings.weeklyChangeLbs = supportedPace
-            }
-        }
+        guard !seeded else { return }
+        seeded = true
+        ownerID = DIContainer.shared.authService.currentUserID
+        let initial = liveGoals.makeGoalEditorDraft()
+        baseline = initial
+        let editable = initial.normalizedForEditing()
+        goalSettings.applyGoalEditorPreview(editable)
+        calorieInput = String(format: "%.0f", editable.calories)
+        targetWeightInput = editable.targetWeight.map { String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric)) } ?? ""
+        selectedActivityString = activityString(for: editable.activityLevel)
+        selectedGoal = editable.goal
     }
 
-    private var hasValidCalorieInput: Bool {
-        guard let value = Double(calorieInput) else { return false }
-        return value > 0
+    private var proposal: GoalEditorDraft? {
+        var value = goalSettings.makeGoalEditorDraft()
+        if value.method == .custom {
+            guard let calories = Double(calorieInput) else { return nil }
+            value.calories = calories
+        }
+        if targetWeightInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { value.targetWeight = nil } else {
+            guard let target = Double(targetWeightInput) else { return nil }
+            value.targetWeight = BodyUnits.weightToLbs(target, metric: useMetric)
+        }
+        return value
     }
-    
+
+    private var resolvedDraft: GoalEditorDraft? {
+        try? proposal?.resolved(adaptiveTDEE: liveGoals.adaptiveGoalService?.calculatedTDEE,
+                               manualCaloriesBurned: liveGoals.dailyLogService?.currentDailyLog?.totalCaloriesBurnedFromManualExercises() ?? 0)
+    }
+
+    private var hasValidCalorieInput: Bool { resolvedDraft != nil }
+
     private func saveCaloricGoal() {
-        guard let userID = DIContainer.shared.authService.currentUserID,
-              let calorieValue = Double(calorieInput) else {
-            return
+        guard !isSaving, let proposal, let baseline, let ownerID else { return }
+        isSaving = true; saveError = nil
+        Task { @MainActor in
+            do {
+                try await liveGoals.saveGoalEditorDraft(proposal, baseline: baseline, userID: ownerID)
+                isSaving = false
+                dismiss()
+            } catch { isSaving = false; saveError = error.localizedDescription }
         }
-        
-        let bmr = GoalSettingsRules.calculateBMR(age: goalSettings.age, weightKg: goalSettings.weight * 0.453592, heightCm: goalSettings.height, gender: goalSettings.gender)
-        let manualBurn = goalSettings.dailyLogService?.currentDailyLog?.totalCaloriesBurnedFromManualExercises() ?? 0
-        let mifflinCalories = GoalSettingsRules.calculateCalorieGoal(
-            bmr: bmr,
-            goal: goalSettings.goal,
-            gender: goalSettings.gender,
-            calorieGoalMethod: .mifflinWithActivity,
-            activityLevel: goalSettings.activityLevel,
-            adaptiveTDEE: goalSettings.adaptiveGoalService?.calculatedTDEE,
-            manualCaloriesBurned: manualBurn,
-            currentCalories: nil,
-            weeklyChangeLbs: goalSettings.weeklyChangeLbs
-        )
-        if abs(calorieValue - mifflinCalories) <= 5 {
-            goalSettings.calorieGoalMethod = .mifflinWithActivity
-        } else {
-            goalSettings.calorieGoalMethod = .custom
-        }
-        let minimumGoal: Double = (goalSettings.gender.lowercased() == "male") ? 1500 : 1200
-        let clampedCalories = max(minimumGoal, calorieValue)
-        goalSettings.calories = clampedCalories
-        if let targetWeightValue = Double(targetWeightInput) {
-            goalSettings.targetWeight = BodyUnits.weightToLbs(targetWeightValue, metric: useMetric)
-        }
-        
-        goalSettings.recalculateAllGoals()
-        goalSettings.saveUserGoals(userID: userID)
-        
-        showSaveConfirmation = true
     }
 }

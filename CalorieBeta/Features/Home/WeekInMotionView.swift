@@ -47,8 +47,6 @@ struct WeekInMotionView: View {
             header
             rhythm
 
-            Divider()
-
             VStack(alignment: .leading, spacing: 0) {
                 evidenceRow(
                     title: "Training rhythm",
@@ -114,11 +112,10 @@ struct WeekInMotionView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Your week")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandForeground)
-                    .textCase(.uppercase)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
                 Spacer(minLength: 12)
-                Text("Last 7 days · \(weekRangeText)")
+                Text("7 days · \(weekRangeText)")
                     .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .monospacedDigit()
@@ -126,7 +123,7 @@ struct WeekInMotionView: View {
             }
 
             Text(dynamicTypeSize.isAccessibilitySize ? accessibilityHeadline : motion.headline)
-                .appTextRole(dynamicTypeSize.isAccessibilitySize ? .sectionTitle : .screenTitle)
+                .appTextRole(.sectionTitle)
                 .foregroundColor(.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel(motion.headline)
@@ -341,7 +338,7 @@ struct WeekInMotionView: View {
 
     private var weekRangeText: String {
         let start = motion.weekStart.formatted(.dateTime.month(.abbreviated).day())
-        let end = motion.weekEnd.formatted(.dateTime.month(.abbreviated).day())
+        let end = (motion.days.last?.date ?? motion.weekStart).formatted(.dateTime.month(.abbreviated).day())
         return "\(start) - \(end)"
     }
 
@@ -454,23 +451,22 @@ private struct WeekInMotionDayDetailView: View {
 
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("How to read the week")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
+                    DisclosureGroup("How to read the week") {
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
                         legendRow(icon: "dumbbell.fill", text: "Rounded square: strength training")
                         legendRow(icon: "figure.run", text: "Circle: a recorded run")
                         legendRow(icon: "figure.cross.training", text: "Capsule: strength and running on the same day")
                         legendRow(icon: "fork.knife.circle.fill", text: "Blue utensil: food was logged")
                         legendRow(icon: "circle.dashed", text: "Dashed ring: no food was logged")
+                        }.padding(.top, AppSpacing.row)
                     }
+                    .appTextRole(.control)
                 }
-                .padding(22)
+                .padding(AppSpacing.screenHorizontal)
                 .frame(maxWidth: 560, alignment: .leading)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Day Details")
+            .navigationTitle("Day details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

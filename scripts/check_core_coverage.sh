@@ -1,56 +1,35 @@
 #!/usr/bin/env bash
-#
-# Enforces a minimum line-coverage floor for the MyFitPlateCore package *source*
-# (where the app's real logic now lives after modularization).
-#
-# Run from the repo root AFTER:
-#   swift test --enable-code-coverage --package-path MyFitPlateCore
-#
-# Override the floor with the CORE_COVERAGE_MINIMUM env var.
+# Enforce Core source line coverage from the current SwiftPM test run.
+# Run after: swift test --enable-code-coverage --package-path MyFitPlateCore
 set -euo pipefail
-
 PKG="MyFitPlateCore"
 FLOOR="${CORE_COVERAGE_MINIMUM:-80.0}"
+# Ask SwiftPM for the active report. Scanning .build can pair a stale binary from
+# another build system with this run's profile (notably with Xcode 27's SwiftPM).
+COVERAGE_JSON="$(swift test --package-path "$PKG" --show-codecov-path)"
+python3 - "$COVERAGE_JSON" "$FLOOR" <<'PYTHON'
+import json
+import re
+import sys
+from pathlib import Path
 
-# Search the SPM build dir (what CI's `swift test` writes) and the agents' local
-# Xcode derived-data path — whichever exist. Pass only existing dirs and use
-# `-print -quit`: `find` over a missing dir, or `... | head -1` closing the pipe
-# early, exits non-zero, which under `set -euo pipefail` aborts the whole script.
-# (That is exactly what broke CI — `.codex_xcode` does not exist on the runner.)
-SEARCH_DIRS=()
-[[ -d "$PKG/.build" ]] && SEARCH_DIRS+=("$PKG/.build")
-[[ -d ".codex_xcode" ]] && SEARCH_DIRS+=(".codex_xcode")
-
-PROF=""
-BIN=""
-if (( ${#SEARCH_DIRS[@]} > 0 )); then
-  # `MyFitPlateCore/.build` may be a symlink to the external developer volume. `-H`
-  # follows command-line symlinks without traversing any unrelated links inside the build tree.
-  PROF="$(find -H "${SEARCH_DIRS[@]}" -name 'default.profdata' -print -quit 2>/dev/null || true)"
-  BIN="$(find -H "${SEARCH_DIRS[@]}" -type f -name "${PKG}PackageTests" -print -quit 2>/dev/null || true)"
-fi
-
-if [[ -z "$PROF" || -z "$BIN" ]]; then
-  echo "::error::Coverage data missing. Run 'swift test --enable-code-coverage --package-path $PKG' first."
-  exit 1
-fi
-
-# Total line-coverage % over Core source only (exclude the test bundle and .build dependencies).
-PERCENT="$(xcrun llvm-cov report "$BIN" -instr-profile="$PROF" \
-  -ignore-filename-regex='(/checkouts/|\.build|\.codex_xcode|/Tests/|/Mocks/|/Previews/|HealthKitManager\.swift|HealthKitViewModel\.swift|NotificationManager\.swift)' 2>/dev/null \
-  | awk '/^TOTAL/ { gsub("%","",$10); print $10 }')"
-
-if [[ -z "$PERCENT" ]]; then
-  echo "::error::Could not parse MyFitPlateCore coverage."
-  exit 1
-fi
-
-printf 'MyFitPlateCore line coverage: %s%% (floor %s%%)\n' "$PERCENT" "$FLOOR"
-
-BELOW="$(awk -v p="$PERCENT" -v f="$FLOOR" 'BEGIN { print (p+0 < f+0) ? "yes" : "no" }')"
-if [[ "$BELOW" == "yes" ]]; then
-  echo "::error::MyFitPlateCore coverage ${PERCENT}% is below the ${FLOOR}% floor."
-  exit 1
-fi
-
-echo "Core coverage floor satisfied."
+report = Path(sys.argv[1])
+if not report.is_file():
+    sys.exit("::error::Coverage data missing. Run swift test --enable-code-coverage --package-path MyFitPlateCore first.")
+excluded = re.compile(r"(/checkouts/|\.build|\.codex_xcode|/Tests/|/Mocks/|/Previews/|HealthKitManager\.swift|HealthKitViewModel\.swift|NotificationManager\.swift)")
+files = {
+    item["filename"]: item["summary"]["lines"]
+    for entry in json.loads(report.read_text())["data"]
+    for item in entry["files"]
+    if not excluded.search(item["filename"])
+}
+total = sum(item["count"] for item in files.values())
+if not total:
+    sys.exit("::error::No Core source lines were found in the coverage report.")
+percent = 100 * sum(item["covered"] for item in files.values()) / total
+floor = float(sys.argv[2])
+print(f"MyFitPlateCore line coverage: {percent:.2f}% (floor {floor:.2f}%)")
+if percent < floor:
+    sys.exit(f"::error::Core coverage {percent:.2f}% is below {floor:.2f}%.")
+print("Core coverage floor satisfied.")
+PYTHON

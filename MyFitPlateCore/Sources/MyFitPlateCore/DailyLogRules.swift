@@ -27,13 +27,32 @@ public struct DailyLogRules {
     public static func addMealGroupsToLog(log: inout DailyLog, mealGroups: [(mealName: String, foodItems: [FoodItem])], defaultSource: String = "recipe") -> (addedItems: [FoodItem], sourceUsed: String) {
         let nonEmptyGroups = mealGroups.filter { !$0.foodItems.isEmpty }
         guard !nonEmptyGroups.isEmpty else { return ([], defaultSource) }
-        let itemSource = nonEmptyGroups.contains(where: { $0.mealName.lowercased().contains("ai") }) ? "ai_bulk" : defaultSource
+        let legacyAIGroupNames: Set<String> = ["ai", "ai meal", "ai logged meal", "ai logged food", "ai generated meal", "ai breakfast", "ai lunch", "ai dinner", "ai snack", "ai snacks"]
+        func isLegacyAIGroup(_ name: String) -> Bool {
+            legacyAIGroupNames.contains(name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        }
+        func isAI(_ type: FoodSourceType) -> Bool {
+            [.aiImage, .aiMenu, .aiText, .aiChat].contains(type)
+        }
+        let hasAIItems = nonEmptyGroups.contains { group in
+            group.foodItems.contains { item in
+                if let type = item.sourceMetadata?.sourceType, type != .unknown { return isAI(type) }
+                return isLegacyAIGroup(group.mealName)
+            }
+        }
+        let itemSource = hasAIItems ? "ai_bulk" : defaultSource
 
         var allItemsWithTimestamp: [FoodItem] = []
 
         for group in nonEmptyGroups {
             let itemsWithTimestamp = group.foodItems.map { item -> FoodItem in
-                var mutableItem = item.normalizedForEstimatedSource(itemSource)
+                let normalizationSource: String
+                if let type = item.sourceMetadata?.sourceType, type != .unknown {
+                    // A mixed meal cannot turn a catalog or label-backed sibling into
+                    // an AI estimate. Each food keeps its own numeric source policy.
+                    normalizationSource = isAI(type) ? "ai_bulk" : type.rawValue
+                } else { normalizationSource = isLegacyAIGroup(group.mealName) ? "ai_bulk" : defaultSource }
+                var mutableItem = item.normalizedForEstimatedSource(normalizationSource)
                 if mutableItem.timestamp == nil { mutableItem.timestamp = Date() }
                 return mutableItem
             }
@@ -67,6 +86,7 @@ public struct DailyLogRules {
         var deleted = false
         var foodName: String?
         var removedFoodItem: FoodItem?
+        var emptiedMealIndices: [Int] = []
         for i in log.meals.indices {
             let initialCount = log.meals[i].foodItems.count
             if let itemToRemove = log.meals[i].foodItems.first(where: { $0.id == foodItemID }) {
@@ -74,8 +94,12 @@ public struct DailyLogRules {
                 removedFoodItem = itemToRemove
             }
             log.meals[i].foodItems.removeAll { $0.id == foodItemID }
-            if log.meals[i].foodItems.count < initialCount { deleted = true }
+            if log.meals[i].foodItems.count < initialCount {
+                deleted = true
+                if log.meals[i].foodItems.isEmpty { emptiedMealIndices.append(i) }
+            }
         }
+        for index in emptiedMealIndices.reversed() { log.meals.remove(at: index) }
         return (deleted, removedFoodItem, foodName)
     }
     

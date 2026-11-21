@@ -12,16 +12,15 @@ public struct SpotlightBoundsKey: PreferenceKey {
 
 public struct SpotlightModifier: ViewModifier {
     public var isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public func body(content: Content) -> some View {
         content
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(Color.white, lineWidth: 3)
-                    .shadow(color: .white.opacity(0.9), radius: 8)
-                    .opacity(isActive ? 1 : 0)
-                    .scaleEffect(isActive ? 1.0 : 0.96)
-                    .animation(.easeInOut(duration: 0.3), value: isActive)
+                                        .opacity(isActive ? 1 : 0)
+                                        .animation(reduceMotion ? nil : AppMotion.standard, value: isActive)
                     .allowsHitTesting(false)
             )
             // Only the active target reports its frame, so the tour overlay knows where to

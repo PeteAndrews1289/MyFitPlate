@@ -175,6 +175,8 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
         currWater += ounces
         WCSession.default.transferUserInfo([
             "logWaterOunces": ounces,
+            "waterEntryID": UUID().uuidString,
+            "waterCapturedAt": Date().timeIntervalSince1970,
             WatchQuickActionPayload.accountScope: accountScope
         ])
     }

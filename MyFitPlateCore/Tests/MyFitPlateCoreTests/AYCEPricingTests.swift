@@ -96,7 +96,7 @@ final class AYCEPricingTests: XCTestCase {
         ))
         XCTAssertEqual(reviewed.name, "Dragon roll")
         XCTAssertEqual(reviewed.unit, "serving")
-        XCTAssertEqual(reviewed.homeCost, 12.5 * 0.9, accuracy: 0.001)
+        XCTAssertEqual(reviewed.homeCost, 20, accuracy: 0.001, "Explicit reviewed home cost is not rewritten to manufacture a value comparison")
         XCTAssertTrue(reviewed.isAIEstimated)
         XCTAssertTrue(reviewed.isLocallyPriced)
 
@@ -159,7 +159,8 @@ final class AYCEPricingTests: XCTestCase {
         XCTAssertEqual(bridged.sourceMetadata?.confidence, .estimated)
 
         let catalog = AYCERules.foodItem(from: AYCESessionEntry(item: AYCECatalog.all[0], count: 1))
-        XCTAssertEqual(catalog.sourceMetadata?.sourceType, .manual, "Curated catalog entries stay user-entered")
+        XCTAssertEqual(catalog.sourceMetadata?.sourceType, .chainBuilder)
+        XCTAssertEqual(catalog.sourceMetadata?.confidence, .estimated, "Generic catalog values must not claim user verification")
     }
 
     // MARK: City-aware pricing
@@ -212,7 +213,8 @@ final class AYCEPricingTests: XCTestCase {
 
         let capped = AYCERules.restaurantFoodCost(homeCost: 100, menuPrice: 10)
         XCTAssertEqual(capped, 4.5, accuracy: 0.001, "Never above 45% of the menu price")
-        XCTAssertEqual(AYCERules.restaurantFoodCost(homeCost: 0.01, menuPrice: 1), 0.15, "Floor holds")
+        XCTAssertEqual(AYCERules.restaurantFoodCost(homeCost: 0.01, menuPrice: 1), 0.007, accuracy: 0.0001,
+                       "Small sauce portions must not have an ingredient cost above their grocery cost")
     }
 
     func testIngredientCostLineAndTotalsCarryTheThirdTier() {

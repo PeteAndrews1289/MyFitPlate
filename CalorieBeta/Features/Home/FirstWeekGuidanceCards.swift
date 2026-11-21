@@ -233,8 +233,8 @@ final class FirstWeekGuidanceModel: ObservableObject {
     }
 
     var reminderTimeText: String {
-        let time = NotificationManager.shared.dailyLogReminderTime()
-        let date = Calendar.current.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: Date()) ?? Date()
+        let minute = AccountReminderCoordinator.shared.preferences[.dailyLog].minutes.first ?? 20 * 60
+        let date = Calendar.current.date(bySettingHour: minute / 60, minute: minute % 60, second: 0, of: Date()) ?? Date()
         return date.formatted(date: .omitted, time: .shortened)
     }
 
@@ -253,11 +253,11 @@ final class FirstWeekGuidanceModel: ObservableObject {
 
     func checklistState(hasLoggedFood: Bool, healthConnected: Bool, healthAvailable: Bool) -> SetupChecklistState {
         SetupChecklistState(
-            hasLoggedFood: hasLoggedFood || ActivationFunnel.hasLogged(ActivationFunnel.firstFoodLogged),
+            hasLoggedFood: hasLoggedFood || (AccountProgressStore().date(ActivationFunnel.firstFoodLogged, userID: userID) != nil),
             reminderResolved: notificationStatus != .notDetermined,
             healthResolved: healthConnected,
             healthAvailable: healthAvailable,
-            hasCompletedWorkout: ActivationFunnel.hasLogged(ActivationFunnel.firstWorkoutCompleted)
+            hasCompletedWorkout: AccountProgressStore().date(ActivationFunnel.firstWorkoutCompleted, userID: userID) != nil
         )
     }
 
@@ -266,7 +266,7 @@ final class FirstWeekGuidanceModel: ObservableObject {
         guard notificationStatus != nil else { return false }
         return SetupChecklistRules.shouldShow(
             state: state,
-            onboardingCompletedAt: ActivationFunnel.onboardingCompletedAt(),
+            onboardingCompletedAt: AccountProgressStore().date(ActivationFunnel.onboardingCompleted, userID: userID),
             dismissedAt: checklistDismissedAt
         )
     }
@@ -282,11 +282,16 @@ final class FirstWeekGuidanceModel: ObservableObject {
     }
 
     func requestDailyReminder() {
-        NotificationManager.shared.requestAuthorization { granted in
-            if granted {
-                NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
-            }
+        guard let owner = userID, owner == DIContainer.shared.authService.currentUserID else { return }
+        let reminders = AccountReminderCoordinator.shared
+        reminders.activateAccount(owner)
+        var value = reminders.preferences; value[.dailyLog].enabled = true
+        guard reminders.savePreferences(value) else { return }
+        NotificationManager.shared.requestAuthorization { _ in
             Task { @MainActor [weak self] in
+                guard DIContainer.shared.authService.currentUserID == owner else { return }
+                reminders.refreshAuthorization()
+                NotificationCenter.default.post(name: .reminderEvidenceChanged, object: owner)
                 self?.refreshNotificationStatus()
             }
         }

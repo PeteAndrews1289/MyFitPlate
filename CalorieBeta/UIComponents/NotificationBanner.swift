@@ -20,19 +20,17 @@ struct NotificationBanner: View {
                         }
                         Spacer()
                     }
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Color.black.opacity(0.8))
-                    .cornerRadius(12)
+                    .foregroundStyle(AppPalette.text)
+                    .padding(AppSpacing.group)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: AppRadius.surface))
+                    .overlay { RoundedRectangle(cornerRadius: AppRadius.surface).stroke(AppPalette.separator, lineWidth: 1) }
                 }
                 .padding()
                 .transition(.move(edge: .top).combined(with: .opacity))
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        withAnimation {
-                            self.banner = nil
-                        }
-                    }
+                .task(id: bannerData) {
+                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                    guard !Task.isCancelled, banner == bannerData else { return }
+                    withAnimation { banner = nil }
                 }
                 .onTapGesture {
                      withAnimation {

@@ -184,6 +184,29 @@ public enum MealSuggestionReviewRules {
 }
 
 public enum MealPrepTimerRules {
+    private static let minutePhrase = try? NSRegularExpression(
+        pattern: #"(?i)\b(\d+)(?:\s*(?:min(?:ute)?s?\.?\s*)?(?:[-–—]|\bto\b)\s*(\d+))?\s*(?:minutes?|mins?)\b"#)
+    private static let otherTiming = try? NSRegularExpression(
+        pattern: #"(?i)\b(?:hours?|hrs?|seconds?|secs?|every|overnight|per side|each side|a side|per pound|per lb)\b|[½⅓⅔¼¾⅛⅜⅝⅞]|\d\s*[/.:]\s*\d"#)
+
+    /// Suggest only one explicitly stated, whole-minute duration within the timer's
+    /// supported bounds. Compound, fractional and repeating times use manual setup.
+    public static func instructionMinutes(_ instruction: String) -> ClosedRange<Int>? {
+        let text = instruction as NSString
+        let range = NSRange(location: 0, length: text.length)
+        guard let otherTiming, let minutePhrase, otherTiming.firstMatch(in: instruction, range: range) == nil else { return nil }
+        let matches = minutePhrase.matches(in: instruction, range: range)
+        guard matches.count == 1, let match = matches.first,
+              let low = Int(text.substring(with: match.range(at: 1))), (1...120).contains(low) else { return nil }
+        let prefix = text.substring(to: match.range.location).trimmingCharacters(in: .whitespaces)
+        guard prefix.last?.isNumber != true, !["-", "–", "—", "/"].contains(prefix.last.map(String.init) ?? ""),
+              prefix.range(of: #"(?i)\b(?:half|quarter|and a|to|or)\s*$"#, options: .regularExpression) == nil else { return nil }
+        let upper = match.range(at: 2)
+        if upper.location == NSNotFound { return low...low }
+        guard let high = Int(text.substring(with: upper)), (low...120).contains(high) else { return nil }
+        return low...high
+    }
+
     public static func clampedMinutes(_ minutes: Int) -> Int {
         min(max(minutes, 1), 120)
     }

@@ -6,10 +6,12 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
     public init() {}
     @Published public var isAuthenticated: Bool = true
     @Published public var currentUserID: String? = "mock_user"
+    public var emailSignInError: Error?
     public var signOutCalled = false
     public var signOutError: Error?
     public var reauthenticatedPasswords: [String] = []
     public var reauthenticateError: Error?
+    public var onReauthenticate: (() -> Void)?
     public var deleteCurrentUserCalled = false
     public var deleteCurrentUserError: Error?
     public var removedObserverHandles: [Any] = []
@@ -41,6 +43,7 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
     public func reauthenticateCurrentUser(password: String) async throws {
         if let reauthenticateError { throw reauthenticateError }
         reauthenticatedPasswords.append(password)
+        onReauthenticate?()
     }
 
     public func deleteCurrentUser() async throws {
@@ -52,6 +55,7 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
         signOutCalled = true
     }
     public func signIn(email: String, password: String) async throws -> AuthUserSession {
+        if let emailSignInError { throw emailSignInError }
         return AuthUserSession(userID: "mock_user", email: email)
     }
     public func sendPasswordReset(email: String) async throws {}
@@ -66,6 +70,7 @@ public final class MockAuthService: AuthServiceProtocol, @unchecked Sendable {
     public func reauthenticateWithApple(_ credential: AppleIDCredential) async throws {
         if let appleReauthenticationError { throw appleReauthenticationError }
         appleReauthenticationCredentials.append(credential)
+        onReauthenticate?()
     }
     public func revokeAppleToken(authorizationCode: String) async throws {
         if let revokeAppleTokenError { throw revokeAppleTokenError }

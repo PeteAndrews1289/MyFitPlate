@@ -2,9 +2,12 @@ import MyFitPlateCore
 
 import SwiftUI
 import Charts
+import Combine
 
 struct ReportsView: View {
     @StateObject private var viewModel: ReportsViewModel
+    @EnvironmentObject private var appState: AppState
+    @State private var projectedOwner: String?
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
@@ -12,6 +15,8 @@ struct ReportsView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var selectedTimeframe: ReportTimeframe = .week
+    @State private var selectedFocus: ReportFocus = .nutrition
+    @State private var showsMaiaInsight = false
     @State private var customStartDate: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
     @State private var customEndDate: Date = Date()
 
@@ -23,13 +28,6 @@ struct ReportsView: View {
     init(dailyLogService: DailyLogService, weeklyRecapLoader: WeeklyRecapLoader) {
         _viewModel = StateObject(wrappedValue: ReportsViewModel(dailyLogService: dailyLogService))
         _weeklyRecapLoader = ObservedObject(wrappedValue: weeklyRecapLoader)
-    }
-
-    private var hasReportContent: Bool {
-        viewModel.summary != nil ||
-        viewModel.enhancedSleepReport != nil ||
-        viewModel.weeklyWorkoutReport != nil ||
-        viewModel.wellnessScore != nil
     }
 
     private var selectedTrendRange: ClosedRange<Date> {
@@ -74,60 +72,54 @@ struct ReportsView: View {
 
     static let reportsTourSteps: [SpotlightTourStep] = [
         SpotlightTourStep(id: "reports-trend", title: "Weight trend",
-                          text: "Track your real moving average smoothed over daily fluctuations."),
-        SpotlightTourStep(id: "reports-overview", title: "Overview & insights",
-                          text: "See weekly progress across calories, workouts, sleep, and AI-driven deep dives.")
+                          text: "See your measured weights and a descriptive trend across the selected dates."),
+        SpotlightTourStep(id: "reports-overview", title: "Explore your progress",
+                          text: "Explore nutrition, training and recovery. Each view shows the dates its evidence covers.")
     ]
 
     var body: some View {
         SpotlightTourScaffold(steps: ReportsView.reportsTourSteps) { isActive in
         VStack(spacing: 0) {
-            AppScreenHeader(
-                title: "Reports",
-                subtitle: "Your week, trends, and underlying data."
-            )
+            let headerLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.row))
+                : AnyLayout(HStackLayout(spacing: AppSpacing.row))
+            headerLayout {
+                Text("Reports").appTextRole(.screenTitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("reports_screen_header")
+                timeframePicker
+            }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.group)
             .padding(.bottom, AppSpacing.compact)
-            .accessibilityIdentifier("reports_screen_header")
 
             ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    weekInMotionSection
-
-                    // DESIGN.md rule 1: Reports answers "is it working?" — the timeframe picker
-                    // is chrome and leads (it scopes everything below, including the overview);
-                    // the headline trend is the hero, directly under it.
-                    timeframeSelectorAndPickers
-
-                    TrendDashboardView(
-                        weightHistory: goalSettings.weightHistory,
-                        dateRange: selectedTrendRange,
-                        title: selectedTrendTitle
-                    )
-                    .featureSpotlight(isActive: isActive("reports-trend"))
-
-                    ReportsOverviewCard(
-                        selectedTimeframe: selectedTimeframe,
-                        customStartDate: customStartDate,
-                        customEndDate: customEndDate,
-                        summary: viewModel.summary,
-                        wellnessScore: viewModel.wellnessScore,
-                        workoutReport: viewModel.weeklyWorkoutReport,
-                        sleepReport: viewModel.enhancedSleepReport,
-                        onOpenInsights: {
-                            insightsService.generateAndFetchInsights(forLastDays: 7, requestConsentIfNeeded: true)
-                            showingDetailedInsights = true
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    Picker("Report focus", selection: $selectedFocus) {
+                        ForEach(ReportFocus.allCases) { focus in
+                            Text(focus.title).tag(focus)
                         }
-                    )
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("reports_focus")
                     .featureSpotlight(isActive: isActive("reports-overview"))
 
-                    if let insight = insightsService.smartSuggestion {
-                        SmartReportInsightCard(insight: insight)
+                    if selectedTimeframe == .custom {
+                        customDateControls.appSurface(.quiet)
                     }
 
-                    if goalSettings.gender.lowercased() == "female" {
-                        CycleTrackingCard()
+                    if selectedFocus == .nutrition {
+                        if hasLoadedSelectedPeriod {
+                            ReportNutritionSummary(summary: viewModel.summary, period: selectedPeriodLabel)
+                        }
+                        TrendDashboardView(
+                            weightHistory: goalSettings.weightHistory,
+                            dateRange: selectedTrendRange,
+                            title: selectedTrendTitle,
+                            compactPresentation: true
+                        )
+                        .featureSpotlight(isActive: isActive("reports-trend"))
                     }
 
                     contentStateView
@@ -140,6 +132,7 @@ struct ReportsView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
+            projectedOwner = DIContainer.shared.authService.currentUserID
             viewModel.setup(goals: goalSettings, healthKitViewModel: healthKitViewModel)
             fetchDataForCurrentSelection()
             insightsService.generateDailySmartInsight()
@@ -150,11 +143,26 @@ struct ReportsView: View {
                  healthKitViewModel.fetchLastSevenDaysSleep()
             }
         }
-        .task { await loadWeekInMotion() }
-        .onChange(of: selectedTimeframe) { _, newValue in
-            if newValue != .custom {
+        .onReceive(appState.$isUserLoggedIn) { _ in
+            let owner = DIContainer.shared.authService.currentUserID
+            guard projectedOwner != owner else { return }
+            projectedOwner = owner; viewModel.invalidateAccountProjection()
+            showingDetailedInsights = false; showingWeeklyReport = false; showsMaiaInsight = false
+            guard let owner, goalSettings.isActiveAccount(owner) else { return }
+            viewModel.setup(goals: goalSettings, healthKitViewModel: healthKitViewModel)
+            fetchDataForCurrentSelection(); viewModel.fetchMealScoreHistory(for: owner)
+        }
+        .onReceive(goalSettings.$calories.dropFirst()) { _ in
+            Task { @MainActor in
+                guard let owner = projectedOwner, owner == DIContainer.shared.authService.currentUserID,
+                      goalSettings.isActiveAccount(owner) else { return }
+                viewModel.setup(goals: goalSettings, healthKitViewModel: healthKitViewModel)
                 fetchDataForCurrentSelection()
             }
+        }
+        .task { await loadWeekInMotion() }
+        .onChange(of: selectedTimeframe) { _, _ in
+            fetchDataForCurrentSelection()
         }
         .onChange(of: customStartDate) { _, _ in
             if selectedTimeframe == .custom { fetchDataForCurrentSelection() }
@@ -162,8 +170,9 @@ struct ReportsView: View {
         .onChange(of: customEndDate) { _, _ in
              if selectedTimeframe == .custom { fetchDataForCurrentSelection() }
         }
-        .onChange(of: healthKitViewModel.sleepSamples) { _, newSamples in
-            viewModel.processAndScoreSleepData(samples: newSamples)
+        .onChange(of: healthKitViewModel.sleepSamples) { _, _ in
+            // The global seven-day snapshot cannot replace a selected month or historical range.
+            fetchDataForCurrentSelection()
         }
         #if !TARGET_IS_WIDGET_EXTENSION
         .navigationDestination(isPresented: $showingDetailedInsights) {
@@ -201,7 +210,7 @@ struct ReportsView: View {
                         .transition(.opacity)
                     }
                 }
-                .animation(.easeOut(duration: 0.18), value: weeklyRecapLoader.recap != nil)
+                .animation(AppMotion.standard, value: weeklyRecapLoader.recap != nil)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Your week isn't available yet")
@@ -243,80 +252,143 @@ struct ReportsView: View {
         ])
     }
 
-    @ViewBuilder
     private var contentStateView: some View {
-        if viewModel.isLoading {
-            ReportsLoadingState()
-        } else if let errorMessage = viewModel.errorMessage {
-            ReportsMessageState(
-                icon: "exclamationmark.triangle.fill",
-                title: "Reports need attention",
-                message: errorMessage,
-                color: AppPalette.caution
-            )
-        } else if hasReportContent {
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            if viewModel.isLoading {
+                ProgressView("Loading selected dates…")
+                    .appTextRole(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .appSurface(.quiet)
+                    .accessibilityIdentifier("reports_period_loading")
+            } else if let errorMessage = viewModel.errorMessage {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    Label("Selected dates unavailable", systemImage: "exclamationmark.triangle")
+                        .appTextRole(.control)
+                    Text(errorMessage).appTextRole(.secondary).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Retry these dates", action: fetchDataForCurrentSelection)
+                        .buttonStyle(AppActionButtonStyle(.ghost, fillsWidth: false))
+                }
+                .appSurface(.quiet)
+                .accessibilityIdentifier("reports_period_error")
+            }
             reportsContentSection
-        } else {
-            ReportsMessageState(
-                icon: "chart.line.uptrend.xyaxis",
-                title: "No report data yet",
-                message: "Log meals, workouts, weight, or sleep for this timeframe and this tab will turn it into trends.",
-                color: Color(UIColor.secondaryLabel)
-            )
         }
+    }
+
+    private var hasLoadedSelectedPeriod: Bool {
+        !viewModel.isLoading && viewModel.errorMessage == nil
+    }
+
+    private var selectedPeriodLabel: String {
+        let range = selectedTrendRange
+        return "\(range.lowerBound.formatted(.dateTime.month(.abbreviated).day())) – \(range.upperBound.formatted(.dateTime.month(.abbreviated).day()))"
     }
 
     @ViewBuilder
     private var reportsContentSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.group) {
-            ReportSectionHeader(
-                title: "Report cards",
-                subtitle: "Tap a card to inspect the underlying trends."
-            )
+        switch selectedFocus {
+        case .nutrition: AnyView(nutritionReports)
+        case .training: AnyView(trainingReports)
+        case .recovery: AnyView(recoveryReports)
+        }
+    }
 
-            if let wellnessScore = viewModel.wellnessScore {
+    private var nutritionReports: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            if hasLoadedSelectedPeriod {
+                reportPair
+            }
+            #if !TARGET_IS_WIDGET_EXTENSION
+            NavigationLink(destination: MetabolismDashboardView()) {
+                MetabolismReportCard()
+            }
+            .buttonStyle(AnimatedCardButtonStyle())
+            .accessibilityIdentifier("reports_metabolism")
+            #endif
+
+            DisclosureGroup("Maia insights · last 7 days", isExpanded: $showsMaiaInsight) {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    if let insight = insightsService.smartSuggestion {
+                        SmartReportInsightCard(insight: insight)
+                    }
+                    Text("These insights use recent context rather than the selected report dates.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                    Button("Review insights") {
+                        insightsService.generateAndFetchInsights(forLastDays: 7, requestConsentIfNeeded: true)
+                        showingDetailedInsights = true
+                    }
+                    .buttonStyle(AppActionButtonStyle(.secondary))
+                }
+                .padding(.top, AppSpacing.row)
+            }
+            .appTextRole(.secondary).tint(AppPalette.text)
+        }
+        .accessibilityIdentifier("reports_nutrition_content")
+    }
+
+    private var trainingReports: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            ReportSectionHeader(title: "Training", subtitle: selectedPeriodLabel)
+            if hasLoadedSelectedPeriod, let workoutReport = viewModel.weeklyWorkoutReport {
                 #if !TARGET_IS_WIDGET_EXTENSION
+                NavigationLink(destination: WorkoutAnalyticsView(viewModel: viewModel)) {
+                    WorkoutReportCard(report: workoutReport)
+                }
+                .buttonStyle(AnimatedCardButtonStyle())
+                .accessibilityIdentifier("reports_workout_detail")
+                #else
+                WorkoutReportCard(report: workoutReport)
+                #endif
+            } else if hasLoadedSelectedPeriod {
+                ReportsMessageState(icon: "dumbbell", title: "Build your training picture",
+                    message: "Workouts recorded during these dates appear here.", color: .secondary)
+            }
+            ReportSectionHeader(title: "Weekly review", subtitle: "Last 7 days · independent of the selected dates")
+            weekInMotionSection
+        }
+        .accessibilityIdentifier("reports_training_content")
+    }
+
+    private var recoveryReports: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            ReportSectionHeader(title: "Recovery", subtitle: "Recent evidence · independent of the selected dates")
+            if let wellnessScore = viewModel.wellnessScore {
+                Text("Yesterday’s fully logged food day and recent sleep are separate habit summaries. Heart-rate readings are context only.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
                 WellnessScoreCardView(
                     wellnessScore: wellnessScore,
                     mealScore: viewModel.mealScore,
-                    sleepReport: viewModel.enhancedSleepReport
-                )
-                #else
-                WellnessScoreCardView(
-                    wellnessScore: wellnessScore,
-                    mealScore: nil,
                     sleepReport: nil
                 )
-                .onTapGesture {}
-                #endif
             }
-
+            ReportSectionHeader(title: "Sleep history", subtitle: "Selected report dates")
+            if let report = viewModel.enhancedSleepReport {
+                NavigationLink {
+                    SleepHistoryDetailView(report: report)
+                } label: {
+                    AppListRow(icon: "moon.fill", iconColor: AppPalette.recovery,
+                        title: "Inspect \(report.dailySleepData.count) recorded nights", subtitle: report.dateRange) {
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }.appSurface(.quiet, padding: 0)
+                }.buttonStyle(.plain).accessibilityIdentifier("reports_sleep_history")
+            } else {
+                Text(viewModel.sleepHistoryNotice ?? "No readable sleep records for the selected dates. Missing nights are not zero sleep.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+            }
+            Text("Apple Health snapshot · last 7 days")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
             ComprehensiveHealthCard(
                 weeklySteps: healthKitViewModel.weeklySteps,
                 weeklyActiveEnergy: healthKitViewModel.weeklyActiveEnergy,
                 weeklyRestingHeartRate: healthKitViewModel.weeklyRestingHeartRate,
                 weeklyHRV: healthKitViewModel.weeklyHRV
             )
-
-            if let workoutReport = viewModel.weeklyWorkoutReport {
-                #if !TARGET_IS_WIDGET_EXTENSION
-                NavigationLink(destination: MetabolismDashboardView()) {
-                    MetabolismReportCard()
-                }
-                .buttonStyle(AnimatedCardButtonStyle())
-
-                NavigationLink(destination: WorkoutAnalyticsView(viewModel: viewModel)) {
-                    WorkoutReportCard(report: workoutReport)
-                }
-                .buttonStyle(AnimatedCardButtonStyle())
-                #else
-                WorkoutReportCard(report: workoutReport)
-                #endif
+            if goalSettings.gender.lowercased() == "female" {
+                CycleTrackingCard()
             }
-
-            reportPair
-
         }
+        .accessibilityIdentifier("reports_recovery_content")
     }
 
     @ViewBuilder
@@ -358,31 +430,14 @@ struct ReportsView: View {
         #endif
     }
 
-    // Compact filter chrome, not a card with its own headline — DESIGN.md rule 4.
-    private var timeframeSelectorAndPickers: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(
-                title: "Trend window",
-                subtitle: "Choose the period used by the detailed charts below."
-            )
-
-            Picker("Timeframe", selection: $selectedTimeframe) {
-                ForEach(ReportTimeframe.allCases) { tf in Text(tf.rawValue).tag(tf) }
-            }
-            .pickerStyle(SegmentedPickerStyle())
-
-            if selectedTimeframe == .custom {
-                VStack(spacing: AppSpacing.row) {
-                    customDateControls
-
-                    Button("View custom report") { fetchDataForCurrentSelection() }
-                        .buttonStyle(AppActionButtonStyle(.primary))
-                }
-                .appSurface(.quiet)
-                .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .opacity))
-                .animation(AppMotion.standard, value: selectedTimeframe)
-            }
+    private var timeframePicker: some View {
+        Picker("Report dates", selection: $selectedTimeframe) {
+            Text("7 days").tag(ReportTimeframe.week)
+            Text("30 days").tag(ReportTimeframe.month)
+            Label("Custom range", systemImage: "calendar").labelStyle(.iconOnly).tag(ReportTimeframe.custom)
         }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 210)
         .accessibilityIdentifier("reports_timeframe")
     }
 
@@ -446,7 +501,7 @@ struct ReportsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Weight")
                         .appTextRole(.control)
-                    Text("Goal progress")
+                    Text("Current goal · all entries")
                         .appTextRole(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -467,7 +522,7 @@ struct ReportsView: View {
                     .stroke(progress >= 100 ? AppPalette.positive : AppPalette.effort, style: StrokeStyle(lineWidth: 14, lineCap: .round))
                     .rotationEffect(.degrees(120))
                     .frame(width: 105, height: 105)
-                    .animation(.easeInOut, value: goalSettings.weight)
+                    .animation(AppMotion.standard, value: goalSettings.weight)
                 VStack {
                     Text("\(Int(progress.rounded()).formatted())%")
                         .appTextRole(.sectionTitle)
@@ -528,7 +583,7 @@ struct ReportsView: View {
                     }
                     .chartLegend(.hidden)
                     .frame(height: 112)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: processedData.map { $0.totalCalories })
+                    .animation(AppMotion.standard, value: processedData.map { $0.totalCalories })
 
                     VStack(spacing: 0) {
                         Text(Int(totalCalories.rounded()).formatted())

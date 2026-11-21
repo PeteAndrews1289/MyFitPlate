@@ -15,6 +15,8 @@ struct CreateAccountView: View {
     @State private var errorMessage = ""
     @State private var isWorking = false
     @State private var showingSignIn = false
+    @FocusState private var focusedField: AuthField?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var plan: OnboardingPlan {
         OnboardingPlanRules.plan(for: draft)
@@ -29,10 +31,10 @@ struct CreateAccountView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppScreenHeader(
-                    eyebrow: "Last step",
+                OnboardingHeadline(
+                    eyebrow: "Make it yours",
                     title: "Save your plan",
-                    subtitle: "Create a free account to keep your plan, food log, and progress in sync on your iPhone and Apple Watch."
+                    subtitle: "Keep your targets, meals and training together. Your plan is ready when you are."
                 )
 
                 planSummary
@@ -51,7 +53,8 @@ struct CreateAccountView: View {
                         emailForm
                     } else {
                         Button {
-                            withAnimation(AppMotion.standard) { showsEmailForm = true }
+                            withAnimation(reduceMotion ? nil : AppMotion.standard) { showsEmailForm = true }
+                            focusedField = .email
                         } label: {
                             Label("Continue with email", systemImage: "envelope")
                         }
@@ -61,10 +64,10 @@ struct CreateAccountView: View {
                     }
                 }
 
-                if isWorking {
+                if isWorking && !showsEmailForm {
                     HStack(spacing: AppSpacing.compact) {
                         ProgressView()
-                        Text("Saving your plan…")
+                        Text("Creating your account…")
                             .appTextRole(.secondary)
                             .foregroundStyle(.secondary)
                     }
@@ -85,7 +88,7 @@ struct CreateAccountView: View {
                 Button("Already have an account? Sign in") {
                     showingSignIn = true
                 }
-                .buttonStyle(AppActionButtonStyle(.ghost))
+                .buttonStyle(OnboardingTextButtonStyle())
                 .disabled(isWorking)
                 .accessibilityIdentifier("create_account_sign_in")
             }
@@ -94,6 +97,7 @@ struct CreateAccountView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(AppPalette.canvas.ignoresSafeArea())
+        .interactiveDismissDisabled(isWorking)
         .sheet(isPresented: $showingSignIn) {
             LoginView()
         }
@@ -106,7 +110,7 @@ struct CreateAccountView: View {
             title: "Your plan",
             subtitle: "\(Int(plan.dailyCalories.rounded()).formatted()) calories and \(Int(plan.proteinGrams.rounded()).formatted()) g protein a day"
         )
-        .appSurface(.interpreted, padding: 0)
+        .appSurface(.quiet, padding: 0)
     }
 
     private var emailForm: some View {
@@ -115,12 +119,14 @@ struct CreateAccountView: View {
                 AuthTextFieldRow(
                     label: "First name (optional)",
                     icon: "person",
-                    placeholder: "How should we address you?",
+                    placeholder: "First name",
                     text: $name,
                     contentType: .givenName,
                     keyboardType: .default,
                     capitalization: .words,
-                    submitLabel: .next
+                    submitLabel: .next,
+                    focus: $focusedField, field: .name, identifier: "create_account_name",
+                    onSubmit: { focusedField = .email }
                 )
 
                 Divider().padding(.leading, 68)
@@ -133,7 +139,9 @@ struct CreateAccountView: View {
                     contentType: .emailAddress,
                     keyboardType: .emailAddress,
                     capitalization: .never,
-                    submitLabel: .next
+                    submitLabel: .next,
+                    focus: $focusedField, field: .email, identifier: "create_account_email_field",
+                    onSubmit: { focusedField = .password }
                 )
 
                 Divider().padding(.leading, 68)
@@ -142,16 +150,21 @@ struct CreateAccountView: View {
                     label: "Password",
                     text: $password,
                     contentType: .newPassword,
-                    submitLabel: .done,
+                    focus: $focusedField, identifier: "create_account_password",
                     onSubmit: createEmailAccount
                 )
             }
-            .appSurface(.emphasized, padding: 0)
+            .appSurface(.quiet, padding: 0)
+            .disabled(isWorking)
 
             RequirementRow(text: "At least 6 characters", isMet: password.count >= 6)
 
             Button(action: createEmailAccount) {
-                Label("Create account", systemImage: "arrow.right")
+                HStack(spacing: AppSpacing.compact) {
+                    if isWorking { ProgressView().tint(AppPalette.onBrand) }
+                    Text(isWorking ? "Creating account…" : "Create account")
+                    if !isWorking { Image(systemName: "arrow.right") }
+                }
             }
             .buttonStyle(AppActionButtonStyle(.primary))
             .disabled(!canSubmitEmail)
@@ -188,6 +201,7 @@ struct CreateAccountView: View {
         _ operation: @escaping () async throws -> AuthUserSession
     ) {
         guard !isWorking else { return }
+        focusedField = nil
         errorMessage = ""
         isWorking = true
         accountSetup.store.saveDraft(draft)

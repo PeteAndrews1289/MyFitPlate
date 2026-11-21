@@ -30,7 +30,7 @@ public enum MaiaConversationStyle {
 
 public enum MaiaSpeechFormatter {
     public static func spokenText(from source: String) -> String {
-        var text = source
+        var text = readableTables(in: source)
 
         text = replacing(
             pattern: "```(?:json)?\\s*.*?```",
@@ -60,6 +60,29 @@ public enum MaiaSpeechFormatter {
         text = removingEmojiPresentation(from: text)
 
         return joinedForSpeech(text)
+    }
+
+    private static func readableTables(in source: String) -> String {
+        let lines = source.components(separatedBy: .newlines)
+        var output: [String] = []
+        var headers: [String] = []
+        func cells(_ line: String) -> [String] {
+            line.trimmingCharacters(in: CharacterSet(charactersIn: " |"))
+                .components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+        for (index, line) in lines.enumerated() {
+            if line.contains("|"), index + 1 < lines.count,
+               lines[index + 1].contains("---"), lines[index + 1].contains("|") {
+                headers = cells(line); continue
+            }
+            if !headers.isEmpty, line.contains("|"), line.allSatisfy({ " |-:".contains($0) }) { continue }
+            if !headers.isEmpty, line.contains("|") {
+                output.append(zip(headers, cells(line)).map { "\($0): \($1)" }.joined(separator: ", ") + ".")
+            } else {
+                headers = []; output.append(line)
+            }
+        }
+        return output.joined(separator: "\n")
     }
 
     private static func expandUnits(in source: String) -> String {

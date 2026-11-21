@@ -11,16 +11,28 @@ public struct ChainMealBuilderView: View {
     @State private var chainSearchText = ""
     @State private var menuSearchText = ""
     @State private var selectedMeal: String
+    @State private var orderWorkspace = RestaurantOrderWorkspace()
+    @State private var orderAccountID: String?
+    @State private var workspaceError: String?
+    @State private var showingOrders = false
+    @State private var orderName = ""
+    @State private var loadingOrder: SavedRestaurantOrder?
+    @State private var restoringOrder = false
+    @State private var resetSnapshot: [String: ChainSelectionItem]?
+    @State private var selectedCatalogVersion = ChainRestaurantCatalog.catalogVersion
+    let onLogComponents: (([FoodItem], String) -> Void)?
     let trainingFuelTarget: TrainingFuelTarget?
     let onLogMeal: (FoodItem, String) -> Void
 
     public init(
         initialMeal: String = "Lunch",
         trainingFuelTarget: TrainingFuelTarget? = nil,
+        onLogComponents: (([FoodItem], String) -> Void)? = nil,
         onLogMeal: @escaping (FoodItem, String) -> Void
     ) {
         self._selectedMeal = State(initialValue: initialMeal)
         self.trainingFuelTarget = trainingFuelTarget
+        self.onLogComponents = onLogComponents
         self.onLogMeal = onLogMeal
 
         #if DEBUG
@@ -58,11 +70,15 @@ public struct ChainMealBuilderView: View {
 
     private var filteredChains: [ChainRestaurant] {
         let query = chainSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return ChainRestaurantCatalog.allChains }
-
         return ChainRestaurantCatalog.allChains.filter { chain in
-            chain.name.localizedCaseInsensitiveContains(query) ||
-                chain.subtitle.localizedCaseInsensitiveContains(query)
+            query.isEmpty || chain.name.localizedCaseInsensitiveContains(query) ||
+                chain.subtitle.localizedCaseInsensitiveContains(query) || chain.categories.flatMap(\.ingredients).contains { $0.name.localizedCaseInsensitiveContains(query) }
+        }.sorted { left, right in
+            let leftFavorite = orderWorkspace.favoriteChainIDs.contains(left.id), rightFavorite = orderWorkspace.favoriteChainIDs.contains(right.id)
+            if leftFavorite != rightFavorite { return leftFavorite }
+            let leftRecent = orderWorkspace.recentChainIDs.firstIndex(of: left.id) ?? Int.max
+            let rightRecent = orderWorkspace.recentChainIDs.firstIndex(of: right.id) ?? Int.max
+            return leftRecent == rightRecent ? left.name < right.name : leftRecent < rightRecent
         }
     }
 
@@ -125,6 +141,7 @@ public struct ChainMealBuilderView: View {
                         chainSearchBar
                         chainSelectorBar
                         selectedChainHeader
+                        orderLibraryControls
                         if let trainingFuelTarget {
                             TrainingFuelTargetContextView(
                                 target: trainingFuelTarget,
@@ -162,16 +179,23 @@ public struct ChainMealBuilderView: View {
                         .foregroundColor(.textPrimary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Reset") { selections.removeAll() }
+                    Button("Reset") { resetSnapshot = selections; selections.removeAll() }
                         .appFont(size: 14, weight: .semibold)
                         .foregroundColor(selections.isEmpty ? .secondary : .brandForeground)
                         .disabled(selections.isEmpty)
                 }
             }
             .onChange(of: selectedChain) { _, _ in
-                selections.removeAll()
+                if !restoringOrder { selections.removeAll(); selectedCatalogVersion = ChainRestaurantCatalog.catalogVersion }
                 menuSearchText = ""
+                restoringOrder = false
+                checkpointOrder()
             }
+            .onChange(of: selections) { _, _ in checkpointOrder() }
+            .onChange(of: selectedMeal) { _, _ in checkpointOrder() }
+            .onAppear(perform: restoreWorkspace)
+            .sheet(isPresented: $showingOrders) { savedOrdersSheet }
+            .sheet(item: $loadingOrder) { order in savedOrderReview(order) }
         }
     }
 
@@ -319,7 +343,7 @@ public struct ChainMealBuilderView: View {
 
     private var catalogDisclosure: some View {
         Label {
-            Text("Estimated catalog · Updated \(ChainRestaurantCatalog.lastUpdatedDate) · Review before logging")
+            Text("US reference · Package \(ChainRestaurantCatalog.catalogVersion) · Assembled \(ChainRestaurantCatalog.lastUpdatedDate). Source publication date unverified; local menus may differ.")
                 .appTextRole(.caption)
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
@@ -327,6 +351,153 @@ public struct ChainMealBuilderView: View {
                 .appTextRole(.caption)
         }
         .foregroundStyle(.secondary)
+    }
+
+    private var orderLibraryControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Orders saved on this device").appTextRole(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("Saved orders (\(orderWorkspace.orders.count))") { showingOrders = true }
+                Spacer()
+                Button(orderWorkspace.favoriteChainIDs.contains(selectedChain.id) ? "Unfavorite chain" : "Favorite chain") {
+                    updateWorkspace { value in
+                        if value.favoriteChainIDs.contains(selectedChain.id) { value.favoriteChainIDs.removeAll { $0 == selectedChain.id } } else { value.favoriteChainIDs.append(selectedChain.id) }
+                    }
+                }
+            }.frame(minHeight: 44)
+            if !selections.isEmpty {
+                TextField("Name this order", text: $orderName).textFieldStyle(.roundedBorder)
+                Button("Save order template") {
+                    let title = orderName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var order = SavedRestaurantOrder(name: title.isEmpty ? "\(selectedChain.name) order" : title,
+                        chain: selectedChain, components: selectedChain.orderedSelections(from: selections), mealName: selectedMeal)
+                    order.catalogVersion = selectedCatalogVersion
+                    updateWorkspace { $0.orders.append(order) }
+                }.frame(minHeight: 44).accessibilityIdentifier("chain_builder_save_order")
+                DisclosureGroup("Selected components") {
+                    ForEach(selectedChain.orderedSelections(from: selections)) { selection in
+                        Text("\(selection.ingredient.name) · \(selection.totalMultiplier.formatted()) × \(selection.ingredient.servingDescription)")
+                    }
+                    Text("Sodium is shown only when every selected component reports it. These are reference portions, not guaranteed restaurant amounts.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let onLogComponents {
+                        Button("Review as separate diary foods") {
+                            guard orderAccountID == DIContainer.shared.authService.currentUserID else { return }
+                            let food = selectedChain.customMealFoodItem(from: selections, catalogVersion: selectedCatalogVersion)
+                            onLogComponents(food.mealComposition?.components ?? [], selectedMeal)
+                            dismiss()
+                        }.frame(minHeight: 44).accessibilityIdentifier("chain_builder_review_components")
+                    }
+                }
+            }
+            if let resetSnapshot {
+                Button("Undo reset") { selections = resetSnapshot; self.resetSnapshot = nil }.frame(minHeight: 44)
+            }
+            if let workspaceError { Text(workspaceError).foregroundStyle(AppPalette.caution) }
+        }.appSurface(.quiet).accessibilityElement(children: .contain)
+    }
+
+    private var savedOrdersSheet: some View {
+        NavigationStack {
+            List {
+                Section("Private templates · this device") {
+                    ForEach(orderWorkspace.orders) { order in
+                        Button {
+                            showingOrders = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { loadingOrder = order }
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(order.name)
+                                Text("\(order.chainName) · \(order.components.count) components · \(order.catalogVersion)").font(.caption)
+                            }
+                        }.frame(minHeight: 44).contextMenu {
+                            Button("Remove template", role: .destructive) { updateWorkspace { $0.orders.removeAll { $0.id == order.id } } }
+                        }
+                    }
+                }
+                Text("Opening a template creates an editable copy. Past diary entries keep their original component snapshots.").font(.caption)
+            }.appFormStyle().buttonStyle(AppListButtonStyle()).navigationTitle("Saved orders")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { showingOrders = false } } }
+        }
+    }
+
+    private func savedOrderReview(_ order: SavedRestaurantOrder) -> some View {
+        NavigationStack {
+            List {
+                Section(order.name) {
+                    ForEach(order.components) { component in
+                        Text("\(component.ingredient.name) · \(component.totalMultiplier.formatted()) × \(component.ingredient.servingDescription)")
+                    }
+                }
+                if let chain = ChainRestaurantCatalog.allChains.first(where: { $0.id == order.chainID }) {
+                    let changes = order.catalogChanges(in: chain)
+                    if !changes.isEmpty {
+                        Section("Package changes — review before refreshing") { ForEach(changes, id: \.self) { Text($0) } }
+                    }
+                    Button("Use saved nutrition and portions") { applyOrder(order, chain: chain, refresh: false) }.frame(minHeight: 44)
+                    if !changes.isEmpty {
+                        Button("Use current available components") { applyOrder(order, chain: chain, refresh: true) }.frame(minHeight: 44)
+                        Text("Changed values update; removed components are omitted. Review your order before logging.").font(.caption)
+                    }
+                } else { Text("This chain is unavailable in the installed package. Your saved order is preserved.") }
+            }.appFormStyle().buttonStyle(AppListButtonStyle()).navigationTitle("Review saved order")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { loadingOrder = nil } } }
+        }
+    }
+
+    private func applyOrder(_ order: SavedRestaurantOrder, chain: ChainRestaurant, refresh: Bool) {
+        guard orderAccountID == DIContainer.shared.authService.currentUserID else { return }
+        let current = Dictionary(uniqueKeysWithValues: chain.categories.flatMap(\.ingredients).map { ($0.id, $0) })
+        let parts = order.components.compactMap { saved -> ChainSelectionItem? in
+            guard refresh else { return saved }
+            guard let ingredient = current[saved.id] else { return nil }
+            return ChainSelectionItem(id: saved.id, ingredient: ingredient, portion: saved.portion,
+                                      count: min(saved.count, ingredient.maximumCount))
+        }
+        let missing = refresh ? [] : parts.filter { current[$0.id] == nil }.map(\.ingredient)
+        let resolvedChain = missing.isEmpty ? chain : ChainRestaurant(id: chain.id, name: chain.name,
+            subtitle: chain.subtitle, iconName: chain.iconName, brandColorHex: chain.brandColorHex,
+            categories: chain.categories + [ChainCategory(id: "saved_components", title: "Saved components not in current package", ingredients: missing)])
+        restoringOrder = selectedChain != resolvedChain
+        selectedChain = resolvedChain
+        selectedCatalogVersion = refresh ? ChainRestaurantCatalog.catalogVersion : order.catalogVersion
+        selections = Dictionary(uniqueKeysWithValues: parts.map { ($0.id, $0) })
+        selectedMeal = order.mealName; orderName = order.name
+        loadingOrder = nil
+    }
+
+    private func restoreWorkspace() {
+        guard orderAccountID == nil, let userID = DIContainer.shared.authService.currentUserID else { return }
+        orderAccountID = userID
+        do {
+            orderWorkspace = try RestaurantOrderStore(userID: userID).load()
+            if let draft = orderWorkspace.draft, selections.isEmpty,
+               let chain = ChainRestaurantCatalog.allChains.first(where: { $0.id == draft.chainID }) {
+                applyOrder(draft, chain: chain, refresh: false)
+            }
+        } catch { workspaceError = "Saved orders could not be read. Their stored data is kept; new changes will not overwrite it." }
+    }
+
+    private func updateWorkspace(_ edit: (inout RestaurantOrderWorkspace) -> Void) {
+        guard let userID = orderAccountID, DIContainer.shared.authService.currentUserID == userID else { return }
+        do {
+            var next = orderWorkspace; edit(&next)
+            try RestaurantOrderStore(userID: userID).save(next, replacing: orderWorkspace)
+            orderWorkspace = next; workspaceError = nil
+        } catch { workspaceError = "Could not keep this order change. Reopen the builder to load the latest saved workspace." }
+    }
+
+    private func checkpointOrder() {
+        updateWorkspace { value in
+            if selections.isEmpty { value.draft = nil } else {
+                var draft = SavedRestaurantOrder(name: orderName.isEmpty ? "Unfinished order" : orderName,
+                    chain: selectedChain, components: selectedChain.orderedSelections(from: selections), mealName: selectedMeal)
+                draft.catalogVersion = selectedCatalogVersion; value.draft = draft
+            }
+            value.recentChainIDs.removeAll { $0 == selectedChain.id }
+            value.recentChainIDs.insert(selectedChain.id, at: 0)
+            value.recentChainIDs = Array(value.recentChainIDs.prefix(10))
+        }
     }
 
     @ViewBuilder
@@ -777,7 +948,8 @@ public struct ChainMealBuilderView: View {
     private func logCustomMeal() {
         guard !selections.isEmpty else { return }
 
-        let customMealItem = selectedChain.customMealFoodItem(from: selections)
+        guard orderAccountID == DIContainer.shared.authService.currentUserID else { return }
+        let customMealItem = selectedChain.customMealFoodItem(from: selections, catalogVersion: selectedCatalogVersion)
 
         onLogMeal(customMealItem, selectedMeal)
         dismiss()

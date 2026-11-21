@@ -34,36 +34,16 @@ function loadAPIKey() {
 }
 
 function modelContract() {
-  const visionKinds = [
-    "meal_photo",
-    "nutrition_label",
-    "menu_photo",
-    "receipt_photo",
-    "recipe_photo",
-  ];
-  const routes = visionKinds.map(resolveAIRequestRoute);
-  const required = new Map([
-    [resolveAIRequestRoute("general").model, "General AI and vision compatibility fallback"],
-    [MAIA_SPEECH_MODEL, "Maia Natural speech"],
-  ]);
-  const preferred = new Map();
-
-  const appendPurpose = (map, model, purpose) => {
-    const existing = map.get(model);
-    map.set(model, existing ? `${existing}; ${purpose}` : purpose);
-  };
-
-  for (const route of routes) {
-    appendPurpose(preferred, route.model, `${route.kind} preferred route`);
-    for (const fallback of route.fallbackModels ?? []) {
-      appendPurpose(required, fallback, `${route.kind} compatibility fallback`);
+  const kinds = ["general", "coaching", "planning", "meal_photo", "nutrition_label", "menu_photo", "receipt_photo", "recipe_photo", "pantry_observation"];
+  const models = new Map([[MAIA_SPEECH_MODEL, "Maia Natural speech"]]);
+  for (const kind of kinds) {
+    const route = resolveAIRequestRoute(kind);
+    for (const model of [route.model, ...(route.fallbackModels ?? [])]) {
+      const purpose = `${kind} ${model === route.model ? "primary" : "fallback"}`;
+      models.set(model, models.has(model) ? `${models.get(model)}; ${purpose}` : purpose);
     }
   }
-
-  return [
-    ...Array.from(required, ([model, purpose]) => ({ model, purpose, tier: "required" })),
-    ...Array.from(preferred, ([model, purpose]) => ({ model, purpose, tier: "preferred" })),
-  ];
+  return Array.from(models, ([model, purpose]) => ({ model, purpose }));
 }
 
 async function checkModel(apiKey, entry) {
@@ -71,7 +51,8 @@ async function checkModel(apiKey, entry) {
     `https://api.openai.com/v1/models/${encodeURIComponent(entry.model)}`,
     { headers: { Authorization: `Bearer ${apiKey}` } }
   );
-  return { ...entry, available: response.ok, status: response.status };
+  const data = response.ok ? await response.json() : {};
+  return { ...entry, available: response.ok, status: response.status, shutdownDate: data.shutdown_date ?? null };
 }
 
 async function main() {
@@ -80,31 +61,18 @@ async function main() {
 
   console.table(results.map((result) => ({
     model: result.model,
-    tier: result.tier,
     available: result.available ? "yes" : "no",
     status: result.status,
+    shutdown: result.shutdownDate ?? "none announced",
     purpose: result.purpose,
   })));
 
-  const missingRequired = results.filter(
-    (result) => result.tier === "required" && !result.available
-  );
-  const missingPreferred = results.filter(
-    (result) => result.tier === "preferred" && !result.available
-  );
-
-  if (missingPreferred.length > 0) {
-    console.warn(
-      `Preferred model access missing: ${missingPreferred.map((item) => item.model).join(", ")}. ` +
-      "Vision requests will use the compatibility route."
-    );
-  }
-  if (missingRequired.length > 0) {
-    console.error(
-      `Required model access missing: ${missingRequired.map((item) => item.model).join(", ")}.`
-    );
+  const unavailable = results.filter(result => !result.available || result.shutdownDate);
+  if (unavailable.length) {
+    console.error(`Model access or retirement requires attention: ${unavailable.map(item => item.model).join(", ")}.`);
     process.exitCode = 1;
   }
+
 }
 
 main().catch((error) => {

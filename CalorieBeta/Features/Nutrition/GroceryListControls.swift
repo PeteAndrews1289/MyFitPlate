@@ -16,22 +16,9 @@ struct GroceryListDisplayControls: View {
     var body: some View {
         Toggle(isOn: $hideCompletedItems) {
             HStack(alignment: .top, spacing: AppSpacing.row) {
-                Image(systemName: hideCompletedItems ? "eye.slash.fill" : "eye.fill")
-                    .appTextRole(.control)
-                    .foregroundStyle(completedCount == 0 ? Color.secondary : AppPalette.brandText)
-                    .frame(width: 28, height: 28)
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Hide Checked Items")
-                        .appTextRole(.control)
-                        .foregroundStyle(AppPalette.text)
-
-                    Text(detail)
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text("Hide checked items")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
             }
         }
         .toggleStyle(.switch)
@@ -43,5 +30,6 @@ struct GroceryListDisplayControls: View {
         .padding(.vertical, AppSpacing.compact)
         .overlay(alignment: .bottom) { Divider() }
         .accessibilityIdentifier("grocery_display_controls")
+        .accessibilityHint(detail)
     }
 }

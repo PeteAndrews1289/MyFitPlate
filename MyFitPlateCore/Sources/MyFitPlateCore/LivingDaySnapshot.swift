@@ -364,21 +364,13 @@ public enum LivingDaySnapshotBuilder {
             calendar.isDate($0.date, inSameDayAs: dayStart) ? $0 : nil
         }
 
-        let mealEvents = (log?.meals ?? []).enumerated().map { index, meal in
-            event(for: meal, index: index, dayStart: dayStart, dayEnd: dayEnd, calendar: calendar)
+        let mealEvents = (log?.meals ?? []).enumerated().compactMap { index, meal -> LivingDaySnapshot.Event? in
+            guard !meal.foodItems.isEmpty else { return nil }
+            return event(for: meal, index: index, dayStart: dayStart, dayEnd: dayEnd, calendar: calendar)
         }
-        var loggedPlanMatches = Dictionary(
-            grouping: (log?.meals ?? []).flatMap { meal in
-                meal.foodItems.map { planMatchKey(mealName: meal.name, foodID: $0.id) }
-            },
-            by: { $0 }
-        ).mapValues(\.count)
+        let loggedIDs = Set((log?.meals ?? []).flatMap(\.foodItems).map(\.id))
         let remainingPlannedMeals = plannedMeals.filter { plannedMeal in
-            guard let foodID = plannedMeal.foodItem?.id else { return true }
-            let key = planMatchKey(mealName: plannedMeal.mealType, foodID: foodID)
-            guard let count = loggedPlanMatches[key], count > 0 else { return true }
-            loggedPlanMatches[key] = count - 1
-            return false
+            !PlannedMealLoggingRules.isLogged(plannedMeal, date: date, loggedFoodIDs: loggedIDs, calendar: calendar)
         }
         let plannedEvents = remainingPlannedMeals.enumerated().map { index, meal in
             event(for: meal, index: index, dayStart: dayStart, calendar: calendar)
@@ -482,7 +474,7 @@ public enum LivingDaySnapshotBuilder {
     }
 
     private static func nutrition(for meals: [PlannedMeal]) -> Totals {
-        let foods = meals.compactMap(\.foodItem)
+        let foods = meals.compactMap(\.plannedFood)
         let values = foods.flatMap { [$0.calories, $0.protein, $0.carbs, $0.fats] }
         guard values.allSatisfy({ $0.isFinite && $0 >= 0 }) else {
             return Totals(calories: nil, protein: nil, carbs: nil, fats: nil)
@@ -583,7 +575,7 @@ public enum LivingDaySnapshotBuilder {
         dayStart: Date,
         calendar: Calendar
     ) -> LivingDaySnapshot.Event {
-        let food = meal.foodItem
+        let food = meal.plannedFood
         let title = food?.name ?? meal.mealType
         let detail = food.map { "\(Int($0.calories.rounded())) cal planned" } ?? "Planned meal"
         return LivingDaySnapshot.Event(
@@ -671,7 +663,7 @@ public enum LivingDaySnapshotBuilder {
         case .within30Minutes: preSeconds = 30 * 60
         case .thirtyTo120Minutes: preSeconds = 120 * 60
         case .overTwoHours: preSeconds = 180 * 60
-        case .afterSession, .none: preSeconds = 0
+        case .afterSession, .duringSession, .none: preSeconds = 0
         }
         let postSeconds: TimeInterval = postAllocation == nil ? 0 : 120 * 60
         return LivingDaySnapshot.TrainingWindow(
@@ -747,11 +739,6 @@ public enum LivingDaySnapshotBuilder {
         let secondEnd = second.endDate ?? second.startDate
         return first.startDate <= secondEnd.addingTimeInterval(buffer) &&
             second.startDate <= firstEnd.addingTimeInterval(buffer)
-    }
-
-    private static func planMatchKey(mealName: String, foodID: String) -> String {
-        let normalizedMeal = mealName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return "\(normalizedMeal):\(foodID)"
     }
 
     private static func makePathWindow(

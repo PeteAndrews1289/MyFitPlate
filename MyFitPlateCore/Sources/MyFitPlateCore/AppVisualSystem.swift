@@ -41,6 +41,15 @@ public enum AppTextRole: CaseIterable, Sendable {
         }
     }
 
+    /// Rounded display type gives the app its identity; ordinary reading and controls
+    /// use the system face so dense logs and longer explanations stay crisp.
+    public var design: Font.Design {
+        switch self {
+        case .display, .screenTitle, .metric: .rounded
+        default: .default
+        }
+    }
+
     fileprivate var relativeTextStyle: Font.TextStyle {
         switch self {
         case .display: .largeTitle
@@ -79,7 +88,7 @@ public struct AppTextRoleModifier: ViewModifier {
                 dynamicTypeSize.isAccessibilitySize
                     ? role.accessibilityRelativeTextStyle
                     : role.relativeTextStyle,
-                design: dynamicTypeSize.isAccessibilitySize ? .default : .rounded,
+                design: dynamicTypeSize.isAccessibilitySize ? .default : role.design,
                 weight: role.weight
             )
         )
@@ -89,6 +98,29 @@ public struct AppTextRoleModifier: ViewModifier {
 public extension View {
     func appTextRole(_ role: AppTextRole) -> some View {
         modifier(AppTextRoleModifier(role: role))
+    }
+
+    /// Shared presentation for native editors and grouped lists. Navigation and
+    /// save behavior remain at the call site; this only sets their visual rhythm.
+    func appFormStyle() -> some View {
+        modifier(AppFormStyleModifier())
+    }
+}
+
+public struct AppFormStyleModifier: ViewModifier {
+    public init() {}
+
+    public func body(content: Content) -> some View {
+#if os(iOS)
+        content
+            .listSectionSpacing(AppSpacing.group)
+            .contentMargins(.top, AppSpacing.compact, for: .scrollContent)
+            .scrollContentBackground(.hidden)
+            .background(AppPalette.surface)
+            .font(.system(.body, design: .default))
+#else
+        content.font(.system(.body, design: .default))
+#endif
     }
 }
 
@@ -272,7 +304,7 @@ public struct AppActionButtonStyle: ButtonStyle {
             .multilineTextAlignment(.center)
             .padding(.horizontal, AppSpacing.group)
             .frame(maxWidth: fillsWidth ? .infinity : nil)
-            .frame(minHeight: 50)
+            .frame(minHeight: fillsWidth ? 50 : 44)
             .foregroundStyle(foregroundColor)
             .background(backgroundColor, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             .overlay {
@@ -290,7 +322,7 @@ public struct AppActionButtonStyle: ButtonStyle {
         case .primary: AppPalette.onBrand
         case .destructive: .white
         case .secondary: AppPalette.text
-        case .ghost: AppPalette.brandText
+        case .ghost: AppPalette.text
         }
     }
 
@@ -307,14 +339,15 @@ public struct AppActionButtonStyle: ButtonStyle {
         switch role {
         case .primary, .destructive: .clear
         case .secondary: AppPalette.separator
-        case .ghost: AppPalette.brandText.opacity(0.55)
+        case .ghost: .clear
         }
     }
 
     private var borderWidth: CGFloat {
         switch role {
         case .primary, .destructive: 0
-        case .secondary, .ghost: 1
+        case .secondary: 1
+        case .ghost: 0
         }
     }
 }
@@ -813,16 +846,16 @@ public struct AppSheetScaffold<Content: View>: View {
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.compact)
-            .padding(.bottom, AppSpacing.group)
+            .padding(.bottom, AppSpacing.row)
         } else {
-            ZStack(alignment: .topTrailing) {
+            HStack(alignment: .center, spacing: AppSpacing.row) {
                 headerText
-                    .padding(.trailing, 44 + AppSpacing.group)
+                    .layoutPriority(1)
                 closeButton
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.compact)
-            .padding(.bottom, AppSpacing.group)
+            .padding(.bottom, AppSpacing.row)
         }
     }
 
@@ -850,14 +883,15 @@ public struct AppSheetScaffold<Content: View>: View {
     private var closeButton: some View {
         Button(action: dismiss) {
             Image(systemName: "xmark")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(AppPalette.text)
-                .frame(width: 44, height: 44)
+                .frame(width: 32, height: 32)
                 .background(
                     AppPalette.control,
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    in: Circle()
                 )
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -905,7 +939,7 @@ public struct AppEditorScaffold<Content: View, Actions: View>: View {
                     actions
                         .padding(.horizontal, AppSpacing.screenHorizontal)
                         .padding(.top, AppSpacing.compact)
-                        .padding(.bottom, AppSpacing.group)
+                        .padding(.bottom, AppSpacing.row)
                 }
                 .background(AppPalette.canvas)
             }

@@ -65,7 +65,13 @@ public enum NutritionCalorieConsistency {
 
     public static func isEstimatedSource(_ source: String) -> Bool {
         let normalizedSource = source.lowercased()
-        return normalizedSource.contains("ai") || normalizedSource.contains("manual")
+        // Source identifiers are words, not arbitrary substrings. In particular,
+        // "chain_builder" must retain its catalog calories rather than matching "ai".
+        let words = normalizedSource.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        if words.contains("ai") || words.contains("manual") { return true }
+        // Preserve historical compact source names without classifying unrelated
+        // provider names such as "email", "plain_label" or "chain" as AI.
+        return ["aiimage", "aitext", "aichat", "aimenu", "aibulk", "manualadd", "manualentry"].contains(normalizedSource)
     }
 }
 
@@ -116,12 +122,21 @@ public struct FoodItem: Codable, Identifiable, Hashable, Sendable {
     public var servingWeight: Double
     public var timestamp: Date?
     public var sourceMetadata: FoodSourceMetadata?
+    /// An optional portion-question audit. Skip preserves nutrition and source-review metadata.
+    public var portionQuestionReceipt: MealQuestionReceipt?
+    /// Frozen recipe/yield evidence for portions created by the Wave 2 recipe flow.
+    public var recipePortionSnapshot: RecipePortionSnapshot?
+    /// Frozen components for a reusable composed meal; ordinary foods retain nil.
+    public var mealComposition: MealCompositionSnapshot?
 
-    public init(id: String = UUID().uuidString, name: String, calories: Double = 0, protein: Double = 0, carbs: Double = 0, fats: Double = 0, saturatedFat: Double? = nil, polyunsaturatedFat: Double? = nil, monounsaturatedFat: Double? = nil, fiber: Double? = nil, servingSize: String = "1 serving", servingWeight: Double = 1.0, timestamp: Date? = nil, sourceMetadata: FoodSourceMetadata? = nil, calcium: Double? = nil, iron: Double? = nil, potassium: Double? = nil, sodium: Double? = nil, vitaminA: Double? = nil, vitaminC: Double? = nil, vitaminD: Double? = nil, vitaminB12: Double? = nil, folate: Double? = nil, magnesium: Double? = nil, phosphorus: Double? = nil, zinc: Double? = nil, copper: Double? = nil, manganese: Double? = nil, selenium: Double? = nil, vitaminB1: Double? = nil, vitaminB2: Double? = nil, vitaminB3: Double? = nil, vitaminB5: Double? = nil, vitaminB6: Double? = nil, vitaminE: Double? = nil, vitaminK: Double? = nil, quantityValue: Double? = nil, servingUnit: String? = nil) {
+    public init(id: String = UUID().uuidString, name: String, calories: Double = 0, protein: Double = 0, carbs: Double = 0, fats: Double = 0, saturatedFat: Double? = nil, polyunsaturatedFat: Double? = nil, monounsaturatedFat: Double? = nil, fiber: Double? = nil, servingSize: String = "1 serving", servingWeight: Double = 1.0, timestamp: Date? = nil, sourceMetadata: FoodSourceMetadata? = nil, calcium: Double? = nil, iron: Double? = nil, potassium: Double? = nil, sodium: Double? = nil, vitaminA: Double? = nil, vitaminC: Double? = nil, vitaminD: Double? = nil, vitaminB12: Double? = nil, folate: Double? = nil, magnesium: Double? = nil, phosphorus: Double? = nil, zinc: Double? = nil, copper: Double? = nil, manganese: Double? = nil, selenium: Double? = nil, vitaminB1: Double? = nil, vitaminB2: Double? = nil, vitaminB3: Double? = nil, vitaminB5: Double? = nil, vitaminB6: Double? = nil, vitaminE: Double? = nil, vitaminK: Double? = nil, quantityValue: Double? = nil, servingUnit: String? = nil, recipePortionSnapshot: RecipePortionSnapshot? = nil, mealComposition: MealCompositionSnapshot? = nil, portionQuestionReceipt: MealQuestionReceipt? = nil) {
         self.id = id; self.name = name; self.calories = calories; self.protein = protein; self.carbs = carbs; self.fats = fats
         self.saturatedFat = saturatedFat; self.polyunsaturatedFat = polyunsaturatedFat; self.monounsaturatedFat = monounsaturatedFat; self.fiber = fiber
         self.servingSize = servingSize; self.servingWeight = servingWeight; self.timestamp = timestamp
         self.sourceMetadata = sourceMetadata
+        self.portionQuestionReceipt = portionQuestionReceipt
+        self.recipePortionSnapshot = recipePortionSnapshot
+        self.mealComposition = mealComposition
         self.calcium = calcium; self.iron = iron; self.potassium = potassium; self.sodium = sodium
         self.vitaminA = vitaminA; self.vitaminC = vitaminC; self.vitaminD = vitaminD; self.vitaminB12 = vitaminB12; self.folate = folate
         self.magnesium = magnesium; self.phosphorus = phosphorus; self.zinc = zinc; self.copper = copper; self.manganese = manganese; self.selenium = selenium
@@ -162,11 +177,12 @@ public struct FoodItem: Codable, Identifiable, Hashable, Sendable {
 
     public enum CodingKeys: String, CodingKey {
         case id, name, calories, protein, carbs, fats, saturatedFat, polyunsaturatedFat, monounsaturatedFat, fiber, servingSize, servingWeight, timestamp, sourceMetadata, calcium, iron, potassium, sodium, vitaminA, vitaminC, vitaminD, vitaminB12, folate, magnesium, phosphorus, zinc, copper, manganese, selenium, vitaminB1, vitaminB2, vitaminB3, vitaminB5, vitaminB6, vitaminE, vitaminK
-        case quantityValue, servingUnit
+        case quantityValue, servingUnit, recipePortionSnapshot, mealComposition, portionQuestionReceipt
     }
 }
 
 public extension FoodItem {
+    var savedPortionQuestionReceipt: MealQuestionReceipt? { portionQuestionReceipt ?? sourceMetadata?.portionQuestionReceipt }
     var macroDerivedCalories: Double {
         NutritionCalorieConsistency.macroDerivedCalories(protein: protein, carbs: carbs, fats: fats, fiber: fiber)
     }
@@ -222,8 +238,10 @@ public struct LoggedExercise: Codable, Identifiable, Hashable {
     public var source: String = "manual"
     public var workoutID: String?
     public var sessionID: String?
+    /// A correction to the imported MyFitPlate copy. Nil keeps legacy imports refreshable.
+    public var hasLocalHealthKitEdits: Bool?
 
-    public init(id: String = UUID().uuidString, name: String, durationMinutes: Int? = nil, caloriesBurned: Double, date: Date, source: String = "manual", workoutID: String? = nil, sessionID: String? = nil) {
+    public init(id: String = UUID().uuidString, name: String, durationMinutes: Int? = nil, caloriesBurned: Double, date: Date, source: String = "manual", workoutID: String? = nil, sessionID: String? = nil, hasLocalHealthKitEdits: Bool? = nil) {
         self.id = id
         self.name = name
         self.durationMinutes = durationMinutes
@@ -232,6 +250,7 @@ public struct LoggedExercise: Codable, Identifiable, Hashable {
         self.source = source
         self.workoutID = workoutID
         self.sessionID = sessionID
+        self.hasLocalHealthKitEdits = hasLocalHealthKitEdits
     }
 
     public func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -313,8 +332,30 @@ public struct DailyLog: Codable, Identifiable, Equatable {
     public var waterTracker: WaterTracker?
     public var exercises: [LoggedExercise]?
     public var journalEntries: [JournalEntry]?
+    public var appliedMutationIDs: [String]?
+    public var nutritionDayStatus: NutritionDayStatus?
+    public var nutritionDayReview: NutritionDayReview?
+    /// Local read baseline; never encoded into a diary document.
+    public var mutationBase: Data?
+    public var pendingMutationID: String?
+    /// Only the local mutation envelope carries this checked-edit precondition.
+    public var pendingFoodEdit: FoodEditPrecondition?
+    public var pendingFoodEdits: [FoodEditPrecondition]?
+    public var pendingActivityEdit: ActivityEditPrecondition?
+    public var pendingDayReviewUndo: Bool?
 
-    public init(id: String? = nil, date: Date, meals: [Meal], totalCaloriesOverride: Double? = nil, waterTracker: WaterTracker? = nil, exercises: [LoggedExercise]? = nil, journalEntries: [JournalEntry]? = nil) {
+    public func rememberingMutationBase() -> DailyLog {
+        var copy = self
+        copy.pendingMutationID = nil
+        copy.pendingFoodEdit = nil
+        copy.pendingFoodEdits = nil
+        copy.pendingActivityEdit = nil
+        copy.pendingDayReviewUndo = nil
+        copy.mutationBase = try? JSONEncoder().encode(self)
+        return copy
+    }
+
+    public init(id: String? = nil, date: Date, meals: [Meal], totalCaloriesOverride: Double? = nil, waterTracker: WaterTracker? = nil, exercises: [LoggedExercise]? = nil, journalEntries: [JournalEntry]? = nil, nutritionDayStatus: NutritionDayStatus? = nil) {
         self.id = id
         self.date = date
         self.meals = meals
@@ -322,6 +363,7 @@ public struct DailyLog: Codable, Identifiable, Equatable {
         self.waterTracker = waterTracker
         self.exercises = exercises
         self.journalEntries = journalEntries
+        self.nutritionDayStatus = nutritionDayStatus
     }
 
     public func totalCalories() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.calories } }
@@ -368,13 +410,15 @@ public struct DailyLog: Codable, Identifiable, Equatable {
             Calendar.current.isDate(lhs.date, inSameDayAs: rhs.date) &&
             lhs.meals == rhs.meals &&
             lhs.totalCaloriesOverride == rhs.totalCaloriesOverride &&
+            lhs.nutritionDayStatus == rhs.nutritionDayStatus &&
+            lhs.nutritionDayReview == rhs.nutritionDayReview &&
             lhs.waterTracker == rhs.waterTracker &&
             lhs.exercises == rhs.exercises &&
             lhs.journalEntries == rhs.journalEntries
         }
 
     public enum CodingKeys: String, CodingKey {
-            case id, date, meals, totalCaloriesOverride, waterTracker, exercises, journalEntries
+            case id, date, meals, totalCaloriesOverride, waterTracker, exercises, journalEntries, appliedMutationIDs, nutritionDayStatus, nutritionDayReview
     }
 }
 
@@ -496,6 +540,27 @@ public struct ServingNutritionEdits: Equatable, Sendable {
 }
 
 public enum ServingNutritionCalculator {
+    /// Keep stored portions readable without rewriting the quantity used to reopen an older entry.
+    public static func displayPortion(_ description: String) -> String {
+        let text = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed = parseQuantity(from: text.replacingOccurrences(of: " × ", with: " x "))
+        let unit = parsed.baseDescription
+        if InventoryQuantityRules.convert(1, from: unit, to: "g") != nil ||
+            InventoryQuantityRules.convert(1, from: unit, to: "ml") != nil {
+            return parsed.quantity.formatted(.number.precision(.significantDigits(1...6))) + " " + unit
+        }
+        return text.replacingOccurrences(of: " x ", with: " × ")
+    }
+
+    /// Older records use 1 as a weight placeholder, and some providers also put volume in
+    /// their weight field. Offer a mass conversion only for a mass named in the serving.
+    public static func measuredGrams(in description: String) -> Double? {
+        let text = description.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let grams = InventoryQuantityRules.convert(1, from: text, to: "g") { return grams }
+        guard let match = text.firstMatch(of: #/(?:^|\()\s*(\d+(?:\.\d+)?)\s*(kilograms?|kg|grams?|g|ounces?|oz|pounds?|lbs?)\s*(?:\)|$)/#),
+              let amount = Double(match.1), amount.isFinite, amount > 0 else { return nil }
+        return InventoryQuantityRules.convert(amount, from: String(match.2), to: "g")
+    }
     public static func parseQuantity(from servingDescription: String) -> (quantity: Double, baseDescription: String) {
         let components = servingDescription.components(separatedBy: " x ")
         if components.count == 2, let quantity = Double(components[0]), quantity > 0 {

@@ -2,156 +2,166 @@ import MyFitPlateCore
 import SwiftUI
 import UIKit
 
-struct LivingDayShareOptionsView: View {
+final class PrivateDayShareCapture: Identifiable {
+    let id = UUID()
+    let ownerID: String
     let snapshot: LivingDaySnapshot
+    let calendar: Calendar
+    let log: DailyLog?
+    let weightPounds: Double?
+    let metric: Bool
 
+    init(ownerID: String, snapshot: LivingDaySnapshot, calendar: Calendar, log: DailyLog?, weightPounds: Double?, metric: Bool) {
+        self.ownerID = ownerID
+        self.snapshot = snapshot
+        self.calendar = calendar
+        self.log = log
+        self.weightPounds = weightPounds
+        self.metric = metric
+    }
+}
+
+struct LivingDayShareOptionsView: View {
+    let capture: PrivateDayShareCapture
     @Environment(\.dismiss) private var dismiss
-    @State private var includesBudget = true
-    @State private var includesPath = true
-    @State private var includesTrust = false
-    @State private var includesAction = true
-    @State private var shareImage: Image?
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var options = LivingDayPrivateShare.Options()
+    @State private var caption = ""
+    @State private var invalidated = false
+    @State private var authObserver: Any?
+    @State private var observedAuth: (any AuthServiceProtocol)?
+    @State private var shareImage: UIImage?
+    @State private var showingActivity = false
+    @State private var exportDocument: LivingDayPrivateShare?
+    @State private var exportImage: UIImage?
 
-    private var selection: LivingDayShareSelection {
-        var selection: LivingDayShareSelection = []
-        if includesBudget { selection.insert(.budget) }
-        if includesPath { selection.insert(.path) }
-        if includesTrust { selection.insert(.trust) }
-        if includesAction { selection.insert(.action) }
-        return selection
+    private var document: LivingDayPrivateShare {
+        let log = capture.log.flatMap { capture.calendar.isDate($0.date, inSameDayAs: capture.snapshot.date) ? $0 : nil }
+        return LivingDayPrivateShare(snapshot: capture.snapshot, options: options,
+                                    foodNames: log?.meals.flatMap(\.foodItems).map(\.name) ?? [],
+                                    weightPounds: capture.weightPounds, metric: capture.metric,
+                                    dayStatus: log.map(NutritionDayEvidence.status) ?? .unknown,
+                                    caption: caption, calendar: capture.calendar)
     }
-
-    private var selectedCount: Int {
-        [includesBudget, includesPath, includesTrust, includesAction].filter { $0 }.count
-    }
-
-    private var shareSnapshot: LivingDayShareSnapshot {
-        LivingDayShareBuilder.make(from: snapshot, selection: selection)
-    }
-
+    private var ownerIsCurrent: Bool { !invalidated && capture.ownerID == DIContainer.shared.authService.currentUserID }
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    Text("Include in image")
-                        .appFont(size: 20, weight: .bold)
-
-                    VStack(spacing: 0) {
-                        selectionToggle(
-                            title: "Nutrition budget",
-                            systemImage: "chart.bar.fill",
-                            identifier: "livingDayShareBudgetToggle",
-                            isOn: $includesBudget
-                        )
-                        Divider()
-                        selectionToggle(
-                            title: "Day path",
-                            systemImage: "point.topleft.down.to.point.bottomright.curvepath",
-                            identifier: "livingDaySharePathToggle",
-                            isOn: $includesPath
-                        )
-                        Divider()
-                        selectionToggle(
-                            title: "Trust markers",
-                            systemImage: "checkmark.shield.fill",
-                            identifier: "livingDayShareTrustToggle",
-                            isOn: $includesTrust
-                        )
-                        Divider()
-                        selectionToggle(
-                            title: "Next action",
-                            systemImage: "arrow.forward.circle.fill",
-                            identifier: "livingDayShareActionToggle",
-                            isOn: $includesAction
-                        )
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Choose what to share").appTextRole(.sectionTitle)
+                    Text("Your day path is included first. Add numbers, food names or weight only if you want to share them.")
+                        .appTextRole(.secondary)
+                    HStack {
+                        Button("Public summary") { options = .init(preset: .publicSummary) }
+                            .accessibilityIdentifier("livingDaySharePublicPreset")
+                        Button("Private check-in") { options = .init(preset: .privateCheckIn) }
+                            .accessibilityIdentifier("livingDaySharePrivatePreset")
+                    }.buttonStyle(.bordered)
+                    VStack {
+                        Toggle("Nutrition budget · kcal and grams", isOn: $options.budget).accessibilityIdentifier("livingDayShareBudgetToggle")
+                        Toggle("Generic day path", isOn: $options.path).accessibilityIdentifier("livingDaySharePathToggle")
+                        Toggle("Logged food names", isOn: $options.foodNames).accessibilityIdentifier("livingDayShareFoodsToggle")
+                        Toggle("Weight measured on this day", isOn: $options.weight).accessibilityIdentifier("livingDayShareWeightToggle")
+                        Toggle("Data review markers", isOn: $options.trust).accessibilityIdentifier("livingDayShareTrustToggle")
+                        Toggle("Next-step text", isOn: $options.action).accessibilityIdentifier("livingDayShareActionToggle")
+                    }.tint(.brandPrimary)
+                    TextField("Optional caption", text: $caption, axis: .vertical)
+                        .textFieldStyle(.roundedBorder).lineLimit(1...3)
+                        .onChange(of: caption) { _, value in if value.count > 180 { caption = String(value.prefix(180)) } }
+                    if let shareImage, ownerIsCurrent {
+                        Image(uiImage: shareImage).resizable().scaledToFit()
+                            .accessibilityLabel(document.text)
+                            .accessibilityIdentifier("livingDaySharePreview")
                     }
-
-                    FixedShareCardPreview {
-                        LivingDayShareCard(snapshot: shareSnapshot)
+                    if ownerIsCurrent {
+                        DisclosureGroup("View text version") {
+                            Text(document.text).textSelection(.enabled).appTextRole(.secondary)
+                        }.accessibilityIdentifier("livingDayShareText")
                     }
-                        .accessibilityHidden(true)
-
-                    if let shareImage {
-                        ShareLink(
-                            item: shareImage,
-                            subject: Text("My day"),
-                            message: Text(MyFitPlateLinks.shareMessage(
-                                "How food and training fit together in my day."
-                            )),
-                            preview: SharePreview("My day", image: shareImage)
-                        ) {
-                            Label("Share my day", systemImage: "square.and.arrow.up")
-                                .appFont(size: 16, weight: .bold)
-                                .foregroundStyle(AppPalette.onBrand)
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        .simultaneousGesture(TapGesture().onEnded(logShareOpened))
-                        .accessibilityIdentifier("livingDayShareCommitButton")
-                    } else {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 50)
-                    }
-                }
-                .padding(20)
+                    Text("The preview is a frozen snapshot of this date. Export is kept in memory and cleared when this screen closes.")
+                        .appTextRole(.caption)
+                }.padding(20)
+            }
+            .safeAreaInset(edge: .bottom) {
+                shareAction.padding(AppSpacing.row).background(.bar)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Share my day")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+            .navigationTitle("Share my day").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .task { observeOwner(); render() }
+            .onChange(of: document) { _, _ in render() }
+            .onChange(of: scenePhase) { _, phase in if phase == .active { validateOwner() } }
+            .onDisappear {
+                if let authObserver { observedAuth?.removeObserver(authObserver) }
+                authObserver = nil; observedAuth = nil; shareImage = nil; exportImage = nil; exportDocument = nil
+            }
+            .sheet(isPresented: $showingActivity, onDismiss: { exportImage = nil; exportDocument = nil }) {
+                if ownerIsCurrent, let exportImage, let exportDocument {
+                    PrivateDayShareActivity(image: exportImage, text: exportDocument.text)
                 }
             }
-            .task(id: selection.rawValue) {
-                renderShareImage()
-            }
-            .onAppear {
-                DIContainer.shared.analyticsManager?.logEvent(
-                    ProductAnalytics.Event.livingDayShareOptionsOpened.rawValue,
-                    parameters: nil
-                )
+        }
+    }
+    private var shareAction: some View {
+        Button {
+                        guard ownerIsCurrent, let shareImage else { dismiss(); return }
+                        exportDocument = document; exportImage = shareImage; showingActivity = true
+                    } label: {
+                        Label("Share image and text", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }.buttonStyle(AppActionButtonStyle(.primary))
+                        .disabled(!ownerIsCurrent || shareImage == nil)
+                        .accessibilityIdentifier("livingDayShareCommitButton")
+    }
+
+    private func observeOwner() {
+        guard authObserver == nil, ownerIsCurrent else { validateOwner(); return }
+        guard let service = DIContainer.shared.authService else { invalidated = true; validateOwner(); return }
+        observedAuth = service
+        authObserver = service.observeAuthState { userID in
+            Task { @MainActor in
+                if userID != capture.ownerID { invalidated = true; validateOwner() }
             }
         }
     }
-
-    private func selectionToggle(
-        title: String,
-        systemImage: String,
-        identifier: String,
-        isOn: Binding<Bool>
-    ) -> some View {
-        Toggle(isOn: isOn) {
-            Label(title, systemImage: systemImage)
-                .appFont(size: 15, weight: .semibold)
-                .foregroundStyle(Color.textPrimary)
+    private func validateOwner() {
+        guard ownerIsCurrent else {
+            shareImage = nil; exportImage = nil; exportDocument = nil; showingActivity = false
+            invalidated = true; dismiss(); return
         }
-        .tint(.brandPrimary)
-        .padding(.vertical, 13)
-        .disabled(isOn.wrappedValue && selectedCount == 1)
-        .accessibilityIdentifier(identifier)
     }
-
-    @MainActor
-    private func renderShareImage() {
-        let renderer = ImageRenderer(
-            content: LivingDayShareCard(snapshot: shareSnapshot)
-                .frame(width: 360, height: 500)
-                .environment(\.colorScheme, .light)
-        )
+    @MainActor private func render() {
+        guard ownerIsCurrent else { shareImage = nil; return }
+        let renderer = ImageRenderer(content: PrivateDayShareCard(document: document).frame(width: 360).environment(\.colorScheme, .light))
         renderer.scale = 3
-        shareImage = renderer.uiImage.map(Image.init(uiImage:))
+        shareImage = renderer.uiImage
     }
+}
 
-    private func logShareOpened() {
-        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.livingDayShareOpened.rawValue, parameters: [
-            "includes_budget": includesBudget,
-            "includes_path": includesPath,
-            "includes_trust": includesTrust,
-            "includes_action": includesAction,
-            "path_event_count": shareSnapshot.events.count
-        ])
+private struct PrivateDayShareCard: View {
+    let document: LivingDayPrivateShare
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("MYFITPLATE · MY DAY").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.brandForeground)
+            Text(document.title).font(.system(size: 23, weight: .bold)).foregroundStyle(.black)
+            if !document.caption.isEmpty { Text(document.caption).font(.system(size: 14)).foregroundStyle(.black) }
+            ForEach(document.lines) { line in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(line.title).font(.system(size: 11, weight: .bold)).foregroundStyle(Color.brandForeground)
+                    Text(line.value).font(.system(size: 14)).foregroundStyle(.black).fixedSize(horizontal: false, vertical: true)
+                }
+                Divider()
+            }
+        }.padding(24).background(.white).environment(\.dynamicTypeSize, .medium)
     }
+}
+private struct PrivateDayShareActivity: UIViewControllerRepresentable {
+    let image: UIImage
+    let text: String
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [image, text], applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 struct LivingDayShareCard: View {

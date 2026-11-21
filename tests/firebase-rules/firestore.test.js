@@ -45,7 +45,7 @@ describe('MyFitPlate Firestore Rules', () => {
 
     before(async () => {
         testEnv = await initializeTestEnvironment({
-            projectId: "myfitplate-test-project",
+            projectId: process.env.FIREBASE_RULES_TEST_PROJECT || "myfitplate-test-project",
             firestore: {
                 rules: fs.readFileSync(path.resolve(__dirname, '../../firestore.rules'), 'utf8'),
             },
@@ -58,6 +58,34 @@ describe('MyFitPlate Firestore Rules', () => {
 
     beforeEach(async () => {
         await testEnv.clearFirestore();
+    });
+
+    describe('Account deletion barrier', () => {
+        it('blocks late account, nested diary/workout and social writes without affecting another owner', async () => {
+            await testEnv.withSecurityRulesDisabled(async context => {
+                await context.firestore().doc('accountDeletionBarriers/alice').set({ status: 'deleting', updatedAt: new Date() });
+            });
+            const alice = testEnv.authenticatedContext('alice').firestore();
+            await assertFails(alice.doc('users/alice').set({ name: 'Late recreation' }));
+            await assertFails(alice.doc('users/alice/dailyLogs/day').set({ meals: [] }));
+            await assertFails(alice.doc('users/alice/workoutSessionLogs/session').set({ routineID: 'r' }));
+            await assertFails(alice.doc('posts/post').set({ authorID: 'alice', text: 'Late post' }));
+            await assertFails(alice.doc('groups/group').set({ creatorID: 'alice' }));
+            await assertFails(alice.doc('groupMemberships/member').set({ userID: 'alice', groupID: 'group' }));
+            await assertFails(alice.doc('accountDeletionBarriers/alice').delete());
+            const bob = testEnv.authenticatedContext('bob').firestore();
+            await assertSucceeds(bob.doc('users/bob').set({ name: 'Unaffected' }));
+            await assertSucceeds(bob.doc('users/bob/dailyLogs/day').set({ meals: [] }));
+        });
+
+        it('keeps completed barriers effective until server cleanup actually removes them', async () => {
+            await testEnv.withSecurityRulesDisabled(async context => {
+                await context.firestore().doc('accountDeletionBarriers/alice').set({ status: 'complete', expiresAt: new Date(0) });
+            });
+            const alice = testEnv.authenticatedContext('alice').firestore();
+            await assertFails(alice.doc('users/alice').set({ name: 'Late write' }));
+            await assertFails(alice.doc('accountDeletionBarriers/alice').set({ status: 'complete' }));
+        });
     });
 
     // MARK: - Users Collection

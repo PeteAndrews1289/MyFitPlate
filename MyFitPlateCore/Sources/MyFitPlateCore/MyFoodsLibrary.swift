@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public enum MyFoodsLibraryFilter: String, CaseIterable, Hashable, Sendable {
@@ -64,6 +65,59 @@ public struct MyFoodsDuplicateGroup: Identifiable, Sendable {
 }
 
 public enum MyFoodsLibraryRules {
+    public static func isValidSavedSnapshot(_ food: FoodItem) -> Bool {
+        guard !food.id.isEmpty, !food.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              [food.calories, food.protein, food.carbs, food.fats, food.servingWeight].allSatisfy({ $0.isFinite && $0 >= 0 }) else { return false }
+        let optionalValues = [food.saturatedFat, food.polyunsaturatedFat, food.monounsaturatedFat]
+            + MicronutrientKey.allCases.map { food.micronutrientValue(for: $0) }
+        return optionalValues.compactMap { $0 }.allSatisfy { $0.isFinite && $0 >= 0 }
+            && (try? JSONEncoder().encode(food)) != nil
+    }
+
+    /// A new provider copy uses a repeatable identity, so an ambiguous accepted save
+    /// can be retried after relaunch. Existing personal IDs are always reused instead.
+    public static func savedCopyID(for food: FoodItem) -> String {
+        if food.sourceMetadata?.sourceType == .custom {
+            return food.sourceMetadata?.sourceID.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 } ?? food.id
+        }
+        let metadata = food.sourceMetadata
+        let source = metadata?.originSourceType ?? metadata?.sourceType ?? .unknown
+        let originalID = [metadata?.matchedFoodID, metadata?.sourceID, food.id].compactMap { $0 }
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? food.id
+        let version = metadata?.sourceUpdatedAt.map { String($0.timeIntervalSinceReferenceDate) } ?? "unversioned"
+        let digest = SHA256.hash(data: Data("\(source.rawValue)|\(originalID)|\(version)".utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        return "custom_copy_\(digest)"
+    }
+
+    /// Display names are not product identity. A star/unsave action must target this exact
+    /// personal record or a saved copy with matching source lineage.
+    public static func savedCopy(of food: FoodItem, in items: [FoodItem]) -> FoodItem? {
+        if !food.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let exact = items.first(where: {
+               guard $0.id == food.id else { return false }
+               guard let incoming = food.sourceMetadata, let saved = $0.sourceMetadata else { return true }
+               let incomingSource = incoming.originSourceType ?? incoming.sourceType
+               let savedSource = saved.originSourceType ?? saved.sourceType
+               if incoming.sourceType != .custom, incoming.sourceType != .manual, incomingSource != .unknown,
+                  let originalID = saved.matchedFoodID, !originalID.isEmpty,
+                  ![food.id, incoming.sourceID, incoming.matchedFoodID].compactMap({ $0 }).contains(originalID) { return false }
+               return incomingSource == savedSource || incomingSource == .unknown || savedSource == .unknown
+                   || ([FoodSourceType.manual, .custom].contains(incomingSource) && [.manual, .custom].contains(savedSource))
+           }) { return exact }
+        guard let metadata = food.sourceMetadata else { return nil }
+        let source = metadata.originSourceType ?? metadata.sourceType
+        let sourceIDs = Set([food.id, metadata.sourceID, metadata.matchedFoodID].compactMap { $0 }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+        return items.first {
+            guard let saved = $0.sourceMetadata, let originalID = saved.matchedFoodID,
+                  !originalID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  saved.sourceUpdatedAt == metadata.sourceUpdatedAt,
+                  (saved.originSourceType ?? saved.sourceType) == source else { return false }
+            return sourceIDs.contains(originalID)
+        }
+    }
+
     public static func entries(
         savedFoods: [FoodItem],
         recentFoods: [FoodItem]
@@ -160,6 +214,22 @@ public enum MyFoodsLibraryRules {
             }
     }
 
+    public static func reviewGroups(from entries: [MyFoodsLibraryEntry]) -> [MyFoodsDuplicateGroup] {
+        Dictionary(grouping: entries, by: { $0.item.name.folding(options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")).split(whereSeparator: \.isWhitespace).joined(separator: " ") })
+            .values.filter { $0.count > 1 }.compactMap { candidates in
+                let ordered = candidates.sorted(by: preferredKeeper)
+                guard let keeper = ordered.first else { return nil }
+                return MyFoodsDuplicateGroup(keeper: keeper, duplicates: Array(ordered.dropFirst()))
+            }.sorted { $0.keeper.item.name.localizedStandardCompare($1.keeper.item.name) == .orderedAscending }
+    }
+
+    public static func areExactDuplicates(_ foods: [FoodItem]) -> Bool {
+        guard let first = foods.first, foods.count >= 2 else { return false }
+        let signature = DuplicateSignature(item: first)
+        return foods.dropFirst().allSatisfy { DuplicateSignature(item: $0) == signature }
+    }
+
     public static func removingBarcodeAssociation(from item: FoodItem) -> FoodItem {
         guard var metadata = item.sourceMetadata else { return item }
         metadata.barcode = nil
@@ -213,6 +283,8 @@ public enum MyFoodsLibraryRules {
         let servingUnit: String
         let barcode: String
         let sourceCategory: String
+        let brand: String
+        let lineage: String?
         let values: [UInt64?]
 
         init(item: FoodItem) {
@@ -223,6 +295,14 @@ public enum MyFoodsLibraryRules {
             sourceCategory = (
                 item.sourceMetadata?.originSourceType ?? item.sourceMetadata?.sourceType
             )?.rawValue ?? "unknown"
+            brand = Self.normalized(item.sourceMetadata?.brandName ?? "")
+            var source = RecipePortionRules.revisionIngredient(item).sourceMetadata
+            if source?.sourceType == .custom {
+                source?.sourceID = nil
+                if source?.originSourceType == nil || source?.originSourceType == .custom || source?.originSourceType == .manual,
+                   source?.matchedFoodID == item.id { source?.matchedFoodID = nil }
+            }
+            lineage = try? PlanFingerprint.make(source)
             values = [
                 item.calories, item.protein, item.carbs, item.fats, item.saturatedFat,
                 item.polyunsaturatedFat, item.monounsaturatedFat, item.fiber,

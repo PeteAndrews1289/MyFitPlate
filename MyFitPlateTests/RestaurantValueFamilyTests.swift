@@ -84,6 +84,13 @@ final class RestaurantValueFamilyTests: XCTestCase {
     }
 
     func testLatestMenuScanOwnsAsyncResult() async throws {
+        let previousAuth = DIContainer.shared.authService
+        let auth = MockAuthService(); auth.currentUserID = "radar-latest-\(UUID().uuidString)"
+        DIContainer.shared.authService = auth
+        defer {
+            if let userID = auth.currentUserID { try? EditorDraftStore().removeAll(userID: userID) }
+            DIContainer.shared.authService = previousAuth
+        }
         let analyzer = MenuAnalyzerStub()
         let viewModel = RestaurantValueRadarViewModel(
             imageModel: analyzer,
@@ -110,6 +117,12 @@ final class RestaurantValueFamilyTests: XCTestCase {
         try await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertFalse(viewModel.isAnalyzing)
+        XCTAssertEqual(viewModel.comparison.rows.map(\.id), ["latest"])
+        XCTAssertEqual(viewModel.comparison.rows.first?.listedPrice, 12)
+        XCTAssertTrue(viewModel.items.isEmpty, "Extracted prices cannot rank before explicit serving/currency review")
+        var reviewed = try XCTUnwrap(viewModel.comparison.rows.first)
+        reviewed.currency = "USD"; reviewed.priceConfirmed = true
+        viewModel.updateRow(reviewed)
         XCTAssertEqual(viewModel.items.map(\.id), ["latest"])
         XCTAssertEqual(viewModel.items.first?.adjustedPrice, 12)
         XCTAssertTrue(viewModel.items.first?.canLog == true)
