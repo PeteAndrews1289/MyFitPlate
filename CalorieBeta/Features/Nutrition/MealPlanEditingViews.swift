@@ -554,6 +554,7 @@ struct MealPlanLeftoverSheet: View {
                         Text("\(mealType) · \(portions.formatted(.number.precision(.fractionLength(0...2)))) × original portion")
                         if let food = meal.foodItem.flatMap({ FoodRepeatRules.adjusting($0, by: portions) }) {
                             Text("\(Int(food.calories.rounded())) cal · \(Int(food.protein.rounded())) g protein")
+                                .accessibilityIdentifier("planner_leftover_nutrition")
                         }
                         Text("Existing meals stay in place. Ingredients are counted once for the whole cooking batch.")
                         Text("\(prepared.before.count) day\(prepared.before.count == 1 ? "" : "s") checked together")
@@ -601,6 +602,7 @@ struct MealPlanLeftoverSheet: View {
                     }
                 }
             }.appFormStyle()
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("planner_leftover_form")
             .disabled(isWorking || review.isSaving)
             .navigationTitle("Plan leftovers").navigationBarTitleDisplayMode(.inline)

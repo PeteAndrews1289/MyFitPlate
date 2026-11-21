@@ -186,11 +186,14 @@ struct MealPlanSurveyView: View {
                                     } label: {
                                         Label(slot, systemImage: day.openMealTypes.contains(slot) ? "checkmark" : "plus")
                                     }
+                                    .accessibilityLabel(slot)
                                 }
                             } label: {
                                 Text(day.openMealTypes.isEmpty ? "Leave a meal open" : "Open: " + day.openMealTypes.joined(separator: ", "))
                                     .appTextRole(.secondary)
-                            }.accessibilityIdentifier("planner_open_meals_\(day.offset)")
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.borderless).accessibilityIdentifier("planner_open_meals_\(day.offset)")
                         }.padding(.vertical, AppSpacing.compact)
                     }
                 }

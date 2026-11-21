@@ -15,7 +15,8 @@ struct SetWaterGoalView: View {
     @State private var containerName = ""
     @State private var containerAmount = ""
     @State private var containerUnit: WaterVolumeUnit = .ounces
-    @FocusState private var inputIsFocused: Bool
+    private enum Input { case goal, containerName, containerAmount }
+    @FocusState private var focusedInput: Input?
     var onAccepted: () -> Void
 
     var body: some View {
@@ -38,7 +39,7 @@ struct SetWaterGoalView: View {
                         HStack {
                             Text("Daily target")
                             Spacer(minLength: AppSpacing.compact)
-                            TextField("Daily amount", text: $waterGoalInput).keyboardType(.decimalPad).focused($inputIsFocused)
+                            TextField("Daily amount", text: $waterGoalInput).keyboardType(.decimalPad).focused($focusedInput, equals: .goal)
                                 .multilineTextAlignment(.trailing).frame(maxWidth: 90)
                             Text(preferences.unit.symbol).foregroundStyle(.secondary)
                         }.accessibilityIdentifier("water_target_amount")
@@ -62,9 +63,11 @@ struct SetWaterGoalView: View {
                     }
                 }
                 Section("Add a container") {
-                    TextField("Container name", text: $containerName).accessibilityIdentifier("water_container_name")
+                    TextField("Container name", text: $containerName).focused($focusedInput, equals: .containerName)
+                        .accessibilityIdentifier("water_container_name")
                     HStack {
-                        TextField("Amount", text: $containerAmount).keyboardType(.decimalPad).accessibilityIdentifier("water_container_amount")
+                        TextField("Amount", text: $containerAmount).keyboardType(.decimalPad)
+                            .focused($focusedInput, equals: .containerAmount).accessibilityIdentifier("water_container_amount")
                         Picker("Container unit", selection: $containerUnit) { ForEach(WaterVolumeUnit.allCases) { Text($0.symbol).tag($0) } }.labelsHidden().accessibilityIdentifier("water_container_unit")
                     }
                     Button("Add container") {
@@ -73,7 +76,9 @@ struct SetWaterGoalView: View {
                         guard container.isValid else { return }
                         preferences.containers.append(container)
                         if preferences.preferredContainerID == nil { preferences.preferredContainerID = container.id }
-                        containerName = ""; containerAmount = ""
+                        containerName = ""
+                        containerAmount = ""
+                        focusedInput = nil
                     }.disabled(!validContainer || preferences.containers.count >= 20).accessibilityIdentifier("water_add_container")
                 }
                 if !preferences.targetHistory.isEmpty {
@@ -94,7 +99,7 @@ struct SetWaterGoalView: View {
             .navigationTitle("Water preferences").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(isSaving) }
-                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { inputIsFocused = false } }
+                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focusedInput = nil } }
             }
             .safeAreaInset(edge: .bottom) {
                 Button(isSaving ? "Saving…" : "Save preferences", action: save)
@@ -121,7 +126,7 @@ struct SetWaterGoalView: View {
         trackingOnly || Double(waterGoalInput).map { (1...512).contains(preferences.unit.ounces(from: $0)) } == true
     }
     private func save() {
-        inputIsFocused = false
+        focusedInput = nil
         guard hasValidGoal, !isSaving, let baseline, let baselinePreferences, let capturedUserID else { return }
         do { try preferences.acceptTarget(trackingOnly ? nil : Double(waterGoalInput).map { preferences.unit.ounces(from: $0) }) } catch { errorMessage = error.localizedDescription; return }
         isSaving = true; errorMessage = nil

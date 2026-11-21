@@ -125,9 +125,8 @@ final class InventoryFlowsUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
         let review = any(app, "planner_leftover_review")
         XCTAssertTrue(review.waitForExistence(timeout: 10))
-        let nutrition = any(app, "planner_leftover_form").staticTexts
-            .matching(NSPredicate(format: "label == %@", "400 cal · 25 g protein")).firstMatch
-        reveal(nutrition, app: app)
+        let nutrition = app.staticTexts["planner_leftover_nutrition"]
+        XCTAssertTrue(nutrition.waitForExistence(timeout: 10))
         XCTAssertEqual(nutrition.label, "400 cal · 25 g protein", "The next-day allocation remains one personal portion")
         let readyToSave = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@ AND enabled == true", "Plan leftovers"), object: confirm)
         XCTAssertEqual(XCTWaiter.wait(for: [readyToSave], timeout: 10), .completed)
@@ -240,15 +239,16 @@ final class InventoryFlowsUITests: XCTestCase {
         select("Cook", app: app)
         addNamedTimer("Rice", app: app)
         addNamedTimer("Oven", app: app)
-        let pauseRice = app.buttons["Pause Rice"]
+        let timers = app.descendants(matching: .other).matching(NSPredicate(format: "identifier BEGINSWITH 'cooking_named_timer_'"))
+        let pauseRice = timers.buttons["Pause Rice"]
         reveal(pauseRice, app: app); pauseRice.tap()
-        XCTAssertTrue(app.buttons["Resume Rice"].waitForExistence(timeout: 5))
+        XCTAssertTrue(timers.buttons["Resume Rice"].waitForExistence(timeout: 5))
         app.terminate(); _ = launch(reset: false, app: app)
         select("Cook", app: app)
-        let resumeRice = app.buttons["Resume Rice"]
+        let resumeRice = timers.buttons["Resume Rice"]
         reveal(resumeRice, app: app)
         XCTAssertTrue(resumeRice.exists)
-        let pauseOven = app.buttons["Pause Oven"]
+        let pauseOven = timers.buttons["Pause Oven"]
         reveal(pauseOven, app: app)
         XCTAssertTrue(pauseOven.exists, "Pausing Rice must not pause Oven")
         attach(app, "Cooking - independent named timers restored")
@@ -399,7 +399,7 @@ final class InventoryFlowsUITests: XCTestCase {
     }
     @MainActor private func reveal(_ element: XCUIElement, app: XCUIApplication) {
         let identifiers = ["planner_leftover_form", "inventory_review_list", "inventory_item_editor", "inventory_cook_form", "inventory_consume_form",
-                           "inventory_history_list", "inventory_pantry_scroll", "meal_prep_scroll", "grocery_list", "meal_plan_scroll", "home_scroll"]
+                           "inventory_history_list", "inventory_pantry_scroll", "meal_prep_screen", "grocery_list", "meal_plan_scroll", "home_scroll"]
         let scroll = identifiers.lazy.compactMap { id -> XCUIElement? in
             let list = app.collectionViews[id].firstMatch
             if list.exists, list.isHittable { return list }
@@ -424,7 +424,7 @@ final class InventoryFlowsUITests: XCTestCase {
             var bottom = min(scroll?.frame.maxY ?? app.frame.maxY - 70, app.frame.maxY - 70) - 5
             if app.keyboards.firstMatch.exists { bottom = min(bottom, app.keyboards.firstMatch.frame.minY - 5) }
             let pinnedIDs = ["inventory_review_confirm", "inventory_item_review", "inventory_cook_review", "inventory_consume_review",
-                             "meal_prep_start_timer", "meal_prep_timer_start", "planner_leftover_confirm"]
+                             "meal_prep_timer_start", "planner_leftover_confirm"]
             let pinned = pinnedIDs.map { app.buttons[$0] }.filter { $0.exists && $0.isHittable }
             if element.exists, element.isHittable, app.frame.contains(element.frame),
                pinned.contains(where: { $0.identifier == element.identifier }) { return }

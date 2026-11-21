@@ -46,6 +46,7 @@ struct TrainingHeroCard: View {
                 Spacer()
 
                 Image(systemName: "figure.strengthtraining.traditional")
+                    .accessibilityHidden(true)
                     .appFont(size: 18, weight: .bold)
                     .foregroundStyle(AppPalette.brandText)
                     .frame(width: 42, height: 42)

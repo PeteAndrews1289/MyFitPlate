@@ -154,6 +154,7 @@ struct TodaysNextStepSlider: View {
 
             HStack(spacing: 10) {
                 Image(systemName: "figure.strengthtraining.traditional")
+                    .accessibilityHidden(true)
                     .appFont(size: 18, weight: .semibold)
                     .foregroundStyle(AppPalette.effort)
                     .frame(width: 44, height: 44)

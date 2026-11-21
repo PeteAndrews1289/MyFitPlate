@@ -67,7 +67,9 @@ final class MealPlanningFinishUITests: XCTestCase {
         reveal(preset, app: app); preset.tap()
         let open = app.buttons["planner_open_meals_5"]
         reveal(open, app: app); open.tap()
-        app.buttons["Dinner"].firstMatch.tap()
+        let dinner = app.buttons["Dinner"].firstMatch
+        XCTAssertTrue(dinner.waitForExistence(timeout: 5), app.debugDescription)
+        dinner.tap()
         XCTAssertTrue(open.label.contains("Dinner"))
         record(app, "Practical week - selected cooking days and restaurant evening")
         app.buttons["meal_plan_generate_plan"].tap()
@@ -161,10 +163,16 @@ final class MealPlanningFinishUITests: XCTestCase {
     }
     @MainActor private func reveal(_ element: XCUIElement, app: XCUIApplication, preferEarlier: Bool = false) {
         for _ in 0..<25 {
-            if element.exists, element.isHittable, element.frame.minY > 85, element.frame.maxY < app.frame.maxY - 85 { return }
-            let lower = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78))
-            let upper = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.32))
-            let searchEarlier = element.exists ? element.frame.minY < 85 : preferEarlier
+            let top = app.navigationBars.allElementsBoundByIndex.filter(\.isHittable).map { $0.frame.maxY }.max() ?? 85
+            let footer = [app.buttons["meal_plan_generate_plan"], app.buttons["planner_use_draft"]]
+                .filter { $0.exists && $0.isHittable }
+            if element.exists, element.isHittable, footer.contains(where: { $0.identifier == element.identifier }) { return }
+            let bottom = (footer.map { $0.frame.minY }.min() ?? app.frame.maxY - 50) - 12
+            if element.exists, element.isHittable, element.frame.minY >= top, element.frame.maxY <= bottom { return }
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let lower = origin.withOffset(CGVector(dx: app.frame.midX, dy: top + (bottom - top) * 0.75))
+            let upper = origin.withOffset(CGVector(dx: app.frame.midX, dy: top + (bottom - top) * 0.25))
+            let searchEarlier = element.exists ? element.frame.minY < top : preferEarlier
             if searchEarlier { upper.press(forDuration: 0.08, thenDragTo: lower) } else { lower.press(forDuration: 0.08, thenDragTo: upper) }
         }
         XCTAssertTrue(element.exists && element.isHittable, app.debugDescription)

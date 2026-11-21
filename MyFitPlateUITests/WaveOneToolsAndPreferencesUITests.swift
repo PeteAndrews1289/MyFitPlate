@@ -47,6 +47,7 @@ final class WaveOneToolsAndPreferencesUITests: XCTestCase {
         revealForm(unit, app: app); unit.tap()
         app.buttons["mL"].firstMatch.tap()
         app.buttons["water_add_container"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
         let container = app.staticTexts["QA flask · 450 mL"]
         revealForm(container, app: app); XCTAssertTrue(container.exists)
         app.buttons["settings_water_save"].tap()

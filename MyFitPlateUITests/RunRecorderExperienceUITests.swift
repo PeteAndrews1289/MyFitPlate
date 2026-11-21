@@ -329,8 +329,10 @@ final class RunRecorderExperienceUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "shoe-gear-lifetime"]
         app.launch()
+        let tools = app.buttons["shoe_mileage_tools"]
+        if !tools.waitForExistence(timeout: 10), app.buttons["welcome_get_started"].exists { app.terminate(); app.launch() }
+        XCTAssertTrue(tools.waitForExistence(timeout: 10)); tools.tap()
         let assign = app.buttons["shoe_batch_assignment"]
-        if !assign.waitForExistence(timeout: 10), app.buttons["welcome_get_started"].exists { app.terminate(); app.launch() }
         XCTAssertTrue(assign.waitForExistence(timeout: 10), app.debugDescription)
         assign.tap()
         XCTAssertTrue(app.descendants(matching: .any)["shoe_batch_screen"].waitForExistence(timeout: 5))
