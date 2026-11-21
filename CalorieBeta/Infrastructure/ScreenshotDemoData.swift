@@ -1460,7 +1460,10 @@ enum ScreenshotDemoData {
         }
         goalSettings.weightHistory = weightHistory()
         dailyLogService.activelyViewedDate = today
-        dailyLogService.publishCurrentDailyLog(nutritionHistory()[0])
+        // A reviewed day must have the same meal and exercise IDs as its repository snapshot.
+        let repository = DIContainer.shared.nutritionRepository as? MockNutritionRepository
+        let currentLog = repository?.mockLogsByDay.first { calendar.isDate($0.date, inSameDayAs: today) }
+        dailyLogService.publishCurrentDailyLog(currentLog ?? nutritionHistory()[0])
         applyAchievementProgress(to: achievementService)
 
         healthKitViewModel.isAuthorized = false

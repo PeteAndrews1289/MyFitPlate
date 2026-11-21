@@ -106,8 +106,9 @@ final class CookingDesignUITests: XCTestCase {
         for _ in 0..<18 {
             if element.waitForExistence(timeout: 0.2), element.isHittable,
                element.frame.minY >= 60, element.frame.maxY <= app.frame.maxY - 90 { return }
-            let scroll = app.scrollViews.allElementsBoundByIndex.last(where: \.isHittable)
-            if element.exists, element.frame.minY < 60 { scroll?.swipeDown() } else { scroll?.swipeUp() }
+            let scroll = app.scrollViews["meal_prep_screen"].firstMatch
+            guard scroll.waitForExistence(timeout: 3) else { break }
+            if element.exists, element.frame.minY < 60 { scroll.swipeDown() } else { scroll.swipeUp() }
         }
         XCTAssertTrue(element.isHittable, app.debugDescription)
     }

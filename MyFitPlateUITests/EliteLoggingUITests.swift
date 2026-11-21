@@ -18,7 +18,7 @@ final class EliteLoggingUITests: XCTestCase {
     @MainActor
     func testHomeDayReviewSavesAndSecondaryGuidanceCanExpand() {
         let app = XCUIApplication()
-        app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "home"]
+        app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "home", "-ui-testing-day-review-persistence"]
         app.launch()
         let guidance = app.buttons["home_guidance_disclosure"]
         XCTAssertTrue(guidance.waitForExistence(timeout: 15))
@@ -187,14 +187,22 @@ final class EliteLoggingUITests: XCTestCase {
         app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "pantry-photo-recipes",
                                "-ui-testing-food-save-failure"]
         app.launch()
-        let log = app.buttons["pantry_recipe_log"]
+        let idea = app.buttons["Chicken rice bowl"]
+        XCTAssertTrue(idea.waitForExistence(timeout: 10))
+        idea.tap()
+        let review = app.buttons["Review food log"]
+        for _ in 0..<6 where !review.isHittable { app.swipeUp() }
+        XCTAssertTrue(review.isEnabled)
+        review.tap()
+        let log = app.buttons["recipe_log_action"]
         XCTAssertTrue(log.waitForExistence(timeout: 10))
         log.tap()
-        let error = app.staticTexts["pantry_recipe_save_error"]
-        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        let error = app.staticTexts["recipe_log_error"]
+        for _ in 0..<5 where !error.exists { app.swipeUp() }
+        XCTAssertTrue(error.waitForExistence(timeout: 8))
         XCTAssertTrue(log.isEnabled)
-        XCTAssertTrue(app.staticTexts["Chicken rice bowl"].exists)
-        XCTAssertFalse(app.staticTexts["Added to lunch"].exists)
+        XCTAssertTrue(app.navigationBars["Log recipe"].exists)
+        XCTAssertTrue(log.label.contains("Retry logging"))
         log.tap()
         XCTAssertTrue(error.waitForExistence(timeout: 5))
         XCTAssertTrue(log.isEnabled)

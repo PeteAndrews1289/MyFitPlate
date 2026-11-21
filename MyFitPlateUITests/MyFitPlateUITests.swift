@@ -988,6 +988,8 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertLessThan(searchField.frame.minY, chainIdentity.frame.minY)
         XCTAssertLessThan(chainIdentity.frame.minY, category.frame.minY)
 
+        let menuScroll = app.scrollViews.firstMatch
+        reveal(menuSearchField, in: menuScroll, topInset: 60, bottomInset: 160)
         focusAndType("Barbacoa", into: menuSearchField)
         XCTAssertTrue(app.buttons["chain_builder_ingredient_c_barbacoa"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["chain_builder_ingredient_c_white_rice"].exists)
@@ -1973,7 +1975,7 @@ final class MyFitPlateUITests: XCTestCase {
 
         let screen = app.descendants(matching: .any)["adaptive_tdee_screen"]
         let guardrail = app.descendants(matching: .any)["adaptive_tdee_guardrail"]
-        let useEstimate = app.buttons["Use adaptive TDEE"]
+        let review = app.buttons["adaptive_weekly_review"]
 
         XCTAssertTrue(screen.waitForExistence(timeout: 10))
         XCTAssertTrue(guardrail.waitForExistence(timeout: 5))
@@ -1982,14 +1984,16 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["The result falls outside MyFitPlate's supported TDEE range. Check for missing food entries or unusual weigh-ins before using it."].exists
         )
-        XCTAssertTrue(useEstimate.exists)
-        XCTAssertFalse(useEstimate.isEnabled)
         XCTAssertFalse(app.staticTexts["6,420 cal/day"].exists)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Adaptive TDEE - implausible estimate withheld"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+        reveal(review, in: app.scrollViews.firstMatch)
+        review.tap()
+        XCTAssertTrue(app.buttons["weekly_review_days"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["weekly_checkin_accept"].exists)
     }
 
     @MainActor
@@ -4041,8 +4045,9 @@ final class MyFitPlateUITests: XCTestCase {
 
             let container = app.descendants(matching: .any)["add_meal_plan_screen"]
             XCTAssertTrue(container.waitForExistence(timeout: 10))
-            XCTAssertTrue(app.staticTexts["Add a Saved Recipe"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.buttons["Create recipe"].isHittable)
+            XCTAssertTrue(app.navigationBars["Add meal"].waitForExistence(timeout: 5))
+            let createMenu = app.buttons["planner_create_menu"]
+            XCTAssertTrue(createMenu.isHittable)
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
 
@@ -4054,6 +4059,8 @@ final class MyFitPlateUITests: XCTestCase {
             screenshot.name = "Add Saved Recipe - \(configuration.name)"
             screenshot.lifetime = .keepAlways
             add(screenshot)
+            createMenu.tap()
+            XCTAssertTrue(app.buttons["Create recipe"].waitForExistence(timeout: 5))
         }
     }
 
@@ -4338,8 +4345,8 @@ final class MyFitPlateUITests: XCTestCase {
             ("myfitplate://trust", "Food data check"),
             ("myfitplate://builder", "Fast Food"),
             ("myfitplate://runs", "Running"),
-            ("myfitplate://meal-plan", "Meal Plan"),
-            ("myfitplate://training-fuel", "Training Fuel")
+            ("myfitplate://meal-plan", "planner_workspace"),
+            ("myfitplate://training-fuel", "Training fuel")
         ]
 
         for (url, title) in destinations {
@@ -4353,7 +4360,7 @@ final class MyFitPlateUITests: XCTestCase {
             app.launch()
 
             let navigationTitle = app.navigationBars[title]
-            let visibleTitle = app.staticTexts[title]
+            let visibleTitle = app.descendants(matching: .any).matching(identifier: title).firstMatch
             XCTAssertTrue(
                 navigationTitle.waitForExistence(timeout: 8) || visibleTitle.waitForExistence(timeout: 3),
                 "\(url) should open \(title), not a neighboring tab"

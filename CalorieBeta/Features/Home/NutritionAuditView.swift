@@ -165,7 +165,7 @@ struct NutritionAuditView: View {
             .padding(16)
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Audit")
+        .navigationTitle("Food data check")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: logTrustHubViewed)
         .toolbar {
