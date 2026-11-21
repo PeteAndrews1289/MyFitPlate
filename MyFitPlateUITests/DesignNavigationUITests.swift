@@ -142,8 +142,17 @@ final class DesignNavigationUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 8), app.debugDescription)
         XCTAssertTrue(field.isHittable)
         record(app, name: "\(presentation) - food search in one tap")
-        XCTAssertTrue(app.buttons["food_search_action_camera"].exists)
-        XCTAssertTrue(app.buttons["food_search_action_barcode"].exists)
+        if largestText {
+            app.buttons["food_search_more_actions"].tap()
+            let barcode = app.buttons["Scan barcode"]
+            XCTAssertTrue(barcode.waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Photograph food"].isHittable)
+            app.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
+            XCTAssertTrue(barcode.waitForNonExistence(timeout: 5))
+        } else {
+            XCTAssertTrue(app.buttons["food_search_action_camera"].isHittable)
+            XCTAssertTrue(app.buttons["food_search_action_barcode"].isHittable)
+        }
         app.buttons["Done"].tap()
         XCTAssertTrue(field.waitForNonExistence(timeout: 8), app.debugDescription)
         assertDock(app, selectedID: "tab_home")

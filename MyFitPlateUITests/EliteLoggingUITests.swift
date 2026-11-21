@@ -225,8 +225,7 @@ final class EliteLoggingUITests: XCTestCase {
             add(hierarchy)
         }
         XCTAssertTrue(modeLoaded)
-        waitForStableFrame(app.buttons["food_search_mode"])
-        app.buttons["food_search_mode"].tap()
+        tapWhenHittable(app.buttons["food_search_mode"])
         XCTAssertTrue(app.buttons["food_search_mode"].label.contains("Quick add"))
         app.buttons["food_search_meal_menu"].tap()
         let breakfast = app.buttons["Breakfast"]
@@ -255,8 +254,7 @@ final class EliteLoggingUITests: XCTestCase {
         XCTAssertTrue(review.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["food_search_meal_menu"].label.contains("Breakfast"))
         XCTAssertTrue(review.label.contains("Breakfast"))
-        waitForStableFrame(review)
-        review.tap()
+        tapWhenHittable(review)
         XCTAssertTrue(app.staticTexts["meal_draft_total"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["meal_draft_total"].label, total)
         app.buttons["meal_draft_log"].tap()
@@ -293,20 +291,9 @@ final class EliteLoggingUITests: XCTestCase {
     }
 
     @MainActor
-    private func waitForStableFrame(_ element: XCUIElement) {
-        var previous = CGRect.null
-        var stableSince = ProcessInfo.processInfo.systemUptime
-        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            guard element.exists, element.isHittable else { return false }
-            let frame = element.frame
-            let now = ProcessInfo.processInfo.systemUptime
-            guard frame == previous else {
-                previous = frame
-                stableSince = now
-                return false
-            }
-            return now - stableSince >= 0.6
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 10), .completed)
+    private func tapWhenHittable(_ element: XCUIElement) {
+        let visible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == YES"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 15), .completed)
+        element.tap()
     }
 }

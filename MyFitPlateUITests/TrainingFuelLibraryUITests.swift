@@ -35,7 +35,8 @@ import XCTest
         app.launch(); openFuel(app)
         if app.navigationBars["Review training fuel"].exists {
             let newSession = app.buttons["fuel_new_session"]
-            reveal(newSession, app: app); newSession.tap()
+            XCTAssertTrue(newSession.waitForExistence(timeout: 5), app.debugDescription)
+            newSession.tap()
         }
         XCTAssertTrue(app.navigationBars["Training fuel"].waitForExistence(timeout: 5))
         let personalize = app.buttons["Personalize this estimate"]
