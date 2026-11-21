@@ -169,6 +169,7 @@ struct ExerciseCardView: View {
             RoundedRectangle(cornerRadius: AppRadius.hero, style: .continuous)
                 .stroke(supersetPosition.isInSuperset ? AppPalette.brand.opacity(0.45) : typeChip.role.color.opacity(0.08),
                         lineWidth: supersetPosition.isInSuperset ? 1.5 : 1)
+                .allowsHitTesting(false)
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("exercise_card_\(exercise.id)")
@@ -1020,6 +1021,7 @@ struct StrengthSetRow: View {
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 .stroke(isActive && !set.isCompleted ? AppPalette.brand : set.isCompleted ? AppPalette.positive.opacity(0.35) : AppPalette.separator, lineWidth: isActive ? 1.5 : 0.5)
+                .allowsHitTesting(false)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(setLabel), \(set.isCompleted ? "logged" : "not logged")")

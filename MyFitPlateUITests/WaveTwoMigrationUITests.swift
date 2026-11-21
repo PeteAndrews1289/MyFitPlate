@@ -38,7 +38,8 @@ final class WaveTwoMigrationUITests: XCTestCase {
         XCTAssertTrue(message.label.contains("Original rotation restored"), message.label)
         XCTAssertFalse(app.buttons["migration_restore_retry"].exists)
         capture(app, "Migration - accepted original restore keeps PHUL progress and history")
-        app.navigationBars["Review original"].buttons["Done"].tap()
+        let back = app.buttons["migration_restore_done"]
+        reveal(back, app: app); back.tap()
         app.navigationBars["Original rotations"].buttons["Done"].tap()
         reveal(progress, app: app); XCTAssertTrue(progress.label.contains("39 of 48"), progress.label)
         reveal(block, app: app); block.tap()

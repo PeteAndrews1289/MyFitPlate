@@ -148,6 +148,10 @@ private struct WorkoutMigrationRestoreView: View {
                         }
                     }
                     if let message { Text(message).foregroundStyle(completed ? .secondary : AppPalette.caution).accessibilityIdentifier("migration_restore_message") }
+                    if completed {
+                        Button("Back to original rotations") { dismiss() }
+                            .accessibilityIdentifier("migration_restore_done")
+                    }
                     if busy { ProgressView("Checking saved program…") }
                 }
                 Section("Independent original copy") {

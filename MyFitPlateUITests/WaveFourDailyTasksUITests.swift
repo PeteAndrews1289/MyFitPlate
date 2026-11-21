@@ -244,10 +244,15 @@ final class WaveFourDailyTasksUITests: XCTestCase {
         let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'set_complete_' ")).firstMatch
         XCTAssertTrue(first.waitForExistence(timeout: 8))
         let firstID = first.identifier
+        let setID = String(firstID.dropFirst("set_complete_".count))
+        let load = any(app, "strength_set_row_\(setID)").textFields["set_weight_1"].firstMatch
+        let prefilled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '32'"), object: load)
+        XCTAssertEqual(XCTWaiter.wait(for: [prefilled], timeout: 10), .completed, "The last goblet squat in the test history was 32 lb.")
         reveal(first, app: app)
         resetCount()
         tap(first)
-        XCTAssertEqual(app.buttons[firstID].value as? String, "Completed")
+        let completed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 'Completed'"), object: app.buttons[firstID])
+        XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 5), .completed)
         XCTAssertTrue(any(app, "workout_rest_timer").waitForExistence(timeout: 5))
         XCTAssertEqual(taps, 1)
         try record("Visible prefilled set → complete", app: app)
@@ -376,8 +381,11 @@ final class WaveFourDailyTasksUITests: XCTestCase {
     }
 
     private func record(_ task: String, app: XCUIApplication) throws {
+        let process = ProcessInfo.processInfo
+        let device = process.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "iOS device"
+        let os = process.operatingSystemVersion
         let value: [String: Any] = ["task": task, "deliberate_taps": taps, "scroll_gestures": scrolls,
-            "text_entries": 0, "profile": "iPhone SE3 iOS26.5, standard text, seeded disposable account",
+            "text_entries": 0, "profile": "\(device) iOS \(os.majorVersion).\(os.minorVersion), standard text, seeded disposable account",
             "scope": "Observed UI task count; excludes launch/setup. Not a latency measurement."]
         let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
         let text = try XCTUnwrap(String(data: data, encoding: .utf8))
