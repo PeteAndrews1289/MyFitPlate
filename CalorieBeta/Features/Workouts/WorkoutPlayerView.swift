@@ -265,254 +265,113 @@ struct WorkoutPlayerView: View {
 
     var body: some View {
         NavigationStack {
+            sessionEditors
+                .confirmationDialog(
+                    completedSetCount == 0 ? "Close without logging this workout?" : "Finish with \(remainingSetCount) sets left?",
+                    isPresented: $showingFinishConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    if let exercise = parkedExercises.first {
+                        Button("Return to " + exercise.name) { setExerciseParked(false, id: exercise.id) }
+                    }
+                    Button(completedSetCount == 0 ? "Close Without Logging" : "Finish Anyway", role: .destructive) {
+                        completeWorkout()
+                    }
+                    Button("Keep Training", role: .cancel) {}
+                } message: {
+                    if !parkedExercises.isEmpty {
+                        Text("Parked for later: " + parkedExercises.map(\.name).joined(separator: ", ") + (completedSetCount == 0 ? ". Closing now logs no sets." : ". Finishing now saves only completed sets."))
+                    } else if completedSetCount == 0 {
+                        Text("No completed sets will be saved and your program progress will not advance.")
+                    } else {
+                        Text("Completed sets will be saved, but unfinished sets will be skipped.")
+                    }
+                }
+                .confirmationDialog(
+                    "Leave this workout?",
+                    isPresented: $showingDiscardConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Save & Leave") {
+                        guard persistDraft() else { return }
+                        totalWorkoutTimer.pause()
+                        hasLeftSession = true
+                        dismiss()
+                    }
+                    if draft.completion == nil {
+                        Button("Discard Workout", role: .destructive) {
+                            closeWorkout()
+                        }
+                    }
+                    Button("Keep Training", role: .cancel) {}
+                } message: {
+                    Text("Save your sets on this device and resume from Train.")
+                }
+                .sheet(item: $completedSessionLog, onDismiss: { dismiss() }) { log in
+                    WorkoutCompleteAnalyticsView(log: log, isFreshCompletion: true)
+                }
+        }
+    }
+
+    private var sessionEditors: some View {
+        sessionScreen
+            .confirmationDialog("You have an unfinished workout", isPresented: $showingExistingSession, titleVisibility: .visible) {
+                Button("Keep Saved Workout", role: .cancel) { hasLeftSession = true; dismiss() }
+                if !savedSessionNeedsCompletion {
+                    Button("Discard Saved Workout & Start New", role: .destructive) { beginFreshSession() }
+                }
+            } message: {
+                Text(savedSessionNeedsCompletion
+                     ? "Finish saving your previous workout from Train before starting another session."
+                     : "Resume it from Train, or discard it to start this routine.")
+            }
+            .sheet(isPresented: $showingLegacyProgramReview, onDismiss: applyPendingLegacyProgramChoice) {
+                legacyProgramReviewSheet
+            }
+            .sheet(isPresented: $showingNoteEditor) {
+                if let exerciseBinding = exerciseForNote, let ownerID {
+                    ExerciseNoteView(exercise: exerciseBinding.wrappedValue, routineID: routine.id, ownerID: ownerID) { snapshot in
+                        guard DIContainer.shared.authService.currentUserID == ownerID,
+                              let index = routine.exercises.firstIndex(where: { $0.id == exerciseBinding.wrappedValue.id }) else { throw WorkoutBlockError.changed }
+                        var exercises = routine.exercises; exercises[index].cueSnapshot = snapshot
+                        try saveReviewedExercises(exercises, receipt: draft.sessionToolsReceipt)
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAdaptation) {
+                WorkoutSessionAdaptationView(exercises: routine.exercises, history: progressionHistory,
+                    initialExerciseID: adaptationSourceID, initialMode: adaptationMode, onApply: applySessionEdit)
+            }
+            .sheet(item: $browsingSwapFor) { source in
+                ExercisePickerView(isReplacing: true) { selection in
+                    swapExercise(source.id, to: selection)
+                }
+            }
+            .sheet(isPresented: $showingAddExercise) {
+                ExercisePickerView { draft in
+                    addExercise(draft)
+                    showingAddExercise = false
+                }
+            }
+            .sheet(item: $showingHistoryFor) { exercise in
+                ExerciseHistoryView(exercise: exercise, routineID: routine.id)
+            }
+            .sheet(isPresented: $showingPlateCalculator) {
+                PlateCalculatorView(initialTargetWeight: plateCalculatorContext?.target,
+                                    equipment: plateCalculatorContext?.equipment)
+            }
+            .sheet(isPresented: $showingSessionTools, onDismiss: refreshPreviousReferences) {
+                StrengthSessionToolsView(routineID: routine.id, exercises: routine.exercises,
+                    history: progressionHistory, historyAvailable: historyLoaded && !historyLoadFailed,
+                    onApply: applySessionTools)
+            }
+    }
+
+    private var sessionScreen: some View {
         ZStack {
             ScrollViewReader { proxy in
-            VStack(spacing: 0) {
-                if !dynamicTypeSize.isAccessibilitySize {
-                    sessionHeader(proxy)
-                        .padding(.horizontal)
-                        .padding(.top, 14)
-                        .padding(.bottom, 8)
-                }
-                if restTimer.state != nil || restTimer.completion != nil {
-                    WorkoutRestControlsView(timer: restTimer, context: restExerciseName,
-                                            showsContextCaption: setInputFocus == nil)
-                        .padding(.horizontal, AppSpacing.screenHorizontal)
-                        .padding(.bottom, AppSpacing.compact)
-                }
-
-                // Main Scroll Area
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if dynamicTypeSize.isAccessibilitySize { sessionHeader(proxy) }
-                        if resumedSession {
-                            Label("Resumed your saved workout", systemImage: "arrow.counterclockwise")
-                                .appTextRole(.secondary)
-                                .accessibilityIdentifier("workout_resumed")
-                        }
-                        if let saveMessage {
-                            VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                                Text(saveMessage).appTextRole(.secondary)
-                                if draft.completion != nil {
-                                    Button("Retry saving", action: completeWorkout)
-                                        .buttonStyle(AppActionButtonStyle(.secondary))
-                                }
-                            }
-                            .appSurface(.quiet)
-                            .accessibilityIdentifier("workout_save_feedback")
-                        }
-                        WorkoutSyncNotice(service: workoutService)
-                        VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                            sessionUtilities
-                            if let receipt = draft.sessionToolsReceipt {
-                                Text(receipt.title).appTextRole(.secondary).foregroundStyle(.secondary)
-                                Button("Undo session targets", action: undoSessionTools)
-                                    .frame(minHeight: 44).disabled(draft.completion != nil)
-                                    .accessibilityIdentifier("workout_session_tools_undo")
-                            }
-                        }
-                        if historyLoadFailed {
-                            VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                                Text("Previous workouts couldn’t load. You can still log your sets.")
-                                    .appTextRole(.secondary)
-                                Button(historyLoading ? "Loading…" : "Retry previous workouts", action: loadPreviousPerformance)
-                                    .disabled(historyLoading)
-                                    .frame(minHeight: 44)
-                                    .accessibilityIdentifier("workout_history_retry")
-                            }
-                            .appSurface(.quiet)
-                        }
-                        if let receipt = draft.sessionEdits?.last {
-                            VStack(alignment: .leading, spacing: AppSpacing.row) {
-                                Text(receipt.title).appTextRole(.control)
-                                Text(receipt.explanation).appTextRole(.caption).foregroundStyle(.secondary)
-                                Button(receipt.kind == .substitute ? "Undo swap" : "Undo reviewed session change") {
-                                    do {
-                                        let restored = try WorkoutSessionAdaptationRules.undo(receipt, in: routine.exercises)
-                                        try saveReviewedExercises(restored, receipt: draft.sessionToolsReceipt,
-                                            edits: Array((draft.sessionEdits ?? []).dropLast()))
-                                        selectedSetID = WorkoutSetNavigation.firstUnfinished(in: navigationExercises)?.setID; persistDraft()
-                                    } catch { saveMessage = "This work changed after the review. Its logged sets stay intact; adjust the remaining work manually." }
-                                }.frame(minHeight: 44)
-                            }.appSurface(.quiet)
-                        }
-                        ForEach(Array(routine.exercises.enumerated()), id: \.element.id) { index, exercise in
-                            ExerciseCardView(
-                                exercise: $routine.exercises[index],
-                                restTimer: restTimer,
-                                isAutoRestEnabled: $isAutoRestTimerEnabled,
-                                routineName: routine.name,
-                                previousPerformance: previousPerformance[exercise.id],
-                                progressionHistory: progressionHistory,
-                                onAddNote: {
-                                    self.exerciseForNote = $routine.exercises[index]
-                                    self.noteText = exercise.notes ?? PinnedNotesManager.shared.getPinnedNote(for: exercise.name) ?? ""
-                                    self.isNotePinned = PinnedNotesManager.shared.isNotePinned(for: exercise.name)
-                                    self.showingNoteEditor = true
-                                },
-                                onSwap: { swapExercise(exercise.id, to: $0) },
-                                onBrowseSwaps: { browsingSwapFor = exercise },
-                                onViewHistory: {
-                                    self.showingHistoryFor = exercise
-                                },
-                                onMoveUp: index > 0 ? { moveExercise(from: IndexSet(integer: index), to: index - 1) } : nil,
-                                onMoveDown: index < routine.exercises.count - 1 ? { moveExercise(from: IndexSet(integer: index), to: index + 2) } : nil,
-                                onRemove: routine.exercises[index].sets.contains(where: { !$0.isCompleted }) ? { adaptationSourceID = exercise.id; adaptationMode = .remove; showingAdaptation = true } : nil,
-                                supersetPosition: supersetPositions[index],
-                                onToggleSupersetWithNext: index < routine.exercises.count - 1 ? { toggleSupersetWithNext(at: index) } : nil,
-                                routineID: routine.id,
-                                activeSetID: activeSetID,
-                                onCompletedSet: didCompleteSet,
-                                onReopenedSet: didReopenSet,
-                                onApplyWarmup: applyWarmup,
-                                restDurationForSet: { WorkoutExerciseGroupRules.restAfterCompleting(setID: $0, in: navigationExercises) },
-                                onDeferPartnerRound: { deferPartner(exerciseID: exercise.id, restore: false) },
-                                onRestoreDeferred: { deferPartner(exerciseID: exercise.id, restore: true) },
-                                isParked: draft.parkedExerciseIDs?.contains(exercise.id) == true,
-                                onChangeParked: { setExerciseParked($0, id: exercise.id) }
-                            )
-                            .disabled(draft.completion != nil)
-                        }
-
-                        Button {
-                            showingAddExercise = true
-                        } label: {
-                            Label("Add Exercise", systemImage: "plus.circle.fill")
-                                .appFont(size: 15, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(Color.primary.opacity(0.16), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(draft.completion != nil)
-                    }
-                    .padding()
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .toolbar {
-                    ToolbarItem(placement: .keyboard) {
-                        HStack(spacing: 0) {
-                            if let input = setInputFocus {
-                                Button { moveInputFocusBackward(from: input) } label: { Image(systemName: "chevron.up").frame(width: 44, height: 44) }
-                                    .tint(AppPalette.text)
-                                    .disabled(!canMoveInputBackward)
-                                    .accessibilityLabel("Previous field")
-                                    .accessibilityHint("Moves to earlier input without logging a set.")
-                                    .accessibilityIdentifier("workout_input_previous")
-                                Button { sendInputCommand(increase: false, input: input) } label: { Image(systemName: "minus").frame(width: 44, height: 44) }
-                                    .tint(AppPalette.text)
-                                    .accessibilityLabel(input.field == .weight ? "Decrease weight" : "Decrease reps")
-                                    .accessibilityIdentifier("workout_input_decrease")
-                                Button { sendInputCommand(increase: true, input: input) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
-                                    .tint(AppPalette.text)
-                                    .accessibilityLabel(input.field == .weight ? "Increase weight" : "Increase reps")
-                                    .accessibilityIdentifier("workout_input_increase")
-                                Button { moveInputFocus(from: input) } label: { Image(systemName: "chevron.down").frame(width: 44, height: 44) }
-                                    .tint(AppPalette.text)
-                                    .accessibilityLabel("Next field")
-                                    .accessibilityHint("Moves input without logging a set.")
-                                    .accessibilityIdentifier("workout_input_next")
-                                Spacer()
-                                Button { setInputCommand = StrengthSetCommand(setID: input.setID, action: .complete) } label: {
-                                    Image(systemName: "checkmark.circle").foregroundStyle(AppPalette.brandText)
-                                        .frame(width: 44, height: 44)
-                                }
-                                    .tint(AppPalette.brand)
-                                    .accessibilityLabel("Log set")
-                                    .accessibilityHint("Logs the entered load and reps. Next and Previous only move input.")
-                                    .accessibilityIdentifier("workout_input_complete")
-                            } else { Spacer() }
-                            Button(action: finishInput) {
-                                Image(systemName: "keyboard.chevron.compact.down").frame(width: 44, height: 44)
-                            }
-                                .tint(AppPalette.text)
-                                .accessibilityLabel("Done")
-                                .accessibilityIdentifier("workout_input_done")
-                        }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-
-                .onChange(of: scrollTarget) { _, target in
-                    if let input = setInputFocus {
-                        proxy.scrollTo(inputScrollAnchor(input), anchor: .center)
-                    } else if let target {
-                        withAnimation(AppMotion.standard) { proxy.scrollTo(target, anchor: .center) }
-                    }
-                }
-                .onChange(of: currentSetScrollRequest) { _, _ in
-                    if let activeSetID {
-                        if reduceMotion { proxy.scrollTo(activeSetID, anchor: .center) } else {
-                            withAnimation(AppMotion.standard) { proxy.scrollTo(activeSetID, anchor: .center) }
-                        }
-                    }
-                }
-                .onChange(of: setInputFocus) { _, input in
-                    if let input { proxy.scrollTo(inputScrollAnchor(input), anchor: .center) }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
-                    // The keyboard changes the usable viewport after focus moves.
-                    // Center the numeric field, not its possibly expanded inspector.
-                    if let input = setInputFocus { proxy.scrollTo(inputScrollAnchor(input), anchor: .center) }
-                }
-                if let focusedInputContext {
-                    Text(focusedInputContext)
-                        .appFont(size: 11, weight: .semibold).foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(focusedInputContext)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, AppSpacing.screenHorizontal)
-                        .padding(.vertical, AppSpacing.compact)
-                        .background(AppPalette.canvas)
-                        .accessibilityIdentifier("workout_input_context")
-                }
-                if let lastCompletedSetID,
-                   routine.exercises.contains(where: { $0.sets.contains { $0.id == lastCompletedSetID && $0.isCompleted } }) {
-                    HStack {
-                        Text("Set completed").appFont(size: 13).foregroundStyle(.secondary)
-                            .lineLimit(2)
-                        Spacer()
-                        Button("Undo set", action: undoLastSet)
-                            .appFont(size: 17, weight: .semibold)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .frame(minHeight: 44)
-                            .accessibilityIdentifier("workout_undo_set")
-                    }.padding(.horizontal, AppSpacing.screenHorizontal)
-                }
-                if setInputFocus == nil {
-                    if activeSetID == nil, let exercise = parkedExercises.first {
-                        Button("Return to " + exercise.name) { setExerciseParked(false, id: exercise.id) }
-                            .buttonStyle(AppActionButtonStyle(.secondary))
-                            .accessibilityIdentifier("workout_return_parked")
-                    }
-                    WorkoutSessionControlBar(
-                        completedSets: completedSetCount,
-                        totalSets: totalSetCount,
-                        remainingSets: remainingSetCount,
-                        isAutoRestEnabled: $isAutoRestTimerEnabled,
-                        canReturnToSet: activeSetID != nil,
-                        onCurrentSet: {
-                            finishInput()
-                            currentSetScrollRequest = UUID()
-                        },
-                        onPlateCalculator: {
-                            showingPlateCalculator = true
-                        },
-                        onFinish: requestCompleteWorkout
-                    )
-                }
+                workoutLayout(proxy)
             }
-            .disabled(isSaving || !didStartSession)
-            .onAppear(perform: loadPreviousPerformance)
-            }
-
         }
         .environment(\.workoutSetFocus, $setInputFocus)
         .environment(\.workoutSetCommand, setInputCommand)
@@ -561,101 +420,260 @@ struct WorkoutPlayerView: View {
                     .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: AppRadius.surface))
             }
         }
-        .confirmationDialog("You have an unfinished workout", isPresented: $showingExistingSession, titleVisibility: .visible) {
-            Button("Keep Saved Workout", role: .cancel) { hasLeftSession = true; dismiss() }
-            if !savedSessionNeedsCompletion {
-                Button("Discard Saved Workout & Start New", role: .destructive) { beginFreshSession() }
+    }
+
+    private func workoutLayout(_ proxy: ScrollViewProxy) -> some View {
+        VStack(spacing: 0) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                sessionHeader(proxy)
+                    .padding(.horizontal)
+                    .padding(.top, 14)
+                    .padding(.bottom, 8)
             }
-        } message: {
-            Text(savedSessionNeedsCompletion
-                 ? "Finish saving your previous workout from Train before starting another session."
-                 : "Resume it from Train, or discard it to start this routine.")
-        }
-        .sheet(isPresented: $showingLegacyProgramReview, onDismiss: applyPendingLegacyProgramChoice) {
-            legacyProgramReviewSheet
-        }
-        .sheet(isPresented: $showingNoteEditor) {
-            if let exerciseBinding = exerciseForNote, let ownerID {
-                ExerciseNoteView(exercise: exerciseBinding.wrappedValue, routineID: routine.id, ownerID: ownerID) { snapshot in
-                    guard DIContainer.shared.authService.currentUserID == ownerID,
-                          let index = routine.exercises.firstIndex(where: { $0.id == exerciseBinding.wrappedValue.id }) else { throw WorkoutBlockError.changed }
-                    var exercises = routine.exercises; exercises[index].cueSnapshot = snapshot
-                    try saveReviewedExercises(exercises, receipt: draft.sessionToolsReceipt)
+            if restTimer.state != nil || restTimer.completion != nil {
+                WorkoutRestControlsView(timer: restTimer, context: restExerciseName,
+                                        showsContextCaption: setInputFocus == nil)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.bottom, AppSpacing.compact)
+            }
+
+            exerciseList(proxy)
+                .scrollDismissesKeyboard(.interactively)
+                .toolbar {
+                    ToolbarItem(placement: .keyboard) { setKeyboardControls }
                 }
-            }
-        }
-        .sheet(isPresented: $showingAdaptation) {
-            WorkoutSessionAdaptationView(exercises: routine.exercises, history: progressionHistory,
-                initialExerciseID: adaptationSourceID, initialMode: adaptationMode, onApply: applySessionEdit)
-        }
-        .sheet(item: $browsingSwapFor) { source in
-            ExercisePickerView(isReplacing: true) { selection in
-                swapExercise(source.id, to: selection)
-            }
-        }
-        .sheet(isPresented: $showingAddExercise) {
-            ExercisePickerView { draft in
-                addExercise(draft)
-                showingAddExercise = false
-            }
-        }
-        .sheet(item: $showingHistoryFor) { exercise in
-            ExerciseHistoryView(exercise: exercise, routineID: routine.id)
-        }
-        .sheet(isPresented: $showingPlateCalculator) {
-            PlateCalculatorView(initialTargetWeight: plateCalculatorContext?.target,
-                                equipment: plateCalculatorContext?.equipment)
-        }
-        .sheet(isPresented: $showingSessionTools, onDismiss: refreshPreviousReferences) {
-            StrengthSessionToolsView(routineID: routine.id, exercises: routine.exercises,
-                history: progressionHistory, historyAvailable: historyLoaded && !historyLoadFailed,
-                onApply: applySessionTools)
-        }
-        .confirmationDialog(
-            completedSetCount == 0 ? "Close without logging this workout?" : "Finish with \(remainingSetCount) sets left?",
-            isPresented: $showingFinishConfirmation,
-            titleVisibility: .visible
-        ) {
-            if let exercise = parkedExercises.first {
-                Button("Return to " + exercise.name) { setExerciseParked(false, id: exercise.id) }
-            }
-            Button(completedSetCount == 0 ? "Close Without Logging" : "Finish Anyway", role: .destructive) {
-                completeWorkout()
-            }
-            Button("Keep Training", role: .cancel) {}
-        } message: {
-            if !parkedExercises.isEmpty {
-                Text("Parked for later: " + parkedExercises.map(\.name).joined(separator: ", ") + (completedSetCount == 0 ? ". Closing now logs no sets." : ". Finishing now saves only completed sets."))
-            } else if completedSetCount == 0 {
-                Text("No completed sets will be saved and your program progress will not advance.")
-            } else {
-                Text("Completed sets will be saved, but unfinished sets will be skipped.")
-            }
-        }
-        .confirmationDialog(
-            "Leave this workout?",
-            isPresented: $showingDiscardConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Save & Leave") {
-                guard persistDraft() else { return }
-                totalWorkoutTimer.pause()
-                hasLeftSession = true
-                dismiss()
-            }
-            if draft.completion == nil {
-                Button("Discard Workout", role: .destructive) {
-                    closeWorkout()
+                .onChange(of: scrollTarget) { _, target in
+                    if let input = setInputFocus {
+                        proxy.scrollTo(inputScrollAnchor(input), anchor: .center)
+                    } else if let target {
+                        withAnimation(AppMotion.standard) { proxy.scrollTo(target, anchor: .center) }
+                    }
                 }
+                .onChange(of: currentSetScrollRequest) { _, _ in
+                    if let activeSetID {
+                        if reduceMotion { proxy.scrollTo(activeSetID, anchor: .center) } else {
+                            withAnimation(AppMotion.standard) { proxy.scrollTo(activeSetID, anchor: .center) }
+                        }
+                    }
+                }
+                .onChange(of: setInputFocus) { _, input in
+                    if let input { proxy.scrollTo(inputScrollAnchor(input), anchor: .center) }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                    // The keyboard changes the usable viewport after focus moves.
+                    // Center the numeric field, not its possibly expanded inspector.
+                if let input = setInputFocus { proxy.scrollTo(inputScrollAnchor(input), anchor: .center) }
             }
-            Button("Keep Training", role: .cancel) {}
-        } message: {
-            Text("Save your sets on this device and resume from Train.")
+            if let focusedInputContext {
+                Text(focusedInputContext)
+                    .appFont(size: 11, weight: .semibold).foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(focusedInputContext)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, AppSpacing.compact)
+                    .background(AppPalette.canvas)
+                    .accessibilityIdentifier("workout_input_context")
+            }
+            if let lastCompletedSetID,
+               routine.exercises.contains(where: { $0.sets.contains { $0.id == lastCompletedSetID && $0.isCompleted } }) {
+                HStack {
+                    Text("Set completed").appFont(size: 13).foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    Spacer()
+                    Button("Undo set", action: undoLastSet)
+                        .appFont(size: 17, weight: .semibold)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("workout_undo_set")
+                }.padding(.horizontal, AppSpacing.screenHorizontal)
+            }
+            if setInputFocus == nil {
+                if activeSetID == nil, let exercise = parkedExercises.first {
+                    Button("Return to " + exercise.name) { setExerciseParked(false, id: exercise.id) }
+                        .buttonStyle(AppActionButtonStyle(.secondary))
+                        .accessibilityIdentifier("workout_return_parked")
+                }
+                WorkoutSessionControlBar(
+                    completedSets: completedSetCount,
+                    totalSets: totalSetCount,
+                    remainingSets: remainingSetCount,
+                    isAutoRestEnabled: $isAutoRestTimerEnabled,
+                    canReturnToSet: activeSetID != nil,
+                    onCurrentSet: {
+                        finishInput()
+                        currentSetScrollRequest = UUID()
+                    },
+                    onPlateCalculator: {
+                        showingPlateCalculator = true
+                    },
+                    onFinish: requestCompleteWorkout
+                )
+            }
         }
-        .sheet(item: $completedSessionLog, onDismiss: { dismiss() }) { log in
-            WorkoutCompleteAnalyticsView(log: log, isFreshCompletion: true)
+        .disabled(isSaving || !didStartSession)
+        .onAppear(perform: loadPreviousPerformance)
+    }
+
+    private var setKeyboardControls: some View {
+        HStack(spacing: 0) {
+            if let input = setInputFocus {
+                Button { moveInputFocusBackward(from: input) } label: { Image(systemName: "chevron.up").frame(width: 44, height: 44) }
+                    .tint(AppPalette.text)
+                    .disabled(!canMoveInputBackward)
+                    .accessibilityLabel("Previous field")
+                    .accessibilityHint("Moves to earlier input without logging a set.")
+                    .accessibilityIdentifier("workout_input_previous")
+                Button { sendInputCommand(increase: false, input: input) } label: { Image(systemName: "minus").frame(width: 44, height: 44) }
+                    .tint(AppPalette.text)
+                    .accessibilityLabel(input.field == .weight ? "Decrease weight" : "Decrease reps")
+                    .accessibilityIdentifier("workout_input_decrease")
+                Button { sendInputCommand(increase: true, input: input) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
+                    .tint(AppPalette.text)
+                    .accessibilityLabel(input.field == .weight ? "Increase weight" : "Increase reps")
+                    .accessibilityIdentifier("workout_input_increase")
+                Button { moveInputFocus(from: input) } label: { Image(systemName: "chevron.down").frame(width: 44, height: 44) }
+                    .tint(AppPalette.text)
+                    .accessibilityLabel("Next field")
+                    .accessibilityHint("Moves input without logging a set.")
+                    .accessibilityIdentifier("workout_input_next")
+                Spacer()
+                Button { setInputCommand = StrengthSetCommand(setID: input.setID, action: .complete) } label: {
+                    Image(systemName: "checkmark.circle").foregroundStyle(AppPalette.brandText)
+                        .frame(width: 44, height: 44)
+                }
+                    .tint(AppPalette.brand)
+                    .accessibilityLabel("Log set")
+                    .accessibilityHint("Logs the entered load and reps. Next and Previous only move input.")
+                    .accessibilityIdentifier("workout_input_complete")
+            } else { Spacer() }
+            Button(action: finishInput) {
+                Image(systemName: "keyboard.chevron.compact.down").frame(width: 44, height: 44)
+            }
+                .tint(AppPalette.text)
+                .accessibilityLabel("Done")
+                .accessibilityIdentifier("workout_input_done")
         }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func exerciseList(_ proxy: ScrollViewProxy) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if dynamicTypeSize.isAccessibilitySize { sessionHeader(proxy) }
+                if resumedSession {
+                    Label("Resumed your saved workout", systemImage: "arrow.counterclockwise")
+                        .appTextRole(.secondary)
+                        .accessibilityIdentifier("workout_resumed")
+                }
+                if let saveMessage {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        Text(saveMessage).appTextRole(.secondary)
+                        if draft.completion != nil {
+                            Button("Retry saving", action: completeWorkout)
+                                .buttonStyle(AppActionButtonStyle(.secondary))
+                        }
+                    }
+                    .appSurface(.quiet)
+                    .accessibilityIdentifier("workout_save_feedback")
+                }
+                WorkoutSyncNotice(service: workoutService)
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    sessionUtilities
+                    if let receipt = draft.sessionToolsReceipt {
+                        Text(receipt.title).appTextRole(.secondary).foregroundStyle(.secondary)
+                        Button("Undo session targets", action: undoSessionTools)
+                            .frame(minHeight: 44).disabled(draft.completion != nil)
+                            .accessibilityIdentifier("workout_session_tools_undo")
+                    }
+                }
+                if historyLoadFailed {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        Text("Previous workouts couldn’t load. You can still log your sets.")
+                            .appTextRole(.secondary)
+                        Button(historyLoading ? "Loading…" : "Retry previous workouts", action: loadPreviousPerformance)
+                            .disabled(historyLoading)
+                            .frame(minHeight: 44)
+                            .accessibilityIdentifier("workout_history_retry")
+                    }
+                    .appSurface(.quiet)
+                }
+                if let receipt = draft.sessionEdits?.last {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        Text(receipt.title).appTextRole(.control)
+                        Text(receipt.explanation).appTextRole(.caption).foregroundStyle(.secondary)
+                        Button(receipt.kind == .substitute ? "Undo swap" : "Undo reviewed session change") {
+                            do {
+                                let restored = try WorkoutSessionAdaptationRules.undo(receipt, in: routine.exercises)
+                                try saveReviewedExercises(restored, receipt: draft.sessionToolsReceipt,
+                                    edits: Array((draft.sessionEdits ?? []).dropLast()))
+                                selectedSetID = WorkoutSetNavigation.firstUnfinished(in: navigationExercises)?.setID; persistDraft()
+                            } catch { saveMessage = "This work changed after the review. Its logged sets stay intact; adjust the remaining work manually." }
+                        }.frame(minHeight: 44)
+                    }.appSurface(.quiet)
+                }
+                ForEach(Array(routine.exercises.enumerated()), id: \.element.id) { index, exercise in
+                    exerciseCard(at: index, exercise: exercise)
+                }
+                Button {
+                    showingAddExercise = true
+                } label: {
+                    Label("Add Exercise", systemImage: "plus.circle.fill")
+                        .appFont(size: 15, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.16), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(draft.completion != nil)
+            }
+            .padding()
         }
+    }
+
+    private func exerciseCard(at index: Int, exercise: RoutineExercise) -> some View {
+        ExerciseCardView(
+            exercise: $routine.exercises[index],
+            restTimer: restTimer,
+            isAutoRestEnabled: $isAutoRestTimerEnabled,
+            routineName: routine.name,
+            previousPerformance: previousPerformance[exercise.id],
+            progressionHistory: progressionHistory,
+            onAddNote: {
+                self.exerciseForNote = $routine.exercises[index]
+                self.noteText = exercise.notes ?? PinnedNotesManager.shared.getPinnedNote(for: exercise.name) ?? ""
+                self.isNotePinned = PinnedNotesManager.shared.isNotePinned(for: exercise.name)
+                self.showingNoteEditor = true
+            },
+            onSwap: { swapExercise(exercise.id, to: $0) },
+            onBrowseSwaps: { browsingSwapFor = exercise },
+            onViewHistory: {
+                self.showingHistoryFor = exercise
+            },
+            onMoveUp: index > 0 ? { moveExercise(from: IndexSet(integer: index), to: index - 1) } : nil,
+            onMoveDown: index < routine.exercises.count - 1 ? { moveExercise(from: IndexSet(integer: index), to: index + 2) } : nil,
+            onRemove: routine.exercises[index].sets.contains(where: { !$0.isCompleted }) ? { adaptationSourceID = exercise.id; adaptationMode = .remove; showingAdaptation = true } : nil,
+            supersetPosition: supersetPositions[index],
+            onToggleSupersetWithNext: index < routine.exercises.count - 1 ? { toggleSupersetWithNext(at: index) } : nil,
+            routineID: routine.id,
+            activeSetID: activeSetID,
+            onCompletedSet: didCompleteSet,
+            onReopenedSet: didReopenSet,
+            onApplyWarmup: applyWarmup,
+            restDurationForSet: { WorkoutExerciseGroupRules.restAfterCompleting(setID: $0, in: navigationExercises) },
+            onDeferPartnerRound: { deferPartner(exerciseID: exercise.id, restore: false) },
+            onRestoreDeferred: { deferPartner(exerciseID: exercise.id, restore: true) },
+            isParked: draft.parkedExerciseIDs?.contains(exercise.id) == true,
+            onChangeParked: { setExerciseParked($0, id: exercise.id) }
+        )
+        .disabled(draft.completion != nil)
     }
 
     private var sessionUtilities: some View {

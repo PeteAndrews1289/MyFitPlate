@@ -947,6 +947,64 @@ struct StrengthSetRow: View {
     }
 
     var body: some View {
+        setEntry
+            .onChange(of: focusedField) { _, field in
+                if let field {
+                    inputFocus?.wrappedValue = StrengthSetInput(setID: set.id, field: field)
+                } else {
+                    Task { @MainActor in
+                        await Task.yield()
+                        if focusedField == nil, inputFocus?.wrappedValue?.setID == set.id { inputFocus?.wrappedValue = nil }
+                    }
+                }
+            }
+            .onChange(of: inputFocus?.wrappedValue) { _, requested in
+                focusedField = requested?.setID == set.id ? requested?.field : nil
+            }
+            .onChange(of: inputCommand) { _, command in
+                guard let command, command.setID == set.id else { return }
+                switch command.action {
+                case .increaseWeight: adjustWeight(by: weightIncrement)
+                case .decreaseWeight: adjustWeight(by: -weightIncrement)
+                case .increaseReps: adjustReps(by: 1)
+                case .decreaseReps: adjustReps(by: -1)
+                case .complete:
+                    if !set.isCompleted { toggleCompletion() } else { inputFocus?.wrappedValue = nil; focusedField = nil }
+                }
+            }
+            .sheet(isPresented: $showingPlateMath) { PlateMathVisualizer(totalWeight: set.weight, equipment: equipment) }
+    }
+
+    private var setEntry: some View {
+        setContent
+            .onChange(of: weightInput) { _, input in
+                guard !set.isCompleted else { return }
+                if let weight = storedWeight(from: input) {
+                    set.weight = weight
+                    checkIfPersonalBest(newWeight: weight, newRps: set.reps)
+                }
+                entryError = nil
+            }
+            .onChange(of: repsInput) { _, input in
+                guard !set.isCompleted else { return }
+                if let reps = StrengthSetEntryRules.reps(from: input) {
+                    set.reps = reps
+                    checkIfPersonalBest(newWeight: set.weight, newRps: reps)
+                }
+                entryError = nil
+            }
+            .onChange(of: set.weight) { _, weight in
+                if storedWeight(from: weightInput).map({ abs($0 - weight) > 0.00001 }) ?? true { weightInput = weightText(weight) }
+            }
+            .onChange(of: set.reps) { _, reps in
+                if Int(repsInput) != reps { repsInput = reps > 0 ? "\(reps)" : "" }
+            }
+            .onAppear(perform: fillEmptyFieldsFromHistory)
+            .onChange(of: previousSet?.id) { _, _ in fillEmptyFieldsFromHistory() }
+            .onChange(of: equipment) { _, _ in weightInput = weightText(set.weight) }
+    }
+
+    private var setContent: some View {
         VStack(alignment: .leading, spacing: 4) {
             if usesDetailedLayout { detailedContent } else { compactContent }
             if let entryError {
@@ -966,56 +1024,6 @@ struct StrengthSetRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(setLabel), \(set.isCompleted ? "logged" : "not logged")")
         .accessibilityIdentifier("strength_set_row_\(set.id)")
-        .onChange(of: weightInput) { _, input in
-            guard !set.isCompleted else { return }
-            if let weight = storedWeight(from: input) {
-                set.weight = weight
-                checkIfPersonalBest(newWeight: weight, newRps: set.reps)
-            }
-            entryError = nil
-        }
-        .onChange(of: repsInput) { _, input in
-            guard !set.isCompleted else { return }
-            if let reps = StrengthSetEntryRules.reps(from: input) {
-                set.reps = reps
-                checkIfPersonalBest(newWeight: set.weight, newRps: reps)
-            }
-            entryError = nil
-        }
-        .onChange(of: set.weight) { _, weight in
-            if storedWeight(from: weightInput).map({ abs($0 - weight) > 0.00001 }) ?? true { weightInput = weightText(weight) }
-        }
-        .onChange(of: set.reps) { _, reps in
-            if Int(repsInput) != reps { repsInput = reps > 0 ? "\(reps)" : "" }
-        }
-        .onAppear(perform: fillEmptyFieldsFromHistory)
-        .onChange(of: previousSet?.id) { _, _ in fillEmptyFieldsFromHistory() }
-        .onChange(of: equipment) { _, _ in weightInput = weightText(set.weight) }
-        .onChange(of: focusedField) { _, field in
-            if let field {
-                inputFocus?.wrappedValue = StrengthSetInput(setID: set.id, field: field)
-            } else {
-                Task { @MainActor in
-                    await Task.yield()
-                    if focusedField == nil, inputFocus?.wrappedValue?.setID == set.id { inputFocus?.wrappedValue = nil }
-                }
-            }
-        }
-        .onChange(of: inputFocus?.wrappedValue) { _, requested in
-            focusedField = requested?.setID == set.id ? requested?.field : nil
-        }
-        .onChange(of: inputCommand) { _, command in
-            guard let command, command.setID == set.id else { return }
-            switch command.action {
-            case .increaseWeight: adjustWeight(by: weightIncrement)
-            case .decreaseWeight: adjustWeight(by: -weightIncrement)
-            case .increaseReps: adjustReps(by: 1)
-            case .decreaseReps: adjustReps(by: -1)
-            case .complete:
-                if !set.isCompleted { toggleCompletion() } else { inputFocus?.wrappedValue = nil; focusedField = nil }
-            }
-        }
-        .sheet(isPresented: $showingPlateMath) { PlateMathVisualizer(totalWeight: set.weight, equipment: equipment) }
     }
 
     @ViewBuilder

@@ -181,7 +181,9 @@ final class WorkoutLibraryAndHistoryTests: XCTestCase {
         let original = try program()
         let firstDay = try XCTUnwrap(original.date(forSlot: 0))
         let routine = try XCTUnwrap(original.routine(forSlot: 0))
-        let legacy = WorkoutSessionLog(id: "old-legacy", date: firstDay.addingTimeInterval(20 * 3_600),
+        // A legacy session must occur after this program was created, even when CI uses UTC.
+        let completion = max(firstDay, original.dateCreated).addingTimeInterval(1)
+        let legacy = WorkoutSessionLog(id: "old-legacy", date: completion,
             routineID: routine.id, completedExercises: [])
         XCTAssertTrue(WorkoutRules.logBelongsToProgram(legacy, program: original))
         var proposal = original
