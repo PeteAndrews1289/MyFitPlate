@@ -2,6 +2,7 @@ import SwiftUI
 import MyFitPlateCore
 
 struct WeeklyRecapView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var dailyLogService: DailyLogService
     @EnvironmentObject private var goalSettings: GoalSettings
     @EnvironmentObject private var workoutService: WorkoutService
@@ -122,11 +123,15 @@ struct WeeklyRecapView: View {
 
     private func reportContent(_ recap: WeeklyRecap) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
-            Picker("Report section", selection: $reportFocus) {
+            let focusPicker = Picker("Report section", selection: $reportFocus) {
                 ForEach(WeeklyReportFocus.allCases) { focus in Text(focus.title).tag(focus) }
             }
-            .pickerStyle(.segmented)
             .accessibilityIdentifier("weekly_report_focus")
+            if dynamicTypeSize.isAccessibilitySize {
+                focusPicker.pickerStyle(.menu)
+            } else {
+                focusPicker.pickerStyle(.segmented)
+            }
 
             if let loadMessage { Text(loadMessage).appTextRole(.caption).foregroundStyle(AppPalette.caution) }
             switch reportFocus {
@@ -156,15 +161,25 @@ struct WeeklyRecapView: View {
     }
 
     private var weekPicker: some View {
-        HStack(spacing: 12) {
-            Button { shiftWeek(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
-                .accessibilityLabel("Previous week").accessibilityIdentifier("weekly_report_previous")
-            DatePicker("Week ending", selection: $selectedWeekEnding, in: ...Date(), displayedComponents: .date)
-                .datePickerStyle(.compact).appTextRole(.caption)
-                .accessibilityIdentifier("weekly_report_week")
-            Button { shiftWeek(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
-                .disabled(Calendar.current.isDateInToday(selectedWeekEnding))
-                .accessibilityLabel("Next week").accessibilityIdentifier("weekly_report_next")
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            if dynamicTypeSize.isAccessibilitySize {
+                Text("Week ending").appTextRole(.caption)
+            }
+            HStack(spacing: 12) {
+                Button { shiftWeek(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
+                    .accessibilityLabel("Previous week").accessibilityIdentifier("weekly_report_previous")
+                let week = DatePicker("Week ending", selection: $selectedWeekEnding, in: ...Date(), displayedComponents: .date)
+                    .datePickerStyle(.compact).appTextRole(.caption)
+                    .accessibilityIdentifier("weekly_report_week")
+                if dynamicTypeSize.isAccessibilitySize {
+                    week.labelsHidden().frame(maxWidth: .infinity)
+                } else {
+                    week
+                }
+                Button { shiftWeek(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+                    .disabled(Calendar.current.isDateInToday(selectedWeekEnding))
+                    .accessibilityLabel("Next week").accessibilityIdentifier("weekly_report_next")
+            }
         }
         .tint(.textPrimary)
     }

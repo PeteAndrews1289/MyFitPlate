@@ -572,7 +572,12 @@ public enum ServingNutritionCalculator {
     public static func baseServing(from item: FoodItem) -> ServingSizeOption {
         let parsed = parseQuantity(from: item.servingSize)
         let quantity = safeQuantity(item.quantityValue ?? parsed.quantity)
-        let unit = item.servingUnit ?? normalizedServingDescription(parsed.baseDescription)
+        let printedUnit = normalizedServingDescription(parsed.baseDescription)
+        let storedUnit = item.servingUnit?.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Some catalogs store "serving" as an internal unit alongside the actual
+        // label, e.g. "2 Softgels". Only use a description with a known base quantity.
+        let hasPrintedBase = parsed.quantity == quantity && !item.servingSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let unit = storedUnit?.lowercased() == "serving" && hasPrintedBase ? printedUnit : storedUnit ?? printedUnit
 
         return ServingSizeOption(
             description: unit,

@@ -347,6 +347,7 @@ struct ReportsView: View {
             ReportSectionHeader(title: "Weekly review", subtitle: "Last 7 days · independent of the selected dates")
             weekInMotionSection
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reports_training_content")
     }
 

@@ -510,6 +510,7 @@ public struct AppSectionHeader<Trailing: View>: View {
             Text(title)
                 .appTextRole(.sectionTitle)
                 .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let subtitle {
                 Text(subtitle)

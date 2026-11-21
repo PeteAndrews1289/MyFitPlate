@@ -10,6 +10,8 @@ final class WaveTwoReservationsUITests: XCTestCase {
         let workspace = app.segmentedControls["planner_workspace"]
         XCTAssertTrue(workspace.waitForExistence(timeout: 12)); workspace.buttons["Cook"].tap()
         let reservations = app.buttons["inventory_planned_reservations"]
+        let tools = app.buttons["Cooking tools and settings"]
+        reveal(tools, app: app); tools.tap()
         reveal(reservations, app: app); reservations.tap()
         XCTAssertTrue(any(app, "inventory_reservations_screen").waitForExistence(timeout: 10))
         let row = any(app, "inventory_reservation_lot_00000000-0000-0000-0000-000000000201")

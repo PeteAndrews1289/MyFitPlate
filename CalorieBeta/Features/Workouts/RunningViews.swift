@@ -4096,9 +4096,10 @@ private struct RunHistoryFilterControls: View {
     let sources: [String]
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            TextField("Search workouts, source or date", text: $scope.query)
+            TextField("Search runs", text: $scope.query)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .padding(AppSpacing.row).background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                .accessibilityLabel("Search runs by workout, source or date")
                 .accessibilityIdentifier("run_history_search")
             DisclosureGroup("Filter history") {
                 Picker("Period", selection: $scope.period) {

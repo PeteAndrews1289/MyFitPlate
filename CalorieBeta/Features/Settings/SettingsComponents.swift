@@ -65,6 +65,7 @@ struct SettingsLabel: View {
                 Text(title)
                     .appTextRole(.control)
                     .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !subtitle.isEmpty && !dynamicTypeSize.isAccessibilitySize {
                     Text(subtitle)
                         .appTextRole(.secondary)
@@ -72,8 +73,9 @@ struct SettingsLabel: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .layoutPriority(1)
 
-            Spacer(minLength: AppSpacing.compact)
+            Spacer(minLength: 0)
 
             if showsDisclosure {
                 Image(systemName: "chevron.right")

@@ -507,6 +507,7 @@ struct ProgramCreatorView: View {
 
 private struct ProgramDetailsSection: View {
     @Binding var name: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
@@ -515,7 +516,8 @@ private struct ProgramDetailsSection: View {
                     .appTextRole(.caption)
                     .foregroundStyle(.secondary)
 
-                TextField("12 Week Strength", text: $name)
+                TextField("12 Week Strength", text: $name, axis: dynamicTypeSize.isAccessibilitySize ? .vertical : .horizontal)
+                    .lineLimit(1...4)
                     .appTextRole(.control)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.done)

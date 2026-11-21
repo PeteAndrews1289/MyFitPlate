@@ -65,6 +65,13 @@ struct AIChatbotView: View {
                           text: "Type a question about food, workouts, or your goals. She already knows today's numbers.")
     ]
 
+    private var conversationTitle: some View {
+        Text(viewModel.currentConversation?.title ?? "Your daily coach")
+            .appTextRole(.caption).foregroundStyle(.secondary)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     var body: some View {
         SpotlightTourScaffold(steps: AIChatbotView.maiaTourSteps) { isActive in
         VStack(spacing: 0) {
@@ -76,8 +83,7 @@ struct AIChatbotView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Maia").appTextRole(.sectionTitle)
                         .accessibilityIdentifier("maia_screen_header")
-                    Text(viewModel.currentConversation?.title ?? "Your daily coach")
-                        .appTextRole(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    if !dynamicTypeSize.isAccessibilitySize { conversationTitle }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Button { viewModel.showingConversations = true } label: {
@@ -108,6 +114,10 @@ struct AIChatbotView: View {
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.vertical, AppSpacing.compact)
+            if dynamicTypeSize.isAccessibilitySize {
+                conversationTitle.frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+            }
 
             ChatHistoryListView(
                 chatMessages: $viewModel.chatMessages,

@@ -587,7 +587,7 @@ struct FoodSearchView: View {
     }
 
     private var showsCaptureShortcuts: Bool {
-        viewModel.searchText.isEmpty && (!dynamicTypeSize.isAccessibilitySize || !isSearchFocused)
+        viewModel.searchText.isEmpty && !dynamicTypeSize.isAccessibilitySize
     }
 
     private var pinnedSearchHeader: some View {

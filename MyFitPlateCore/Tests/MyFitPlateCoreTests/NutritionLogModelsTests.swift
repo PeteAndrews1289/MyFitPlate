@@ -116,6 +116,22 @@ final class NutritionLogModelsTests: XCTestCase {
         XCTAssertEqual(baseOption.fats, 0.5)
     }
 
+    func testGenericCatalogUnitKeepsPrintedSupplementServingWhenReopened() {
+        var item = FoodItem(name: "Vitamin D", calories: 0, servingSize: "2 Softgels", servingWeight: 0,
+                            vitaminD: 25, quantityValue: 1, servingUnit: "serving")
+        let base = ServingNutritionCalculator.baseServing(from: item)
+        XCTAssertEqual(base.description, "2 Softgels")
+        let two = ServingNutritionCalculator.adjustedNutrition(base: base, quantityValue: 2)
+        XCTAssertEqual(two.servingDescription, "2 x 2 Softgels")
+        XCTAssertEqual(two.vitaminD, 50)
+        item.quantityValue = 2
+        item.servingSize = two.servingDescription
+        item.vitaminD = two.vitaminD
+        let reopened = ServingNutritionCalculator.baseServing(from: item)
+        XCTAssertEqual(reopened.description, base.description)
+        XCTAssertEqual(reopened.vitaminD, base.vitaminD)
+    }
+
     func testServingNutritionCalculatorAdjustedNutritionByText() {
         let baseOption = ServingSizeOption(description: "cup", servingWeightGrams: 100, calories: 150, protein: 5, carbs: 30, fats: 2)
         

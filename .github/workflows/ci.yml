@@ -92,6 +92,12 @@ jobs:
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             OTHER_SWIFT_FLAGS="-D UI_TESTING"' | xcpretty
 
+      - name: Show native test failures
+        if: failure() && hashFiles('TestResults.xcresult/Info.plist') != ''
+        run: |
+          xcrun xcresulttool get test-results summary --path TestResults.xcresult \
+            | jq '{result, passedTests, failedTests, testFailures}'
+
       - name: Check coverage floor
         env:
           # Native persistence and app rendering tests establish 12.29% locally. Keep
