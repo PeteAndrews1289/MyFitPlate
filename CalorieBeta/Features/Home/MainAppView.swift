@@ -286,9 +286,15 @@ struct CalorieBetaApp: App {
         #if DEBUG
         FirebaseConfiguration.shared.setLoggerLevel(.warning)
         NutritionConsistencySelfCheck.run()
-        // Simulator/dev can't do App Attest, so use the debug provider. On first launch it prints
-        // an App Check debug token — register that in Firebase Console → App Check to allow dev calls.
-        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        let environment = ProcessInfo.processInfo.environment
+        let testHost = environment["XCTestConfigurationFilePath"] != nil || environment["MYFITPLATE_EMULATOR_TESTS"] == "YES"
+        if isUITesting || isScreenshotMode || testHost {
+            // Synthetic screens use local services. Emulator tests configure their own
+            // named Firebase apps. Neither needs a registrable token in test artifacts.
+            AppCheck.setAppCheckProviderFactory(MyFitPlateAppCheckProviderFactory())
+        } else {
+            AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        }
         #else
         AppCheck.setAppCheckProviderFactory(MyFitPlateAppCheckProviderFactory())
         #endif
