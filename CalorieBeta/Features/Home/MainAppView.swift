@@ -643,7 +643,7 @@ struct ContentView: View {
 
     var body: some View { presentationContent }
 
-    private var lifecycleContent: some View {
+    private var contentWithAccountBanners: some View {
         ZStack {
             mainContent
 
@@ -675,6 +675,10 @@ struct ContentView: View {
                 .background(AppPalette.canvas)
             }
         }
+    }
+
+    private var accountLifecycleContent: some View {
+        contentWithAccountBanners
         .onAppear {
             #if DEBUG
             queueUITestDeepLinkIfNeeded()
@@ -736,6 +740,10 @@ struct ContentView: View {
                 checkUserStatusAndFirstLogin()
             }
         }
+    }
+
+    private var routingContent: some View {
+        accountLifecycleContent
         .task(id: reviewPrompts.pendingMoment) {
             await presentReviewPromptWhenCalm()
         }
@@ -761,6 +769,10 @@ struct ContentView: View {
                 processPendingDeepLinkIfReady()
             }
         }
+    }
+
+    private var watchSyncContent: some View {
+        routingContent
         .onChange(of: dailyLogService.currentDailyLog) {
             sendNutritionToWatchIfNeeded()
             syncTrainingFuelNotificationsIfNeeded()
@@ -790,7 +802,7 @@ struct ContentView: View {
     }
 
     private var reminderContent: some View {
-        lifecycleContent
+        watchSyncContent
         .onReceive(NotificationCenter.default.publisher(for: .runLibrariesChanged)) { note in
             if note.object as? String == currentUserID {
                 RunCloudSyncCoordinator.shared.requestSync(owner: currentUserID)

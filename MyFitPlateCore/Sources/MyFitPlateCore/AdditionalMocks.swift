@@ -161,6 +161,7 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
     public var awardErrorsByFoodID: [String: Error] = [:]
     public var awardFailureAfterCommit: Error?
     public var awardDelayNanoseconds: UInt64 = 0
+    public var beforeAcceptAward: (@MainActor (AchievementAwardCommand) -> Void)?
     private var awardStatusesByUser: [String: [String: UserAchievementStatus]] = [:]
     private var awardPointsByUser: [String: Int] = [:]
     private var awardReceiptsByUser: [String: [String: AchievementAwardResult]] = [:]
@@ -180,6 +181,7 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
     }
 
     public func acceptAward(_ command: AchievementAwardCommand, levelThresholds: [Int]) async throws -> AchievementAwardResult {
+        if let beforeAcceptAward { await beforeAcceptAward(command) }
         if awardDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: awardDelayNanoseconds) }
         let ownerID = await MainActor.run { DIContainer.shared.authService.currentUserID }
         try command.validate(currentUserID: ownerID)

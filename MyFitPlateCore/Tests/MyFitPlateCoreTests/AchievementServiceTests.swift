@@ -110,7 +110,7 @@ final class AchievementServiceTests: XCTestCase {
         
         service.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "accepted-barcode-food", name: "Yogurt", calories: 150), date: Date(), source: "barcode_scan")
         
-        try? await Task.sleep(nanoseconds: 10_000_000) // Wait for Task inside
+        await service.awardDrainTask?.value
         
         XCTAssertEqual(Set(mockRepo.savedStatuses.filter(\.isUnlocked).map(\.achievementID)), ["first_log", "scanner_pro"])
         XCTAssertEqual(mockRepo.acceptedAwardCount, 2)
@@ -275,22 +275,22 @@ final class AchievementServiceTests: XCTestCase {
     func testFailedAwardSurvivesServiceRecreationAndRetryAddsPointsExactlyOnce() async throws {
         mockRepo.awardError = AchievementAwardError.unavailable
         service.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "accepted-food", name: "Rice", calories: 200), date: Date(), source: "manual")
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(service.pendingAwardCount, 1)
         XCTAssertFalse(service.userStatuses["first_log"]?.isUnlocked == true)
         let kept = try XCTUnwrap(awardStore.pending(userID: "user_123").first)
         service = AchievementService(awardStore: awardStore)
         service.activateAccount("user_123")
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(try awardStore.pending(userID: "user_123").first, kept)
         mockRepo.awardError = nil; mockRepo.awardFailureAfterCommit = AchievementAwardError.unavailable
         service.retryPendingAwards()
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(mockRepo.acceptedAwardCount, 1)
         XCTAssertEqual(service.pendingAwardCount, 1)
         mockRepo.awardFailureAfterCommit = nil
         service.retryPendingAwards()
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(mockRepo.acceptedAwardCount, 1)
         XCTAssertEqual(service.pendingAwardCount, 0)
         XCTAssertEqual(service.userTotalAchievementPoints, 10)
@@ -300,14 +300,14 @@ final class AchievementServiceTests: XCTestCase {
     func testOneUnreadableSourceDoesNotStarveIndependentMilestoneAndRetryRemainsBounded() async throws {
         mockRepo.awardErrorsByID["first_log"] = AchievementAwardError.evidenceUnavailable
         service.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "barcode-food", name: "Yogurt", calories: 150), date: Date(), source: "barcode_scan")
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(service.pendingAwardCount, 1)
         XCTAssertNil(service.userStatuses["first_log"]?.awardEvidence)
         XCTAssertTrue(service.userStatuses["scanner_pro"]?.isUnlocked == true)
         XCTAssertEqual(mockRepo.acceptedAwardCount, 1)
         XCTAssertEqual(service.userTotalAchievementPoints, 20)
         mockRepo.awardErrorsByID = [:]; service.retryPendingAwards()
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(service.pendingAwardCount, 0)
         XCTAssertEqual(mockRepo.acceptedAwardCount, 2)
         XCTAssertEqual(service.userTotalAchievementPoints, 30)
@@ -316,26 +316,27 @@ final class AchievementServiceTests: XCTestCase {
     func testInvalidAwardLedgerStopsOwnerQueueWithoutDiscardingOtherRequests() async throws {
         mockRepo.awardError = AchievementAwardError.invalid
         service.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "barcode-food", name: "Yogurt", calories: 150), date: Date(), source: "barcode_scan")
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(service.pendingAwardCount, 2)
         XCTAssertEqual(mockRepo.acceptedAwardCount, 0)
         XCTAssertEqual(try awardStore.pending(userID: "user_123").count, 2)
     }
 
     func testUndoneFoodEvidenceRetiresAndNewFoodArrivingInFlightStillAwardsExactlyOnce() async throws {
-        mockRepo.awardDelayNanoseconds = 60_000_000
         mockRepo.awardErrorsByFoodID["undone-food"] = AchievementAwardError.evidenceNoLongerEligible
+        mockRepo.beforeAcceptAward = { [service] command in
+            guard command.evidence.facts?["foodID"] == "undone-food" else { return }
+            service?.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "kept-food", name: "Kept rice", calories: 200), date: Date(), source: "manual")
+        }
         service.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "undone-food", name: "Removed rice", calories: 200), date: Date(), source: "manual")
-        try? await Task.sleep(nanoseconds: 10_000_000)
-        service.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "kept-food", name: "Kept rice", calories: 200), date: Date(), source: "manual")
-        try? await Task.sleep(nanoseconds: 200_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(mockRepo.acceptedAwardCount, 1)
         XCTAssertEqual(service.userTotalAchievementPoints, 10)
         XCTAssertEqual(service.pendingAwardCount, 0)
         XCTAssertEqual(service.userStatuses["first_log"]?.awardEvidence?.facts?["foodID"], "kept-food")
         XCTAssertEqual(try awardStore.retiredEvidence(userID: "user_123").first?.command.evidence.facts?["foodID"], "undone-food")
         service.retryPendingAwards()
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(mockRepo.acceptedAwardCount, 1)
     }
 
@@ -362,11 +363,12 @@ final class AchievementServiceTests: XCTestCase {
     }
 
     func testAccountChangeDuringAwardCannotPublishOrClearOriginalPendingEvidence() async throws {
-        mockRepo.awardDelayNanoseconds = 80_000_000
+        mockRepo.beforeAcceptAward = { [mockAuth, service] _ in
+            mockAuth?.currentUserID = "user_456"
+            service?.activateAccount("user_456")
+        }
         service.checkAcceptedFood(userID: "user_123", food: FoodItem(id: "old-food", name: "Rice", calories: 200), date: Date(), source: "manual")
-        await Task.yield()
-        mockAuth.currentUserID = "user_456"; service.activateAccount("user_456")
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        await service.awardDrainTask?.value
         XCTAssertEqual(service.pendingAwardCount, 0)
         XCTAssertTrue(service.userStatuses.isEmpty)
         XCTAssertEqual(try awardStore.pending(userID: "user_123").count, 1)

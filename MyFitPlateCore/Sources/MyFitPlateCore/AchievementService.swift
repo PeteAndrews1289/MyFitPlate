@@ -20,7 +20,7 @@ public class AchievementService: ObservableObject {
     @Published public private(set) var hasConfirmedPointBalance = false
     private var legacyBalanceTask: Task<Void, Never>?
     private let awardStore: AchievementAwardStore
-    private var awardDrainTask: Task<Void, Never>?
+    private(set) var awardDrainTask: Task<Void, Never>?
     private var accountGeneration = UUID()
 
     private var userStatusCancellable: AnyCancellable?
