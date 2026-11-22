@@ -95,6 +95,19 @@ struct StrengthEquipmentSetupView: View {
                 }
                 if original != nil { availableEquipmentSection }
                 Section("Quick setup") { presets }
+                Section {
+                    Picker("Units", selection: unitBinding) {
+                        Text("lb").tag(StrengthEquipment.Unit.lb)
+                        Text("kg").tag(StrengthEquipment.Unit.kg)
+                    }
+                    .pickerStyle(.segmented).accessibilityIdentifier("equipment_units")
+                    weightMeaningMenu
+                    Text(meaningExplanation).appTextRole(.secondary).foregroundStyle(.secondary)
+                } header: {
+                    Text("How you record weight")
+                } footer: {
+                    Text("Switching units converts the same weights.")
+                }
                 if offersGymProfiles {
                     Section("Saved gyms") {
                         Button("Use saved gym equipment") { showingGymPicker = true }
@@ -106,24 +119,6 @@ struct StrengthEquipmentSetupView: View {
                         Text("This keeps a snapshot for this exercise. Changing the gym library later does not change this session.")
                             .appTextRole(.caption).foregroundStyle(.secondary)
                     }
-                }
-                Section("How you record weight") {
-                    Picker("Units", selection: unitBinding) {
-                        Text("lb").tag(StrengthEquipment.Unit.lb)
-                        Text("kg").tag(StrengthEquipment.Unit.kg)
-                    }
-                    .pickerStyle(.segmented).accessibilityIdentifier("equipment_units")
-                    Text("Changing units converts the setup. It keeps the same physical weights.")
-                        .appTextRole(.caption).foregroundStyle(.secondary)
-                    Picker("Weight means", selection: $meaning) {
-                        Text("Same as past logs").tag(StrengthEquipment.LoadingMeaning.asLogged)
-                        Text("Total load").tag(StrengthEquipment.LoadingMeaning.total)
-                        Text("Per hand").tag(StrengthEquipment.LoadingMeaning.perHand)
-                        Text("Added load").tag(StrengthEquipment.LoadingMeaning.added)
-                        Text("Assistance · less is harder").tag(StrengthEquipment.LoadingMeaning.assistance)
-                        Text("Bodyweight only").tag(StrengthEquipment.LoadingMeaning.bodyweightOnly)
-                    }.pickerStyle(.menu).accessibilityIdentifier("equipment_meaning")
-                    Text(meaningExplanation).appTextRole(.secondary).foregroundStyle(.secondary)
                 }
                 if original == nil { availableEquipmentSection }
                 Section("Available loads") {
@@ -198,6 +193,29 @@ struct StrengthEquipmentSetupView: View {
                 .appTextRole(.caption).foregroundStyle(.secondary)
             if kind == .fixedWeights { fixedWeights } else { barbellWeights }
         }
+    }
+
+    private var weightMeaningMenu: some View {
+        Menu {
+            Picker("Weight means", selection: $meaning) {
+                ForEach(StrengthEquipment.LoadingMeaning.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            HStack {
+                Text("Weight means")
+                Spacer()
+                Text(meaning.title).foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down").appTextRole(.caption).foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Weight means")
+        .accessibilityValue(meaning.title)
+        .accessibilityIdentifier("equipment_meaning")
     }
 
     private var presets: some View {

@@ -64,8 +64,11 @@ final class SupportingDesignUITests: XCTestCase {
         let add = app.buttons["livingDayAddWaterButton"]
         XCTAssertTrue(add.label.contains("500 mL"), "The button must state its actual increment.")
         XCTAssertTrue(add.isHittable)
-        app.switches["hydration_design_tracking_only"].tap()
-        XCTAssertTrue(progress.label.contains("/ 2,000 mL") || progress.label.contains("/ 2000 mL"))
+        let tracking = app.switches["hydration_design_tracking_only"]
+        tracking.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        let target = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "/ 2,000 mL", "/ 2000 mL"), object: progress)
+        XCTAssertEqual(XCTWaiter.wait(for: [target], timeout: 5), .completed)
         app.segmentedControls["hydration_design_unit"].buttons["oz"].tap()
         XCTAssertTrue(progress.label.contains("oz"))
         XCTAssertFalse(progress.label.contains("mL"))

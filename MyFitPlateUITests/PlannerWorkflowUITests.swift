@@ -250,7 +250,7 @@ final class PlannerWorkflowUITests: XCTestCase {
 
     @MainActor
     func testShoppingUsesTheBrowsedWeek() {
-        let app = launch()
+        let app = launch(arguments: ["-ui-testing-stock-reservations"])
         let workspace = app.segmentedControls["planner_workspace"]
         XCTAssertTrue(workspace.waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "account_loading_screen")
@@ -259,21 +259,22 @@ final class PlannerWorkflowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["meal_plan_add_meal"].waitForExistence(timeout: 10))
         app.buttons["planner_view_mode"].tap()
         let next = app.buttons["planner_next_week"]
-        XCTAssertTrue(next.waitForExistence(timeout: 10)); next.tap()
-        let nextDate = Calendar.current.date(byAdding: .day, value: 7, to: Date())!
+        XCTAssertTrue(next.waitForExistence(timeout: 10)); next.tap(); next.tap()
+        // This week contains a distinct planned rice batch two weeks from today.
+        let nextDate = Calendar.current.date(byAdding: .day, value: 14, to: Date())!
         let selectedDate = app.buttons["planner_choose_date"]
         let selectedWeek = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", nextDate.formatted(date: .complete, time: .omitted)), object: selectedDate)
         XCTAssertEqual(XCTWaiter.wait(for: [selectedWeek], timeout: 5), .completed)
         let shop = workspace.buttons["Shop"]
         XCTAssertTrue(shop.isHittable); shop.tap()
-        let start = Calendar.current.dateInterval(of: .weekOfYear, for: Date())!.start
-        let nextStart = Calendar.current.date(byAdding: .day, value: 7, to: start)!
-        let label = "Plan ingredients for seven days from \(nextStart.formatted(date: .abbreviated, time: .omitted))"
-        let details = app.descendants(matching: .any).matching(identifier: "grocery_calculation_details").firstMatch
-        revealShoppingControl(details, in: app); details.tap()
-        XCTAssertTrue(app.staticTexts[label].waitForExistence(timeout: 10))
-        revealShoppingControl(app.staticTexts[label], in: app)
+        let start = Calendar.current.dateInterval(of: .weekOfYear, for: nextDate)!.start
+        let heading = app.staticTexts["grocery_week_heading"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 10))
+        XCTAssertEqual(heading.label, "Week of \(start.formatted(date: .abbreviated, time: .omitted))")
+        let rice = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS[cd] %@",
+                                                  "grocery_item_", "dry rice")).firstMatch
+        revealShoppingControl(rice, in: app)
         attach(app, "Planner - groceries for selected week")
         XCTAssertTrue(workspace.buttons["Cook"].isHittable); workspace.buttons["Cook"].tap()
         XCTAssertTrue(app.segmentedControls["meal_prep_mode_picker"].waitForExistence(timeout: 5))

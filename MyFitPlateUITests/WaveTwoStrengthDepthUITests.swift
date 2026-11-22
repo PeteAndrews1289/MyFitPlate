@@ -135,20 +135,13 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
     @MainActor private func selectWeightMeaning(_ title: String, app: XCUIApplication) {
         let picker = app.buttons["equipment_meaning"]
         reveal(picker, app: app)
-        if (picker.value as? String) == title || picker.label.contains(title) { return }
+        if (picker.value as? String) == title { return }
         picker.tap()
-        let choice = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", title)).firstMatch
-        if !choice.waitForExistence(timeout: 2) {
-            // Native Form pickers can expose the whole row to accessibility while
-            // their selected-value area receives the menu interaction. Retry that
-            // area only when the first tap did not visibly open the choices.
-            reveal(picker, app: app)
-            picker.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
-        }
+        let choice = app.buttons[title]
         XCTAssertTrue(choice.waitForExistence(timeout: 5), "Weight convention choices did not open\n\(app.debugDescription)")
         choice.tap()
-        XCTAssertTrue((picker.value as? String) == title || picker.label.contains(title),
-                      "Weight convention did not select \(title)\n\(app.debugDescription)")
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", title), object: picker)
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
     }
     @MainActor private func openWarmup(_ app: XCUIApplication, exerciseID: String) {
         open(app.buttons["exercise_options_" + exerciseID], app: app)

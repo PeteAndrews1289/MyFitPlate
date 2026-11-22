@@ -273,7 +273,9 @@ struct GroceryListView: View {
     private var workspaceHeading: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Shopping list").appTextRole(.sectionTitle)
+                Text("Week of \(planStartDate.formatted(date: .abbreviated, time: .omitted))")
+                    .appTextRole(.sectionTitle)
+                    .accessibilityIdentifier("grocery_week_heading")
                 Spacer()
                 if let onOpenPantry {
                     Button(action: onOpenPantry) {
