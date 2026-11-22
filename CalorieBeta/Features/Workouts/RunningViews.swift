@@ -1978,10 +1978,9 @@ private struct RunRow: View {
     }
 
     private var sourceLabel: some View {
-        Label("\(run.isIndoor ? "Indoor" : "Outdoor") · \(run.source.displayName)", systemImage: "heart.text.clipboard")
+        Text("\(run.isIndoor ? "Indoor" : "Outdoor") · \(run.source.displayName)")
             .appTextRole(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

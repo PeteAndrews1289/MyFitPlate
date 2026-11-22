@@ -803,6 +803,7 @@ struct FoodDetailCorrectionSheet: View {
     private let originalName: String
 
     @ObservedObject private var draft: FoodDetailCorrectionDraft
+    @FocusState private var focusedField: String?
 
     init(
         draft: FoodDetailCorrectionDraft,
@@ -891,11 +892,7 @@ struct FoodDetailCorrectionSheet: View {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done") {
-                        UIApplication.shared.connectedScenes
-                            .compactMap { $0 as? UIWindowScene }
-                            .flatMap(\.windows)
-                            .first(where: \.isKeyWindow)?
-                            .endEditing(true)
+                        focusedField = nil
                     }
                     .accessibilityLabel("Hide keyboard")
                     .accessibilityIdentifier("food_correction_keyboard_done")
@@ -1249,6 +1246,7 @@ struct FoodDetailCorrectionSheet: View {
             HStack(spacing: 6) {
                 TextField(title, text: text)
                     .keyboardType(keyboard)
+                    .focused($focusedField, equals: identifier)
                     .appTextRole(.body)
                     .foregroundStyle(AppPalette.text)
                     .accessibilityIdentifier(identifier)
@@ -1267,7 +1265,10 @@ struct FoodDetailCorrectionSheet: View {
             .overlay {
                 RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                     .stroke(AppPalette.separator.opacity(0.65), lineWidth: 0.5)
+                    .allowsHitTesting(false)
             }
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { focusedField = identifier })
         }
     }
 

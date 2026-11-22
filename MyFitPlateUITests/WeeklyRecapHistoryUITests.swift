@@ -5,7 +5,8 @@ final class WeeklyRecapHistoryUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     func testSelectedWeekIntentionFollowsItsOwnNextWeekAndSurvivesRelaunch() {
-        let app = launch(reset: true)
+        let ending = Calendar.current.startOfDay(for: Date())
+        let app = launch(reset: true, ending: ending)
         let comparison = app.otherElements["weekly_report_comparison"]
         XCTAssertTrue(comparison.waitForExistence(timeout: 20))
         let currentWeek = comparison.value as? String
@@ -28,7 +29,7 @@ final class WeeklyRecapHistoryUITests: XCTestCase {
         reflect.tap(); app.buttons["Partly followed through"].tap()
         XCTAssertTrue(reflect.label.contains("Partly followed through"))
         app.terminate()
-        let reopened = launch(reset: false)
+        let reopened = launch(reset: false, ending: ending)
         XCTAssertTrue(reopened.otherElements["weekly_report_comparison"].waitForExistence(timeout: 20))
         let restored = reopened.buttons["weekly_report_reflect"]
         reveal(restored, in: reopened)
@@ -41,9 +42,10 @@ final class WeeklyRecapHistoryUITests: XCTestCase {
         capture.name = "Selected week intention and scoped evidence"; capture.lifetime = .keepAlways; add(capture)
     }
 
-    private func launch(reset: Bool) -> XCUIApplication {
+    private func launch(reset: Bool, ending: Date) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "weekly-report"]
+        app.launchEnvironment["MFP_TEST_REPORT_WEEK_ENDING"] = String(ending.timeIntervalSince1970)
         if reset { app.launchArguments.append("-ui-testing-reset-editor-drafts") }
         app.launch(); return app
     }

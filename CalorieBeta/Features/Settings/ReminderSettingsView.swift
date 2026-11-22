@@ -168,7 +168,9 @@ struct ReminderScheduleEditor: View {
                 }
                 Section("Quiet hours") {
                     DatePicker("Start", selection: quietBinding(start: true), displayedComponents: .hourAndMinute)
+                        .accessibilityIdentifier("reminder_quiet_start")
                     DatePicker("End", selection: quietBinding(start: false), displayedComponents: .hourAndMinute)
+                        .accessibilityIdentifier("reminder_quiet_end")
                     Text("Matching start and end times disables quiet hours. Reminders inside quiet hours are suppressed, not moved.")
                         .appTextRole(.caption).foregroundStyle(.secondary)
                 }

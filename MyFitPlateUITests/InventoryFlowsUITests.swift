@@ -134,7 +134,7 @@ final class InventoryFlowsUITests: XCTestCase {
         confirm.tap()
         XCTAssertTrue(confirm.waitForNonExistence(timeout: 10))
 
-        let today = app.buttons["Today"]
+        let today = app.buttons["planner_return_today"]
         reveal(today, app: app); today.tap()
         let nextDayUse = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "planner_use_stock_")).firstMatch
         XCTAssertTrue(nextDayUse.waitForExistence(timeout: 10))

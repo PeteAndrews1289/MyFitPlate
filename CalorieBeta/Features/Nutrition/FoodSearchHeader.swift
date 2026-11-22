@@ -27,8 +27,11 @@ struct FoodSearchHeader: View {
             )
                 .appTextRole(.body)
                 .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? (isFocused ? 4 : AppSpacing.row) : 0)
                 .focused($isFocused)
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded { isFocused = true })
                 .onChange(of: isFocused) { _, focused in onFocusChange?(focused) }
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
@@ -67,6 +70,7 @@ struct FoodSearchHeader: View {
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 .stroke(AppPalette.separator.opacity(0.7), lineWidth: 0.5)
+                .allowsHitTesting(false)
         }
     }
 }

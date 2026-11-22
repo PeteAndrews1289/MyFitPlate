@@ -144,10 +144,8 @@ struct PlannedMealEditSheet: View {
 
     private var mealIdentity: some View {
         HStack(alignment: .center, spacing: AppSpacing.row) {
-            Text(FoodEmojiMapper.getEmoji(for: meal.foodItem?.name ?? "Planned meal"))
-                .font(.system(size: 26)).frame(width: 44, height: 44)
+            FoodGlyph(meal.foodItem?.name ?? "Planned meal", pointSize: 26).frame(width: 44, height: 44)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
-                .accessibilityHidden(true)
             Text(meal.foodItem?.name ?? "Planned meal")
                 .appTextRole(.sectionTitle).fixedSize(horizontal: false, vertical: true)
         }

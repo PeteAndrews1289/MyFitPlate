@@ -58,7 +58,7 @@ final class MealPlanningFinishUITests: XCTestCase {
         reveal(slots, app: app); slots.tap()
         for slot in ["breakfast", "snack"] {
             let toggle = app.switches.matching(NSPredicate(format: "label == %@", slot.capitalized)).firstMatch
-            reveal(toggle, app: app); toggle.tap()
+            set(toggle, to: "0", app: app)
         }
         slots.tap()
         let cooking = app.buttons["Cooking days and open meals"]

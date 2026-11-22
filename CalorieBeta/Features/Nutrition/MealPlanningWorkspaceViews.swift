@@ -144,10 +144,8 @@ struct MealCompositionEditorView: View {
                 Section("Foods and actual amounts") {
                     ForEach(foods) { food in
                         HStack(spacing: AppSpacing.row) {
-                            Text(FoodEmojiMapper.getEmoji(for: food.name))
-                                .font(.system(size: 26)).frame(width: 44, height: 44)
+                            FoodGlyph(food.name, pointSize: 26).frame(width: 44, height: 44)
                                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
-                                .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(food.name).appTextRole(.control)
                                 Text("\(food.servingSize) · \(Int(food.calories.rounded()).formatted()) cal")

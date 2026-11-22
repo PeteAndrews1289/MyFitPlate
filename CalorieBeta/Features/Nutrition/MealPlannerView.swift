@@ -626,7 +626,12 @@ struct MealPlannerView: View {
                     )
                 }
 
-                if showingWeek { weekNavigation }
+                if showingWeek {
+                    weekNavigation
+                } else if !Calendar.current.isDateInToday(selectedDate) {
+                    returnToTodayButton
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 if let mealActionMessage {
                     HStack {
@@ -688,14 +693,23 @@ struct MealPlannerView: View {
             calendarJumpButton
             Spacer(minLength: AppSpacing.compact)
             if !Calendar.current.isDateInToday(selectedDate) {
-                Button("Today") { selectedDate = Calendar.current.startOfDay(for: Date()); showingWeek = false }
-                    .appTextRole(.secondary).frame(minWidth: 44, minHeight: 44)
-                    .accessibilityIdentifier("planner_return_today")
+                returnToTodayButton
             }
             weekShiftButton(-1)
             weekShiftButton(1)
         }
         .dynamicTypeSize(.xSmall ... .xxxLarge)
+    }
+
+    private var returnToTodayButton: some View {
+        Button("Today") {
+            selectedDate = Calendar.current.startOfDay(for: Date())
+            showingWeek = false
+        }
+        .appTextRole(.secondary)
+        .frame(minWidth: 44, minHeight: 44)
+        .accessibilityHint("Opens today's meals.")
+        .accessibilityIdentifier("planner_return_today")
     }
 
     private var calendarJumpButton: some View {

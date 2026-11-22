@@ -134,11 +134,9 @@ private struct RecipeIdentityHeader: View {
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
                 .accessibilityHidden(true)
         } else {
-            Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .font(.system(size: 36))
+            FoodGlyph(recipe.name, pointSize: 36)
                 .frame(width: 68, height: 68)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-                .accessibilityHidden(true)
         }
     }
 

@@ -617,6 +617,7 @@ struct WorkoutPlayerView: View {
                 }
                 ForEach(Array(routine.exercises.enumerated()), id: \.element.id) { index, exercise in
                     exerciseCard(at: index, exercise: exercise)
+                        .id("workout_exercise_" + exercise.id)
                 }
                 Button {
                     showingAddExercise = true

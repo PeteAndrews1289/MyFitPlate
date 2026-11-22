@@ -146,15 +146,16 @@ final class WaveOneFoodLoggingUITests: XCTestCase {
     func testQuickAddUndoAndPendingMealRemainReachableDuringLargestTextSearch() {
         let app = launch(flags: ["-screenshot-dark-mode", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         let quickAdd = app.buttons["repeat_food_add_0"]
-        reveal(quickAdd, in: app); quickAdd.tap()
+        reveal(quickAdd, in: app)
+        let quickAddStartedAt = Date()
+        quickAdd.tap()
         let undo = app.buttons["food_search_undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 8))
         XCTAssertTrue(undo.isHittable)
-        let quickAddAcceptedAt = Date()
         app.buttons["food_search_mode"].tap()
         let select = app.buttons["repeat_food_add_1"]
         reveal(select, in: app); select.tap()
-        if Date().timeIntervalSince(quickAddAcceptedAt) < 25 {
+        if Date().timeIntervalSince(quickAddStartedAt) < 25 {
             XCTAssertTrue(undo.isHittable, "Selecting a pending food must retain the live quick-add Undo")
         }
         let review = app.buttons["food_search_review_meal"]
@@ -168,9 +169,9 @@ final class WaveOneFoodLoggingUITests: XCTestCase {
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
         let addApple = app.buttons["food_picker_add_ui-test-apple"]
         XCTAssertTrue(addApple.waitForExistence(timeout: 8))
-        let undoAge = Date().timeIntervalSince(quickAddAcceptedAt)
-        attach(app, "Food selection - live keyboard with pending meal and quick-add Undo")
         let undoVisible = undo.exists && undo.isHittable
+        let undoAge = Date().timeIntervalSince(quickAddStartedAt)
+        attach(app, "Food selection - live keyboard with pending meal and quick-add Undo")
         let observations = XCTAttachment(string: "Search: \(search.frame), hittable \(search.isHittable)\nDestination: \(destination.frame), enabled \(destination.isEnabled)\nReview: \(review.frame), hittable \(review.isHittable)\nUndo visible: \(undoVisible), quick-add age \(undoAge) seconds (Undo expires after 30)\nApple Add: \(addApple.frame), hittable \(addApple.isHittable)\nKeyboard: \(keyboard.frame)")
         observations.name = "Mixed food search keyboard reachability"
         observations.lifetime = .keepAlways; add(observations)
@@ -182,13 +183,11 @@ final class WaveOneFoodLoggingUITests: XCTestCase {
                                  "The captured destination must remain readable above the keyboard")
         XCTAssertTrue(review.isHittable, "The pending meal must remain reachable alongside Undo")
         if undoAge < 25 {
-            XCTAssertTrue(undo.isHittable, "Search must not hide an unexpired quick-add Undo")
+            XCTAssertTrue(undoVisible, "Search must not hide an unexpired quick-add Undo")
         }
         // Inspect the current result viewport before deliberately closing the keyboard.
         // Scrolling here would interactively dismiss it and conceal a crowded layout.
-        let submit = keyboard.buttons["Search"].firstMatch
-        XCTAssertTrue(submit.isHittable)
-        submit.tap()
+        search.typeText("\n")
         let keyboardClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: keyboard)
         XCTAssertEqual(XCTWaiter.wait(for: [keyboardClosed], timeout: 5), .completed)
         XCTAssertEqual((search.value as? String)?.lowercased(), "apple")

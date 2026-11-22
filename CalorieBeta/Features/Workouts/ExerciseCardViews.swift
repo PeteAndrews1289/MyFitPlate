@@ -78,7 +78,6 @@ struct ExerciseCardView: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 exerciseIdentity
-                    .id("workout_exercise_" + exercise.id)
 
                 AppProgressTrack(progress: exerciseProgress, role: typeChip.role, height: 6)
 

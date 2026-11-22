@@ -856,6 +856,7 @@ struct AIChatWeightActionCard: View {
             MaiaActionReceiptHint(actionID: actionID)
         }
         .appSurface(.quiet)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("maia_action_weight")
     }
 }

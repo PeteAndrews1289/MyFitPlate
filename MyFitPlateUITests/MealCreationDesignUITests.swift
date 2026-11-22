@@ -14,7 +14,14 @@ final class MealCreationDesignUITests: XCTestCase {
         slot.tap()
         app.buttons["Lunch"].tap()
         let search = app.textFields["food_search_field"]
-        search.tap(); search.typeText("rice\n")
+        let hasFocus = NSPredicate(format: "hasKeyboardFocus == true")
+        for _ in 0..<3 where !hasFocus.evaluate(with: search) {
+            search.tap()
+            let focused = XCTNSPredicateExpectation(predicate: hasFocus, object: search)
+            if XCTWaiter.wait(for: [focused], timeout: 2) == .completed { break }
+        }
+        XCTAssertTrue(hasFocus.evaluate(with: search))
+        search.typeText("rice\n")
         let scopes = app.segmentedControls["planner_choice_scope"]
         scopes.buttons["Recipes"].tap()
         let recipe = app.buttons["planner_choose_recipe_demo-wave2-batch"]

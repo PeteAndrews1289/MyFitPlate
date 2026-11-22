@@ -77,6 +77,7 @@ struct ChallengesView: View {
             AppMetricItem(label: "Points left", value: pointsRemaining.formatted(), accent: AppPalette.effort)
         ])
         .appSurface(.emphasized)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("challenges_summary")
     }
 
@@ -92,6 +93,7 @@ struct ChallengesView: View {
             }
         }
         .appSurface(.quiet, padding: 0)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("challenge_list")
     }
 }

@@ -48,6 +48,7 @@ struct RoutineEditorHeaderCard: View {
 }
 
 struct RoutineBasicsCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var routineName: String
     @Binding var routineNotes: String
 
@@ -55,9 +56,10 @@ struct RoutineBasicsCard: View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             VStack(alignment: .leading, spacing: AppSpacing.group) {
                 RoutineEditorFieldLabel(title: "Routine Name") {
-                    TextField("Push Day, Lower A, Conditioning...", text: $routineName)
+                    TextField("Routine name", text: $routineName, axis: dynamicTypeSize.isAccessibilitySize ? .vertical : .horizontal)
                         .accessibilityIdentifier("routine_builder_name")
                         .appTextRole(.control)
+                        .submitLabel(.done)
                         .textInputAutocapitalization(.words)
                         .routineInputStyle()
                 }

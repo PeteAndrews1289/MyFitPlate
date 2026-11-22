@@ -238,10 +238,9 @@ private struct MealPlanningLibraryRow: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: AppSpacing.row) {
-                Text(FoodEmojiMapper.getEmoji(for: name)).font(.system(size: 26))
+                FoodGlyph(name, pointSize: 26)
                     .frame(width: 44, height: 44)
                     .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
-                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name).appTextRole(.control).foregroundStyle(AppPalette.text)
                     Text(detail).appTextRole(.caption).foregroundStyle(.secondary)

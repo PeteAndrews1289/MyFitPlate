@@ -136,7 +136,8 @@ final class WaveFourWorkoutUITests: XCTestCase {
         let menu = app.buttons["workout_exercise_menu"]
         let options = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'exercise_options_'"))
         XCTAssertGreaterThan(options.count, 2)
-        let later = app.buttons[options.element(boundBy: 2).identifier]
+        let later = app.buttons["Options for Dumbbell Shoulder Press"]
+        XCTAssertTrue(later.exists)
         let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'set_complete_'")).firstMatch
         let active = app.staticTexts["workout_current_exercise"]
         let original = active.label

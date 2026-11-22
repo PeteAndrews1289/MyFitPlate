@@ -190,10 +190,6 @@ struct ReportsView: View {
         VStack(spacing: AppSpacing.group) {
             if weeklyRecapLoader.isLoading || weeklyRecapLoader.recap != nil {
                 ZStack(alignment: .topLeading) {
-                    WeekInMotionLoadingView()
-                        .opacity(weeklyRecapLoader.recap == nil ? 1 : 0)
-                        .accessibilityHidden(weeklyRecapLoader.recap != nil)
-
                     if let recap = weeklyRecapLoader.recap {
                         let observation = WeekInMotionBuilder.build(from: recap).observation
                         WeekInMotionView(recap: recap) {
@@ -208,6 +204,8 @@ struct ReportsView: View {
                             showingWeeklyReport = true
                         }
                         .transition(.opacity)
+                    } else {
+                        WeekInMotionLoadingView()
                     }
                 }
                 .animation(AppMotion.standard, value: weeklyRecapLoader.recap != nil)

@@ -205,6 +205,7 @@ struct UserProfileView: View {
                     .appTextRole(.caption).foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profile_progress_summary")
     }
 

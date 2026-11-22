@@ -440,6 +440,7 @@ struct AIDataConsentSheet: View {
                 hasExistingConsent = true
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings_ai_data_screen")
     }
 

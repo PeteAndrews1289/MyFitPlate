@@ -17,7 +17,8 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
-    private func focusAndType(_ text: String, into field: XCUIElement) {
+    @discardableResult
+    private func focus(_ field: XCUIElement) -> Bool {
         let hittableExpectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "hittable == true"),
             object: field
@@ -42,6 +43,12 @@ final class MyFitPlateUITests: XCTestCase {
             receivedFocus = XCTWaiter.wait(for: [focusExpectation], timeout: 2) == .completed
         }
 
+        return receivedFocus
+    }
+
+    @MainActor
+    private func focusAndType(_ text: String, into field: XCUIElement) {
+        focus(field)
         field.typeText(text)
 
         let expectedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1254,10 +1261,10 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(fiber.waitForExistence(timeout: 5))
         XCTAssertEqual(fiber.value as? String, "0")
 
-        saturatedFat.tap()
-        saturatedFat.typeText(
-            XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "3"
-        )
+        revealIncrementally(saturatedFat, in: app.scrollViews.firstMatch, bottomInset: 32)
+        XCTAssertTrue(focus(saturatedFat), "The saturated-fat field should own the keyboard")
+        saturatedFat.typeKey("a", modifierFlags: .command)
+        saturatedFat.typeText("3")
         XCTAssertEqual(saturatedFat.value as? String, "3")
         XCTAssertTrue(app.buttons["Save"].isEnabled)
         let keyboardDone = app.buttons["food_correction_keyboard_done"]
@@ -1521,37 +1528,25 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(dailyLog.isHittable)
         XCTAssertTrue(homeScrollView.frame.contains(dailyLog.frame))
 
-        let immediatelyVisibleDailyMetrics = [
-            ("home_daily_metric_calories", "Calories: 1,310 / 2,100 cal"),
-            ("home_daily_metric_protein", "Protein: 98 / 160 g"),
-            ("home_daily_metric_water", "Water: 72 / 96 oz")
-        ]
-        for (identifier, label) in immediatelyVisibleDailyMetrics {
-            let metric = app.descendants(matching: .any)[identifier]
-            revealIncrementally(metric, in: homeScrollView, bottomInset: 20)
-            XCTAssertTrue(metric.waitForExistence(timeout: 5))
-            XCTAssertEqual(metric.label, label)
-        }
+        let mealOptions = app.buttons["diary_day_options"]
+        let activity = app.buttons["Add activity"]
+        revealIncrementally(mealOptions, in: homeScrollView)
+        XCTAssertTrue(mealOptions.isHittable)
+        revealIncrementally(activity, in: homeScrollView)
+        XCTAssertTrue(activity.isHittable)
 
-        let activityMetric = app.descendants(matching: .any)["home_daily_metric_activity"]
-        revealIncrementally(activityMetric, in: homeScrollView, bottomInset: 20)
-        XCTAssertTrue(activityMetric.waitForExistence(timeout: 5), "Activity metric should remain reachable")
-        XCTAssertEqual(activityMetric.label, "Activity: 1 session")
-
-        // iOS 26 audits hidden visual children of these verified combined accessibility elements
-        // at their exact rounded-glyph bounds. Filter only those known visual strings; all other
-        // visible Home content remains subject to the clipping audit.
-        let dailyMetricVisualStrings: Set<String> = [
-            "Calories", "1,310 / 2,100 cal", "Calories\n1,310 / 2,100 cal",
-            "Protein", "98 / 160 g", "Protein\n98 / 160 g",
-            "Water", "72 / 96 oz", "Water\n72 / 96 oz",
-            "Activity", "1 session", "Activity\n1 session"
-        ]
-        try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
-            guard let element = issue.element else { return false }
-            return element.identifier.hasPrefix("home_daily_metric_visual_")
-                || dailyMetricVisualStrings.contains(element.label)
-        }
+        let calories = app.staticTexts["home_calories_remaining"]
+        let protein = app.descendants(matching: .any).matching(identifier: "living_day_nutrient_protein").firstMatch
+        let water = app.descendants(matching: .any).matching(identifier: "livingDayWaterProgress").firstMatch
+        homeScrollView.swipeDown(velocity: .fast)
+        revealIncrementally(calories, in: homeScrollView)
+        XCTAssertEqual(calories.label, "790 cal left")
+        revealIncrementally(protein, in: homeScrollView)
+        XCTAssertTrue(protein.label.contains("98 grams consumed"), protein.label)
+        XCTAssertTrue(protein.label.contains("target 160"), protein.label)
+        revealIncrementally(water, in: homeScrollView)
+        XCTAssertEqual(water.label, "72 / 96 oz")
+        try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Home - dark accessibility XXXL"
@@ -2064,12 +2059,10 @@ final class MyFitPlateUITests: XCTestCase {
         firstScreenshot.lifetime = .keepAlways
         add(firstScreenshot)
 
-        for _ in 0..<10 {
-            if weight.exists && weight.frame.minY < app.frame.maxY - 20 {
-                break
-            }
-            app.swipeUp()
-        }
+        let gallery = app.scrollViews["maia_action_gallery"]
+        let confirmWeight = app.buttons["maia_weight_log"]
+        reveal(confirmWeight, in: gallery)
+        XCTAssertTrue(confirmWeight.isHittable)
         XCTAssertTrue(weight.waitForExistence(timeout: 5))
         XCTAssertTrue(weight.frame.intersects(app.frame))
         XCTAssertGreaterThanOrEqual(weight.frame.minX, app.frame.minX - 1)
@@ -2130,10 +2123,8 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        let header = app.navigationBars["Home"]
-        let date = app.staticTexts
-            .matching(NSPredicate(format: "identifier == %@", "home_date_label"))
-            .firstMatch
+        let header = app.descendants(matching: .any).matching(identifier: "home_screen_header").firstMatch
+        let date = app.buttons["home_diary_calendar"]
         let livingDay = app.descendants(matching: .any)["livingDaySummary"]
         let profile = app.buttons["Open profile"]
         let settings = app.buttons["Open settings"]
@@ -2323,7 +2314,7 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        let header = app.navigationBars["Home"]
+        let header = app.descendants(matching: .any).matching(identifier: "home_screen_header").firstMatch
         let surface = app.descendants(matching: .any)["livingDaySummary"]
         let action = app.descendants(matching: .any)["livingDayCurrentAction"]
         XCTAssertTrue(header.waitForExistence(timeout: 10))
@@ -2572,10 +2563,10 @@ final class MyFitPlateUITests: XCTestCase {
         evening.tap()
         XCTAssertTrue(app.navigationBars["Evening protein"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.switches["reminder_enabled"].exists)
-        let quietStart = app.datePickers["Start"]
-        reveal(quietStart, in: app, maxAttempts: 5)
+        let quietStart = app.datePickers["reminder_quiet_start"]
+        reveal(quietStart, in: app.collectionViews.firstMatch)
         XCTAssertTrue(quietStart.isHittable)
-        XCTAssertTrue(app.datePickers["End"].exists)
+        XCTAssertTrue(app.datePickers["reminder_quiet_end"].exists)
         XCTAssertTrue(app.buttons["reminder_save"].isHittable)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -3587,7 +3578,7 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let screens = [
             (name: "Profile", route: "profile", title: "Profile", summary: "profile_progress_summary"),
-            (name: "Challenges", route: "challenges", title: "Weekly Challenges", summary: "challenges_summary")
+            (name: "Challenges", route: "challenges", title: "Challenges", summary: "challenges_summary")
         ]
 
         for screen in screens {
@@ -3643,7 +3634,7 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let screens = [
             (name: "Profile", route: "profile", title: "Profile", summary: "profile_progress_summary"),
-            (name: "Challenges", route: "challenges", title: "Weekly Challenges", summary: "challenges_summary")
+            (name: "Challenges", route: "challenges", title: "Challenges", summary: "challenges_summary")
         ]
 
         for screen in screens {
@@ -3664,6 +3655,7 @@ final class MyFitPlateUITests: XCTestCase {
                 .matching(identifier: screen.summary)
                 .firstMatch
             XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            reveal(summary, in: app.scrollViews.firstMatch)
             XCTAssertTrue(summary.waitForExistence(timeout: 5))
             XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
@@ -4052,10 +4044,10 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertTrue(summary.waitForExistence(timeout: 5), screen.route)
             switch screen.route {
             case "meal-plan-survey":
-                XCTAssertTrue(summary.buttons["Saved recipes"].isSelected)
+                XCTAssertTrue(app.staticTexts["Plan with your recipes and prepared portions."].exists)
             case "meal-plan-survey-cooking":
-                summary.buttons["Maia ideas"].tap()
-                XCTAssertTrue(summary.buttons["Maia ideas"].isSelected)
+                app.segmentedControls["planner_generation_source"].buttons["Maia ideas"].tap()
+                XCTAssertTrue(app.staticTexts["Explore new meals with estimated nutrition."].waitForExistence(timeout: 5))
             case "meal-prep", "meal-prep-steps":
                 let mode = screen.route == "meal-prep" ? "Ingredients" : "Steps"
                 let scroll = app.scrollViews["meal_prep_scroll"]

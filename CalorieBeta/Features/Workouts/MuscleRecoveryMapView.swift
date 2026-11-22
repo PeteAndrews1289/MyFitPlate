@@ -48,12 +48,27 @@ struct MuscleRecoveryMapView: View {
                     }.appSurface(.quiet)
                 }
                 RecoveryRegionList(recoveries: recoveries, evidence: evidence, selectedGroup: $selectedGroup)
-                DisclosureGroup("Show body map", isExpanded: $showingMap) {
+                Button {
+                    showingMap.toggle()
+                } label: {
+                    HStack {
+                        Text(showingMap ? "Hide body map" : "Show body map")
+                        Spacer()
+                        Image(systemName: showingMap ? "chevron.up" : "chevron.down")
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(showingMap ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("muscle_recovery_map_toggle")
+                if showingMap {
                     RecoveryBodyField(recoveries: recoveries, selectedGroup: $selectedGroup)
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel("Muscle training exposure body field")
                         .accessibilityIdentifier("muscle_recovery_body_field")
-                }.accessibilityIdentifier("muscle_recovery_map_toggle")
+                }
                 Label("Unknown means missing evidence, not fully recovered. Stop or change painful movements; this map does not assess injuries.", systemImage: "info.circle")
                     .appTextRole(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }

@@ -51,15 +51,17 @@ struct SettingsLabel: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: AppSpacing.row) {
-            Image(systemName: icon)
-                .appFont(size: 17, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .frame(width: 36, height: 36)
-                .background(
-                    AppPalette.surface,
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                )
-                .accessibilityHidden(true)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: icon)
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        AppPalette.surface,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+                    .accessibilityHidden(true)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -77,7 +79,7 @@ struct SettingsLabel: View {
 
             Spacer(minLength: 0)
 
-            if showsDisclosure {
+            if showsDisclosure && !dynamicTypeSize.isAccessibilitySize {
                 Image(systemName: "chevron.right")
                     .appTextRole(.secondary)
                     .foregroundStyle(.tertiary)

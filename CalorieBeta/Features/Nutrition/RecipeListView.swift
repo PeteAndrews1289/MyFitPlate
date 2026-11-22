@@ -366,11 +366,9 @@ private struct RecipeLibraryRow: View {
     }
 
     private var recipeGlyph: some View {
-        Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-            .font(.system(size: 26))
+        FoodGlyph(recipe.name, pointSize: 26)
             .frame(width: 44, height: 44)
             .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-            .accessibilityHidden(true)
     }
 
     @ViewBuilder
