@@ -93,10 +93,11 @@ final class MealCreationDesignUITests: XCTestCase {
         attach(app, "Meal review - dark reusable portion retains explicit save")
         app.buttons["planner_save_meal"].tap()
         XCTAssertTrue(app.buttons["planner_save_meal"].waitForNonExistence(timeout: 10), app.debugDescription)
+        let undo = app.buttons["planner_undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 10), "Saving the meal should return to the planner with an Undo receipt.")
         let added = app.staticTexts["QA composed bowl"]
         reveal(added, app: app)
         XCTAssertTrue(added.exists, app.debugDescription)
-        let undo = app.buttons["planner_undo"]
         reveal(undo, app: app, preferEarlier: true); undo.tap()
         XCTAssertTrue(undo.waitForNonExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(added.waitForNonExistence(timeout: 5), app.debugDescription)
@@ -157,7 +158,10 @@ final class MealCreationDesignUITests: XCTestCase {
     @MainActor private func reveal(_ target: XCUIElement, app: XCUIApplication, preferEarlier: Bool = false) {
         for attempt in 0..<12 {
             let navigation = app.navigationBars.firstMatch
-            let top = navigation.exists ? navigation.frame.maxY + 8 : app.frame.minY + 110
+            var top = app.frame.minY + 110
+            if navigation.exists, let snapshot = try? navigation.snapshot() {
+                top = snapshot.frame.maxY + 8
+            }
             let save = app.buttons["planner_save_meal"]
             let bottom = min(app.frame.maxY - 95, save.exists && save.isHittable
                 ? save.frame.minY - 8 : app.frame.maxY - 95)
