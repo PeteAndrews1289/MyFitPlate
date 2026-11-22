@@ -23,8 +23,12 @@ struct SetWaterGoalView: View {
         NavigationStack {
             Form {
                 Section {
-                    Toggle("Track without a daily target", isOn: $trackingOnly)
-                        .accessibilityIdentifier("water_tracking_only")
+                    Picker("Water tracking", selection: $trackingOnly) {
+                        Text("Daily target").tag(false)
+                        Text("Tracking only").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("water_tracking_mode")
                     if trackingOnly {
                         Text("Record drinks without a target, progress ring or target reminders.")
                             .font(.caption).foregroundStyle(.secondary)

@@ -25,19 +25,18 @@ final class WaveOneToolsAndPreferencesUITests: XCTestCase {
     @MainActor
     func testTrackingOnlyAndMetricContainerPersist() {
         let app = XCUIApplication()
+        let mode = app.segmentedControls["water_tracking_mode"]
+        let trackingOnly = mode.buttons["Tracking only"]
         func start(reset: Bool) {
             app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "settings-water", "-ui-testing-hydration-preferences"]
                 + (reset ? ["-ui-testing-reset-editor-drafts"] : [])
             app.launch()
-            XCTAssertTrue(app.switches["water_tracking_only"].waitForExistence(timeout: 15), app.debugDescription)
+            XCTAssertTrue(mode.waitForExistence(timeout: 15), app.debugDescription)
         }
         start(reset: true)
-        let trackingOnly = app.switches["water_tracking_only"]
-        if trackingOnly.value as? String != "1" {
-            trackingOnly.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        }
-        let trackingEnabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: trackingOnly)
-        XCTAssertEqual(XCTWaiter.wait(for: [trackingEnabled], timeout: 4), .completed, app.debugDescription)
+        trackingOnly.tap()
+        XCTAssertTrue(app.textFields["water_target_amount"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(trackingOnly.isSelected)
         let name = app.textFields["water_container_name"]
         revealForm(name, app: app); name.tap(); name.typeText("QA flask")
         let amount = app.textFields["water_container_amount"]
@@ -54,9 +53,9 @@ final class WaveOneToolsAndPreferencesUITests: XCTestCase {
         revealForm(container, app: app); XCTAssertTrue(container.exists)
         XCTAssertEqual(savedContainers.count, 1)
         app.buttons["settings_water_save"].tap()
-        XCTAssertTrue(app.switches["water_tracking_only"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(mode.waitForNonExistence(timeout: 10))
         app.terminate(); start(reset: false)
-        XCTAssertEqual(app.switches["water_tracking_only"].value as? String, "1")
+        XCTAssertTrue(trackingOnly.isSelected)
         XCTAssertFalse(app.textFields["water_target_amount"].exists)
         revealForm(container, app: app); XCTAssertTrue(container.exists)
         record(app, "Hydration - tracking only and metric container restored")

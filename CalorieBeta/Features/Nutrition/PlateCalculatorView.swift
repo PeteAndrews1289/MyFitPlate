@@ -140,7 +140,7 @@ struct PlateCalculatorView: View {
                     .accessibilityLabel(selectedEquipment == nil ? "Decrease target by 5 pounds" : "Previous attainable load")
 
                     HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-                        TextField(displayUnit == .lb ? "225" : "100", text: $targetWeight)
+                        TextField("Weight", text: $targetWeight)
                             .keyboardType(.decimalPad)
                             .appTextRole(.metric)
                             .monospacedDigit()

@@ -12,9 +12,9 @@ final class WaveTwoPlateCalculatorUITests: XCTestCase {
         XCTAssertLessThan(content.frame.minY, app.frame.height * 0.3, app.debugDescription)
         XCTAssertGreaterThan(content.frame.height, app.frame.height * 0.55, app.debugDescription)
         let input = app.textFields["plate_calculator_input"]
-        replace(input, with: "225", app: app)
+        replace(input, with: "185", app: app)
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), app.debugDescription)
-        XCTAssertEqual(Double(input.value as? String ?? ""), 225)
+        XCTAssertEqual(Double(input.value as? String ?? ""), 185)
         XCTAssertTrue(input.isHittable, app.debugDescription)
         record(app, "Plate calculator - compact header and editable target at largest text")
     }
