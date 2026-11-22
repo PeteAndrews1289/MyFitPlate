@@ -621,6 +621,9 @@ final class MealReviewSaveSessionTests: XCTestCase {
         XCTAssertFalse(recovered.restartEmptyRecipeReview(with: food("replacement")))
         XCTAssertFalse(secondWindow.restartEmptyRecipeReview(with: food("stale-window")))
         XCTAssertFalse(secondWindow.discard())
+        XCTAssertFalse(original.replaceItems([food("stale-edit")]))
+        XCTAssertFalse(original.updateDestination(date: day(), mealName: "Breakfast"))
+        XCTAssertFalse(original.discard())
         let reopened = makeReview([], date: day(), source: "recipe", scope: scope)
         XCTAssertEqual(reopened.items.map(\.id), [portion.id])
         XCTAssertTrue(reopened.restoredReview)
@@ -628,6 +631,37 @@ final class MealReviewSaveSessionTests: XCTestCase {
         XCTAssertFalse(reopened.isSubmitted)
         let storedBeforeLogging = try await reload(originalDate)
         XCTAssertTrue(storedBeforeLogging.meals.flatMap(\.foodItems).isEmpty)
+    }
+
+    func testLateRecipeSaveKeepsTheNextReviewOfTheSameRecipe() async throws {
+        let scope = "recipe-review-next-portion"
+        let first = makeReview([food("first-portion")], meal: "Dinner", source: "recipe", scope: scope)
+        repository.shouldDeferDailyLogUpdateCompletions = true
+        let accepted = expectation(description: "Original dinner save completes")
+        first.save(using: service) { result in
+            XCTAssertTrue(result)
+            accepted.fulfill()
+        }
+        await waitForDeferredWrite()
+
+        // Another window has already cleared that submission and opened tomorrow's portion.
+        let submitted = try XCTUnwrap(store.load(MealReviewCheckpoint.self, userID: owner, scope: scope))
+        XCTAssertTrue(submitted.value.draft.isSubmitted)
+        XCTAssertTrue(try store.removeIfUnchanged(MealReviewCheckpoint.self, userID: owner, scope: scope,
+                                                  fingerprint: PlanFingerprint.make(submitted.value)))
+        let next = makeReview([food("next-portion")], date: day(1), meal: "Lunch", source: "recipe", scope: scope)
+        repository.completeDeferredDailyLogUpdates(success: true)
+        await fulfillment(of: [accepted], timeout: 2)
+
+        let reopened = makeReview([], source: "recipe", scope: scope)
+        XCTAssertTrue(reopened.restoredReview)
+        XCTAssertEqual(reopened.items.map(\.id), next.items.map(\.id))
+        XCTAssertEqual(reopened.date, next.date)
+        XCTAssertEqual(reopened.mealName, "Lunch")
+        let dinner = try await reload(first.date)
+        XCTAssertEqual(dinner.meals.flatMap(\.foodItems).map(\.id), first.checkpoint.draft.entries.map(\.id))
+        let lunch = try await reload(next.date)
+        XCTAssertTrue(lunch.meals.isEmpty)
     }
 
     private func makeReview(

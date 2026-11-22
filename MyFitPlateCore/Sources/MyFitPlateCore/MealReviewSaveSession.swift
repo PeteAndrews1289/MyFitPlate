@@ -31,6 +31,8 @@ public final class MealReviewSaveSession: ObservableObject {
     private let scope: String
     private let confirmingSourceType: FoodSourceType?
     private var unreadableCheckpoint = false
+    private var savedRecipeRevision: Date?
+    private static let changedRecipeMessage = "This review changed. Reopen the recipe to see the latest portion."
 
     public var items: [FoodItem] { checkpoint.draft.entries.map(\.food) }
     public var selectedItemIDs: Set<String> { checkpoint.selectedItemIDs }
@@ -72,6 +74,7 @@ public final class MealReviewSaveSession: ObservableObject {
         do {
             if let saved = try store.load(MealReviewCheckpoint.self, userID: userID, scope: scope) {
                 checkpoint = saved.value
+                if saved.value.source == "recipe" { savedRecipeRevision = saved.updatedAt }
                 restoredReview = true
                 return
             }
@@ -215,18 +218,11 @@ public final class MealReviewSaveSession: ObservableObject {
     public func restartEmptyRecipeReview(with portion: FoodItem) -> Bool {
         guard checkpoint.source == "recipe", !isLocked, !unreadableCheckpoint, checkpoint.draft.entries.isEmpty,
               let userID, DIContainer.shared.authService.currentUserID == userID else { return false }
-        let emptyReview = checkpoint
-        do {
-            guard let saved = try store.load(MealReviewCheckpoint.self, userID: userID, scope: scope),
-                  saved.value.draft.entries.isEmpty,
-                  try PlanFingerprint.make(saved.value) == PlanFingerprint.make(emptyReview) else {
-                errorMessage = "This review changed. Reopen the recipe to see the latest portion."
-                return false
-            }
-        } catch {
-            errorMessage = "Could not read the saved review. Keep it open and try again."
+        guard savedRecipeRevision != nil else {
+            errorMessage = Self.changedRecipeMessage
             return false
         }
+        let emptyReview = checkpoint
         guard replaceItems([portion]) else {
             checkpoint = emptyReview
             return false
@@ -281,16 +277,11 @@ public final class MealReviewSaveSession: ObservableObject {
         guard !isLocked, !unreadableCheckpoint, let userID,
               DIContainer.shared.authService.currentUserID == userID else { return false }
         do {
-            if restoredReview, checkpoint.source == "recipe", checkpoint.draft.entries.isEmpty {
-                let current = try store.removeIfUnchanged(MealReviewCheckpoint.self, userID: userID, scope: scope,
-                                                          fingerprint: PlanFingerprint.make(checkpoint))
-                guard current else {
-                    errorMessage = "This review changed. Reopen the recipe to see the latest portion."
-                    return false
-                }
-            } else {
-                try store.remove(userID: userID, scope: scope)
+            guard try recipeRevisionIsCurrent(userID: userID) else {
+                errorMessage = Self.changedRecipeMessage
+                return false
             }
+            try store.remove(userID: userID, scope: scope)
             isDiscarded = true
             return true
         } catch {
@@ -403,7 +394,9 @@ public final class MealReviewSaveSession: ObservableObject {
                 _ = service.trainingFuelPlanStore?.acceptFoodLink(target: target, foods: foods, userID: userID)
             }
             do {
-                try self.store.remove(userID: userID, scope: self.scope)
+                if try self.recipeRevisionIsCurrent(userID: userID) {
+                    try self.store.remove(userID: userID, scope: self.scope)
+                }
                 self.isAccepted = true
                 completion(true)
             } catch {
@@ -417,16 +410,31 @@ public final class MealReviewSaveSession: ObservableObject {
         guard !unreadableCheckpoint, let userID,
               DIContainer.shared.authService.currentUserID == userID,
               changed.draft.dayContext?.isOwned(by: userID) ?? true else { return false }
-        // Keep the user's latest input in memory even when the local checkpoint cannot
-        // be written. No diary mutation is sent until that same payload is durable.
-        checkpoint = changed
         do {
-            try store.save(changed, userID: userID, scope: scope)
+            guard try recipeRevisionIsCurrent(userID: userID) else {
+                errorMessage = Self.changedRecipeMessage
+                return false
+            }
+            let now = Date()
+            let revision = savedRecipeRevision.map { max(now, $0.addingTimeInterval(0.000_001)) } ?? now
+            try store.save(changed, userID: userID, scope: scope, now: revision)
+            if changed.source == "recipe" { savedRecipeRevision = revision }
+            checkpoint = changed
             errorMessage = nil
             return true
         } catch {
+            // Keep unsaved input available for a retry when the file cannot be read or written.
+            checkpoint = changed
             errorMessage = "Could not keep this review on the device. Keep it open and try again."
             return false
         }
+    }
+
+    // All recipe review writes run synchronously on the main actor. The existing file revision
+    // distinguishes even two portions of the same recipe intended for different diary entries.
+    private func recipeRevisionIsCurrent(userID: String) throws -> Bool {
+        guard checkpoint.source == "recipe" else { return true }
+        let saved = try store.load(MealReviewCheckpoint.self, userID: userID, scope: scope)
+        return saved?.updatedAt == savedRecipeRevision
     }
 }
