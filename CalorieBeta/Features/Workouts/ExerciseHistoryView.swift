@@ -74,13 +74,18 @@ struct ExerciseHistoryView: View {
                         } label: {
                             Text("Common corrections").accessibilityIdentifier("exercise_technique_corrections")
                         }
-                        DisclosureGroup {
-                            Text("These cues are available offline. The reference opens online.")
-                                .appTextRole(.caption).foregroundStyle(.secondary)
-                            Link(guide.reference.title, destination: guide.reference.url).frame(minHeight: 44)
-                        } label: {
-                            Text("Technique reference").accessibilityIdentifier("exercise_technique_reference")
+                        Link(destination: guide.reference.url) {
+                            HStack {
+                                Text(guide.reference.title).appTextRole(.secondary)
+                                Spacer(minLength: AppSpacing.compact)
+                                Image(systemName: "arrow.up.right.square").accessibilityHidden(true)
+                            }.frame(minHeight: 44)
                         }
+                        .accessibilityLabel("Technique reference, \(guide.reference.title)")
+                        .accessibilityHint("Opens the online reference.")
+                        .accessibilityIdentifier("exercise_technique_reference")
+                    } footer: {
+                        Text("The technique cues and corrections are available offline.")
                     }
                 }
                 if let media, let mediaURL {

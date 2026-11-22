@@ -314,8 +314,16 @@ final class WaveFourDailyTasksUITests: XCTestCase {
         XCTAssertTrue(execution.exists)
         let corrections = any(app, "exercise_technique_corrections")
         reveal(corrections, app: app); corrections.tap()
+        let correction = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "One weight racing ahead")).firstMatch
+        for _ in 0..<5 where !correction.exists { app.swipeUp() }
+        XCTAssertTrue(correction.waitForExistence(timeout: 5))
         let reference = any(app, "exercise_technique_reference")
-        reveal(reference, app: app)
+        for _ in 0..<8 {
+            if reference.exists && reference.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(reference.exists && reference.isHittable)
+        XCTAssertTrue(reference.label.contains("ACE"), "The online source should be identified before opening it.")
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Technique - offline steps and corrections"
         screenshot.lifetime = .keepAlways; add(screenshot)
