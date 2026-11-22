@@ -19,7 +19,7 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
         replace(app.textFields["equipment_name"], with: "Travel dumbbells", app: app)
         finishKeyboard(app)
         selectWeightMeaning("perHand", app: app)
-        replace(app.textFields["equipment_weights"], with: "10 15 20 25 30", app: app)
+        replace(app.textFields["equipment_weights"], with: "10 15 20 25 30", app: app, using: app.buttons["equipment_clear_weights"])
         finishKeyboard(app)
         open(app.buttons["equipment_save"], app: app)
         XCTAssertTrue(app.buttons["equipment_save"].waitForNonExistence(timeout: 5))
@@ -151,9 +151,9 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
     @MainActor private func open(_ element: XCUIElement, app: XCUIApplication) {
         reveal(element, app: app); element.tap()
     }
-    @MainActor private func replace(_ field: XCUIElement, with text: String, app: XCUIApplication) {
-        reveal(field, app: app)
-        field.replaceContents(with: text, in: app)
+    @MainActor private func replace(_ field: XCUIElement, with text: String, app: XCUIApplication, using clearButton: XCUIElement? = nil) {
+        reveal(clearButton ?? field, app: app)
+        field.replaceContents(with: text, in: app, using: clearButton)
     }
     @MainActor private func finishKeyboard(_ app: XCUIApplication) {
         for identifier in ["gym_profile_keyboard_done", "equipment_finish_edit", "equipment_keyboard_done", "workout_input_done"] {

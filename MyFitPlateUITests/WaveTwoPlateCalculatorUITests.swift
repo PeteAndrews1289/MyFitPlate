@@ -34,7 +34,7 @@ final class WaveTwoPlateCalculatorUITests: XCTestCase {
         let units = app.segmentedControls["equipment_units"]
         open(units.buttons["kg"], app: app)
         replace(app.textFields["equipment_bar_weight"], with: "20", app: app)
-        replace(app.textFields["equipment_plates"], with: "20 10 5 2.5", app: app)
+        replace(app.textFields["equipment_plates"], with: "20 10 5 2.5", app: app, using: app.buttons["equipment_clear_plates"])
         open(app.buttons["equipment_save"], app: app)
         XCTAssertTrue(app.buttons["equipment_save"].waitForNonExistence(timeout: 5))
         open(app.buttons["gym_profile_save"], app: app)
@@ -94,9 +94,9 @@ final class WaveTwoPlateCalculatorUITests: XCTestCase {
     @MainActor private func open(_ target: XCUIElement, app: XCUIApplication) {
         reveal(target, app: app); target.tap()
     }
-    @MainActor private func replace(_ field: XCUIElement, with text: String, app: XCUIApplication) {
-        reveal(field, app: app)
-        field.replaceContents(with: text, in: app)
+    @MainActor private func replace(_ field: XCUIElement, with text: String, app: XCUIApplication, using clearButton: XCUIElement? = nil) {
+        reveal(clearButton ?? field, app: app)
+        field.replaceContents(with: text, in: app, using: clearButton)
         for id in ["plate_calculator_keyboard_done", "gym_profile_keyboard_done", "equipment_finish_edit", "equipment_keyboard_done"] {
             let done = app.buttons[id]
             if done.exists && done.isHittable { done.tap(); break }

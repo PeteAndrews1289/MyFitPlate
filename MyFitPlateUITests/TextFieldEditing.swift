@@ -1,20 +1,27 @@
 import XCTest
 
 extension XCUIElement {
-    /// Selects the contents through the iPhone editing menu even when the simulator
-    /// has no connected hardware keyboard to deliver Command-A.
+    /// Replaces the whole field using its Clear control or the iPhone editing menu.
     @MainActor
-    func replaceContents(with text: String, in app: XCUIApplication,
+    func replaceContents(with text: String, in app: XCUIApplication, using clearButton: XCUIElement? = nil,
                          file: StaticString = #filePath, line: UInt = #line) {
-        tap()
-        if let current = value as? String, !current.isEmpty {
-            press(forDuration: 1)
-            let selectAll = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "label IN %@", ["Select All", "Select all"])).firstMatch
-            if selectAll.waitForExistence(timeout: 2) {
-                selectAll.tap()
-            } else {
-                tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        if let clearButton {
+            clearButton.tap()
+            guard clearButton.wait(for: \.isEnabled, toEqual: false, timeout: 5) else {
+                XCTFail("The input should be cleared before entering its replacement.", file: file, line: line)
+                return
+            }
+        } else {
+            tap()
+            if let current = value as? String, !current.isEmpty {
+                press(forDuration: 1)
+                let selectAll = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label IN %@", ["Select All", "Select all"])).firstMatch
+                if selectAll.waitForExistence(timeout: 2) {
+                    selectAll.tap()
+                } else {
+                    tap(withNumberOfTaps: 3, numberOfTouches: 1)
+                }
             }
         }
         typeText(text)
