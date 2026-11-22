@@ -98,6 +98,55 @@ final class GroceryWorkflowDepthTests: XCTestCase {
         XCTAssertNil(changed.quantityOverride); XCTAssertFalse(changed.skippedForPlan == true); XCTAssertEqual(changed.quantity, 400)
     }
 
+    func testReturningToAPurchasedWeekRestoresItsReceiptExactlyOnce() throws {
+        var bought = item("Dry rice", quantity: 400)
+        bought.isCompleted = true
+        bought.purchasedQuantity = 400
+        bought.transferredToPantryQuantity = 150
+        let manual = GroceryListItem(name: "Tea", quantity: 1, unit: "item", source: "manual")
+        var otherWeek = item("Dry rice", quantity: 200)
+        otherWeek.sourcePlanStart = Calendar.current.date(byAdding: .day, value: 7, to: try XCTUnwrap(bought.sourcePlanStart))
+        let away = GroceryListBuilder.mergeGroceryItems(generatedItems: [otherWeek], existingItems: [bought, manual])
+        XCTAssertNil(away.first { $0.source == "mealPlan" }?.purchasedQuantity)
+        XCTAssertTrue(away.contains { $0.id == bought.id && $0.source == "retainedPurchase" })
+
+        let originalNeed = item("Dry rice", quantity: 400)
+        let restored = GroceryListBuilder.mergeGroceryItems(generatedItems: [originalNeed], existingItems: away)
+        XCTAssertEqual(restored, [bought, manual])
+        XCTAssertEqual(GroceryListBuilder.mergeGroceryItems(generatedItems: [originalNeed], existingItems: restored), restored)
+        // Earlier versions could already have saved an empty regenerated row beside the receipt.
+        XCTAssertEqual(GroceryListBuilder.mergeGroceryItems(generatedItems: [originalNeed], existingItems: [originalNeed] + away), restored)
+    }
+
+    func testUnconvertedPurchaseSurvivesRemovingAndRestoringItsPlannedNeed() {
+        let original = item()
+        var reviewed = original
+        reviewed.unconvertedPurchases = [.init(quantity: 2, unit: "bags", transferredToPantryQuantity: 1)]
+        let removed = GroceryListBuilder.mergeGroceryItems(generatedItems: [], existingItems: [reviewed])
+        XCTAssertEqual(removed.first?.source, "retainedPurchase")
+        XCTAssertEqual(removed.first?.unconvertedPurchases, reviewed.unconvertedPurchases)
+        XCTAssertEqual(GroceryListBuilder.mergeGroceryItems(generatedItems: [original], existingItems: removed), [reviewed])
+    }
+
+    func testSeparatePurchasesAndLegacyUndatedReceiptsKeepTheirOwnAmounts() {
+        let need = item()
+        var active = item()
+        active.purchasedQuantity = 50
+        var retained = item()
+        retained.source = "retainedPurchase"
+        retained.purchasedQuantity = 100
+        var undated = retained
+        undated.id = UUID()
+        undated.sourcePlanStart = nil
+        let rows = GroceryListBuilder.mergeGroceryItems(generatedItems: [need], existingItems: [undated, retained, active])
+        XCTAssertEqual(rows.map(\.id), [active.id, undated.id, retained.id])
+        XCTAssertEqual(rows.map(\.purchasedQuantity), [50, 100, 100])
+        XCTAssertFalse(rows[0].isCompleted)
+        let legacyOnly = GroceryListBuilder.mergeGroceryItems(generatedItems: [need], existingItems: [undated])
+        XCTAssertNil(legacyOnly[0].purchasedQuantity)
+        XCTAssertEqual(legacyOnly.last, undated)
+    }
+
     func testStructuredExportPreservesUnknownAmountsAndRedactsCodesByDefault() throws {
         var unknown = item(); unknown.quantityUnknown = true; unknown.barcode = "123456789012"
         let snapshot = GroceryExportRules.document(items: [unknown], stock: [], starting: Date(), pendingChanges: true, stockCoverageAvailable: false)

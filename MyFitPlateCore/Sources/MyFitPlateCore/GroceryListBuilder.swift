@@ -138,29 +138,22 @@ public enum GroceryListBuilder {
     }
 
     public static func mergeGroceryItems(generatedItems: [GroceryListItem], existingItems: [GroceryListItem]) -> [GroceryListItem] {
-        let manualItems = existingItems.filter { item in
-            isManualGroceryItem(item)
+        let plannedByKey = Dictionary(grouping: existingItems.filter {
+            $0.source == "mealPlan" || $0.source == "retainedPurchase"
+        }) { item in
+            item.requirementKey ?? requirementIdentity(name: item.name, unit: item.unit)
         }
 
         let mergedGeneratedItems = generatedItems.map { generatedItem -> GroceryListItem in
             var item = generatedItem
-            if let existing = existingItems.first(where: {
-                $0.source == "mealPlan" && ($0.requirementKey ?? requirementIdentity(name: $0.name, unit: $0.unit))
-                    == (generatedItem.requirementKey ?? requirementIdentity(name: generatedItem.name, unit: generatedItem.unit))
-            }) {
-                let sameWeek: Bool
-                if let oldStart = existing.sourcePlanStart, let newStart = generatedItem.sourcePlanStart {
-                    sameWeek = Calendar.current.isDate(oldStart, inSameDayAs: newStart)
-                } else {
-                    sameWeek = existing.sourcePlanStart == nil && generatedItem.sourcePlanStart == nil
-                }
+            let key = item.requirementKey ?? requirementIdentity(name: item.name, unit: item.unit)
+            if let existing = priorItem(for: item, candidates: plannedByKey[key] ?? []) {
                 let oldAmount = applyUnitSystem(existing, system: .metric)
                 let newAmount = applyUnitSystem(generatedItem, system: .metric)
-                // A larger portion or a different week needs a fresh shopping check.
-                item.isCompleted = existing.isCompleted && sameWeek
+                item.isCompleted = existing.isCompleted
                     && oldAmount.unit == newAmount.unit && oldAmount.quantity.isFinite && newAmount.quantity.isFinite
                     && oldAmount.quantity + 0.0001 >= newAmount.quantity
-                if sameWeek, existing.source == generatedItem.source {
+                if generatedItem.source == "mealPlan" {
                     item.id = existing.id
                     item.revisionID = existing.revisionID
                     // Display preferences do not rewrite the accepted measurement basis.
@@ -193,7 +186,9 @@ public enum GroceryListBuilder {
                         return false
                     }
                     if item.unconvertedPurchases?.isEmpty == true { item.unconvertedPurchases = nil }
-                    item.skippedForPlan = item.quantityOverride?.requiresReview != true && existing.skippedForPlan == true && oldAmount.quantity + 0.0001 >= newAmount.quantity
+                    item.skippedForPlan = existing.skippedForPlan.map { skipped in
+                        skipped && item.quantityOverride?.requiresReview != true && oldAmount.quantity + 0.0001 >= newAmount.quantity
+                    }
                     if let bought = item.purchasedQuantity, item.quantityUnknown != true { item.isCompleted = bought + 0.0001 >= item.quantity }
                 }
             }
@@ -201,11 +196,33 @@ public enum GroceryListBuilder {
         }
 
         let currentIDs = Set(mergedGeneratedItems.map(\.id))
+        let manualItems = existingItems.filter { isManualGroceryItem($0) && !currentIDs.contains($0.id) }
         let retainedPurchases = existingItems.filter {
-            $0.source == "mealPlan" && !currentIDs.contains($0.id)
-                && ($0.isCompleted || ($0.purchasedQuantity ?? 0) > 0 || ($0.transferredToPantryQuantity ?? 0) > 0)
+            $0.source == "mealPlan" && !currentIDs.contains($0.id) && hasPurchase($0)
         }.map { old -> GroceryListItem in var retained = old; retained.source = "retainedPurchase"; return retained }
         return mergedGeneratedItems + manualItems + retainedPurchases
+    }
+
+    private static func priorItem(for need: GroceryListItem, candidates: [GroceryListItem]) -> GroceryListItem? {
+        let period = candidates.filter { item in
+            switch (item.sourcePlanStart, need.sourcePlanStart) {
+            case let (old?, new?): Calendar.current.isDate(old, inSameDayAs: new)
+            case (nil, nil): item.source == "mealPlan"
+            default: false
+            }
+        }
+        let active = period.first { $0.source == "mealPlan" }
+        if let active, hasPurchase(active) || active.quantityOverride != nil || active.skippedForPlan == true
+            || active.productSnapshot != nil || active.barcode != nil || (need.quantityUnknown == true && active.quantityUnknown == false) {
+            return active
+        }
+        // Earlier clients could leave an untouched regenerated row beside the original receipt.
+        return period.first { $0.source == "retainedPurchase" } ?? active
+    }
+
+    private static func hasPurchase(_ item: GroceryListItem) -> Bool {
+        item.isCompleted || (item.purchasedQuantity ?? 0) > 0 || (item.transferredToPantryQuantity ?? 0) > 0
+            || item.unconvertedPurchases?.isEmpty == false
     }
 
     static func requirementIdentity(name: String, unit: String) -> String {
