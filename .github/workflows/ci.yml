@@ -226,6 +226,19 @@ jobs:
             UIRetryResults.xcresult
           if-no-files-found: ignore
 
+  ui-status:
+    name: UI smoke tests
+    needs: ui-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report all simulator shards to branch protection
+        env:
+          UI_RESULT: ${{ needs.ui-tests.result }}
+        run: |
+          echo "Simulator UI tests finished with $UI_RESULT."
+          test "$UI_RESULT" = success
+
   functions:
     name: Firebase Functions
     runs-on: ubuntu-latest
