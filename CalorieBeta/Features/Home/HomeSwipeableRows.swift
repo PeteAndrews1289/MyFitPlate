@@ -166,11 +166,9 @@ struct SwipeableFoodItemView: View {
 
             VStack(alignment: .leading, spacing: AppSpacing.compact) {
                 HStack(alignment: .top, spacing: AppSpacing.row) {
-                    Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name))
-                        .font(.system(size: 26))
+                    FoodGlyph(initialFoodItem.name, pointSize: 26)
                         .frame(width: 40, height: 40)
                         .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-                        .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(initialFoodItem.name)

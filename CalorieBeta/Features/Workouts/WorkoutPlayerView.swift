@@ -76,6 +76,7 @@ struct WorkoutPlayerView: View {
     @State private var setInputCommand: StrengthSetCommand?
     @State private var selectedSetID: String?
     @State private var scrollTarget: String?
+    @State private var visibleExerciseID: String?
     @State private var currentSetScrollRequest = UUID()
     @State private var lastCompletedSetID: String?
     @State private var showingAddExercise = false
@@ -615,10 +616,13 @@ struct WorkoutPlayerView: View {
                         }.frame(minHeight: 44)
                     }.appSurface(.quiet)
                 }
-                ForEach(Array(routine.exercises.enumerated()), id: \.element.id) { index, exercise in
-                    exerciseCard(at: index, exercise: exercise)
-                        .id("workout_exercise_" + exercise.id)
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(Array(routine.exercises.enumerated()), id: \.element.id) { index, exercise in
+                        exerciseCard(at: index, exercise: exercise)
+                            .id(exercise.id)
+                    }
                 }
+                .scrollTargetLayout()
                 Button {
                     showingAddExercise = true
                 } label: {
@@ -637,6 +641,7 @@ struct WorkoutPlayerView: View {
             }
             .padding()
         }
+        .scrollPosition(id: $visibleExerciseID, anchor: .top)
     }
 
     private func exerciseCard(at index: Int, exercise: RoutineExercise) -> some View {
@@ -750,11 +755,12 @@ struct WorkoutPlayerView: View {
             exercises: routine.exercises,
             parkedExerciseIDs: draft.parkedExerciseIDs ?? [],
             onBrowseExercise: { exerciseID in
-                let anchor = "workout_exercise_" + exerciseID
-                if reduceMotion {
-                    proxy.scrollTo(anchor, anchor: .top)
-                } else {
-                    withAnimation(AppMotion.standard) { proxy.scrollTo(anchor, anchor: .top) }
+                withAnimation(reduceMotion ? nil : AppMotion.standard) {
+                    if visibleExerciseID == exerciseID {
+                        proxy.scrollTo(exerciseID, anchor: .top)
+                    } else {
+                        visibleExerciseID = exerciseID
+                    }
                 }
             }
         )
