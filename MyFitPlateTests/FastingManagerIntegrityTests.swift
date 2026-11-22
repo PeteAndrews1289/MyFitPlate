@@ -18,6 +18,18 @@ final class FastingManagerIntegrityTests: XCTestCase {
         try? FileManager.default.removeItem(at: directory)
     }
 
+    func testLockScreenActionsAreRegisteredInTheContainingApp() throws {
+        // iOS dispatches each LiveActivityIntent to the containing app when its button is tapped.
+        let metadataURL = try XCTUnwrap(Bundle.main.url(forResource: "extract", withExtension: "actionsdata",
+                                                       subdirectory: "Metadata.appintents"))
+        let data = try Data(contentsOf: metadataURL)
+        let metadata = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let actions = try XCTUnwrap(metadata["actions"] as? [String: Any])
+        for identifier in ["EndFastIntent", "EndRestIntent"] {
+            XCTAssertNotNil(actions[identifier], "The containing app must register \(identifier).")
+        }
+    }
+
     func testTimerStartsAndRecoversWhenLockScreenProjectionIsDisabled() throws {
         let store = FastingSessionStore(directory: directory)
         let first = FastingManager(store: store, projectsActivities: false)

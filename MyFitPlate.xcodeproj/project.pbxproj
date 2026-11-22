@@ -57,6 +57,7 @@
 		3EC693D82CB83700002222C6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D72CB83700002222C6 /* FirebaseFirestore */; };
 		3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D92CB83700002222C6 /* FirebaseAppCheck */; };
 		3F26D38CF0C44661A44499E9 /* EndRestIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E781BB711BA40CEB6E7F89A /* EndRestIntent.swift */; };
+		7BC353804B8E4201AF29B161 /* EndFastIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCD16A47B69428DBB9F72E7 /* EndFastIntent.swift */; };
 		420CE1324DA5DF4A132DD0B0 /* UsefulMealQuestionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10A15D4158AE76C0E6F7530 /* UsefulMealQuestionCard.swift */; };
 		42DEE0ACB28F52825B84E044 /* ExerciseCardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC931BD6D999867A76E46B9 /* ExerciseCardViews.swift */; };
 		48BFE1337E2DCE2DF13B4861 /* WorkoutCompleteAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 517B4E7447CE20FDB3548868 /* WorkoutCompleteAnalyticsView.swift */; };
@@ -371,6 +372,7 @@
 		2AC096F3FB820A7401466BB4 /* WellnessScore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WellnessScore.swift; sourceTree = "<group>"; };
 		2E6023B20616D001326784A2 /* AIWorkoutGeneratorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIWorkoutGeneratorView.swift; sourceTree = "<group>"; };
 		2E781BB711BA40CEB6E7F89A /* EndRestIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EndRestIntent.swift; path = LiveActivity/EndRestIntent.swift; sourceTree = "<group>"; };
+		2BCD16A47B69428DBB9F72E7 /* EndFastIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EndFastIntent.swift; path = LiveActivity/EndFastIntent.swift; sourceTree = "<group>"; };
 		30EFD513D7B99942E92A800A /* WorkoutAnalyticsCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutAnalyticsCardView.swift; sourceTree = "<group>"; };
 		312D47B8BCD9351770BEB9B6 /* CalorieWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CalorieWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		341DD372936EF5CFC7F0F944 /* SettingsAppearanceSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsAppearanceSection.swift; sourceTree = "<group>"; };
@@ -801,6 +803,7 @@
 			isa = PBXGroup;
 			children = (
 				2E781BB711BA40CEB6E7F89A /* EndRestIntent.swift */,
+				2BCD16A47B69428DBB9F72E7 /* EndFastIntent.swift */,
 				4BCF27142FE6FFE20054378E /* MyFitPlate.xctestplan */,
 				4B71DBA02E0C4B36003A0078 /* secrets.xcconfig */,
 				4B71DB9D2E0B72BD003A0078 /* CalorieWidgetExtension.entitlements */,
@@ -1534,6 +1537,7 @@
 				BE2026110300000000000200 /* WorkoutSessionAdaptationView.swift in Sources */,
 				BE2026110300000000000503 /* WorkoutMigrationHistoryView.swift in Sources */,
 				3F26D38CF0C44661A44499E9 /* EndRestIntent.swift in Sources */,
+				7BC353804B8E4201AF29B161 /* EndFastIntent.swift in Sources */,
 				BE2026110300000000000106 /* WorkoutEvidenceReportView.swift in Sources */,
 				BE2026110300000000000105 /* TrainingCalendarAgendaView.swift in Sources */,
 				BE2026110300000000000104 /* DailyNutrientDashboardView.swift in Sources */,
