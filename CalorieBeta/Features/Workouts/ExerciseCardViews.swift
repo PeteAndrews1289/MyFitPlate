@@ -156,10 +156,18 @@ struct ExerciseCardView: View {
                 FlexibilityExerciseView(exercise: $exercise, onCompletedSet: onCompletedSet)
             }
 
-            Button {
-                exercise.sets.append(ExerciseSet())
-            } label: {
-                Label("Add Set", systemImage: "plus")
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(spacing: AppSpacing.compact))
+             : AnyLayout(HStackLayout(spacing: AppSpacing.compact))) {
+                if exercise.type == .strength {
+                    Button("Warm-up ramp", systemImage: "flame") { showingWarmupRamp = true }
+                        .accessibilityIdentifier("warmup_review_\(exercise.id)")
+                }
+                Button {
+                    exercise.sets.append(ExerciseSet())
+                } label: {
+                    Label("Add Set", systemImage: "plus")
+                }
             }
             .buttonStyle(AppActionButtonStyle(.secondary))
         }
@@ -214,10 +222,6 @@ struct ExerciseCardView: View {
                     Button("Do Later", systemImage: "clock.arrow.circlepath") { onChangeParked(true) }
                 }
                 Button("History & technique", action: onViewHistory)
-                if exercise.type == .strength {
-                    Button("Review warm-up ramp") { showingWarmupRamp = true }
-                        .accessibilityIdentifier("warmup_review_\(exercise.id)")
-                }
                 Button("Add empty warm-up") {
                     let newWarmupSet = ExerciseSet(isWarmup: true)
                     exercise.sets.insert(newWarmupSet, at: 0)

@@ -143,9 +143,7 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
         XCTAssertTrue(choice.wait(for: \.isSelected, toEqual: true, timeout: 5), "The chosen weight convention should be selected")
     }
     @MainActor private func openWarmup(_ app: XCUIApplication, exerciseID: String) {
-        open(app.buttons["exercise_options_" + exerciseID], app: app)
-        let review = app.buttons["warmup_review_" + exerciseID]
-        XCTAssertTrue(review.waitForExistence(timeout: 5)); review.tap()
+        open(app.buttons["warmup_review_" + exerciseID], app: app)
         XCTAssertTrue(app.buttons["warmup_apply"].waitForExistence(timeout: 5))
     }
     @MainActor private func open(_ element: XCUIElement, app: XCUIApplication) {
