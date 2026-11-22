@@ -18,7 +18,7 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
         open(app.buttons["gym_profile_add_implement"], app: app)
         replace(app.textFields["equipment_name"], with: "Travel dumbbells", app: app)
         finishKeyboard(app)
-        selectWeightMeaning("Per hand", app: app)
+        selectWeightMeaning("perHand", app: app)
         replace(app.textFields["equipment_weights"], with: "10 15 20 25 30", app: app)
         finishKeyboard(app)
         open(app.buttons["equipment_save"], app: app)
@@ -68,7 +68,7 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
         let originalID = originalCompletion.identifier
         open(equipment, app: app)
         open(app.buttons["equipment_preset_barbell"], app: app)
-        selectWeightMeaning("Total load", app: app)
+        selectWeightMeaning("total", app: app)
         open(app.buttons["equipment_save"], app: app)
         XCTAssertTrue(app.buttons["equipment_save"].waitForNonExistence(timeout: 5))
         let originalRow = any(app, "strength_set_row_" + originalID.replacingOccurrences(of: "set_complete_", with: ""))
@@ -132,16 +132,11 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
         XCTAssertTrue(root.waitForExistence(timeout: 10))
         return app
     }
-    @MainActor private func selectWeightMeaning(_ title: String, app: XCUIApplication) {
-        let picker = app.buttons["equipment_meaning"]
-        reveal(picker, app: app)
-        if (picker.value as? String) == title { return }
-        picker.tap()
-        let choice = app.buttons[title]
-        XCTAssertTrue(choice.waitForExistence(timeout: 5), "Weight convention choices did not open\n\(app.debugDescription)")
-        choice.tap()
-        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", title), object: picker)
-        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
+    @MainActor private func selectWeightMeaning(_ identifier: String, app: XCUIApplication) {
+        let choice = app.buttons["equipment_meaning_" + identifier]
+        reveal(choice, app: app)
+        if !choice.isSelected { choice.tap() }
+        XCTAssertTrue(choice.wait(for: \.isSelected, toEqual: true, timeout: 5), "The chosen weight convention should be selected")
     }
     @MainActor private func openWarmup(_ app: XCUIApplication, exerciseID: String) {
         open(app.buttons["exercise_options_" + exerciseID], app: app)

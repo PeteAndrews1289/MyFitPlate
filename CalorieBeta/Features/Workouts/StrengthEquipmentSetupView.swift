@@ -101,7 +101,7 @@ struct StrengthEquipmentSetupView: View {
                         Text("kg").tag(StrengthEquipment.Unit.kg)
                     }
                     .pickerStyle(.segmented).accessibilityIdentifier("equipment_units")
-                    weightMeaningMenu
+                    weightMeaningChoices
                     Text(meaningExplanation).appTextRole(.secondary).foregroundStyle(.secondary)
                 } header: {
                     Text("How you record weight")
@@ -195,27 +195,29 @@ struct StrengthEquipmentSetupView: View {
         }
     }
 
-    private var weightMeaningMenu: some View {
-        Menu {
-            Picker("Weight means", selection: $meaning) {
+    private var weightMeaningChoices: some View {
+        let columnSize: GridItem.Size = dynamicTypeSize.isAccessibilitySize ? .flexible() : .adaptive(minimum: 125)
+        return VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text("Weight means").appTextRole(.control)
+            LazyVGrid(columns: [GridItem(columnSize, spacing: AppSpacing.compact)], spacing: AppSpacing.compact) {
                 ForEach(StrengthEquipment.LoadingMeaning.allCases) { option in
-                    Text(option.title).tag(option)
+                    Button {
+                        focusedField = nil
+                        meaning = option
+                    } label: {
+                        switch option {
+                        case .asLogged: Text("As logged")
+                        case .assistance: Text("Assistance")
+                        default: Text(option.title)
+                        }
+                    }
+                    .buttonStyle(AppActionButtonStyle(meaning == option ? .primary : .secondary))
+                    .accessibilityLabel(option.title)
+                    .accessibilityAddTraits(meaning == option ? .isSelected : [])
+                    .accessibilityIdentifier("equipment_meaning_\(option.rawValue)")
                 }
             }
-            .pickerStyle(.inline)
-        } label: {
-            HStack {
-                Text("Weight means")
-                Spacer()
-                Text(meaning.title).foregroundStyle(.secondary)
-                Image(systemName: "chevron.up.chevron.down").appTextRole(.caption).foregroundStyle(.secondary)
-            }
-            .frame(minHeight: 44).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Weight means")
-        .accessibilityValue(meaning.title)
-        .accessibilityIdentifier("equipment_meaning")
     }
 
     private var presets: some View {
