@@ -4,7 +4,6 @@ import MyFitPlateCore
 struct RecipeLoggingView: View {
     let recipe: Recipe
     @Binding var dailyLog: DailyLog?
-    let date: Date
     let onLogUpdated: () -> Void
 
     @EnvironmentObject private var dailyLogService: DailyLogService
@@ -28,12 +27,11 @@ struct RecipeLoggingView: View {
          initialSelection: RecipePortionSelection? = nil, onLogUpdated: @escaping () -> Void) {
         self.recipe = recipe
         _dailyLog = dailyLog
-        self.date = date
         self.onLogUpdated = onLogUpdated
         _ingredientSnapshot = State(initialValue: RecipeIngredientEditorSnapshot(recipe.resolvedIngredientFoods))
         let selection = initialSelection ?? RecipePortionRules.defaultSelection(for: recipe)
         _portionUnit = State(initialValue: selection.unit)
-        _portionAmountText = State(initialValue: selection.amount.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.fractionLength(0...3))))
+        _portionAmountText = State(initialValue: Self.amountText(for: selection))
         let initialFood = (try? RecipePortionRules.foodItem(for: recipe, selection: selection)) ?? recipe.foodItemForLogging()
         let review = MealReviewSaveSession(
             items: [initialFood], userID: DIContainer.shared.authService.currentUserID,
@@ -46,6 +44,9 @@ struct RecipeLoggingView: View {
 
     private var hasFrozenReview: Bool { saveSession.isLocked || saveSession.restoredReview }
     private var frozenFood: FoodItem? { hasFrozenReview ? saveSession.items.first : nil }
+    private static func amountText(for selection: RecipePortionSelection) -> String {
+        selection.amount.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.fractionLength(0...3)))
+    }
     private var portionSelection: RecipePortionSelection {
         RecipePortionSelection(unit: portionUnit, amount: Double(portionAmountText.replacingOccurrences(of: ",", with: ".")) ?? .nan)
     }
@@ -70,9 +71,12 @@ struct RecipeLoggingView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                    RecipeLoggingIdentity(name: hasFrozenReview ? frozenFood?.name ?? "Saved recipe review" : recipe.name,
-                                          isSavedReview: hasFrozenReview)
-                    if hasFrozenReview {
+                    RecipeLoggingIdentity(name: frozenFood?.name ?? recipe.name, isSavedReview: frozenFood != nil)
+                    if saveSession.restoredReview && saveSession.items.isEmpty {
+                        Text("This unfinished review has no portion to log.")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                        restoreSavedPortion
+                    } else if hasFrozenReview {
                         Text("Saved nutrition for the reviewed amount")
                             .appTextRole(.secondary).foregroundStyle(.secondary)
                     } else {
@@ -82,7 +86,7 @@ struct RecipeLoggingView: View {
                     Text("For \(saveSession.date.formatted(date: .abbreviated, time: .omitted)) · \(saveSession.mealName)")
                         .appTextRole(.secondary)
                         .accessibilityIdentifier("recipe_log_destination")
-                    if saveSession.restoredReview || saveSession.isSubmitted {
+                    if (saveSession.restoredReview || saveSession.isSubmitted) && !saveSession.items.isEmpty {
                         Text("Your reviewed portion and destination are kept on this device. Finish logging to save this meal once.")
                             .appTextRole(.secondary).foregroundStyle(.secondary)
                     }
@@ -99,7 +103,7 @@ struct RecipeLoggingView: View {
                     if let variationError { Text(variationError).appTextRole(.secondary).foregroundStyle(AppPalette.caution) }
                     mealSection.disabled(hasFrozenReview)
                     if hasFrozenReview {
-                        frozenPortionSection
+                        if frozenFood != nil { frozenPortionSection }
                     } else {
                         RecipePortionPicker(recipe: recipe, unit: $portionUnit, amountText: $portionAmountText,
                                             identifier: "recipe_log_portion")
@@ -144,7 +148,7 @@ struct RecipeLoggingView: View {
             .interactiveDismissDisabled(saveSession.isSaving)
             .sheet(item: $variationDraft) { draft in CreateRecipeView(initialDraft: draft) }
             .onChange(of: selectedMeal) { _, meal in
-                if !saveSession.updateDestination(date: date, mealName: meal) { selectedMeal = saveSession.mealName }
+                if !saveSession.updateDestination(date: saveSession.date, mealName: meal) { selectedMeal = saveSession.mealName }
             }
             .onChange(of: portionAmountText) { _, _ in refreshReviewFood() }
             .onChange(of: portionUnit) { _, _ in refreshReviewFood() }
@@ -181,9 +185,10 @@ struct RecipeLoggingView: View {
                 ? "These are whole-recipe amounts. Logged nutrition divides them by the recipe yield, then uses your selected servings."
                 : "Adjust the original saved ingredient amounts for this log only. The amount above applies afterward.")
             if ingredients.isEmpty {
-                Text("All ingredients were removed. Reopen the recipe to restore its saved ingredients.")
+                Text("All ingredients were removed.")
                     .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
                     .accessibilityIdentifier("recipe_log_empty_ingredients")
+                restoreSavedPortion
             } else {
                 ForEach(ingredients) { ingredient in
                     RecipeLoggingIngredientRow(ingredient: ingredient, onQuantityChange: { quantity in
@@ -207,6 +212,28 @@ struct RecipeLoggingView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("recipe_log_ingredients")
+    }
+
+    @ViewBuilder
+    private var restoreSavedPortion: some View {
+        let selection = RecipePortionRules.defaultSelection(for: recipe)
+        if let portion = try? RecipePortionRules.foodItem(for: recipe, selection: selection) {
+            Button("Restore saved recipe portion") {
+                guard saveSession.restartEmptyRecipeReview(with: portion) else { return }
+                ingredients = recipe.resolvedIngredientFoods
+                ingredientsChanged = false
+                invalidIngredientIDs.removeAll()
+                portionUnit = selection.unit
+                portionAmountText = Self.amountText(for: selection)
+                variationError = nil
+            }
+            .buttonStyle(AppActionButtonStyle(.secondary))
+            .disabled(saveSession.isLocked)
+            .accessibilityIdentifier("recipe_log_restore_portion")
+        } else {
+            Text("Open the recipe editor to review its yield and nutrition.")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+        }
     }
 
     @discardableResult
@@ -236,7 +263,7 @@ struct RecipeLoggingView: View {
         guard canLogRecipe, !saveSession.isSaving, !saveSession.isAccepted else { return }
         if !saveSession.isSubmitted && !saveSession.restoredReview {
             guard refreshReviewFood() else { return }
-            guard saveSession.updateDestination(date: date, mealName: selectedMeal) else { return }
+            guard saveSession.updateDestination(date: saveSession.date, mealName: selectedMeal) else { return }
         }
         saveSession.save(using: dailyLogService) { accepted in
             guard accepted else { return }

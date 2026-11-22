@@ -600,6 +600,33 @@ final class MealReviewSaveSessionTests: XCTestCase {
         XCTAssertNil(try store.load(MealReviewCheckpoint.self, userID: owner, scope: "recipe-review-recipe-b"))
     }
 
+    func testRestartingAnEmptyRecipeReviewPreservesItsDestinationAndRequiresItsOwner() async throws {
+        let scope = "recipe-review-empty"
+        let originalDate = day(-2)
+        let original = makeReview([food("original")], date: originalDate, meal: "Dinner", source: "recipe", scope: scope)
+        XCTAssertTrue(original.replaceItems([]))
+        let recovered = makeReview([food("fresh")], date: day(), meal: "Lunch", source: "recipe", scope: scope)
+        XCTAssertTrue(recovered.restoredReview)
+        XCTAssertTrue(recovered.items.isEmpty)
+        let portion = food("restored-portion")
+        auth.currentUserID = "other-account"
+        XCTAssertFalse(recovered.restartEmptyRecipeReview(with: portion))
+        XCTAssertTrue(recovered.items.isEmpty)
+        auth.currentUserID = owner
+        XCTAssertTrue(recovered.restartEmptyRecipeReview(with: portion))
+        XCTAssertFalse(recovered.restoredReview)
+        XCTAssertEqual(recovered.date, originalDate)
+        XCTAssertEqual(recovered.mealName, "Dinner")
+        XCTAssertFalse(recovered.restartEmptyRecipeReview(with: food("replacement")))
+        let reopened = makeReview([], date: day(), source: "recipe", scope: scope)
+        XCTAssertEqual(reopened.items.map(\.id), [portion.id])
+        XCTAssertTrue(reopened.restoredReview)
+        XCTAssertEqual(reopened.checkpoint.draft.entries.map(\.id), recovered.checkpoint.draft.entries.map(\.id))
+        XCTAssertFalse(reopened.isSubmitted)
+        let storedBeforeLogging = try await reload(originalDate)
+        XCTAssertTrue(storedBeforeLogging.meals.flatMap(\.foodItems).isEmpty)
+    }
+
     private func makeReview(
         _ items: [FoodItem], date: Date? = nil, meal: String = "Lunch", source: String = "ai_text",
         selectsAll: Bool = true, scope: String? = nil, confirmingSource: FoodSourceType? = nil

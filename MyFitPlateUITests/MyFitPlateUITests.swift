@@ -5,6 +5,8 @@
 //  Created by Peter Andrews on 6/27/26.
 //
 
+import CoreText
+import UIKit
 import XCTest
 
 final class MyFitPlateUITests: XCTestCase {
@@ -158,6 +160,19 @@ final class MyFitPlateUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.75))
             try app.performAccessibilityAudit(for: [.textClipped], issueHandler)
         }
+    }
+
+    @MainActor
+    private func containsLargestTextGlyphs(
+        _ text: String, style: UIFont.TextStyle, in element: XCUIElement, on app: XCUIApplication
+    ) -> Bool {
+        let traits = UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)
+        let font = UIFont.preferredFont(forTextStyle: style, compatibleWith: traits)
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font]))
+        let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        let frame = element.frame
+        return !ink.isEmpty && frame.width + 1 >= ink.width && frame.height + 1 >= ink.height
+            && app.frame.insetBy(dx: -1, dy: -1).contains(frame)
     }
 
     @MainActor
@@ -720,7 +735,7 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
-    func testRecipeLoggingCannotRestoreTotalsAfterRemovingEveryIngredient() throws {
+    func testRecipeLoggingKeepsAnEmptyPortionUnloggableUntilExplicitlyRestored() throws {
         let app = XCUIApplication()
         app.terminate()
         app.launchArguments = [
@@ -800,6 +815,20 @@ final class MyFitPlateUITests: XCTestCase {
         emptyScreenshot.name = "Recipes - all ingredients removed, zero totals and logging disabled"
         emptyScreenshot.lifetime = .keepAlways
         add(emptyScreenshot)
+
+        app.buttons["Close"].tap()
+        XCTAssertTrue(addToLog.waitForExistence(timeout: 5))
+        addToLog.tap()
+        let restore = app.buttons["recipe_log_restore_portion"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        XCTAssertFalse(logAction.isEnabled)
+        XCTAssertEqual(app.staticTexts["recipe_log_title"].label, "Weeknight Chicken Power Bowl")
+        restore.tap()
+        let restoredCalories = loggingScroll.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Calories, 610 cal")).firstMatch
+        XCTAssertTrue(restoredCalories.waitForExistence(timeout: 5))
+        XCTAssertTrue(logAction.isEnabled)
+        XCTAssertFalse(restore.exists)
     }
 
     @MainActor
@@ -861,6 +890,7 @@ final class MyFitPlateUITests: XCTestCase {
             "-screenshot-mode",
             "-screenshot-screen",
             "recipes",
+            "-ui-testing-reset-editor-drafts",
             "-screenshot-dark-mode",
             "-UIPreferredContentSizeCategoryName",
             "UICTContentSizeCategoryAccessibilityXXXL"
@@ -936,9 +966,11 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(loggingTitle.waitForExistence(timeout: 5))
         XCTAssertTrue(loggingSubtitle.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["recipe_log_action"].isHittable)
+        XCTAssertTrue(app.buttons["recipe_log_action"].isEnabled)
+        XCTAssertEqual(loggingTitle.label, "Weeknight Chicken Power Bowl")
         XCTAssertLessThanOrEqual(loggingTitle.frame.maxX, app.frame.maxX + 1)
         XCTAssertLessThanOrEqual(loggingSubtitle.frame.maxX, app.frame.maxX + 1)
-        XCTAssertTrue(app.descendants(matching: .any)
+        XCTAssertTrue(logging.descendants(matching: .any)
             .matching(NSPredicate(format: "label == %@", "Calories, 610 cal"))
             .firstMatch
             .waitForExistence(timeout: 5))
@@ -2483,7 +2515,13 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
 
-            try performTextClippingAuditWithTimeoutRetry(on: app)
+            try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
+                guard destination.route == "settings-water", let field = issue.element,
+                      field.elementType == .textField, field.identifier == "water_target_amount",
+                      field.value as? String == "96" else { return false }
+                // Check the actual seeded number against the rendered field at this text size.
+                return self.containsLargestTextGlyphs("96", style: .body, in: field, on: app)
+            }
 
             if !action.waitForExistence(timeout: 2) || !action.isHittable {
                 let scrollView = app.scrollViews.firstMatch
@@ -3288,7 +3326,11 @@ final class MyFitPlateUITests: XCTestCase {
                 XCTAssertTrue(done.isHittable)
             }
 
-            try performTextClippingAuditWithTimeoutRetry(on: app)
+            try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
+                guard screen.route == "workout-history", let count = issue.element,
+                      count.elementType == .staticText, count.label == "5 sessions" else { return false }
+                return self.containsLargestTextGlyphs(count.label, style: .footnote, in: count, on: app)
+            }
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"

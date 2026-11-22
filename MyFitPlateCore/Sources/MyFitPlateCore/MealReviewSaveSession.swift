@@ -210,6 +210,19 @@ public final class MealReviewSaveSession: ObservableObject {
         return persist(changed)
     }
 
+    /// Reopen an empty, unsubmitted recipe review only after the user chooses a new starting portion.
+    @discardableResult
+    public func restartEmptyRecipeReview(with portion: FoodItem) -> Bool {
+        guard checkpoint.source == "recipe", !isLocked, checkpoint.draft.entries.isEmpty else { return false }
+        let emptyReview = checkpoint
+        guard replaceItems([portion]) else {
+            checkpoint = emptyReview
+            return false
+        }
+        restoredReview = false
+        return true
+    }
+
     @discardableResult
     public func removeItem(id: String) -> Bool {
         guard !isLocked else { return false }
