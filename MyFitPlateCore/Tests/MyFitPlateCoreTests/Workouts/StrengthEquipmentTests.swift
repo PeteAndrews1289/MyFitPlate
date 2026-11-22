@@ -29,6 +29,19 @@ final class StrengthEquipmentTests: XCTestCase {
         XCTAssertNil(equipment.atOrBelow(40))
     }
 
+    func testSelectableWeightConventionsCanBeSavedForThatEquipment() {
+        let meanings = StrengthEquipment.LoadingMeaning.allCases
+        XCTAssertEqual(meanings.filter { $0.supports(.fixedWeights) }, meanings)
+        XCTAssertEqual(meanings.filter { $0.supports(.barbell) }, [.asLogged, .total, .perHand, .added])
+        for kind in StrengthEquipment.Kind.allCases {
+            for meaning in meanings {
+                let equipment = StrengthEquipment(kind: kind, loadingMeaning: meaning, availableWeights: [0], barWeight: 45, plates: [25])
+                XCTAssertEqual(equipment.isValid, meaning.supports(kind), "\(kind) with \(meaning)")
+            }
+        }
+        XCTAssertFalse(StrengthEquipment(loadingMeaning: .bodyweightOnly, availableWeights: [10]).isValid)
+    }
+
     func testPlateBreakdownUsesExactAvailablePairsIncludingDuplicatesAndKilograms() throws {
         let equipment = StrengthEquipment(kind: .barbell, barWeight: 45, plates: [25, 2.5, 2.5])
         XCTAssertEqual(equipment.platePairs(for: 105), [25, 2.5, 2.5])

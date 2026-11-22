@@ -67,7 +67,11 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
         let originalCompletion = card.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'set_complete_' ")).firstMatch
         let originalID = originalCompletion.identifier
         open(equipment, app: app)
+        open(app.buttons["equipment_preset_machine"], app: app)
+        selectWeightMeaning("assistance", app: app)
         open(app.buttons["equipment_preset_barbell"], app: app)
+        XCTAssertFalse(app.buttons["equipment_save"].isEnabled)
+        XCTAssertEqual(app.staticTexts["equipment_validation"].label, "Choose how to record barbell weight under Weight means.")
         selectWeightMeaning("total", app: app)
         open(app.buttons["equipment_save"], app: app)
         XCTAssertTrue(app.buttons["equipment_save"].waitForNonExistence(timeout: 5))

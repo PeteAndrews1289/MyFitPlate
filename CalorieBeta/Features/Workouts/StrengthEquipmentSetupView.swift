@@ -72,7 +72,7 @@ struct StrengthEquipmentSetupView: View {
         let weights = canonicalValues(for: .weights)
         let bar = canonicalValues(for: .bar)?.first
         let plates = canonicalValues(for: .plates)
-        if kind == .fixedWeights && weights == nil { return nil }
+        if kind == .fixedWeights && meaning != .bodyweightOnly && weights == nil { return nil }
         if kind == .barbell && (bar == nil || plates == nil) { return nil }
         let name = equipmentName.trimmingCharacters(in: .whitespacesAndNewlines)
         let candidate = StrengthEquipment(kind: kind, unit: unit, loadingMeaning: meaning,
@@ -102,7 +102,9 @@ struct StrengthEquipmentSetupView: View {
                     }
                     .pickerStyle(.segmented).accessibilityIdentifier("equipment_units")
                     weightMeaningChoices
-                    Text(meaningExplanation).appTextRole(.secondary).foregroundStyle(.secondary)
+                    if meaning.supports(kind) {
+                        Text(meaningExplanation).appTextRole(.secondary).foregroundStyle(.secondary)
+                    }
                 } header: {
                     Text("How you record weight")
                 } footer: {
@@ -191,7 +193,7 @@ struct StrengthEquipmentSetupView: View {
                 .accessibilityIdentifier("equipment_name")
             Text("Name a specific machine or rack when its weights should have their own history.")
                 .appTextRole(.caption).foregroundStyle(.secondary)
-            if kind == .fixedWeights { fixedWeights } else { barbellWeights }
+            if kind == .barbell { barbellWeights } else if meaning != .bodyweightOnly { fixedWeights }
         }
     }
 
@@ -200,7 +202,7 @@ struct StrengthEquipmentSetupView: View {
         return VStack(alignment: .leading, spacing: AppSpacing.compact) {
             Text("Weight means").appTextRole(.control)
             LazyVGrid(columns: [GridItem(columnSize, spacing: AppSpacing.compact)], spacing: AppSpacing.compact) {
-                ForEach(StrengthEquipment.LoadingMeaning.allCases) { option in
+                ForEach(StrengthEquipment.LoadingMeaning.allCases.filter { $0.supports(kind) }) { option in
                     Button {
                         focusedField = nil
                         meaning = option
@@ -314,7 +316,9 @@ struct StrengthEquipmentSetupView: View {
                 Text(errorMessage).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
                     .accessibilityIdentifier("equipment_error")
             } else if equipment == nil {
-                Text("Enter valid weights and review the equipment before saving.")
+                Text(meaning.supports(kind)
+                     ? "Enter valid weights and review the equipment before saving."
+                     : "Choose how to record barbell weight under Weight means.")
                     .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
                     .accessibilityIdentifier("equipment_validation")
             }
@@ -331,7 +335,7 @@ struct StrengthEquipmentSetupView: View {
                 guard let pounds = canonicalValues(for: field) else { return nil }
                 return (field, pounds)
             })
-            guard kind == .fixedWeights ? values[.weights] != nil : values[.plates] != nil && values[.bar] != nil else {
+            guard kind == .fixedWeights ? meaning == .bodyweightOnly || values[.weights] != nil : values[.plates] != nil && values[.bar] != nil else {
                 errorMessage = "Finish entering valid weights before changing units."
                 return
             }

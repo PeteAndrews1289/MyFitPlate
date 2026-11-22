@@ -20,6 +20,12 @@ public struct StrengthEquipment: Codable, Equatable, Sendable {
     public enum LoadingMeaning: String, Codable, CaseIterable, Identifiable, Sendable {
         case asLogged, total, perHand, added, assistance, bodyweightOnly
         public var id: String { rawValue }
+        public func supports(_ kind: Kind) -> Bool {
+            switch self {
+            case .assistance, .bodyweightOnly: kind == .fixedWeights
+            default: true
+            }
+        }
         public var title: String {
             switch self {
             case .asLogged: "As previously logged"
@@ -59,8 +65,8 @@ public struct StrengthEquipment: Codable, Equatable, Sendable {
 
     public var isValid: Bool {
         if let name, name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.count > 80 { return false }
-        if loadingMeaning == .bodyweightOnly { return kind == .fixedWeights && availableWeights == [0] }
-        if loadingMeaning == .assistance && kind != .fixedWeights { return false }
+        guard loadingMeaning.supports(kind) else { return false }
+        if loadingMeaning == .bodyweightOnly { return availableWeights == [0] }
         switch kind {
         case .fixedWeights:
             return (1...256).contains(availableWeights.count)
