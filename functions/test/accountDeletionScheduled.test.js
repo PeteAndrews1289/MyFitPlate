@@ -5,6 +5,15 @@ const { purgeCompletedAccountDeletionBarriers } = require("../lib/index.js");
 const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 
+test("an undelivered hourly recovery request retries after the worker has time to start", () => {
+  const trigger = purgeCompletedAccountDeletionBarriers.__endpoint.scheduleTrigger;
+  assert.equal(trigger.schedule, "every 60 minutes");
+  assert.equal(trigger.retryConfig.retryCount, 3);
+  assert.equal(trigger.retryConfig.minBackoffSeconds, 60);
+  assert.equal(trigger.retryConfig.maxBackoffSeconds, 240);
+  assert.equal(trigger.retryConfig.maxDoublings, 2);
+});
+
 test("scheduled deletion resumes accepted intent, recovers absent Auth, bounds work and rechecks purge state", async () => {
   const db = getFirestore(), auth = getAuth();
   const originals = { collection: db.collection, recursiveDelete: db.recursiveDelete,

@@ -1076,7 +1076,16 @@ export const deleteUserData = onCall(async (request) => {
 // Retry pending accepted deletion intents without dropping their barrier; at most ten accounts
 // per invocation. This also recovers Auth-deleted / completion-receipt-failed outcomes.
 // Completed barriers outlive ordinary ID tokens; bounded cleanup needs no TTL configuration.
-export const purgeCompletedAccountDeletionBarriers = onSchedule({ schedule: "every 60 minutes", maxInstances: 1 }, async () => {
+export const purgeCompletedAccountDeletionBarriers = onSchedule({
+  schedule: "every 60 minutes",
+  maxInstances: 1,
+  // A cold worker can miss delivery before the handler starts. Let Scheduler
+  // try again after a minute, then two and four minutes later.
+  retryCount: 3,
+  minBackoffSeconds: 60,
+  maxBackoffSeconds: 240,
+  maxDoublings: 2,
+}, async () => {
   const pending = await db.collection(ACCOUNT_DELETION_BARRIERS)
     .where("nextAttemptAt", "<=", Timestamp.now()).limit(10).get();
   for (const document of pending.docs) {
