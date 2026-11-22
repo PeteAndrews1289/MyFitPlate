@@ -18,7 +18,15 @@ struct RecipeDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                RecipeIdentityHeader(recipe: recipe)
+                HStack(alignment: .top, spacing: AppSpacing.compact) {
+                    RecipeIdentityHeader(recipe: recipe)
+                    if recipe.id != nil {
+                        Button { showingVersions = true } label: { Image(systemName: "clock.arrow.circlepath") }
+                            .buttonStyle(AppIconButtonStyle(.plain))
+                            .accessibilityLabel("Recipe versions")
+                            .accessibilityIdentifier("recipe_version_history")
+                    }
+                }
                 VStack(alignment: .leading, spacing: AppSpacing.compact) {
                     RecipeNutritionSummary(nutrition: recipe.nutritionPerPortion)
                     HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
@@ -50,12 +58,7 @@ struct RecipeDetailView: View {
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if recipe.id != nil {
-                    Button { showingVersions = true } label: { Image(systemName: "clock.arrow.circlepath") }
-                        .accessibilityLabel("Versions")
-                        .accessibilityIdentifier("recipe_version_history")
-                }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showingEditSheet = true }
             }
         }
