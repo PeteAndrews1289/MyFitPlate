@@ -36,9 +36,13 @@ def classify_failures(summary):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("summary", type=Path)
-    parser.add_argument("--blocking-report", type=Path, required=True)
+    parser.add_argument("--blocking-report", type=Path)
     args = parser.parse_args()
     retry, blocking = classify_failures(json.loads(args.summary.read_text()))
-    args.blocking_report.write_text("".join(f"{entry}\n" for entry in blocking))
+    if args.blocking_report:
+        args.blocking_report.write_text("".join(f"{entry}\n" for entry in blocking))
+    elif blocking:
+        # A caller that only reads stdout cannot distinguish a mixed failure.
+        retry = []
     for identifier in retry:
         print(identifier)
