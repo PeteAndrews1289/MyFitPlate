@@ -662,10 +662,9 @@ struct WorkoutHistoryRow: View {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        HStack(alignment: .top, spacing: AppSpacing.row) {
-                            dateBadge
-                            sessionIdentity
-                        }
+                        Text(log.date.formatted(.dateTime.month(.abbreviated).day()))
+                            .appTextRole(.caption).foregroundStyle(AppPalette.brandText)
+                        sessionIdentity
                         recordBadge
                     }
                 } else {
@@ -751,6 +750,8 @@ private struct WorkoutHistorySectionHeader: View {
 
     var body: some View {
         AppSectionHeader(title: title, subtitle: subtitle)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 

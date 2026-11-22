@@ -2315,7 +2315,7 @@ struct RunDetailView: View {
                 healthSyncCard
                 analysisCards
                 workoutResultSection
-                glycogenImpactCard
+                runFuelSection
 
                 if !viewModel.splits.isEmpty {
                     splitsCard
@@ -2365,6 +2365,9 @@ struct RunDetailView: View {
                     Button("Share story image", systemImage: "photo") { showingStoryPoster = true }
                     Button("Export run summary", systemImage: "tablecells") { showingSummaryExport = true }
                     Button("Review or hide run", systemImage: "pencil.circle") { showingRunReview = true }
+                    if !Calendar.current.isDateInToday(run.endDate), linkedFuelReview == nil {
+                        openFuelPlannerButton
+                    }
                     if run.source == .recorded, run.pauseTimeline?.completeness == .complete {
                         Button("Review pause times", systemImage: "pause.circle") { showingPauseEditor = true }
                     }
@@ -2974,32 +2977,39 @@ struct RunDetailView: View {
         .accessibilityHidden(true)
     }
 
-    private var glycogenImpactCard: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: "Fuel and recovery")
-            if let owner = projectionOwner,
-               let request = RunFuelReviewRequest.make(run: run, history: trainingFuelPlanStore.history,
-                    conflictingPlanIDs: trainingFuelPlanStore.conflictingPlanIDs, ownerID: owner) {
-                Text("Review the fuel plan linked to this completed run on \(request.day.displayDate.formatted(date: .abbreviated, time: .omitted)). Your daily targets and linked meals stay in one plan.")
-                    .appTextRole(.secondary).foregroundStyle(.secondary)
-                Button("Review linked fuel plan", systemImage: "fork.knife") {
-                    if accountState.openRunFuelReview(request) { dismiss() }
-                }.buttonStyle(AppActionButtonStyle(.primary))
-                    .accessibilityIdentifier("run_detail_recovery_action")
-                Text("Historical plans are available for review. An expired recovery window does not create another allocation.")
-                    .appTextRole(.caption).foregroundStyle(.secondary)
-            } else {
-                Text("No confirmed fuel plan is linked to this run. Your daily food targets are unchanged; there is no separate recovery budget to log against.")
-                    .appTextRole(.secondary).foregroundStyle(.secondary)
-                Text("Sweat loss and carbohydrate use were not measured. Plan future sessions from Training Fuel to keep meals and training in the same daily budget.")
-                    .appTextRole(.caption).foregroundStyle(.secondary)
-                Button("Open Training Fuel", systemImage: "fork.knife") {
-                    if let owner = projectionOwner, let request = RunFuelReviewRequest.planning(ownerID: owner),
-                       accountState.openRunFuelReview(request) { dismiss() }
-                }.buttonStyle(AppActionButtonStyle(.secondary))
-                    .accessibilityIdentifier("run_detail_open_fuel_planner")
+    private var linkedFuelReview: RunFuelReviewRequest? {
+        guard let owner = projectionOwner else { return nil }
+        return RunFuelReviewRequest.make(run: run, history: trainingFuelPlanStore.history,
+            conflictingPlanIDs: trainingFuelPlanStore.conflictingPlanIDs, ownerID: owner)
+    }
+
+    @ViewBuilder private var runFuelSection: some View {
+        let request = linkedFuelReview
+        if request != nil || Calendar.current.isDateInToday(run.endDate) {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(title: "Fuel and recovery")
+                if let request {
+                    Text("Meals and targets for \(request.day.displayDate.formatted(date: .abbreviated, time: .omitted)).")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                    Button("Review linked fuel plan", systemImage: "fork.knife") {
+                        if accountState.openRunFuelReview(request) { dismiss() }
+                    }.buttonStyle(AppActionButtonStyle(.primary))
+                        .accessibilityIdentifier("run_detail_recovery_action")
+                } else {
+                    Text("Plan meals for your next run using your daily targets.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                    openFuelPlannerButton.buttonStyle(AppActionButtonStyle(.secondary))
+                }
             }
-        }.appSurface(.quiet).accessibilityIdentifier("run_detail_recovery")
+            .appSurface(.quiet).accessibilityIdentifier("run_detail_recovery")
+        }
+    }
+
+    private var openFuelPlannerButton: some View {
+        Button("Open Training Fuel", systemImage: "fork.knife") {
+            if let owner = projectionOwner, let request = RunFuelReviewRequest.planning(ownerID: owner),
+               accountState.openRunFuelReview(request) { dismiss() }
+        }.accessibilityIdentifier("run_detail_open_fuel_planner")
     }
 
     private var splitsCard: some View {

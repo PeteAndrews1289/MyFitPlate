@@ -3,6 +3,8 @@ import MyFitPlateCore
 
 struct SetWaterGoalView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var targetInputHeight: CGFloat = 34
     @EnvironmentObject var goalSettings: GoalSettings
     @Binding var waterGoalInput: String
     @State private var baseline: Double?
@@ -40,13 +42,21 @@ struct SetWaterGoalView: View {
                         ForEach(WaterVolumeUnit.allCases) { Text($0.symbol).tag($0) }
                     }
                     if !trackingOnly {
-                        HStack {
+                        let targetLayout = dynamicTypeSize.isAccessibilitySize
+                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.compact))
+                            : AnyLayout(HStackLayout(spacing: AppSpacing.row))
+                        targetLayout {
                             Text("Daily target")
-                            Spacer(minLength: AppSpacing.compact)
-                            TextField("Daily amount", text: $waterGoalInput).keyboardType(.decimalPad).focused($focusedInput, equals: .goal)
-                                .multilineTextAlignment(.trailing).frame(maxWidth: 90)
-                            Text(preferences.unit.symbol).foregroundStyle(.secondary)
-                        }.accessibilityIdentifier("water_target_amount")
+                            HStack(spacing: AppSpacing.compact) {
+                                TextField("Daily amount", text: $waterGoalInput)
+                                    .keyboardType(.decimalPad).focused($focusedInput, equals: .goal)
+                                    .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+                                    .frame(minHeight: max(44, targetInputHeight))
+                                    .accessibilityLabel("Daily water target in \(preferences.unit.symbol)")
+                                    .accessibilityIdentifier("water_target_amount")
+                                Text(preferences.unit.symbol).foregroundStyle(.secondary).fixedSize()
+                            }
+                        }
                     }
                     Text("Changes start today. Past targets and logs stay intact. Containers and target history are saved on this device.")
                         .font(.caption).foregroundStyle(.secondary)

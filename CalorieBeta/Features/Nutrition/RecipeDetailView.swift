@@ -50,11 +50,13 @@ struct RecipeDetailView: View {
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                HStack {
-                    if recipe.id != nil { Button("Versions", systemImage: "clock.arrow.circlepath") { showingVersions = true }.accessibilityIdentifier("recipe_version_history") }
-                    Button("Edit") { showingEditSheet = true }
-                }.buttonStyle(AppListButtonStyle())
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if recipe.id != nil {
+                    Button { showingVersions = true } label: { Image(systemName: "clock.arrow.circlepath") }
+                        .accessibilityLabel("Versions")
+                        .accessibilityIdentifier("recipe_version_history")
+                }
+                Button("Edit") { showingEditSheet = true }
             }
         }
         .safeAreaInset(edge: .bottom) {

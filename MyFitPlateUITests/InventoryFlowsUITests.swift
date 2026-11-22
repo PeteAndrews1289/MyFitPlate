@@ -114,9 +114,12 @@ final class InventoryFlowsUITests: XCTestCase {
         XCTAssertTrue(previous.waitForExistence(timeout: 10)); previous.tap()
         assertOneRiceFood(app)
         app.buttons["tab_meal_plan"].tap()
-        // The app reconstructs this tab at Today; its workspace is remembered,
-        // while the earlier source date is selected explicitly for this action.
-        selectPlannedDay(offset: -1, app: app)
+        select("Plan", app: app)
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let restoredDay = app.buttons["planner_view_mode"]
+        XCTAssertTrue(restoredDay.waitForExistence(timeout: 5))
+        XCTAssertEqual(restoredDay.value as? String, yesterday.formatted(date: .complete, time: .omitted),
+                       "Returning from the diary should preserve the source day for planning leftovers.")
         let options = app.buttons["planner_meal_options_wave2-cooking-dinner"]
         reveal(options, app: app); options.tap()
         let leftovers = app.buttons["planner_plan_leftovers_wave2-cooking-dinner"]
@@ -276,7 +279,8 @@ final class InventoryFlowsUITests: XCTestCase {
     @MainActor private func selectPlannedDay(offset: Int, app: XCUIApplication) {
         select("Plan", app: app)
         let mode = app.buttons["planner_view_mode"]
-        reveal(mode, app: app); mode.tap()
+        XCTAssertTrue(mode.waitForExistence(timeout: 5) && mode.isHittable)
+        mode.tap()
         let date = Calendar.current.date(byAdding: .day, value: offset, to: Date())!
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
         let day = app.buttons["planner_agenda_" + formatter.string(from: date)]

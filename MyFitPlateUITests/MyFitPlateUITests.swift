@@ -1439,6 +1439,9 @@ final class MyFitPlateUITests: XCTestCase {
         recoveryScreenshot.name = "Running - historical timing and splits"
         recoveryScreenshot.lifetime = .keepAlways
         add(recoveryScreenshot)
+        app.buttons["run_detail_options"].tap()
+        XCTAssertTrue(app.buttons["Open Training Fuel"].waitForExistence(timeout: 5),
+                      "A past run without a linked plan keeps general fuel planning in its options.")
     }
 
     @MainActor
@@ -4033,6 +4036,9 @@ final class MyFitPlateUITests: XCTestCase {
         for screen in screens {
             app.terminate()
             app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", screen.route]
+            if screen.route.hasPrefix("meal-plan-survey") {
+                app.launchArguments.append("-ui-testing-reset-editor-drafts")
+            }
             if largeText {
                 app.launchArguments += ["-screenshot-dark-mode", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
             }
