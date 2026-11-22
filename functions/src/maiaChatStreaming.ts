@@ -35,10 +35,13 @@ export async function createMaiaChatCompletion(
       const delta = choice?.delta?.content;
       if (typeof delta === "string" && delta.length > 0) {
         content += delta;
-        const connected = await options.response.sendChunk({ requestID: options.requestID, delta });
-        if (!connected) { controller.abort(); throw new Error("AI client disconnected"); }
+        // Firebase waits for the write callback, but can return false when Node buffered
+        // a successfully delivered chunk. The callable's abort signal tracks disconnects.
+        const wroteImmediately = await options.response.sendChunk({ requestID: options.requestID, delta });
+        if (!wroteImmediately && controller.signal.aborted) throw new Error("AI client disconnected");
       }
     }
+    if (controller.signal.aborted) throw new Error("AI request cancelled");
     if (finishReason !== "stop" || !content.trim()) throw new Error("AI response was incomplete or empty");
     return { choices: [{ finish_reason: finishReason, message: { content } }], usage };
   } finally {

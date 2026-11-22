@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { Writable } = require("node:stream");
 const { createMaiaChatCompletion } = require("../lib/maiaChatStreaming.js");
 
 function fixture(events) {
@@ -24,9 +25,32 @@ test("streamed text is finalized only on stop, preserves identity and measured u
 
 test("disconnect aborts provider and cannot produce a final accepted answer", async () => {
   const f = fixture([{ choices: [{ delta: { content: "Partial " } }] }, { choices: [{ delta: { content: "answer" }, finish_reason: "stop" }] }]);
-  f.response.sendChunk = async () => false;
+  f.response.sendChunk = async () => { f.controller.abort(); return false; };
   await assert.rejects(createMaiaChatCompletion(f.client, {}, { stream: true, requestID: "one", response: f.response }), /disconnected/);
   assert.equal(f.signal.aborted, true);
+});
+
+test("a chunk flushed after backpressure remains part of a completed answer", async () => {
+  const text = "Your workout is saved.";
+  const f = fixture([{ choices: [{ delta: { content: text }, finish_reason: "stop" }] }]);
+  const received = [];
+  const destination = new Writable({
+    highWaterMark: 8,
+    write(chunk, encoding, callback) { received.push(chunk.toString()); setImmediate(callback); },
+  });
+  let wroteImmediately;
+  f.response.sendChunk = chunk => new Promise((resolve, reject) => {
+    // Firebase resolves with Node's original write result after the write callback fires.
+    wroteImmediately = destination.write(chunk.delta, error => error ? reject(error) : resolve(wroteImmediately));
+  });
+  try {
+    const result = await createMaiaChatCompletion(f.client, {}, { stream: true, requestID: "one", response: f.response });
+    assert.equal(wroteImmediately, false);
+    assert.deepEqual(received, [text]);
+    assert.equal(result.choices[0].message.content, text);
+  } finally {
+    destination.end();
+  }
 });
 
 test("callable abort signal cancels provider before the next token", async () => {
