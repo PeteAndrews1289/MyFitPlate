@@ -28,9 +28,11 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
         let use = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "gym_profile_use_")).firstMatch
         open(use, app: app)
         XCTAssertTrue(any(app, "gym_profile_library").waitForNonExistence(timeout: 5))
-        let mapping = app.buttons["session_gym_mapping_" + exerciseID]
-        open(mapping, app: app)
-        XCTAssertTrue(app.buttons["Travel dumbbells"].waitForExistence(timeout: 5)); app.buttons["Travel dumbbells"].tap()
+        let mapping = app.switches["session_gym_mapping_" + exerciseID]
+        reveal(mapping, app: app)
+        XCTAssertTrue(mapping.label.contains("Travel dumbbells"))
+        mapping.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(mapping.value as? String, "1", app.debugDescription)
         let apply = app.buttons["session_tools_apply"]
         XCTAssertTrue(apply.isEnabled)
         record(app, "Strength - one gym mapping reviewed before application")
@@ -159,10 +161,7 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
     }
     @MainActor private func replace(_ field: XCUIElement, with text: String, app: XCUIApplication) {
         reveal(field, app: app)
-        field.tap()
-        field.typeKey("a", modifierFlags: .command)
-        field.typeText(text)
-        XCTAssertEqual(field.value as? String, text)
+        field.replaceContents(with: text, in: app)
     }
     @MainActor private func finishKeyboard(_ app: XCUIApplication) {
         for identifier in ["gym_profile_keyboard_done", "equipment_finish_edit", "equipment_keyboard_done", "workout_input_done"] {
@@ -195,13 +194,16 @@ final class WaveTwoStrengthDepthUITests: XCTestCase {
             if app.keyboards.firstMatch.exists { bottom = min(bottom, app.keyboards.firstMatch.frame.minY - 5) }
             if target.exists, target.isHittable, target.frame.minY >= top, target.frame.maxY <= bottom { return }
             guard bottom - top > 50 else { break }
-            let earlier = target.exists && target.frame.height > 0 ? target.frame.minY < top : step > 20
-            let distance = min(CGFloat(180), (bottom - top) * 0.4)
+            let frame = target.exists ? target.frame : .zero
+            let earlier = frame.height > 0 ? frame.minY < top : step > 20
+            let needed = frame.height > 0 ? (earlier ? top - frame.minY : frame.maxY - bottom) : 180
+            let distance = min(max(needed + 20, 50), min(180, (bottom - top) * 0.4))
             let start = top + (bottom - top) * 0.5
             let end = min(bottom - 5, max(top + 5, start + (earlier ? distance : -distance)))
             let origin = app.coordinate(withNormalizedOffset: .zero)
             origin.withOffset(CGVector(dx: app.frame.midX, dy: start))
-                .press(forDuration: 0.03, thenDragTo: origin.withOffset(CGVector(dx: app.frame.midX, dy: end)))
+                .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: app.frame.midX, dy: end)),
+                       withVelocity: .slow, thenHoldForDuration: 0.25)
         }
         XCTAssertTrue(target.exists && target.isHittable, "Could not reach \(target.identifier)\n\(app.debugDescription)")
     }

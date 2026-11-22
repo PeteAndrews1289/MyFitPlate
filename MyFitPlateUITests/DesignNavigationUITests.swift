@@ -147,7 +147,10 @@ final class DesignNavigationUITests: XCTestCase {
             let barcode = app.buttons["Scan barcode"]
             XCTAssertTrue(barcode.waitForExistence(timeout: 5))
             XCTAssertTrue(app.buttons["Photograph food"].isHittable)
-            app.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
+            // UIKit dismisses a touch menu when the user taps its backdrop.
+            // Pick the opposite edge from the menu so no action is invoked.
+            let outsideY: CGFloat = barcode.frame.midY < app.frame.midY ? 0.85 : 0.12
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: outsideY)).tap()
             XCTAssertTrue(barcode.waitForNonExistence(timeout: 5))
         } else {
             XCTAssertTrue(app.buttons["food_search_action_camera"].isHittable)

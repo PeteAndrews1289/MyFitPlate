@@ -10,7 +10,9 @@ final class WaveTwoRestaurantDepthUITests: XCTestCase {
         app.launch(); return app
     }
     @MainActor private func reveal(_ element: XCUIElement, app: XCUIApplication) {
-        let scroll = app.scrollViews.firstMatch
+        let buffet = app.otherElements["ayce_live_screen"].scrollViews.firstMatch
+        let scroll = buffet.exists ? buffet : app.scrollViews.allElementsBoundByIndex
+            .max { $0.frame.intersection(app.frame).height < $1.frame.intersection(app.frame).height } ?? app.scrollViews.firstMatch
         for _ in 0..<18 {
             let search = app.textFields["ayce_catalog_search"]
             let navigationBottom = app.navigationBars.allElementsBoundByIndex.map { $0.frame.maxY }.max() ?? app.frame.minY + 80
@@ -55,7 +57,7 @@ final class WaveTwoRestaurantDepthUITests: XCTestCase {
         let history = app.buttons["ayce_round_history"]
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
         XCTAssertTrue(app.otherElements["ayce_round_history_screen"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '1 foods'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '1 food ·'")).firstMatch.exists)
         record(app, "Buffet stable round before recovery")
         // The start-only screenshot fixture explicitly disables restoring a draft.
         // Recovery uses the same restored-session route as the existing buffet suite.
@@ -65,7 +67,7 @@ final class WaveTwoRestaurantDepthUITests: XCTestCase {
         let recovered = app.buttons["ayce_round_history"]
         XCTAssertTrue(recovered.waitForExistence(timeout: 5)); recovered.tap()
         XCTAssertTrue(app.otherElements["ayce_round_history_screen"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '1 foods'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '1 food ·'")).firstMatch.exists)
         XCTAssertTrue(app.buttons["Undo only this change"].firstMatch.exists)
         record(app, "Buffet stable rounds and durable changes after recovery")
     }

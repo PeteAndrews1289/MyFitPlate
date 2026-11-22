@@ -39,17 +39,16 @@ final class RecipeIngredientQuantityUITests: XCTestCase {
         XCTAssertEqual(quantity.value as? String, "180 g", app.debugDescription)
         replace(quantity, with: "4", app: app)
         XCTAssertEqual(quantity.value as? String, "4 g", app.debugDescription)
-        let row = any(app, "recipe_ingredient_nutrition_qa-quantity-rice")
-        waitFor(row, containing: "14 cal", app: app)
+        assertRiceNutrition("14 cal", app: app)
         // No re-tap: each digit must keep the same focused text field alive.
         quantity.typeText("0")
         XCTAssertEqual(quantity.value as? String, "40 g", app.debugDescription)
-        waitFor(row, containing: "142 cal", app: app)
+        assertRiceNutrition("142 cal", app: app)
         quantity.typeText("0")
         XCTAssertEqual(quantity.value as? String, "400 g", app.debugDescription)
-        waitFor(row, containing: "1,422 cal", app: app)
-        waitFor(row, containing: "P 27 g", app: app)
-        waitFor(row, containing: "C 320 g", app: app)
+        assertRiceNutrition("1,422 cal", app: app)
+        assertRiceNutrition("P 27 g", app: app)
+        assertRiceNutrition("C 320 g", app: app)
         let preview = metrics("create_recipe_nutrition", inside: "recipe_editor_scroll", app: app)
         reveal(preview, app: app)
         assertCalories("1,422 cal", inside: preview, app: app)
@@ -61,7 +60,7 @@ final class RecipeIngredientQuantityUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Edit Recipe"].waitForExistence(timeout: 10), app.debugDescription)
         reveal(quantity, app: app)
         XCTAssertEqual(quantity.value as? String, "400 g", "The unsaved full-content draft must survive relaunch.\n\(app.debugDescription)")
-        waitFor(row, containing: "1,422 cal", app: app)
+        assertRiceNutrition("1,422 cal", app: app)
         reveal(preview, app: app); assertCalories("1,422 cal", inside: preview, app: app)
 
         // Fractional and four-digit amounts must survive restoration without
@@ -69,14 +68,14 @@ final class RecipeIngredientQuantityUITests: XCTestCase {
         reveal(quantity, app: app, preferEarlier: true)
         replace(quantity, with: "1250.125", app: app)
         XCTAssertEqual(quantity.value as? String, "1250.125 g", app.debugDescription)
-        waitFor(row, containing: "4,445 cal", app: app)
+        assertRiceNutrition("4,445 cal", app: app)
         app.terminate()
         _ = launch(reset: false, app: app)
         openRecipe(app); app.navigationBars["Recipe"].buttons["Edit"].tap()
         XCTAssertTrue(app.navigationBars["Edit Recipe"].waitForExistence(timeout: 10), app.debugDescription)
         reveal(quantity, app: app)
         XCTAssertEqual(quantity.value as? String, "1250.125 g", "Restoration must retain the exact ingredient amount.\n\(app.debugDescription)")
-        waitFor(row, containing: "4,445 cal", app: app)
+        assertRiceNutrition("4,445 cal", app: app)
         reveal(preview, app: app); assertCalories("4,445 cal", inside: preview, app: app)
         app.navigationBars["Edit Recipe"].buttons["Cancel"].tap()
         XCTAssertTrue(app.navigationBars["Edit Recipe"].waitForNonExistence(timeout: 10), app.debugDescription)
@@ -88,7 +87,7 @@ final class RecipeIngredientQuantityUITests: XCTestCase {
         XCTAssertEqual(quantity.value as? String, "180 g", "Library content was not changed by the interrupted editor")
         replace(quantity, with: "400", app: app)
         XCTAssertEqual(quantity.value as? String, "400 g", app.debugDescription)
-        waitFor(row, containing: "1,422 cal", app: app)
+        assertRiceNutrition("1,422 cal", app: app)
         let personal = metrics("recipe_log_nutrition", inside: "recipe_logging", app: app)
         reveal(personal, app: app, preferEarlier: true)
         assertCalories("356 cal", inside: personal, app: app)
@@ -133,10 +132,14 @@ final class RecipeIngredientQuantityUITests: XCTestCase {
         field.typeText(XCUIKeyboardKey.delete.rawValue + amount)
         XCTAssertEqual(field.value as? String, "\(amount) g", app.debugDescription)
     }
-    @MainActor private func waitFor(_ element: XCUIElement, containing text: String, app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        let predicate = NSPredicate(format: "exists == true AND label CONTAINS %@", text)
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: element)], timeout: 5) == .completed,
-            "Expected \(text) on \(element.identifier).\n\(app.debugDescription)", file: file, line: line)
+    @MainActor private func assertRiceNutrition(_ text: String, app: XCUIApplication,
+                                                file: StaticString = #filePath, line: UInt = #line) {
+        let screen = app.navigationBars["Edit Recipe"].exists ? "recipe_editor_scroll" : "recipe_logging"
+        let updatedLabel = app.scrollViews[screen].staticTexts.matching(NSPredicate(
+            format: "identifier == %@ AND label CONTAINS %@", "recipe_ingredient_nutrition_qa-quantity-rice", text
+        )).firstMatch
+        XCTAssertTrue(updatedLabel.waitForExistence(timeout: 8), "Expected \(text) in the active ingredient row.\n\(app.debugDescription)",
+                      file: file, line: line)
     }
     @MainActor private func assertCalories(_ text: String, inside element: XCUIElement, app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         let value = element.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch

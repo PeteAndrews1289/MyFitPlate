@@ -91,9 +91,8 @@ final class WorkoutDashboardUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: 10))
         let name = app.textFields["program_builder_name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap()
-        name.typeKey("a", modifierFlags: .command)
-        name.typeText("Dumbbell Strength QA\n")
+        name.replaceContents(with: "Dumbbell Strength QA", in: app)
+        name.typeText("\n")
         XCTAssertTrue(save.isEnabled)
         save.tap()
         let feedback = app.staticTexts["program_builder_feedback"]

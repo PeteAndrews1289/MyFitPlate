@@ -2554,7 +2554,7 @@ private struct BuffetRoundHistoryView: View {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(round.migrated == true ? "Earlier foods (migrated)" : "Round")
                                     if let date = round.finishedAt { Text(date.formatted(date: .omitted, time: .shortened)).font(.caption) }
-                                    Text("\(round.entries.count) foods · \(Int(round.calories.rounded())) cal").font(.subheadline)
+                                    Text("\(round.entries.count) \(round.entries.count == 1 ? "food" : "foods") · \(Int(round.calories.rounded())) cal").font(.subheadline)
                                     if round.repeatedFromRoundID != nil { Text("Repeated from a reviewed round").font(.caption) }
                                 }
                             }

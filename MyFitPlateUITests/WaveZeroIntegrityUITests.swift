@@ -119,7 +119,7 @@ final class WaveZeroIntegrityUITests: XCTestCase {
         app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "home"]
         if rejectSave { app.launchArguments.append("-ui-testing-food-save-failure") }
         app.launch()
-        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.scrollViews["home_scroll"].waitForExistence(timeout: 15))
         let activity = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'diary_activity_' AND label CONTAINS 'Upper Body Strength'")).firstMatch
         for _ in 0..<22 {
             if activity.exists, activity.isHittable, activity.frame.maxY < app.frame.maxY - 100 { break }

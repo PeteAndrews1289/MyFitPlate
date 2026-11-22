@@ -4053,7 +4053,9 @@ final class MyFitPlateUITests: XCTestCase {
                 let scroll = app.scrollViews["meal_prep_scroll"]
                 reveal(summary, in: scroll)
                 summary.buttons[mode].tap()
-                XCTAssertTrue(summary.buttons[mode].isSelected)
+                let contentID = screen.route == "meal-prep" ? "meal_prep_ingredients" : "meal_prep_steps"
+                let content = scroll.descendants(matching: .any).matching(identifier: contentID).firstMatch
+                XCTAssertTrue(content.waitForExistence(timeout: 5), "The selected cooking workspace should display its content")
             default:
                 break
             }

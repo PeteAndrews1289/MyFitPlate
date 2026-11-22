@@ -254,7 +254,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         XCTAssertTrue(any(app, "deep_link_unavailable").waitForExistence(timeout: 15))
         app.buttons["deep_link_unavailable_home"].firstMatch.tap()
         expectGone(any(app, "deep_link_unavailable"), timeout: 5)
-        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.scrollViews["home_scroll"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -294,7 +294,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         XCTAssertTrue(any(app, "settings_screen").waitForExistence(timeout: 15))
         record(app, "Deep link - real Settings destination")
         app.buttons["Done"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.scrollViews["home_scroll"].waitForExistence(timeout: 5))
         app.terminate()
         app.launchArguments = arguments("home", flags: ["-deep-link-url", "myfitplate://profile"])
         app.launch()
@@ -302,7 +302,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["profile_weekly_challenges_button"].exists)
         record(app, "Deep link - real Profile destination")
         app.buttons["Done"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.scrollViews["home_scroll"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -336,10 +336,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
     @MainActor
     private func replace(_ field: XCUIElement, with value: String, app: XCUIApplication) {
         reveal(field, app: app)
-        field.tap()
-        field.typeKey("a", modifierFlags: .command)
-        field.typeText(value)
-        XCTAssertEqual(field.value as? String, value)
+        field.replaceContents(with: value, in: app)
     }
 
     private func expectGone(_ element: XCUIElement, timeout: TimeInterval) {

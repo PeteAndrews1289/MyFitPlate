@@ -718,6 +718,7 @@ struct WorkoutCompleteAnalyticsView: View {
 
 private struct WorkoutSessionLogEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var editingElapsedSeconds: Bool
     @State private var draft: WorkoutSessionLog
     let isSaving: Bool
     let saveMessage: String?
@@ -758,18 +759,24 @@ private struct WorkoutSessionLogEditorSheet: View {
                         )
 
                     if draft.elapsedSeconds != nil {
-                        LabeledContent("Elapsed seconds") {
+                        HStack {
+                            Text("Elapsed seconds")
+                            Spacer()
                             TextField("Seconds", value: Binding(get: { draft.elapsedSeconds ?? 0 },
                                 set: { draft.elapsedSeconds = $0 }), format: .number)
                                 .keyboardType(.numberPad)
+                                .focused($editingElapsedSeconds)
                                 .multilineTextAlignment(.trailing)
                                 .monospacedDigit()
                                 .frame(minWidth: 72, maxWidth: 120)
+                                .accessibilityLabel("Elapsed seconds")
                                 .accessibilityIdentifier("workout_editor_elapsed_seconds")
                         }
                         .appTextRole(.body)
                         .padding(AppSpacing.row)
                         .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                        .contentShape(Rectangle())
+                        .onTapGesture { editingElapsedSeconds = true }
                         Text("Session seconds update the linked diary duration when its original estimate is unchanged.")
                             .appTextRole(.caption).foregroundStyle(.secondary)
                     } else {
@@ -832,6 +839,7 @@ private struct WorkoutSessionLogEditorSheet: View {
             }.disabled(hasPendingCorrection)
         } actions: {
             Button {
+                editingElapsedSeconds = false
                 onSave(sanitizedDraft())
             } label: {
                 if isSaving {

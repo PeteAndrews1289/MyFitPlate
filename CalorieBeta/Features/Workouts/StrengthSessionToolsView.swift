@@ -129,10 +129,21 @@ struct StrengthSessionToolsView: View {
                     if exercise.sets.contains(where: \.isCompleted) {
                         Label("Already logged · setup kept", systemImage: "lock").foregroundStyle(.secondary)
                     } else {
-                        Picker("Implement", selection: Binding(get: { mappings[exercise.id] ?? "" }, set: { mappings[exercise.id] = $0 })) {
-                            Text("Keep current setup").tag("")
-                            ForEach(profile.implements) { Text($0.name).tag($0.id) }
-                        }.accessibilityIdentifier("session_gym_mapping_\(exercise.id)")
+                        if profile.implements.count == 1, let implement = profile.implements.first {
+                            Toggle("Use \(implement.name)", isOn: Binding(
+                                get: { mappings[exercise.id] == implement.id },
+                                set: { mappings[exercise.id] = $0 ? implement.id : nil }
+                            ))
+                            .frame(minHeight: 44)
+                            .accessibilityIdentifier("session_gym_mapping_\(exercise.id)")
+                        } else {
+                            Picker("Implement", selection: Binding(get: { mappings[exercise.id] ?? "" }, set: { mappings[exercise.id] = $0 })) {
+                                Text("Keep current setup").tag("")
+                                ForEach(profile.implements) { Text($0.name).tag($0.id) }
+                            }
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("session_gym_mapping_\(exercise.id)")
+                        }
                         if let proposed = equipmentChange?.after.first(where: { $0.id == exercise.id }),
                            let equipment = proposed.loadEquipment, validMappings[exercise.id] != nil {
                             Text(equipmentSummary(equipment)).appTextRole(.secondary).foregroundStyle(.secondary)
