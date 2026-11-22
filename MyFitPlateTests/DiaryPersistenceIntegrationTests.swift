@@ -66,6 +66,22 @@ final class DiaryPersistenceIntegrationTests: XCTestCase {
         let client = makeClient(), date = Calendar.current.startOfDay(for: Date())
         let uid = try await client.auth.signInAnonymously().user.uid
         let day = try XCTUnwrap(DiaryDayContext(userID: uid, date: date))
+        let reference = client.db.collection("users").document(uid).collection("dailyLogs").document(day.dayKey)
+        // Establish the authenticated server baseline before timing the outbox write.
+        // The emulator's first Firestore connection can still be starting after Auth is ready.
+        let deadline = ContinuousClock.now + .seconds(45)
+        while true {
+            do {
+                let before = try await reference.getDocument(source: .server)
+                XCTAssertFalse(before.exists, "The synthetic account should start with an empty diary day.")
+                break
+            } catch {
+                let failure = error as NSError
+                guard failure.domain == FirestoreErrorDomain, ContinuousClock.now < deadline,
+                      [FirestoreErrorCode.unavailable.rawValue, FirestoreErrorCode.deadlineExceeded.rawValue].contains(failure.code) else { throw error }
+                try await Task.sleep(for: .milliseconds(500))
+            }
+        }
         let original = FoodItem(id: "skipped-portion", name: "Rice", calories: 600, protein: 20, carbs: 100, fats: 10, servingWeight: 300)
         let question = try XCTUnwrap(UsefulMealQuestionRules.choose(items: [original], evidence: [
             .init(itemID: original.id, lowGrams: 150, highGrams: 450)
@@ -74,8 +90,7 @@ final class DiaryPersistenceIntegrationTests: XCTestCase {
         let diary = DailyLog(id: day.dayKey, date: date, meals: [Meal(name: "Lunch", foodItems: [skipped.food])])
         try await client.repository.saveDailyLog(userID: uid, log: diary)
         try await waitForSync(client, userID: uid)
-        let restored = try await client.db.collection("users").document(uid).collection("dailyLogs").document(day.dayKey)
-            .getDocument(source: .server).data(as: DailyLog.self)
+        let restored = try await reference.getDocument(source: .server).data(as: DailyLog.self)
         let saved = try XCTUnwrap(restored.meals.first?.foodItems.first)
         XCTAssertEqual(saved.id, original.id); XCTAssertEqual(saved.calories, original.calories)
         XCTAssertEqual(saved.servingWeight, original.servingWeight); XCTAssertEqual(saved.sourceMetadata, original.sourceMetadata)
@@ -1139,7 +1154,9 @@ final class DiaryPersistenceIntegrationTests: XCTestCase {
             if client.repository.dailyLogSyncState(userID: userID) == .synced { return }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
-        XCTFail("Durable diary queue did not reach the local emulator")
+        let state = client.repository.dailyLogSyncState(userID: userID)
+        throw NSError(domain: "MyFitPlateTests.DiarySync", code: 1,
+                      userInfo: [NSLocalizedDescriptionKey: "Durable diary queue did not reach the local emulator. Final sync state: \(state)."])
     }
 
     private func food(_ id: String) -> FoodItem {
