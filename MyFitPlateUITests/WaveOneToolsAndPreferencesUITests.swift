@@ -48,8 +48,11 @@ final class WaveOneToolsAndPreferencesUITests: XCTestCase {
         app.buttons["mL"].firstMatch.tap()
         app.buttons["water_add_container"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
-        let container = app.staticTexts["QA flask · 450 mL"]
+        let savedContainers = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label == %@",
+                                                                   "water_saved_container_", "QA flask · 450 mL"))
+        let container = savedContainers.firstMatch
         revealForm(container, app: app); XCTAssertTrue(container.exists)
+        XCTAssertEqual(savedContainers.count, 1)
         app.buttons["settings_water_save"].tap()
         XCTAssertTrue(app.switches["water_tracking_only"].waitForNonExistence(timeout: 10))
         app.terminate(); start(reset: false)

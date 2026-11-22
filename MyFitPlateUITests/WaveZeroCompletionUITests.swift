@@ -241,11 +241,12 @@ final class WaveZeroCompletionUITests: XCTestCase {
         let elapsed = app.textFields["workout_editor_elapsed_seconds"].firstMatch
         XCTAssertTrue(elapsed.waitForExistence(timeout: 5))
         replace(elapsed, with: "900", app: app)
-        XCTAssertEqual(elapsed.value as? String, "900")
         app.buttons["workout_editor_save"].firstMatch.tap()
         expectGone(app.buttons["workout_editor_save"].firstMatch, timeout: 10)
-        XCTAssertTrue(app.buttons["workout_summary_edit"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
         record(app, "Workout correction - accepted without resetting program")
+        edit.tap()
+        elapsed.assertTextValue("900", within: app)
     }
 
     @MainActor

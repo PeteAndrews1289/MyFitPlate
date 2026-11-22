@@ -95,8 +95,8 @@ final class WaveTwoPlateCalculatorUITests: XCTestCase {
         reveal(target, app: app); target.tap()
     }
     @MainActor private func replace(_ field: XCUIElement, with text: String, app: XCUIApplication) {
-        open(field, app: app); field.typeKey("a", modifierFlags: .command)
-        field.typeText(XCUIKeyboardKey.delete.rawValue + text)
+        reveal(field, app: app)
+        field.replaceContents(with: text, in: app)
         for id in ["plate_calculator_keyboard_done", "gym_profile_keyboard_done", "equipment_finish_edit", "equipment_keyboard_done"] {
             let done = app.buttons[id]
             if done.exists && done.isHittable { done.tap(); break }

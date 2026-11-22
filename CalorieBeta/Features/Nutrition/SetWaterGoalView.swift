@@ -54,11 +54,13 @@ struct SetWaterGoalView: View {
                     ForEach(preferences.containers) { container in
                         HStack {
                             Text(container.label)
+                                .accessibilityIdentifier("water_saved_container_\(container.id)")
                             Spacer()
                             Button("Remove") {
                                 preferences.containers.removeAll { $0.id == container.id }
                                 if preferences.preferredContainerID == container.id { preferences.preferredContainerID = preferences.containers.first?.id }
                             }.buttonStyle(.borderless)
+                            .accessibilityLabel("Remove \(container.label)")
                         }
                     }
                 }

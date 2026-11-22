@@ -86,11 +86,14 @@ struct StrengthEquipmentSetupView: View {
             Form {
                 Section {
                     Text(exerciseName).appTextRole(.control)
-                    Text(offersGymProfiles
-                         ? "Match your targets to the weights you can actually use. This setup is remembered on this device for this exercise and routine."
-                         : "Configure this implement, then save the gym profile to keep its inventory. Changes here stay in the profile draft until that save.")
-                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                    if original == nil {
+                        Text(offersGymProfiles
+                             ? "Match your targets to the weights you can actually use. This setup is remembered on this device for this exercise and routine."
+                             : "Configure this implement, then save the gym profile to keep its inventory. Changes here stay in the profile draft until that save.")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                    }
                 }
+                if original != nil { availableEquipmentSection }
                 Section("Quick setup") { presets }
                 if offersGymProfiles {
                     Section("Saved gyms") {
@@ -122,19 +125,7 @@ struct StrengthEquipmentSetupView: View {
                     }.pickerStyle(.menu).accessibilityIdentifier("equipment_meaning")
                     Text(meaningExplanation).appTextRole(.secondary).foregroundStyle(.secondary)
                 }
-                Section("Available equipment") {
-                    Picker("Equipment", selection: $kind) {
-                        Text("Fixed weights").tag(StrengthEquipment.Kind.fixedWeights)
-                        Text("Bar + plates").tag(StrengthEquipment.Kind.barbell)
-                    }.accessibilityIdentifier("equipment_kind")
-                    TextField("Optional equipment name", text: $equipmentName)
-                        .textInputAutocapitalization(.words).autocorrectionDisabled()
-                        .focused($focusedField, equals: "name")
-                        .accessibilityIdentifier("equipment_name")
-                    Text("Name a specific machine or rack when its weights should have their own history.")
-                        .appTextRole(.caption).foregroundStyle(.secondary)
-                    if kind == .fixedWeights { fixedWeights } else { barbellWeights }
-                }
+                if original == nil { availableEquipmentSection }
                 Section("Available loads") {
                     if let equipment {
                         Text(loadSummary(equipment)).appTextRole(.secondary)
@@ -190,6 +181,22 @@ struct StrengthEquipmentSetupView: View {
                     focusedField = nil
                 }
             }
+        }
+    }
+
+    private var availableEquipmentSection: some View {
+        Section("Available equipment") {
+            Picker("Equipment", selection: $kind) {
+                Text("Fixed weights").tag(StrengthEquipment.Kind.fixedWeights)
+                Text("Bar + plates").tag(StrengthEquipment.Kind.barbell)
+            }.accessibilityIdentifier("equipment_kind")
+            TextField("Optional equipment name", text: $equipmentName)
+                .textInputAutocapitalization(.words).autocorrectionDisabled()
+                .focused($focusedField, equals: "name")
+                .accessibilityIdentifier("equipment_name")
+            Text("Name a specific machine or rack when its weights should have their own history.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+            if kind == .fixedWeights { fixedWeights } else { barbellWeights }
         }
     }
 
