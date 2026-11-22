@@ -148,11 +148,11 @@ public enum GroceryListBuilder {
             var item = generatedItem
             let key = item.requirementKey ?? requirementIdentity(name: item.name, unit: item.unit)
             if let existing = priorItem(for: item, candidates: plannedByKey[key] ?? []) {
-                let oldAmount = applyUnitSystem(existing, system: .metric)
-                let newAmount = applyUnitSystem(generatedItem, system: .metric)
-                item.isCompleted = existing.isCompleted
-                    && oldAmount.unit == newAmount.unit && oldAmount.quantity.isFinite && newAmount.quantity.isFinite
-                    && oldAmount.quantity + 0.0001 >= newAmount.quantity
+                let requiredQuantity = InventoryQuantityRules.convert(item.quantity, from: item.unit, to: existing.unit)
+                let coversRequirement = requiredQuantity.map { amount in
+                    amount.isFinite && existing.quantity.isFinite && existing.quantity + 0.0001 >= amount
+                } ?? false
+                item.isCompleted = existing.isCompleted && coversRequirement
                 if generatedItem.source == "mealPlan" {
                     item.id = existing.id
                     item.revisionID = existing.revisionID
@@ -161,11 +161,12 @@ public enum GroceryListBuilder {
                         // A reviewed shopping amount is an explicit user override, not
                         // a claim that the recipe's unresolved ingredient became measured.
                         item.quantity = existing.quantity; item.unit = existing.unit; item.quantityUnknown = false
-                    } else if let amount = InventoryQuantityRules.convert(item.quantity, from: item.unit, to: existing.unit) {
-                        item.quantity = abs(oldAmount.quantity - newAmount.quantity) < 0.000000001 ? existing.quantity : amount
+                    } else if let amount = requiredQuantity, amount.isFinite {
+                        item.quantity = abs(existing.quantity - amount) < 0.000000001 ? existing.quantity : amount
                         item.unit = existing.unit
                     }
                     item.name = existing.name; item.category = existing.category
+                    item.barcode = existing.barcode ?? item.barcode
                     item.productSnapshot = existing.productSnapshot
                     if let override = existing.quantityOverride {
                         item = GroceryOverrideRules.applying(override, generated: item)
@@ -187,7 +188,7 @@ public enum GroceryListBuilder {
                     }
                     if item.unconvertedPurchases?.isEmpty == true { item.unconvertedPurchases = nil }
                     item.skippedForPlan = existing.skippedForPlan.map { skipped in
-                        skipped && item.quantityOverride?.requiresReview != true && oldAmount.quantity + 0.0001 >= newAmount.quantity
+                        skipped && item.quantityOverride?.requiresReview != true && coversRequirement
                     }
                     if let bought = item.purchasedQuantity, item.quantityUnknown != true { item.isCompleted = bought + 0.0001 >= item.quantity }
                 }

@@ -103,6 +103,7 @@ final class GroceryWorkflowDepthTests: XCTestCase {
         bought.isCompleted = true
         bought.purchasedQuantity = 400
         bought.transferredToPantryQuantity = 150
+        bought.barcode = "012345678905"
         let manual = GroceryListItem(name: "Tea", quantity: 1, unit: "item", source: "manual")
         var otherWeek = item("Dry rice", quantity: 200)
         otherWeek.sourcePlanStart = Calendar.current.date(byAdding: .day, value: 7, to: try XCTUnwrap(bought.sourcePlanStart))
@@ -116,6 +117,38 @@ final class GroceryWorkflowDepthTests: XCTestCase {
         XCTAssertEqual(GroceryListBuilder.mergeGroceryItems(generatedItems: [originalNeed], existingItems: restored), restored)
         // Earlier versions could already have saved an empty regenerated row beside the receipt.
         XCTAssertEqual(GroceryListBuilder.mergeGroceryItems(generatedItems: [originalNeed], existingItems: [originalNeed] + away), restored)
+    }
+
+    func testChecksAndSkipsRespectRealAmountsAcrossMetricDisplayUnits() {
+        for (small, large) in [("g", "kg"), ("ml", "L")] {
+            var checked = item(quantity: 1.2, unit: large)
+            checked.isCompleted = true
+            let reduced = GroceryListBuilder.mergeGroceryItems(generatedItems: [item(quantity: 900, unit: small)], existingItems: [checked])[0]
+            XCTAssertTrue(reduced.isCompleted)
+            XCTAssertEqual(reduced.quantity, 0.9, accuracy: 0.000001)
+            XCTAssertEqual(reduced.unit, large)
+
+            var skipped = item(quantity: 900, unit: small)
+            skipped.skippedForPlan = true
+            let increased = GroceryListBuilder.mergeGroceryItems(generatedItems: [item(quantity: 1.2, unit: large)], existingItems: [skipped])[0]
+            XCTAssertFalse(increased.skippedForPlan == true)
+            XCTAssertEqual(increased.quantity, 1_200, accuracy: 0.000001)
+            XCTAssertEqual(increased.unit, small)
+        }
+    }
+
+    func testEqualNumbersWithDifferentUnitsKeepTheNewShoppingAmount() {
+        for (small, large) in [("g", "kg"), ("ml", "L")] {
+            let smaller = item(quantity: 1, unit: small)
+            let bigger = item(quantity: 1, unit: large)
+            let increased = GroceryListBuilder.mergeGroceryItems(generatedItems: [bigger], existingItems: [smaller])[0]
+            XCTAssertEqual(increased.id, smaller.id)
+            XCTAssertEqual(increased.quantity, 1_000, accuracy: 0.000001)
+            XCTAssertEqual(increased.unit, small)
+            let reduced = GroceryListBuilder.mergeGroceryItems(generatedItems: [smaller], existingItems: [bigger])[0]
+            XCTAssertEqual(reduced.quantity, 0.001, accuracy: 0.000001)
+            XCTAssertEqual(reduced.unit, large)
+        }
     }
 
     func testUnconvertedPurchaseSurvivesRemovingAndRestoringItsPlannedNeed() {
