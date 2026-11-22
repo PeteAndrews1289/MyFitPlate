@@ -18,6 +18,13 @@ extension XCUIElement {
             }
         }
         typeText(text)
-        XCTAssertEqual(value as? String, text, "The input field should show the entire replacement.", file: file, line: line)
+        assertTextValue(text, within: app, file: file, line: line)
+    }
+
+    @MainActor
+    func assertTextValue(_ expected: String, within screen: XCUIElement,
+                         file: StaticString = #filePath, line: UInt = #line) {
+        let updated = screen.textFields.matching(NSPredicate(format: "identifier == %@ AND value == %@", identifier, expected)).firstMatch
+        XCTAssertTrue(updated.waitForExistence(timeout: 8), "Expected \(identifier) to show \(expected).", file: file, line: line)
     }
 }

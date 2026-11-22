@@ -122,6 +122,7 @@ final class WaveOneToolsAndPreferencesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["food_preferences_save"].firstMatch.waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["food_preferences_cancel"].firstMatch.isHittable)
         app.buttons["food_preferences_cancel"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["food_preferences_save"].firstMatch.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.scrollViews["home_scroll"].waitForExistence(timeout: 5))
     }
 
