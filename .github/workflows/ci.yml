@@ -157,6 +157,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           set -o pipefail
+          python3 -m unittest discover -s scripts -p test_ui_launch_retries.py
           device=$(xcrun simctl list devices available --json | jq -er '
             [.devices | to_entries[] | select(.key | test("[.]iOS-[0-9-]+$"))
              | (.key | split(".iOS-")[1] | split("-") | map(tonumber)) as $version
@@ -188,7 +189,8 @@ jobs:
           fi
           if [[ "$test_status" != 0 ]]; then
             xcrun xcresulttool get test-results summary --path UITestResults.xcresult > UIInitialSummary.json
-            python3 scripts/ui_launch_retries.py UIInitialSummary.json > UIRetryTests.txt
+            python3 scripts/ui_launch_retries.py UIInitialSummary.json --blocking-report UIBlockingFailures.txt > UIRetryTests.txt
+            cat UIBlockingFailures.txt
             if [[ -s UIRetryTests.txt ]]; then
               # XCTest never acquired the launch assertion. Keep that result, reboot the same
               # simulator, and require actual passing receipts for each affected method.
@@ -202,7 +204,7 @@ jobs:
                 | jq -r '.. | objects | select(.nodeType == "Test Case" and .result == "Passed") | .nodeIdentifier' \
                 | LC_ALL=C sort -u > UIRetryPassedTests.txt
               diff -u UIRetryTests.txt UIRetryPassedTests.txt
-              test_status=0
+              if [[ ! -s UIBlockingFailures.txt ]]; then test_status=0; fi
             fi
           fi
           exit "$test_status"
@@ -218,6 +220,7 @@ jobs:
             UIExpectedTests.txt
             UIExecutedTests.txt
             UIInitialSummary.json
+            UIBlockingFailures.txt
             UIRetryTests.txt
             UIRetryPassedTests.txt
             UIRetryResults.xcresult
