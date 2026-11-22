@@ -1417,6 +1417,40 @@ private struct RunRepeatEditorValue: Codable, Equatable {
     var slowestPaceSeconds = 330
 }
 
+private struct RunWorkoutNameField: View {
+    @Binding var name: String
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: AppSpacing.compact) {
+            TextField("Workout name", text: $name)
+                .appTextRole(.control)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .focused($isFocused)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("run_workout_name")
+            if isFocused && !name.isEmpty {
+                Button {
+                    name = ""
+                    isFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear workout name")
+                .accessibilityIdentifier("run_workout_name_clear")
+            }
+        }
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.compact)
+        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+    }
+}
+
 private struct RunWorkoutTemplateEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var editor: RunBuilderState<RunRepeatEditorValue>
@@ -1448,11 +1482,7 @@ private struct RunWorkoutTemplateEditorSheet: View {
                 }
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
                     AppSectionHeader(title: "Workout")
-                    TextField("Workout name", text: $editor.draft.value.name)
-                        .accessibilityIdentifier("run_workout_name")
-                        .appTextRole(.control)
-                        .padding(AppSpacing.group)
-                        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                    RunWorkoutNameField(name: $editor.draft.value.name)
                 }
                 VStack(alignment: .leading, spacing: AppSpacing.group) {
                     Stepper("Repeats: \(form.repetitions)", value: $editor.draft.value.repetitions, in: 1...50)
@@ -1603,14 +1633,7 @@ private struct RunWorkoutStepTemplateEditorSheet: View {
                 }
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
                     AppSectionHeader(title: "Workout name")
-                    TextField("Workout name", text: $editor.draft.value.name)
-                        .accessibilityIdentifier("run_workout_name")
-                        .appTextRole(.control)
-                        .padding(AppSpacing.group)
-                        .background(
-                            AppPalette.control,
-                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                        )
+                    RunWorkoutNameField(name: $editor.draft.value.name)
                 }
 
                 VStack(alignment: .leading, spacing: AppSpacing.row) {

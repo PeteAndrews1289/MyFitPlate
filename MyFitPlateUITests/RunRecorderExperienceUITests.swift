@@ -250,10 +250,13 @@ final class RunRecorderExperienceUITests: XCTestCase {
         let field = app.textFields["run_workout_name"]
         XCTAssertTrue(field.waitForExistence(timeout: 8))
         field.tap()
-        let original = field.value as? String ?? ""
+        let clearName = app.buttons["run_workout_name_clear"]
+        XCTAssertTrue(clearName.waitForExistence(timeout: 5))
+        clearName.tap()
+        XCTAssertTrue(clearName.waitForNonExistence(timeout: 5))
         let title = "QA restored intervals \(UUID().uuidString.prefix(6))"
-        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: original.count) + title)
-        XCTAssertEqual(field.value as? String, title)
+        field.typeText(title)
+        field.assertTextValue(title, within: app)
         app.terminate()
         app.launchArguments.removeAll { $0 == "-ui-testing-reset-run-builder" }
         app.launch()
