@@ -56,7 +56,7 @@ final class AdaptiveToolsUITests: XCTestCase {
         if requiringHittable { XCTAssertTrue(element.isHittable, app.debugDescription) }
     }
 
-    @MainActor private func confirmLegacy(_ toggle: XCUIElement, in app: XCUIApplication) {
+    @MainActor private func enableSwitch(_ toggle: XCUIElement, in app: XCUIApplication) {
         reveal(toggle, in: app, searchUpWhenMissing: true)
         if toggle.value as? String != "1" { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
         let confirmed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: toggle)
@@ -188,10 +188,12 @@ final class AdaptiveToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["experiment_meal_a"].label.contains("Blueberry Protein Overnight Oats"), "Choosing B must not invalidate recipe A's picker identity.")
         XCTAssertTrue(app.buttons["experiment_meal_b"].label.contains("Weeknight Chicken Power Bowl"))
         let consent = app.switches["experiment_consent"]
-        reveal(consent, in: app)
-        consent.tap()
         let start = app.buttons["experiment_start"]
+        reveal(start, in: app, requiringHittable: false)
+        XCTAssertFalse(start.isEnabled, "Choosing both meals still requires explicit consent.")
+        enableSwitch(consent, in: app)
         reveal(start, in: app)
+        XCTAssertTrue(start.isEnabled)
         start.tap()
         XCTAssertTrue(app.staticTexts["experiment_result"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertEqual(app.staticTexts["experiment_result"].label, "Still learning")
@@ -222,7 +224,7 @@ final class AdaptiveToolsUITests: XCTestCase {
         let save = app.buttons["experiment_save_checkin"]
         reveal(save, in: app, requiringHittable: false)
         XCTAssertFalse(save.isEnabled, "Both ratings are filled; the unconfirmed legacy linkage must still prevent Save.")
-        confirmLegacy(legacy, in: app)
+        enableSwitch(legacy, in: app)
         reveal(save, in: app)
         XCTAssertTrue(save.isEnabled)
         save.tap()
@@ -243,7 +245,7 @@ final class AdaptiveToolsUITests: XCTestCase {
         XCTAssertTrue(correctedEnergy.buttons["4"].isSelected)
         correctedEnergy.buttons["3"].tap()
         let confirm = app.switches["experiment_confirm_legacy"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirmLegacy(confirm, in: app)
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); enableSwitch(confirm, in: app)
         let saveCorrection = app.buttons["experiment_save_checkin"]
         reveal(saveCorrection, in: app)
         XCTAssertEqual(saveCorrection.label, "Save correction"); saveCorrection.tap()
