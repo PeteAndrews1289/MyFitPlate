@@ -65,14 +65,17 @@ struct MealPrepCookingView: View {
         .background(AppPalette.canvas.ignoresSafeArea())
         .sheet(isPresented: $showTimerSheet) {
             TimerSetupView(initialMinutes: lastTimerMinutes, asksForName: addingNamedTimer) { minutes, name in
-                if addingNamedTimer { _ = cookingProgress.addNamedTimer(name: name, minutes: minutes, stepID: namedTimerStepID) } else { startTimer(minutes: minutes) }
+                if addingNamedTimer {
+                    let instruction = mealPrepService.structuredSteps.first { $0.id == namedTimerStepID }?.text
+                    _ = cookingProgress.addNamedTimer(name: name, minutes: minutes, stepID: namedTimerStepID, instruction: instruction)
+                } else { startTimer(minutes: minutes) }
                 showTimerSheet = false
             }
         }
         .sheet(item: $suggestedRange) { suggestion in
             TimerSetupView(initialMinutes: suggestion.minutes.lowerBound, allowedMinutes: suggestion.minutes,
                            subtitle: suggestion.name + " · Choose \(suggestion.minutes.lowerBound)–\(suggestion.minutes.upperBound) minutes.") { minutes, _ in
-                _ = cookingProgress.addNamedTimer(name: suggestion.name, minutes: minutes, stepID: suggestion.id)
+                _ = cookingProgress.addNamedTimer(name: suggestion.name, minutes: minutes, stepID: suggestion.id, instruction: suggestion.instruction)
                 suggestedRange = nil
             }
         }
@@ -305,6 +308,7 @@ struct MealPrepCookingView: View {
     private struct StepTimerRange: Identifiable {
         let id: String
         let name: String
+        let instruction: String
         let minutes: ClosedRange<Int>
     }
 
@@ -321,9 +325,9 @@ struct MealPrepCookingView: View {
                 let position = (visibleStepIndexes.firstIndex(where: { mealPrepService.structuredSteps[$0].id == step.id }) ?? 0) + 1
                 let name = String(("Step \(position) · " + step.recipeName).prefix(80))
                 if minutes.lowerBound == minutes.upperBound {
-                    _ = cookingProgress.addNamedTimer(name: name, minutes: minutes.lowerBound, stepID: step.id)
+                    _ = cookingProgress.addNamedTimer(name: name, minutes: minutes.lowerBound, stepID: step.id, instruction: step.text)
                 } else {
-                    suggestedRange = StepTimerRange(id: step.id, name: name, minutes: minutes)
+                    suggestedRange = StepTimerRange(id: step.id, name: name, instruction: step.text, minutes: minutes)
                 }
             } else {
                 namedTimerStepID = step.id

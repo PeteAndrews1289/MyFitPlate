@@ -39,6 +39,7 @@ public struct NamedCookingTimer: Codable, Identifiable {
     public var pausedRemaining: TimeInterval
     public var finished: Bool
     public var stepID: String?
+    public var instruction: String?
     public init(name: String, minutes: Int, now: Date = Date()) {
         id = UUID(); self.name = name; deadline = now.addingTimeInterval(MealPrepTimerRules.duration(minutes: minutes))
         pausedRemaining = 0; finished = false
@@ -243,7 +244,7 @@ public final class MealCookingCheckpointSession: ObservableObject {
     }
 
     @discardableResult
-    public func addNamedTimer(name: String, minutes: Int, stepID: String? = nil, now: Date = Date()) -> Bool {
+    public func addNamedTimer(name: String, minutes: Int, stepID: String? = nil, instruction: String? = nil, now: Date = Date()) -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 80 else { return false }
         guard (checkpoint.additionalTimers ?? []).count < 12 else {
@@ -251,7 +252,9 @@ public final class MealCookingCheckpointSession: ObservableObject {
             return false
         }
         var next = checkpoint
-        var timer = NamedCookingTimer(name: trimmed, minutes: minutes, now: now); timer.stepID = stepID
+        var timer = NamedCookingTimer(name: trimmed, minutes: minutes, now: now)
+        timer.stepID = stepID
+        timer.instruction = stepID == nil ? nil : instruction
         next.additionalTimers = (next.additionalTimers ?? []) + [timer]
         return persist(next)
     }

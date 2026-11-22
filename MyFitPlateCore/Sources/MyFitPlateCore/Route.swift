@@ -6,6 +6,7 @@ public enum Route: String, Hashable, Identifiable, Sendable {
     case profile
     case settings
     case nutrition
+    case cookingTimer
     case workouts
     case reports
     case community
@@ -36,7 +37,7 @@ public enum Route: String, Hashable, Identifiable, Sendable {
             return 1
         case .workouts, .runs, .plateCalculator, .weekRescue:
             return 2
-        case .nutrition:
+        case .nutrition, .cookingTimer:
             return 3
         case .reports:
             return 4

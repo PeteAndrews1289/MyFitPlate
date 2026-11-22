@@ -92,6 +92,43 @@ import XCTest
         XCTAssertNotEqual(requests[0].id, CookingNotificationRules.requests(userID: "another", timers: [running], now: now)[0].id)
         XCTAssertTrue(CookingNotificationRules.requests(userID: user, timers: [running], now: now.addingTimeInterval(61)).isEmpty)
     }
+    func testDeliveredAlertResolvesOnlyItsAccountAndKeepsTheOriginalInstruction() throws {
+        let cooking = session()
+        let instruction = "Cover the rice and simmer for 12 minutes."
+        XCTAssertTrue(cooking.addNamedTimer(name: "Rice", minutes: 12, stepID: "rice-step-1", instruction: instruction, now: now))
+        XCTAssertTrue(cooking.addNamedTimer(name: "Rice", minutes: 3, stepID: "rice-step-2", instruction: "Rest for 3 minutes.", now: now))
+        let timers = try CookingTimerRegistry.shared.checkedTimers(userID: user).filter { $0.contextID == cooking.contextID }
+        let request = try XCTUnwrap(CookingNotificationRules.requests(userID: user, timers: timers, now: now).last)
+        let coordinator = AppCoordinator()
+        coordinator.navigate(to: .workouts)
+        coordinator.handleCookingNotification(identifier: "meal-reminder")
+        coordinator.handleCookingNotification(identifier: CookingNotificationRules.identifierPrefix + "invalid")
+        XCTAssertEqual(coordinator.pendingRoute, .workouts)
+        coordinator.handleCookingNotification(identifier: request.id)
+        let link = try XCTUnwrap(coordinator.takePendingRequest())
+        XCTAssertEqual(link.route, .cookingTimer)
+        XCTAssertEqual(link.route.selectedTab, Route.nutrition.selectedTab)
+        let target = try XCTUnwrap(link.objectID)
+        let timer = try XCTUnwrap(CookingNotificationRules.timer(for: target, userID: user, in: timers))
+        XCTAssertEqual(timer.stepID, "rice-step-1")
+        XCTAssertEqual(timer.instruction, instruction)
+        XCTAssertNil(CookingNotificationRules.timer(for: target, userID: "another-account", in: timers))
+        XCTAssertNil(CookingNotificationRules.timer(for: target, userID: user, in: timers.filter { $0.id != timer.id }))
+        XCTAssertNil(coordinator.takePendingRequest())
+    }
+    func testEarlierCookingTimersDecodeWithoutAnInstructionAndRetainTheirIdentity() throws {
+        let cooking = session()
+        XCTAssertTrue(cooking.addNamedTimer(name: "Rice", minutes: 5, stepID: "rice-step", now: now))
+        let original = try XCTUnwrap(cooking.checkpoint.additionalTimers?.first)
+        let data = try JSONEncoder().encode(original)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertNil(json["instruction"])
+        let restored = try JSONDecoder().decode(NamedCookingTimer.self, from: data)
+        XCTAssertNil(restored.instruction)
+        XCTAssertEqual(restored.id, original.id)
+        XCTAssertEqual(restored.stepID, original.stepID)
+        XCTAssertEqual(restored.deadline, original.deadline)
+    }
     func testStaleCookingViewCannotOverwriteTimerChangedOutsideCook() throws {
         activate()
         let store = EditorDraftStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))

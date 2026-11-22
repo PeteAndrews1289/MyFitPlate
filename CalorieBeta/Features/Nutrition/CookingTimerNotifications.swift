@@ -30,19 +30,19 @@ import UserNotifications
         let timers: [CookingTimerInspection]
         do { timers = try userID.map { try CookingTimerRegistry.shared.checkedTimers(userID: $0) } ?? [] } catch {
             if lastOwner != userID || !allowed {
-                center.removePendingNotificationRequests(withIdentifiers: existing.filter { $0.identifier.hasPrefix("mfp.cooking.") }.map(\.identifier))
-                center.removeDeliveredNotifications(withIdentifiers: delivered.filter { $0.request.identifier.hasPrefix("mfp.cooking.") }.map { $0.request.identifier })
+                center.removePendingNotificationRequests(withIdentifiers: existing.filter { $0.identifier.hasPrefix(CookingNotificationRules.identifierPrefix) }.map(\.identifier))
+                center.removeDeliveredNotifications(withIdentifiers: delivered.filter { $0.request.identifier.hasPrefix(CookingNotificationRules.identifierPrefix) }.map { $0.request.identifier })
             }
             lastOwner = userID; message = "The timer index could not be opened. Cooking checkpoints are kept; alert reconciliation needs retry."; return
         }
-        let capacity = CookingNotificationRules.alertCapacity(otherPendingCount: existing.filter { !$0.identifier.hasPrefix("mfp.cooking.") }.count)
+        let capacity = CookingNotificationRules.alertCapacity(otherPendingCount: existing.filter { !$0.identifier.hasPrefix(CookingNotificationRules.identifierPrefix) }.count)
         let desired = userID.map { Array(CookingNotificationRules.requests(userID: $0, timers: timers).prefix(capacity)) } ?? []
         let active = allowed ? desired : []
         let identifiers = Set(active.map(\.id))
         let retainedIDs = Set(userID.map { owner in timers.map { CookingNotificationRules.identifier(userID: owner, timer: $0) } } ?? [])
-        center.removePendingNotificationRequests(withIdentifiers: existing.filter { $0.identifier.hasPrefix("mfp.cooking.") && !identifiers.contains($0.identifier) }.map(\.identifier))
+        center.removePendingNotificationRequests(withIdentifiers: existing.filter { $0.identifier.hasPrefix(CookingNotificationRules.identifierPrefix) && !identifiers.contains($0.identifier) }.map(\.identifier))
         center.removeDeliveredNotifications(withIdentifiers: delivered.filter {
-            $0.request.identifier.hasPrefix("mfp.cooking.") && (lastOwner != userID || !allowed || !retainedIDs.contains($0.request.identifier) || identifiers.contains($0.request.identifier))
+            $0.request.identifier.hasPrefix(CookingNotificationRules.identifierPrefix) && (lastOwner != userID || !allowed || !retainedIDs.contains($0.request.identifier) || identifiers.contains($0.request.identifier))
         }.map { $0.request.identifier })
         lastOwner = userID
         guard userID != nil else { return }
@@ -72,41 +72,64 @@ import UserNotifications
 struct CookingTimersInspectionView: View {
     @ObservedObject private var registry = CookingTimerRegistry.shared
     @ObservedObject private var notifications = CookingNotificationCoordinator.shared
+    @ObservedObject private var navigation = AppCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var phase
     private let owner = DIContainer.shared.authService.currentUserID
+    @State private var notificationID: String?
+    init(notificationID: String? = nil) { _notificationID = State(initialValue: notificationID) }
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Text(notifications.message).appTextRole(.secondary)
-                    if let error = registry.errorMessage { Text(error).foregroundStyle(AppPalette.caution) }
-                    Button("Enable cooking alerts") { Task { await notifications.requestAlerts() } }.frame(minHeight: 44)
-                        .accessibilityIdentifier("cooking_enable_alerts")
-                }
-                if let owner {
-                    ForEach(registry.timers(userID: owner)) { timer in
-                        VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                            Text(timer.name).appTextRole(.control)
-                            TimelineView(.periodic(from: .now, by: 1)) { context in
-                                Text(timer.finished || timer.remaining(now: context.date) <= 0 ? "Finished" : MealPrepTimerRules.display(timer.remaining(now: context.date)))
-                                    .appTextRole(.metric).monospacedDigit()
-                            }
-                            if timer.stepID != nil { Text("Linked to a cooking step").appTextRole(.caption) }
-                            ViewThatFits(in: .horizontal) {
-                                HStack { controls(timer, owner: owner) }
-                                VStack(alignment: .leading) { controls(timer, owner: owner) }
-                            }
-                        }.accessibilityElement(children: .contain).accessibilityIdentifier("cooking_inspect_\(timer.id)")
+                if let notificationID {
+                    if let owner, let timer = CookingNotificationRules.timer(for: notificationID, userID: owner, in: registry.timers(userID: owner)) {
+                        timerRow(timer, owner: owner)
+                    } else if registry.errorMessage == nil {
+                        Text("This timer is no longer available for this account.")
+                            .accessibilityIdentifier("cooking_alert_unavailable")
+                    }
+                } else {
+                    Section {
+                        Text(notifications.message).appTextRole(.secondary)
+                        Button("Enable cooking alerts") { Task { await notifications.requestAlerts() } }.frame(minHeight: 44)
+                            .accessibilityIdentifier("cooking_enable_alerts")
+                    }
+                    if let owner {
+                        ForEach(registry.timers(userID: owner)) { timer in timerRow(timer, owner: owner) }
                     }
                 }
+                if let error = registry.errorMessage { Text(error).foregroundStyle(AppPalette.caution) }
             }.appFormStyle()
-            .navigationTitle("Cooking timers").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(notificationID == nil ? "Cooking timers" : "Cooking timer").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .task { await notifications.reconcile(userID: owner) }
+        .task(id: navigation.pendingRequest?.id) {
+            guard let request = navigation.pendingRequest, request.route == .cookingTimer, let identifier = request.objectID,
+                  owner == DIContainer.shared.authService.currentUserID else { return }
+            notificationID = identifier
+            _ = navigation.takePendingRequest()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .cookingTimersChanged)) { _ in Task { await notifications.reconcile(userID: owner) } }
         .onChange(of: phase) { _, value in if value == .active { Task { await notifications.reconcile(userID: owner) } } }
+    }
+    private func timerRow(_ timer: CookingTimerInspection, owner: String) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(timer.name).appTextRole(.control)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(timer.finished || timer.remaining(now: context.date) <= 0 ? "Finished" : MealPrepTimerRules.display(timer.remaining(now: context.date)))
+                    .appTextRole(.metric).monospacedDigit()
+            }
+            if let instruction = timer.instruction {
+                Text(instruction).appTextRole(.body).accessibilityIdentifier("cooking_timer_instruction")
+            } else if timer.stepID != nil {
+                Text("Linked to a cooking step").appTextRole(.caption)
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack { controls(timer, owner: owner) }
+                VStack(alignment: .leading) { controls(timer, owner: owner) }
+            }
+        }.accessibilityElement(children: .contain).accessibilityIdentifier("cooking_inspect_\(timer.id)")
     }
     @ViewBuilder private func controls(_ timer: CookingTimerInspection, owner: String) -> some View {
         Button(timer.deadline == nil ? "Resume" : "Pause") { change(timer, owner: owner, action: 0) }

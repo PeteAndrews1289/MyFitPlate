@@ -50,6 +50,14 @@ public class AppCoordinator: ObservableObject {
 
     public func navigate(to route: Route) { enqueue(AppLinkRequest(route: route)) }
 
+    public func handleCookingNotification(identifier: String) {
+        let prefix = CookingNotificationRules.identifierPrefix
+        guard identifier.hasPrefix(prefix) else { return }
+        let hash = identifier.utf8.dropFirst(prefix.utf8.count)
+        guard hash.count == 64, hash.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else { return }
+        enqueue(AppLinkRequest(route: .cookingTimer, objectID: identifier))
+    }
+
     public func takePendingRequest() -> AppLinkRequest? {
         defer { pendingRoute = nil; pendingRequest = nil }
         return pendingRequest

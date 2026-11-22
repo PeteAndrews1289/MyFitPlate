@@ -65,6 +65,7 @@ public struct CookingTimerInspection: Identifiable, Codable, Sendable {
     public var pausedRemaining: TimeInterval
     public var finished: Bool
     public var stepID: String?
+    public var instruction: String?
     public func remaining(now: Date = Date()) -> TimeInterval { deadline.map { max(0, $0.timeIntervalSince(now)) } ?? pausedRemaining }
 }
 public struct CookingTimerNotification: Identifiable, Equatable, Sendable {
@@ -73,10 +74,14 @@ public struct CookingTimerNotification: Identifiable, Equatable, Sendable {
     public let deadline: Date
 }
 public enum CookingNotificationRules {
+    public static let identifierPrefix = "mfp.cooking."
     public static func alertCapacity(otherPendingCount: Int) -> Int { max(0, min(48, 64 - max(0, otherPendingCount))) }
     public static func identifier(userID: String, timer: CookingTimerInspection) -> String {
         let hash = (try? PlanFingerprint.make([userID, timer.contextID, timer.id])) ?? ""
-        return "mfp.cooking.\(hash)"
+        return identifierPrefix + hash
+    }
+    public static func timer(for notificationID: String, userID: String, in timers: [CookingTimerInspection]) -> CookingTimerInspection? {
+        timers.first { identifier(userID: userID, timer: $0) == notificationID }
     }
     public static func requests(userID: String, timers: [CookingTimerInspection], now: Date = Date()) -> [CookingTimerNotification] {
         timers.compactMap { timer in
@@ -129,7 +134,8 @@ public enum CookingNotificationRules {
             let c = record.checkpoint
             var timers = (c.additionalTimers ?? []).map { timer in
                 CookingTimerInspection(id: "\(record.contextID)|\(timer.id)", contextID: record.contextID, timerID: timer.id, name: timer.name,
-                    deadline: timer.deadline, pausedRemaining: timer.pausedRemaining, finished: timer.finished, stepID: timer.stepID)
+                    deadline: timer.deadline, pausedRemaining: timer.pausedRemaining, finished: timer.finished, stepID: timer.stepID,
+                    instruction: timer.instruction)
             }
             if c.timerEndDate != nil || c.pausedTimerRemaining > 0 || c.timerFinished {
                 timers.append(.init(id: "\(record.contextID)|primary", contextID: record.contextID, name: "Cooking timer",

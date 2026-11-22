@@ -37,12 +37,18 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
-        if let identifier = userInfo["reminder_id"] as? String, let fingerprint = userInfo["reminder_fingerprint"] as? String {
-            Task { @MainActor in
-                AccountReminderCoordinator.shared.queueResponse(identifier: identifier, fingerprint: fingerprint, action: response.actionIdentifier)
+        let reminderID = userInfo["reminder_id"] as? String
+        let fingerprint = userInfo["reminder_fingerprint"] as? String
+        let action = response.actionIdentifier
+        let notificationID = response.notification.request.identifier
+        Task { @MainActor in
+            if let reminderID, let fingerprint {
+                AccountReminderCoordinator.shared.queueResponse(identifier: reminderID, fingerprint: fingerprint, action: action)
+            } else if action == UNNotificationDefaultActionIdentifier {
+                AppCoordinator.shared.handleCookingNotification(identifier: notificationID)
             }
+            completionHandler()
         }
-        completionHandler()
     }
 }
 
@@ -938,7 +944,7 @@ struct ContentView: View {
 
         switch route {
         case .foodSearch, .trust, .builder, .runs, .profile, .settings, .unavailable,
-             .tools, .foodPreferences, .recipes, .pantry, .grocery, .buffet, .plateCalculator, .weekRescue, .mealExperiments:
+             .tools, .foodPreferences, .recipes, .pantry, .grocery, .buffet, .plateCalculator, .weekRescue, .mealExperiments, .cookingTimer:
             presentedDeepLinkRoute = route
         case .trainingFuel:
             DispatchQueue.main.async {
@@ -969,6 +975,8 @@ struct ContentView: View {
             )
         case .runs:
             DeepLinkedRunHistoryView()
+        case .cookingTimer:
+            CookingTimersInspectionView(notificationID: presentedDeepLinkRequest?.objectID)
         case .profile:
             NavigationStack { UserProfileView() }
         case .settings:

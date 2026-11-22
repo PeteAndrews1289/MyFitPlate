@@ -102,6 +102,13 @@ final class CookingDesignUITests: XCTestCase {
         app.buttons["meal_prep_timer_start"].tap()
         reveal(timer, app: app); XCTAssertTrue(timer.label.contains("Step 2"))
         XCTAssertEqual(button.label, "View step timer")
+        reveal(button, app: app); button.tap()
+        XCTAssertTrue(app.navigationBars["Cooking timers"].waitForExistence(timeout: 5))
+        for instruction in ["Simmer for 12 minutes.", "Rest for 10–15 minutes."] {
+            let originalStep = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS %@",
+                                                                   "cooking_timer_instruction", instruction)).firstMatch
+            XCTAssertTrue(originalStep.waitForExistence(timeout: 5), app.debugDescription)
+        }
     }
 
     private func reveal(_ element: XCUIElement, app: XCUIApplication) {
