@@ -135,6 +135,7 @@ struct MealExperimentsView: View {
             Text("Six sessions, with meals A and B mixed across the schedule. Keep the portions and timing similar each time.")
                 .appTextRole(.body)
             if let program = workoutService.activeProgram {
+                let proposed = try? proposal(program)
                 Text("Workout").appTextRole(.control)
                 Picker("Workout", selection: $routineID) {
                     Text("Choose a routine").tag("")
@@ -155,16 +156,17 @@ struct MealExperimentsView: View {
                 if foods.count < 2 {
                     Text("Save two recipes or log familiar meals first; they will appear here.")
                         .appTextRole(.secondary).foregroundStyle(.secondary)
+                } else if !mealAID.isEmpty, mealAID == mealBID {
+                    Text("Choose a different meal for A or B.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
                 }
                 Text("Eat before training").appTextRole(.control)
                 Picker("Eat before training", selection: $minutesBefore) {
                     ForEach([60, 90, 120, 150], id: \.self) { Text("About \($0) minutes").tag($0) }
                 }
-                Toggle("I already eat both meals comfortably and want to compare them", isOn: $familiar)
-                    .appTextRole(.body).accessibilityIdentifier("experiment_consent")
-                if let proposed = try? proposal(program) {
+                if let proposed {
                     Text("Your six planned sessions").appTextRole(.sectionTitle)
-                    ForEach(proposed.trials) { trial in
+                    ForEach(proposed.trials, id: \.slot) { trial in
                         HStack {
                             Text(trial.date.formatted(date: .abbreviated, time: .omitted))
                             Spacer()
@@ -172,9 +174,27 @@ struct MealExperimentsView: View {
                         }.appTextRole(.secondary)
                     }
                 }
+                Button {
+                    familiar.toggle()
+                } label: {
+                    HStack(spacing: AppSpacing.compact) {
+                        Image(systemName: familiar ? "checkmark.square.fill" : "square")
+                            .foregroundStyle(familiar ? AppPalette.brandText : Color.secondary)
+                            .accessibilityHidden(true)
+                        Text("I already eat both meals comfortably and want to compare them")
+                            .multilineTextAlignment(.leading)
+                    }
+                    .appTextRole(.body)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(familiar ? .isSelected : [])
+                .accessibilityIdentifier("experiment_consent")
+                .onChange(of: [mealAID, mealBID]) { _, _ in familiar = false }
                 Button("Start comparison") { start(program) }
                     .buttonStyle(AppActionButtonStyle(.primary))
-                    .disabled(!familiar || mealAID.isEmpty || mealBID.isEmpty || routineID.isEmpty || loading)
+                    .disabled(!familiar || proposed == nil || loading)
                     .accessibilityIdentifier("experiment_start")
             } else {
                 AdaptiveProgramRequirementView()
