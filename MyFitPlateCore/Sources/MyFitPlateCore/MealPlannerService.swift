@@ -249,7 +249,8 @@ public class MealPlannerService: ObservableObject {
     public func refreshGroceryListResult(
         for userID: String,
         starting startDate: Date = Date(),
-        existingItems suppliedExistingItems: [GroceryListItem]? = nil
+        existingItems suppliedExistingItems: [GroceryListItem]? = nil,
+        reloadPlanDays: Bool = false
     ) async -> Result<[GroceryListItem], Error> {
         let rescueToken = activeGroceryRescueToken(userID)
         let startOfDay = Calendar.current.startOfDay(for: startDate)
@@ -259,7 +260,7 @@ public class MealPlannerService: ObservableObject {
             guard let date = Calendar.current.date(byAdding: .day, value: offset, to: startOfDay) else {
                 continue
             }
-            switch await fetchPlanResult(for: date, userID: userID) {
+            switch await fetchPlanResult(for: date, userID: userID, reload: reloadPlanDays) {
             case .success(let plan):
                 if let plan, !plan.meals.isEmpty { days.append(plan) }
             case .failure(let error):
@@ -413,29 +414,37 @@ public class MealPlannerService: ObservableObject {
     /// Rescue overlays are stored atomically with the active workout program, never in this cache.
     public var activeWeekRescue: ((String) -> WeekRescueAdjustment?)?
 
-    public func fetchPlanResult(for date: Date, userID: String) async -> Result<MealPlanDay?, Error> {
-        let result = await fetchBasePlanResult(for: date, userID: userID)
+    public func fetchPlanResult(for date: Date, userID: String, reload: Bool = false) async -> Result<MealPlanDay?, Error> {
+        let result = await fetchBasePlanResult(for: date, userID: userID, reload: reload)
         return result.map { plan in
             guard let rescue = activeWeekRescue?(userID) else { return plan }
             return rescue.resolving(plan, on: date)
         }
     }
 
-    public func fetchBasePlanResult(for date: Date, userID: String) async -> Result<MealPlanDay?, Error> {
+    public func fetchBasePlanResult(for date: Date, userID: String, reload: Bool = false) async -> Result<MealPlanDay?, Error> {
         prepareCache(for: userID)
         let key = cacheKey(for: date, userID: userID)
-        if let cachedPlan = planCache[key] {
+        let cached = planCache[key]
+        if !reload, let cachedPlan = cached {
             return .success(cachedPlan)
         }
 
         let dateString = dateString(for: date)
         do {
-            if let plan = try await DIContainer.shared.nutritionRepository.fetchMealPlan(userID: userID, dateString: dateString) {
+            let plan = try await DIContainer.shared.nutritionRepository.fetchMealPlan(userID: userID, dateString: dateString)
+            if reload {
+                guard DIContainer.shared.authService.currentUserID == userID else { throw MealPlanEditError.accountChanged }
+                // A plan edited locally while the read was in flight takes precedence.
+                guard MealPlanEditingRules.matches(planCache[key], expected: cached ?? MealPlanEditingRules.emptyDay(date)) else {
+                    throw MealPlannerServiceError.planChanged
+                }
+            }
+            if plan != nil || cached != nil {
                 planCache[key] = plan
                 saveCacheToDisk(for: userID)
-                return .success(plan)
             }
-            return .success(nil)
+            return .success(plan)
         } catch {
             AppLog.mealPlanner.error("Failed to fetch meal plan: \(error.localizedDescription, privacy: .public)")
             return .failure(error)

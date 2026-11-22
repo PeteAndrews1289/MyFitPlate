@@ -216,7 +216,7 @@ struct GroceryListView: View {
                 }
             } message: { Text("This resolves every pending shopping command on this device for this account, across shopping periods. Accepted writes stay accepted. Each unaccepted command is permanently fenced; its desired values remain under Shopping changes for an explicit new review. Later dependent reviews are kept too.") }
             .refreshable {
-                await loadList()
+                await loadList(reloadPlanDays: true)
             }
             .task {
                 hasManualDraft = (try? GroceryManualDraftStore(userID: checklist.userID).load()) != nil
@@ -400,7 +400,7 @@ struct GroceryListView: View {
         }
     }
     
-    private func loadList() async {
+    private func loadList(reloadPlanDays: Bool = false) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
@@ -424,7 +424,7 @@ struct GroceryListView: View {
             if checklist.pendingCount > 0 { isLoading = false; return }
         }
         if groceryList.isEmpty { isLoading = true }
-        let result = await mealPlannerService.refreshGroceryListResult(for: userID, starting: planStartDate)
+        let result = await mealPlannerService.refreshGroceryListResult(for: userID, starting: planStartDate, reloadPlanDays: reloadPlanDays)
         guard requestIsCurrent() else { return }
         let fetchedList: [GroceryListItem]
         switch result {
@@ -525,7 +525,7 @@ struct GroceryListView: View {
             GroceryListLoadingState()
         } else if didFailToLoad && groceryList.isEmpty {
             GroceryListLoadErrorState {
-                Task { await loadList() }
+                Task { await loadList(reloadPlanDays: true) }
             }
         } else if !groceryList.isEmpty {
             if didFailToLoad {
@@ -533,7 +533,7 @@ struct GroceryListView: View {
                     Label("Showing your saved list. Planned quantities couldn't refresh.", systemImage: "exclamationmark.icloud")
                         .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
                         .accessibilityIdentifier("grocery_refresh_warning")
-                    Button("Retry plan update") { Task { await loadList() } }
+                    Button("Retry plan update") { Task { await loadList(reloadPlanDays: true) } }
                         .frame(minHeight: 44)
                 }.appSurface(.quiet)
             }

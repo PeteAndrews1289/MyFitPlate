@@ -562,6 +562,42 @@ final class MealPlannerServiceTests: XCTestCase {
         XCTAssertTrue(mockRepo.grocerySaveSnapshots.isEmpty)
     }
 
+    func testShoppingRefreshReadsAnotherDevicesPlanEditAndRemoval() async throws {
+        let date = Calendar.current.startOfDay(for: Date())
+        let key = MealPlanEditingRules.dayID(date)
+        let manual = GroceryListItem(name: "Tea", quantity: 1, unit: "item", source: "manual")
+        mockRepo.mockFetchGroceryListResult = [manual]
+        let meal = PlannedMeal(mealType: "Dinner", ingredients: ["1 g dry rice"])
+        var day = MealPlanDay(id: key, date: date, meals: [meal])
+        mockRepo.mockMealPlansByDateString[key] = day
+        let initial = try await service.refreshGroceryListResult(for: "user1", starting: date).get()
+        let original = try XCTUnwrap(initial.first { $0.source == "mealPlan" })
+
+        day.meals[0].ingredients = ["1 kg dry rice"]
+        mockRepo.mockMealPlansByDateString[key] = day
+        let updated = try await service.refreshGroceryListResult(for: "user1", starting: date, reloadPlanDays: true).get()
+        let rice = try XCTUnwrap(updated.first { $0.id == original.id })
+        let grams = try XCTUnwrap(InventoryQuantityRules.convert(rice.quantity, from: rice.unit, to: "g"))
+        XCTAssertEqual(grams, 1_000, accuracy: 0.0001)
+        XCTAssertTrue(updated.contains(manual))
+
+        mockRepo.mealPlanError = MealPlannerServiceError.planChanged
+        let offline = await service.refreshGroceryListResult(for: "user1", starting: date, reloadPlanDays: true)
+        if case .success = offline { XCTFail("An unavailable plan must leave the last saved shopping list available for retry.") }
+        let stillSaved = try await service.fetchGroceryListResult(for: "user1").get()
+        XCTAssertEqual(stillSaved, updated)
+        let cached = try await service.fetchBasePlanResult(for: date, userID: "user1").get()
+        XCTAssertEqual(cached?.meals.first?.ingredients, ["1 kg dry rice"])
+
+        mockRepo.mealPlanError = nil
+        mockRepo.mockMealPlansByDateString.removeValue(forKey: key)
+        let removed = try await service.refreshGroceryListResult(for: "user1", starting: date, reloadPlanDays: true).get()
+        XCTAssertEqual(removed, [manual])
+        let reopened = MealPlannerService(recipeService: RecipeService(), userDefaults: userDefaults)
+        let reopenedDay = try await reopened.fetchBasePlanResult(for: date, userID: "user1").get()
+        XCTAssertNil(reopenedDay)
+    }
+
     func testRefreshGroceryList() async {
         let date = Date()
         let meal = PlannedMeal(mealType: "Breakfast", ingredients: ["100g Oats", "1 cup Milk"])
