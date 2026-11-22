@@ -213,8 +213,20 @@ public final class MealReviewSaveSession: ObservableObject {
     /// Reopen an empty, unsubmitted recipe review only after the user chooses a new starting portion.
     @discardableResult
     public func restartEmptyRecipeReview(with portion: FoodItem) -> Bool {
-        guard checkpoint.source == "recipe", !isLocked, checkpoint.draft.entries.isEmpty else { return false }
+        guard checkpoint.source == "recipe", !isLocked, !unreadableCheckpoint, checkpoint.draft.entries.isEmpty,
+              let userID, DIContainer.shared.authService.currentUserID == userID else { return false }
         let emptyReview = checkpoint
+        do {
+            guard let saved = try store.load(MealReviewCheckpoint.self, userID: userID, scope: scope),
+                  saved.value.draft.entries.isEmpty,
+                  try PlanFingerprint.make(saved.value) == PlanFingerprint.make(emptyReview) else {
+                errorMessage = "This review changed. Reopen the recipe to see the latest portion."
+                return false
+            }
+        } catch {
+            errorMessage = "Could not read the saved review. Keep it open and try again."
+            return false
+        }
         guard replaceItems([portion]) else {
             checkpoint = emptyReview
             return false
@@ -269,7 +281,16 @@ public final class MealReviewSaveSession: ObservableObject {
         guard !isLocked, !unreadableCheckpoint, let userID,
               DIContainer.shared.authService.currentUserID == userID else { return false }
         do {
-            try store.remove(userID: userID, scope: scope)
+            if restoredReview, checkpoint.source == "recipe", checkpoint.draft.entries.isEmpty {
+                let current = try store.removeIfUnchanged(MealReviewCheckpoint.self, userID: userID, scope: scope,
+                                                          fingerprint: PlanFingerprint.make(checkpoint))
+                guard current else {
+                    errorMessage = "This review changed. Reopen the recipe to see the latest portion."
+                    return false
+                }
+            } else {
+                try store.remove(userID: userID, scope: scope)
+            }
             isDiscarded = true
             return true
         } catch {
