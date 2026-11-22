@@ -689,7 +689,10 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
                     let item = try Firestore.Decoder().decode(GroceryListItem.self, from: raw)
                     return !MealPlanDiscardRules.removes(item, deleting: dates)
                 }
-                for key in dates { transaction.deleteDocument(planCollection.document(key)) }
+                for key in dates {
+                    transaction.deleteDocument(planCollection.document(key))
+                    transaction.deleteDocument(groceryRef.collection(Self.shoppingChoicesCollection).document(key))
+                }
                 // Keep the latest manual/other-week items and raw future fields; the
                 // caller's preflight checklist may already be stale or deleted.
                 if groceryDocument.exists {
@@ -716,6 +719,25 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
         let listRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.userSettings).document(FirestoreDocument.groceryList)
         let listData = try items.map { try Firestore.Encoder().encode($0) }
         try await listRef.setData(["items": listData, "lastUpdated": Timestamp(date: Date())], merge: true)
+    }
+
+    private static let shoppingChoicesCollection = "periodChoices"
+
+    private func savedShoppingRows(_ snapshot: DocumentSnapshot, day: String) throws -> [[String: Any]] {
+        guard snapshot.exists else { return [] }
+        guard let rows = snapshot.data()?["items"] as? [[String: Any]], rows.allSatisfy({ $0["savedShoppingDay"] as? String == day }) else {
+            throw GroceryChecklistError.invalid
+        }
+        return rows
+    }
+
+    func fetchSavedShoppingChoices(userID: String, day: String) async throws -> [GroceryListItem] {
+        guard currentUserID() == userID else { throw GroceryChecklistError.accountChanged }
+        try MealPlanDiscardRules.validate(plans: [], deleting: [day])
+        let list = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.userSettings).document(FirestoreDocument.groceryList)
+        let snapshot = try await list.collection(Self.shoppingChoicesCollection).document(day).getDocument()
+        guard currentUserID() == userID else { throw GroceryChecklistError.accountChanged }
+        return try savedShoppingRows(snapshot, day: day).map { try Firestore.Decoder().decode(GroceryListItem.self, from: $0) }
     }
 
     func applyGroceryMutation(userID: String, mutation: GroceryListMutation) async throws -> [GroceryListItem] {
@@ -1656,6 +1678,8 @@ extension FirestoreNutritionRepository {
     private func transactGroceryMutation(userID: String, mutation: GroceryListMutation, action: WorkspaceAction) async throws -> GroceryMutationResolution {
         guard currentUserID() == userID else { throw GroceryChecklistError.accountChanged }
         _ = try mutation.applying(to: mutation.before, checkingConflicts: false)
+        let shoppingDays = mutation.savedShoppingDays.sorted()
+        if !shoppingDays.isEmpty { try MealPlanDiscardRules.validate(plans: [], deleting: Set(shoppingDays)) }
         let user = db.collection(FirestoreCollection.users).document(userID)
         let listRef = user.collection(FirestoreCollection.userSettings).document(FirestoreDocument.groceryList)
         let receiptRef = user.collection("groceryMutationReceipts").document(mutation.id.uuidString)
@@ -1697,7 +1721,19 @@ extension FirestoreNutritionRepository {
             let snapshot = try transaction.getDocument(listRef)
             let payload = snapshot.data()?["items"]
             guard payload == nil || payload is [[String: Any]] else { throw GroceryChecklistError.invalid }
-            let originals = payload as? [[String: Any]] ?? []
+            var originals = payload as? [[String: Any]] ?? []
+            let visibleIDs = Set(originals.compactMap { ($0["id"] as? String).flatMap(UUID.init(uuidString:)) })
+            let choices = listRef.collection(Self.shoppingChoicesCollection)
+            var existingShoppingDays = Set<String>()
+            for day in shoppingDays {
+                let snapshot = try transaction.getDocument(choices.document(day))
+                if snapshot.exists { existingShoppingDays.insert(day) }
+                let saved = try savedShoppingRows(snapshot, day: day)
+                originals += saved.filter { row in
+                    guard let id = (row["id"] as? String).flatMap(UUID.init(uuidString:)) else { return true }
+                    return !visibleIDs.contains(id)
+                }
+            }
             let current = try originals.map { try Firestore.Decoder().decode(GroceryListItem.self, from: $0) }
             let merged = try mutation.applying(to: current)
             var restoration: [UUID: [String: Any]] = [:]
@@ -1727,7 +1763,14 @@ extension FirestoreNutritionRepository {
                 guard let id = (original["id"] as? String).flatMap(UUID.init(uuidString:)), mutation.itemIDs.contains(id) else { continue }
                 transaction.setData(original, forDocument: receiptRef.collection("beforeRows").document(id.uuidString))
             }
-            transaction.setData(["items": encoded, "lastUpdated": Timestamp(date: Date())], forDocument: listRef, merge: true)
+            for day in shoppingDays {
+                let saved = encoded.filter { $0["savedShoppingDay"] as? String == day }
+                if !saved.isEmpty {
+                    transaction.setData(["items": saved], forDocument: choices.document(day), merge: true)
+                } else if existingShoppingDays.contains(day) { transaction.deleteDocument(choices.document(day)) }
+            }
+            let visible = encoded.filter { $0["savedShoppingDay"] == nil }
+            transaction.setData(["items": visible, "lastUpdated": Timestamp(date: Date())], forDocument: listRef, merge: true)
             if let undoLock { transaction.setData(["operationID": mutation.id.uuidString, "userID": userID], forDocument: undoLock) }
             transaction.setData(try Firestore.Encoder().encode(accepted), forDocument: receiptRef)
             return .accepted

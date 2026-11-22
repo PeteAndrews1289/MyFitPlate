@@ -115,6 +115,21 @@ describe('MyFitPlate Firestore Rules', () => {
             await assertFails(ref.set({ name: 'Bob by Alice' }));
         });
 
+        it('keeps per-week shopping choices private and separate from a 2.3 checklist write', async (t) => {
+            const listPath = 'users/alice/userSettings/groceryList';
+            const periodPath = `${listPath}/periodChoices/2026-11-15`;
+            const alice = testEnv.authenticatedContext('alice').firestore();
+            const bob = testEnv.authenticatedContext('bob').firestore();
+            const hidden = { items: [{ id: 'rice', savedShoppingDay: '2026-11-15', skippedForPlan: true }] };
+            const visible = { items: [{ id: 'tea', source: 'manual' }] };
+            await assertSucceeds(alice.doc(periodPath).set(hidden));
+            await assertSucceeds(alice.doc(listPath).set(visible, { merge: true }));
+            t.assert.deepEqual((await assertSucceeds(alice.doc(listPath).get())).data(), visible);
+            t.assert.deepEqual((await assertSucceeds(alice.doc(periodPath).get())).data(), hidden);
+            await assertFails(bob.doc(periodPath).get());
+            await assertFails(bob.doc(periodPath).delete());
+        });
+
         it('should allow users to write to their own subcollections', async () => {
             const alice = testEnv.authenticatedContext('alice');
             const ref = alice.firestore().collection('users').doc('alice').collection('dailyLogs').doc('log1');

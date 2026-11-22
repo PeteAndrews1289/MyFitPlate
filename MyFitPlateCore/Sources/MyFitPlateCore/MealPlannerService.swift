@@ -217,13 +217,15 @@ public class MealPlannerService: ObservableObject {
         let rescueToken = activeGroceryRescueToken(userID)
         let previousRescue = groceryRescueKey(userID).flatMap { userDefaults.string(forKey: $0) } ?? ""
         let rescueChanged = rescueToken != previousRescue
-        guard !existingItems.isEmpty || rescueChanged else { return .success([]) }
-
         let planItems = existingItems.filter { $0.source == "mealPlan" }
-        guard !planItems.isEmpty || rescueChanged else { return .success(existingItems) }
-
         let currentStart = Calendar.current.startOfDay(for: startDate)
-        let isCurrentWindow = planItems.allSatisfy { item in
+        if planItems.isEmpty && !rescueChanged {
+            do {
+                let saved = try await DIContainer.shared.nutritionRepository.fetchSavedShoppingChoices(userID: userID, day: MealPlanEditingRules.dayID(currentStart))
+                if saved.isEmpty { return .success(existingItems) }
+            } catch { return .failure(error) }
+        }
+        let isCurrentWindow = !planItems.isEmpty && planItems.allSatisfy { item in
             guard let sourcePlanStart = item.sourcePlanStart else { return false }
             return Calendar.current.isDate(sourcePlanStart, inSameDayAs: currentStart)
         }
@@ -285,11 +287,17 @@ public class MealPlannerService: ObservableObject {
             } catch { return .failure(error) }
         } else { cookedIDs = [] }
         let generatedItems = GroceryListBuilder.makeGroceryList(from: days, starting: startOfDay, unitSystem: GroceryListBuilder.currentUnitSystem(userID: userID), cookedBatchIDs: cookedIDs)
-        let mergedItems = GroceryListBuilder.mergeGroceryItems(generatedItems: generatedItems, existingItems: existingItems)
+        let savedChoices: [GroceryListItem]
+        do {
+            savedChoices = try await DIContainer.shared.nutritionRepository.fetchSavedShoppingChoices(userID: userID, day: MealPlanEditingRules.dayID(startOfDay))
+        } catch { return .failure(error) }
+        let visibleIDs = Set(existingItems.map(\.id))
+        let basis = existingItems + savedChoices.filter { !visibleIDs.contains($0.id) }
+        let mergedItems = GroceryListBuilder.mergeGroceryItems(generatedItems: generatedItems, existingItems: basis, preservingChoicesOutside: startOfDay)
 
         guard activeGroceryRescueToken(userID) == rescueToken else { return .failure(MealPlannerServiceError.planChanged) }
-        let changed = mergedItems.filter { item in existingItems.first(where: { $0.id == item.id }) != item }
-        let removed = Set(existingItems.map(\.id)).subtracting(mergedItems.map(\.id))
+        let changed = mergedItems.filter { item in basis.first(where: { $0.id == item.id }) != item }
+        let removed = Set(basis.map(\.id)).subtracting(mergedItems.map(\.id))
         let touched = Set(changed.map(\.id)).union(removed)
         let committedItems: [GroceryListItem]
         do {
@@ -301,7 +309,7 @@ public class MealPlannerService: ObservableObject {
                     committedItems = existingItems
                 }
             } else {
-                let patch = GroceryListMutation(before: existingItems.filter { touched.contains($0.id) }, upserts: changed, removedIDs: removed)
+                let patch = GroceryListMutation(before: basis.filter { touched.contains($0.id) }, upserts: changed, removedIDs: removed)
                 committedItems = try await DIContainer.shared.nutritionRepository.applyGroceryMutation(userID: userID, mutation: patch)
             }
         } catch { return .failure(error) }

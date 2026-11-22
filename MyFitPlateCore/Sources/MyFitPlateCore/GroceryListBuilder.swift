@@ -137,7 +137,7 @@ public enum GroceryListBuilder {
         return false
     }
 
-    public static func mergeGroceryItems(generatedItems: [GroceryListItem], existingItems: [GroceryListItem]) -> [GroceryListItem] {
+    public static func mergeGroceryItems(generatedItems: [GroceryListItem], existingItems: [GroceryListItem], preservingChoicesOutside start: Date? = nil) -> [GroceryListItem] {
         let plannedByKey = Dictionary(grouping: existingItems.filter {
             $0.source == "mealPlan" || $0.source == "retainedPurchase"
         }) { item in
@@ -165,6 +165,7 @@ public enum GroceryListBuilder {
                         item.quantity = abs(existing.quantity - amount) < 0.000000001 ? existing.quantity : amount
                         item.unit = existing.unit
                     }
+                    if existing.quantityUnknown == false { item.quantityUnknown = false }
                     item.name = existing.name; item.category = existing.category
                     item.barcode = existing.barcode ?? item.barcode
                     item.productSnapshot = existing.productSnapshot
@@ -199,26 +200,39 @@ public enum GroceryListBuilder {
         let currentIDs = Set(mergedGeneratedItems.map(\.id))
         let manualItems = existingItems.filter { isManualGroceryItem($0) && !currentIDs.contains($0.id) }
         let retainedPurchases = existingItems.filter {
-            $0.source == "mealPlan" && !currentIDs.contains($0.id) && hasPurchase($0)
+            $0.source == "mealPlan" && $0.savedShoppingDay == nil && !currentIDs.contains($0.id) && hasPurchase($0)
         }.map { old -> GroceryListItem in var retained = old; retained.source = "retainedPurchase"; return retained }
-        return mergedGeneratedItems + manualItems + retainedPurchases
+        let selectedDay = start.map { MealPlanEditingRules.dayID($0) }
+        let savedChoices = existingItems.compactMap { existing -> GroceryListItem? in
+            guard let selectedDay, !currentIDs.contains(existing.id), existing.source == "mealPlan", !hasPurchase(existing),
+                  hasReviewedChoice(existing), let day = existing.savedShoppingDay ?? existing.sourcePlanStart.map({ MealPlanEditingRules.dayID($0) }),
+                  day != selectedDay else { return nil }
+            var saved = existing
+            saved.savedShoppingDay = day
+            return saved
+        }
+        return mergedGeneratedItems + manualItems + retainedPurchases + savedChoices
     }
 
     private static func priorItem(for need: GroceryListItem, candidates: [GroceryListItem]) -> GroceryListItem? {
         let period = candidates.filter { item in
+            if let savedDay = item.savedShoppingDay { return need.sourcePlanStart.map { MealPlanEditingRules.dayID($0) } == savedDay }
             switch (item.sourcePlanStart, need.sourcePlanStart) {
-            case let (old?, new?): Calendar.current.isDate(old, inSameDayAs: new)
-            case (nil, nil): item.source == "mealPlan"
-            default: false
+            case let (old?, new?): return Calendar.current.isDate(old, inSameDayAs: new)
+            case (nil, nil): return item.source == "mealPlan"
+            default: return false
             }
         }
-        let active = period.first { $0.source == "mealPlan" }
-        if let active, hasPurchase(active) || active.quantityOverride != nil || active.skippedForPlan == true
-            || active.productSnapshot != nil || active.barcode != nil || (need.quantityUnknown == true && active.quantityUnknown == false) {
+        let active = period.first { $0.source == "mealPlan" && $0.savedShoppingDay == nil }
+        if let active, hasPurchase(active) || hasReviewedChoice(active) {
             return active
         }
         // Earlier clients could leave an untouched regenerated row beside the original receipt.
-        return period.first { $0.source == "retainedPurchase" } ?? active
+        return period.first { $0.source == "retainedPurchase" } ?? period.first { $0.savedShoppingDay != nil } ?? active
+    }
+
+    private static func hasReviewedChoice(_ item: GroceryListItem) -> Bool {
+        item.quantityOverride != nil || item.skippedForPlan == true || item.productSnapshot != nil || item.barcode != nil || item.quantityUnknown == false
     }
 
     private static func hasPurchase(_ item: GroceryListItem) -> Bool {

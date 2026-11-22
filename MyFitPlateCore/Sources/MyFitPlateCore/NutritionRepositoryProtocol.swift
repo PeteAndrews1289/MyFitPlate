@@ -38,6 +38,7 @@ public protocol NutritionRepositoryProtocol: Sendable {
         retainingGroceryItems: [GroceryListItem]
     ) async throws
     func fetchGroceryList(userID: String) async throws -> [GroceryListItem]
+    func fetchSavedShoppingChoices(userID: String, day: String) async throws -> [GroceryListItem]
     func saveGroceryList(userID: String, items: [GroceryListItem]) async throws
     func applyGroceryMutation(userID: String, mutation: GroceryListMutation) async throws -> [GroceryListItem]
     func resolveGroceryMutation(userID: String, mutation: GroceryListMutation, cancelPending: Bool) async throws -> GroceryMutationResolution
@@ -99,6 +100,7 @@ public protocol NutritionRepositoryProtocol: Sendable {
 }
 
 public extension NutritionRepositoryProtocol {
+    func fetchSavedShoppingChoices(userID: String, day: String) async throws -> [GroceryListItem] { [] }
     func fetchDailyHistoryForReview(userID: String, startDate: Date, endDate: Date) async throws -> [DailyLog] {
         throw WeeklyTargetReviewError.unavailable
     }

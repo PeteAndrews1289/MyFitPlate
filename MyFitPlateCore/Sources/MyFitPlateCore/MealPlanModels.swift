@@ -69,6 +69,8 @@ public struct GroceryListItem: Identifiable, Codable, Equatable {
     public var category: String = "Misc"
     public var source: String?
     public var sourcePlanStart: Date?
+    /// Set only while an unpurchased, reviewed choice is stored with its original shopping period.
+    public var savedShoppingDay: String?
     public var barcode: String?
     /// Explicitly reviewed purchased and transferred amounts; checking alone does not infer stock.
     public var purchasedQuantity: Double?

@@ -40,6 +40,15 @@ public struct GroceryListMutation: Codable, Equatable {
     }
 
     public var itemIDs: Set<UUID> { Set(upserts.map(\.id)).union(removedIDs) }
+    public var savedShoppingDays: Set<String> {
+        var days = Set((before + upserts).compactMap(\.savedShoppingDay))
+        // A 2.3 device can put a previously parked ID back in the visible list. Its
+        // latest visible choice wins when that row is removed or moved again.
+        for item in before where removedIDs.contains(item.id) && (item.source == "mealPlan" || item.source == "retainedPurchase") {
+            if let start = item.sourcePlanStart { days.insert(MealPlanEditingRules.dayID(start)) }
+        }
+        return days
+    }
     public var fingerprint: String { get throws { try PlanFingerprint.make(self) } }
     public static func revisionID(operationID: UUID, itemID: UUID) -> String {
         "\(operationID.uuidString.lowercased())-\(itemID.uuidString.lowercased())"

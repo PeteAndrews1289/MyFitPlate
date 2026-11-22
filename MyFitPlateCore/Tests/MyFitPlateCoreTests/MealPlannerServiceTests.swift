@@ -598,6 +598,49 @@ final class MealPlannerServiceTests: XCTestCase {
         XCTAssertNil(reopenedDay)
     }
 
+    func testShoppingChoicesReturnOnlyWithTheirWeekAndSurviveAnEmptyWeek() async throws {
+        let first = Calendar.current.startOfDay(for: Date())
+        let next = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 7, to: first))
+        let day = MealPlanEditingRules.dayID(first)
+        let meal = PlannedMeal(mealType: "Dinner", ingredients: ["400 g dry rice", "200 g beans"])
+        mockRepo.mockMealPlansByDateString[day] = MealPlanDay(id: day, date: first, meals: [meal])
+        let manual = GroceryListItem(name: "Tea", quantity: 1, unit: "item", source: "manual")
+        mockRepo.mockFetchGroceryListResult = [manual]
+        let rows = try await service.refreshGroceryListResult(for: "user1", starting: first).get()
+        var rice = try XCTUnwrap(rows.first { $0.name.lowercased().contains("rice") })
+        var beans = try XCTUnwrap(rows.first { $0.name.lowercased().contains("beans") })
+        let before = [rice, beans]
+        rice.skippedForPlan = true
+        beans.quantityOverride = GroceryRequirementOverride(sourceQuantity: beans.quantity, sourceUnit: beans.unit, buyQuantity: 150, buyUnit: "g")
+        beans.quantity = 150; beans.unit = "g"
+        _ = try await mockRepo.applyGroceryMutation(userID: "user1", mutation: .init(before: before, upserts: [rice, beans], removedIDs: []))
+
+        let away = try await service.refreshGroceryListResult(for: "user1", starting: next).get()
+        XCTAssertEqual(away, [manual])
+        let saved = try await mockRepo.fetchSavedShoppingChoices(userID: "user1", day: day)
+        XCTAssertEqual(Set(saved.map(\.id)), Set(before.map(\.id)))
+        let anotherAccount = try await mockRepo.fetchSavedShoppingChoices(userID: "user2", day: day)
+        XCTAssertTrue(anotherAccount.isEmpty)
+
+        let reopened = MealPlannerService(recipeService: RecipeService(), userDefaults: userDefaults)
+        let returned = try await reopened.fetchSynchronizedGroceryListResult(for: "user1", starting: first).get()
+        XCTAssertTrue(returned.contains { $0.id == rice.id && $0.skippedForPlan == true && $0.savedShoppingDay == nil })
+        XCTAssertTrue(returned.contains { $0.id == beans.id && $0.unit == "g" && $0.quantity == 150 && $0.quantityOverride?.requiresReview == false })
+        XCTAssertEqual(returned.count, 3)
+        let replayed = try await reopened.refreshGroceryListResult(for: "user1", starting: first).get()
+        XCTAssertEqual(replayed, returned)
+        let restored = try await mockRepo.fetchSavedShoppingChoices(userID: "user1", day: day)
+        XCTAssertTrue(restored.isEmpty)
+
+        _ = try await reopened.refreshGroceryListResult(for: "user1", starting: next).get()
+        let discarded = await reopened.discardMealPlan(starting: first, for: "user1")
+        XCTAssertTrue(discarded)
+        let afterDiscard = try await mockRepo.fetchSavedShoppingChoices(userID: "user1", day: day)
+        XCTAssertTrue(afterDiscard.isEmpty)
+        let remaining = try await mockRepo.fetchGroceryList(userID: "user1")
+        XCTAssertEqual(remaining, [manual])
+    }
+
     func testRefreshGroceryList() async {
         let date = Date()
         let meal = PlannedMeal(mealType: "Breakfast", ingredients: ["100g Oats", "1 cup Milk"])

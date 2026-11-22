@@ -230,6 +230,59 @@ final class DiaryPersistenceIntegrationTests: XCTestCase {
         XCTAssertEqual(preserved.quantity, 5)
     }
 
+    func testShoppingChoiceMovesAtomicallyAcrossWeeksAndSurvivesALegacyChecklistWrite() async throws {
+        let client = makeClient()
+        let uid = try await client.auth.signInAnonymously().user.uid
+        let start = Calendar.current.startOfDay(for: Date()), day = MealPlanEditingRules.dayID(start)
+        let list = client.db.collection("users").document(uid).collection("userSettings").document("groceryList")
+        var rice = GroceryListItem(name: "Rice", quantity: 400, unit: "g", source: "mealPlan", sourcePlanStart: start)
+        rice.skippedForPlan = true
+        var rawRice = try Firestore.Encoder().encode(rice)
+        rawRice["futureField"] = "preserved"
+        try await list.setData(["items": [rawRice]])
+
+        var parked = rice; parked.savedShoppingDay = day
+        let leave = GroceryListMutation(before: [rice], upserts: [parked], removedIDs: [])
+        let otherWeek = try await client.repository.applyGroceryMutation(userID: uid, mutation: leave)
+        XCTAssertTrue(otherWeek.isEmpty)
+        let saved = try await client.repository.fetchSavedShoppingChoices(userID: uid, day: day)
+        let choice = try XCTUnwrap(saved.first)
+        XCTAssertEqual(saved.count, 1); XCTAssertEqual(choice.id, rice.id)
+        let oldList = try await list.getDocument(source: .server)
+        XCTAssertEqual((oldList.data()?["items"] as? [[String: Any]])?.count, 0)
+
+        let tea = GroceryListItem(name: "Tea", quantity: 1, unit: "item", source: "manual")
+        // The 2.3 client replaces only this document's visible items with a merged write.
+        try await list.setData(["items": [try Firestore.Encoder().encode(tea)], "lastUpdated": Timestamp(date: Date())], merge: true)
+        let restore = GroceryListMutation(before: [choice], upserts: [rice], removedIDs: [])
+        let returned = try await client.repository.applyGroceryMutation(userID: uid, mutation: restore)
+        let replayed = try await client.repository.applyGroceryMutation(userID: uid, mutation: restore)
+        XCTAssertEqual(replayed, returned)
+        XCTAssertEqual(Set(returned.map(\.id)), [rice.id, tea.id])
+        XCTAssertTrue(returned.first { $0.id == rice.id }?.skippedForPlan == true)
+        let raw = try await list.getDocument(source: .server).data()?["items"] as? [[String: Any]]
+        XCTAssertTrue(raw?.contains { $0["futureField"] as? String == "preserved" && $0["savedShoppingDay"] == nil } == true)
+        let afterRestore = try await client.repository.fetchSavedShoppingChoices(userID: uid, day: day)
+        XCTAssertTrue(afterRestore.isEmpty)
+
+        var stale = rice; stale.quantity = 100
+        do {
+            _ = try await client.repository.applyGroceryMutation(userID: uid, mutation: .init(before: [choice], upserts: [stale], removedIDs: []))
+            XCTFail("A stale saved choice cannot overwrite the restored row.")
+        } catch { XCTAssertEqual(error as? GroceryChecklistError, .changed) }
+
+        let active = try XCTUnwrap(returned.first { $0.id == rice.id })
+        _ = try await client.repository.applyGroceryMutation(userID: uid, mutation: .init(before: [active], upserts: [parked], removedIDs: []))
+        // A cached July checklist may also reintroduce the original ID. Removing that
+        // visible row must retire the old skip instead of resurrecting it later.
+        var legacy = rice; legacy.skippedForPlan = nil
+        try await client.repository.saveGroceryList(userID: uid, items: [legacy, tea])
+        let remaining = try await client.repository.applyGroceryMutation(userID: uid, mutation: .init(before: [legacy], upserts: [], removedIDs: [legacy.id]))
+        XCTAssertEqual(remaining, [tea])
+        let superseded = try await client.repository.fetchSavedShoppingChoices(userID: uid, day: day)
+        XCTAssertTrue(superseded.isEmpty)
+    }
+
     func testGroceryItemReceiptsMergeDifferentRowsAndRejectStaleSameRow() async throws {
         let client = makeClient()
         let uid = try await client.auth.signInAnonymously().user.uid

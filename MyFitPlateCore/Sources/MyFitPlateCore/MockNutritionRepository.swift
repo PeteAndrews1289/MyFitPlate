@@ -419,6 +419,7 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
             try MealPlanDiscardRules.validate(plans: current, deleting: dates)
             // Current storage wins over the caller's stale checklist snapshot.
             let retained = mockFetchGroceryListResult.filter { !MealPlanDiscardRules.removes($0, deleting: dates) }
+            for day in dates { savedShoppingChoices[userID]?[day] = nil }
             discardedMealPlanUserIDs.append(userID)
             discardedMealPlanDateStrings = dateStrings
             dateStrings.forEach { mockMealPlansByDateString.removeValue(forKey: $0) }
@@ -429,6 +430,11 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public func fetchGroceryList(userID: String) async throws -> [GroceryListItem] { 
         if let groceryListError { throw groceryListError }
         return lock.withLock { mockGroceryRows(userID: userID) }
+    }
+    private var savedShoppingChoices: [String: [String: [GroceryListItem]]] = [:]
+    public func fetchSavedShoppingChoices(userID: String, day: String) async throws -> [GroceryListItem] {
+        if let groceryListError { throw groceryListError }
+        return lock.withLock { savedShoppingChoices[userID]?[day] ?? [] }
     }
     public func saveGroceryList(userID: String, items: [GroceryListItem]) async throws {
         if grocerySaveDelayNanoseconds > 0 {
@@ -452,12 +458,19 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
                 guard let receipt = groceryReceipts[originalKey], groceryUndoLocks[originalKey] == nil else { throw GroceryChecklistError.changed }
                 try mutation.validateInverse(of: receipt.mutation())
             }
-            let changed = try mutation.applying(to: mockGroceryRows(userID: userID))
+            let visible = mockGroceryRows(userID: userID)
+            let visibleIDs = Set(visible.map(\.id))
+            let saved = mutation.savedShoppingDays.sorted().flatMap { savedShoppingChoices[userID]?[$0] ?? [] }
+            let changed = try mutation.applying(to: visible + saved.filter { !visibleIDs.contains($0.id) })
             groceryReceipts[key] = try GroceryMutationReceipt(userID: userID, mutation: mutation, status: .accepted)
             if let originalID = mutation.undoingID { groceryUndoLocks["\(userID)|\(originalID.uuidString)"] = mutation.id }
-            updateMockGroceryRows(userID: userID, rows: changed)
-            appliedGroceryMutationIDs.insert(mutation.id); savedGroceryLists = changed
-            return (changed, true)
+            for day in mutation.savedShoppingDays {
+                savedShoppingChoices[userID, default: [:]][day] = changed.filter { $0.savedShoppingDay == day }
+            }
+            let active = changed.filter { $0.savedShoppingDay == nil }
+            updateMockGroceryRows(userID: userID, rows: active)
+            appliedGroceryMutationIDs.insert(mutation.id); savedGroceryLists = active
+            return (active, true)
         }
         if result.1, let groceryMutationFailureAfterCommit { throw groceryMutationFailureAfterCommit }
         return result.0
