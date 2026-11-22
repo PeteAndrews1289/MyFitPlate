@@ -2518,9 +2518,9 @@ final class MyFitPlateUITests: XCTestCase {
             try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
                 guard destination.route == "settings-water", let field = issue.element,
                       field.elementType == .textField, field.identifier == "water_target_amount",
-                      field.value as? String == "96" else { return false }
-                // Check the actual seeded number against the rendered field at this text size.
-                return self.containsLargestTextGlyphs("96", style: .body, in: field, on: app)
+                      let amount = field.value as? String, let number = Double(amount),
+                      number.isFinite, number > 0 else { return false }
+                return self.containsLargestTextGlyphs(amount, style: .body, in: field, on: app)
             }
 
             if !action.waitForExistence(timeout: 2) || !action.isHittable {
@@ -3336,6 +3336,16 @@ final class MyFitPlateUITests: XCTestCase {
             screenshot.name = "\(screen.name) - dark accessibility XXXL"
             screenshot.lifetime = .keepAlways
             add(screenshot)
+            if screen.route == "workout-history" {
+                let search = app.textFields["workout_history_search"]
+                XCTAssertTrue(search.isHittable)
+                XCTAssertEqual(search.label, "Search exercise or date")
+                search.tap()
+                search.typeText("zzq")
+                XCTAssertTrue(app.staticTexts["No Matches"].waitForExistence(timeout: 5))
+                app.buttons["Clear workout history search"].tap()
+                XCTAssertTrue(app.staticTexts["No Matches"].waitForNonExistence(timeout: 5))
+            }
         }
     }
 

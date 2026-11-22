@@ -470,20 +470,31 @@ private struct WorkoutHistoryHeaderCard: View {
 }
 
 private struct WorkoutHistoryFilterCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var searchText: String
     @Binding var selectedRange: WorkoutHistoryRange
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             VStack(alignment: .leading, spacing: AppSpacing.row) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    Text("Search exercise or date")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true)
+                }
                 HStack(spacing: AppSpacing.compact) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
 
-                    TextField("Search exercise or date", text: $searchText)
+                    TextField(dynamicTypeSize.isAccessibilitySize ? "" : "Search exercise or date", text: $searchText)
                         .appTextRole(.body)
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
+                        .accessibilityLabel("Search exercise or date")
+                        .accessibilityIdentifier("workout_history_search")
 
                     if !searchText.isEmpty {
                         Button {
@@ -512,6 +523,7 @@ private struct WorkoutHistoryFilterCard: View {
             }
             .appSurface(.quiet)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workout_history_filters")
     }
 }

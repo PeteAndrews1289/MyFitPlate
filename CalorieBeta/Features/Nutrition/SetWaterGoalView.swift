@@ -48,7 +48,7 @@ struct SetWaterGoalView: View {
                         targetLayout {
                             Text("Daily target")
                             HStack(spacing: AppSpacing.compact) {
-                                TextField("Daily amount", text: $waterGoalInput)
+                                TextField("", text: $waterGoalInput)
                                     .keyboardType(.decimalPad).focused($focusedInput, equals: .goal)
                                     .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
                                     .frame(minHeight: max(44, targetInputHeight))
