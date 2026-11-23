@@ -132,8 +132,10 @@ jobs:
       cancel-in-progress: ${{ !startsWith(github.head_ref, 'codex/release-') }}
     strategy:
       fail-fast: false
+      # Leave a hosted Mac for the native build. Queue the shorter first group last.
+      max-parallel: 3
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [3, 4, 2, 1]
 
     steps:
       - name: Checkout
