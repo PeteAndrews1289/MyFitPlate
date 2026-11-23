@@ -192,57 +192,9 @@ struct FoodSearchView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: AppSpacing.group) {
-                        if let trainingFuelTarget {
-                            TrainingFuelTargetContextView(target: trainingFuelTarget)
-                        }
-                        mainActionContent
-                        searchOrSavedContent
-                    }
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-                    .padding(.top, AppSpacing.group)
-                    .padding(.bottom, AppSpacing.section)
-                }
-                .background(Color.backgroundPrimary.ignoresSafeArea())
-                .scrollDismissesKeyboard(.interactively)
-                .accessibilityIdentifier("food_search_results_scroll")
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    pinnedSearchHeader
-                }
-                .safeAreaInset(edge: .bottom) {
-                    VStack(spacing: 0) {
-                        if onFoodItemSelected == nil, let draft = viewModel.mealDraft, !draft.entries.isEmpty {
-                            mealTray(draft)
-                        }
-                        if let message = viewModel.lastLogMessage {
-                            VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                                if diarySyncState != .synced && viewModel.lastLogSucceeded {
-                                    Button {
-                                        if let userID = DIContainer.shared.authService.currentUserID {
-                                            DIContainer.shared.nutritionRepository.retryPendingDailyLogs(userID: userID)
-                                        }
-                                    } label: {
-                                        Label(diarySyncState == .failed ? "Saved on device · Retry sync" : "Saved on device · Waiting to sync",
-                                              systemImage: "icloud.and.arrow.up")
-                                            .appFont(size: 11, weight: .medium)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .frame(minHeight: 44)
-                                    }
-                                }
-                                // Keep Undo at the bottom so a completed sync cannot move its tap target.
-                                ViewThatFits(in: .horizontal) {
-                                    HStack(spacing: AppSpacing.row) { loggingFeedback(message) }
-                                    VStack(alignment: .leading, spacing: AppSpacing.compact) { loggingFeedback(message) }
-                                }
-                            }
-                            .padding(.horizontal, AppSpacing.screenHorizontal)
-                            .padding(.vertical, AppSpacing.compact)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(AppPalette.surface)
-                            .accessibilityElement(children: .contain)
-                        }
-                    }
+                VStack(spacing: 0) {
+                    searchResults
+                    loggingFooter
                 }
                 .navigationTitle(onFoodItemSelected == nil ? "Log food" : searchContext == "meal_planner" ? "Choose a food" : "Select ingredient")
                 .navigationBarTitleDisplayMode(.inline)
@@ -590,6 +542,62 @@ struct FoodSearchView: View {
         viewModel.searchText.isEmpty && !dynamicTypeSize.isAccessibilitySize
     }
 
+    private var searchResults: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                if let trainingFuelTarget {
+                    TrainingFuelTargetContextView(target: trainingFuelTarget)
+                }
+                mainActionContent
+                searchOrSavedContent
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .scrollDismissesKeyboard(.interactively)
+        .accessibilityIdentifier("food_search_results_scroll")
+        .safeAreaInset(edge: .top, spacing: 0) {
+            pinnedSearchHeader
+        }
+    }
+
+    private var loggingFooter: some View {
+        VStack(spacing: 0) {
+            if onFoodItemSelected == nil, let draft = viewModel.mealDraft, !draft.entries.isEmpty {
+                mealTray(draft)
+            }
+            if let message = viewModel.lastLogMessage {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    if diarySyncState != .synced && viewModel.lastLogSucceeded {
+                        Button {
+                            if let userID = DIContainer.shared.authService.currentUserID {
+                                DIContainer.shared.nutritionRepository.retryPendingDailyLogs(userID: userID)
+                            }
+                        } label: {
+                            Label(diarySyncState == .failed ? "Saved on device · Retry sync" : "Saved on device · Waiting to sync",
+                                  systemImage: "icloud.and.arrow.up")
+                                .appFont(size: 11, weight: .medium)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(minHeight: 44)
+                        }
+                    }
+                    // Keep Undo at the bottom so a completed sync cannot move its tap target.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: AppSpacing.row) { loggingFeedback(message) }
+                        VStack(alignment: .leading, spacing: AppSpacing.compact) { loggingFeedback(message) }
+                    }
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.compact)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppPalette.surface)
+                .accessibilityElement(children: .contain)
+            }
+        }
+    }
+
     private var pinnedSearchHeader: some View {
         HStack(spacing: AppSpacing.compact) {
             searchHeaderContent
@@ -613,11 +621,15 @@ struct FoodSearchView: View {
                 viewModel.isBuildingMeal = true
                 showingMealDraft = true
             } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(draft.isSubmitted ? "Finish logging meal" : "\(title) · \(draft.calories.formatted(.number.precision(.fractionLength(0)))) cal")
-                        .appTextRole(.control)
-                    Text("Review portions · \(draft.mealName) · \(draft.date.formatted(date: .abbreviated, time: .omitted))")
-                        .appTextRole(.caption).foregroundStyle(.secondary)
+                HStack(spacing: AppSpacing.compact) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(draft.isSubmitted ? "Finish logging meal" : "Review \(title)")
+                            .appTextRole(.control)
+                        Text("\(draft.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(draft.mealName) · \(draft.date.formatted(date: .abbreviated, time: .omitted))")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.right")
+                        .appTextRole(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
             }

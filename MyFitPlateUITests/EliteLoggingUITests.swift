@@ -239,6 +239,7 @@ final class EliteLoggingUITests: XCTestCase {
         let review = app.buttons["food_search_review_meal"]
         XCTAssertTrue(review.waitForExistence(timeout: 5))
         review.tap()
+        XCTAssertTrue(app.navigationBars["Review meal"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["meal_draft_total"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["meal_draft_total"].label.hasPrefix("2 foods"))
         let stepper = app.steppers["meal_draft_serving_0"]
@@ -255,6 +256,7 @@ final class EliteLoggingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["food_search_meal_menu"].label.contains("Breakfast"))
         XCTAssertTrue(review.label.contains("Breakfast"))
         tapWhenHittable(review)
+        XCTAssertTrue(app.navigationBars["Review meal"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["meal_draft_total"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["meal_draft_total"].label, total)
         app.buttons["meal_draft_log"].tap()
