@@ -494,9 +494,12 @@ struct FoodDetailView: View {
                         .accessibilityIdentifier("food_detail_save_error")
                 }
                 if onUpdate == nil && onUpdateAccepted == nil {
-                    Text("\(saveSession.checkpoint.mealName) · \(destinationDateText(style: .medium))")
+                    Text(destinationDateText(style: .medium))
                         .appTextRole(.caption).foregroundStyle(.secondary)
                         .accessibilityLabel("\(saveSession.checkpoint.mealName), \(destinationDateText(style: .full))")
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity)
+                        .background(AppPalette.canvas)
                         .accessibilityIdentifier("food_detail_destination")
                 }
 
@@ -766,7 +769,17 @@ struct FoodDetailView: View {
     }
 
     private var displayedServingDescription: String {
-        ServingNutritionCalculator.displayPortion(adjustedNutrients.servingDescription)
+        if let unit = displayMassUnit, !massText.isEmpty { return massText + " " + unit }
+        if let amount = Double(quantity), let unit = nativeMassUnit(selectedServingOption?.description) {
+            return Self.displayAmount(amount) + " " + unit
+        }
+        return ServingNutritionCalculator.displayPortion(adjustedNutrients.servingDescription)
+    }
+
+    private static func displayAmount(_ amount: Double) -> String {
+        let style = FloatingPointFormatStyle<Double>.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never)
+        return amount.formatted(amount > 0 && amount < 0.001
+            ? style.precision(.significantDigits(1...3)) : style.precision(.fractionLength(0...3)))
     }
 
     private var gramsPerSelectedServing: Double? {
@@ -798,7 +811,7 @@ struct FoodDetailView: View {
         quantity = Self.amountText(amount)
         if let displayMassUnit, let grams = gramsPerSelectedServing,
            let mass = InventoryQuantityRules.convert(amount * grams, from: "g", to: displayMassUnit) {
-            massText = mass.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.fractionLength(0...3)))
+            massText = Self.displayAmount(mass)
         }
     }
 
@@ -806,7 +819,7 @@ struct FoodDetailView: View {
         Binding(get: {
             if displayMassUnit != nil { return massText }
             guard !amountFocused, let amount = Double(quantity), amount.isFinite else { return quantity }
-            return amount.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.significantDigits(1...7)))
+            return Self.displayAmount(amount)
         }, set: { text in
             let decimal = text.replacingOccurrences(of: ",", with: ".")
             if let displayMassUnit, let basis = gramsPerSelectedServing {
@@ -878,7 +891,8 @@ struct FoodDetailView: View {
                     .keyboardType(.decimalPad)
                     .appTextRole(.sectionTitle).monospacedDigit()
                     .multilineTextAlignment(.center)
-                    .frame(minWidth: 54, maxWidth: 100, minHeight: 44)
+                    .frame(minWidth: 78, idealWidth: 100, maxWidth: 120, minHeight: 44)
+                    .layoutPriority(1)
                     .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control))
                 stepButton(increasing: true)
             }
