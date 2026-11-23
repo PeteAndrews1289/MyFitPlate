@@ -182,17 +182,32 @@ final class WaveFourDailyTasksUITests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(Double(try XCTUnwrap(amount.value as? String))), originalAmount / 2, accuracy: 0.00001)
         app.buttons["food_portion_original"].tap()
         XCTAssertEqual(total.label, starting)
-        let units = app.buttons["food_portion_unit"]
-        units.tap(); app.buttons["Grams"].tap()
+        let gramButton = app.buttons["food_portion_g"]
+        let ounceButton = app.buttons["food_portion_oz"]
+        XCTAssertTrue(gramButton.isHittable)
+        gramButton.tap()
         let grams = try XCTUnwrap(Double(try XCTUnwrap(amount.value as? String)))
-        units.tap(); app.buttons["Ounces"].tap()
+        ounceButton.tap()
         let ounces = try XCTUnwrap(Double(try XCTUnwrap(amount.value as? String)))
         XCTAssertEqual(grams, ounces * 28.349523125, accuracy: 0.001)
         XCTAssertEqual(total.label, starting)
         app.buttons["food_portion_double"].tap()
         XCTAssertEqual(try XCTUnwrap(Double(try XCTUnwrap(amount.value as? String))), ounces * 2, accuracy: 0.001)
+        app.buttons["food_portion_original"].tap()
+        let increase = app.buttons["food_portion_increase"]
+        let decrease = app.buttons["food_portion_decrease"]
+        increase.tap(); decrease.tap()
+        XCTAssertEqual(total.label, starting)
         try record("Reviewed portion with equivalent units", app: app)
-        app.buttons["food_detail_log_action"].tap()
+        resetCount()
+        tap(gramButton)
+        tap(increase)
+        XCTAssertEqual(try XCTUnwrap(Double(try XCTUnwrap(amount.value as? String))), grams + 5, accuracy: 0.001)
+        XCTAssertNotEqual(total.label, starting)
+        let log = app.buttons["food_detail_log_action"]
+        XCTAssertEqual(log.label, "Log to Dinner")
+        tap(log)
+        XCTAssertEqual(taps, 3)
         let undo = app.buttons["food_search_undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 8))
         XCTAssertTrue(app.textFields["food_search_field"].isHittable)

@@ -29,7 +29,6 @@ struct FoodDetailView: View {
     @StateObject private var saveSession: FoodDetailSaveSession
 
     @Environment(\.dismiss) var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var bannerService: BannerService
     private let foodAPIService = FatSecretFoodAPIService()
@@ -42,12 +41,12 @@ struct FoodDetailView: View {
     @State private var portionBasis: Double
     @State private var displayMassUnit: String?
     @State private var massText = ""
+    @FocusState private var amountFocused: Bool
     @State private var showNutritionDetails = false
     @State private var isLoadingDetails: Bool = false
     @State private var errorLoading: String?
 
     @State private var isLoggedItem: Bool
-    @State private var baseLoggedItemNutrientsPerUnit: ServingSizeOption?
     
     @State private var isSavedAsCustom: Bool = false
     @State private var hasSavedBarcodeCorrection: Bool = false
@@ -708,8 +707,6 @@ struct FoodDetailView: View {
     @ViewBuilder private var servingControlsCard: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             Rectangle().fill(AppPalette.text).frame(height: 2)
-            Text("Your portion").appTextRole(.control)
-                .accessibilityIdentifier("food_detail_serving_controls")
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0))))
                     .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
@@ -733,21 +730,8 @@ struct FoodDetailView: View {
                     .accessibilityIdentifier("food_portion_package_serving")
             }
 
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.row) {
-                    quantityControl
-                    Divider()
-                    servingSelectionControl
-                }
-            } else {
-                HStack(alignment: .top, spacing: AppSpacing.group) {
-                    quantityControl
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Divider().frame(height: 64)
-                    servingSelectionControl
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
+            servingSelectionControl
+            quantityControl
             HStack(spacing: AppSpacing.compact) {
                 ForEach([0.5, 1, 2], id: \.self) { factor in
                     Button {
@@ -805,7 +789,11 @@ struct FoodDetailView: View {
     }
 
     private var displayedQuantity: Binding<String> {
-        Binding(get: { displayMassUnit == nil ? quantity : massText }, set: { text in
+        Binding(get: {
+            if displayMassUnit != nil { return massText }
+            guard !amountFocused, let amount = Double(quantity), amount.isFinite else { return quantity }
+            return amount.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.significantDigits(1...7)))
+        }, set: { text in
             let decimal = text.replacingOccurrences(of: ",", with: ".")
             if let displayMassUnit, let basis = gramsPerSelectedServing {
                 massText = text
@@ -815,79 +803,118 @@ struct FoodDetailView: View {
         })
     }
 
-    private var quantityControl: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Amount")
-                .appTextRole(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-                TextField("Quantity", text: displayedQuantity)
-                    .accessibilityLabel("Quantity")
-                    .keyboardType(.decimalPad)
-                    .appTextRole(.sectionTitle)
-                    .foregroundStyle(AppPalette.text)
-                    .multilineTextAlignment(.leading)
-                Image(systemName: "number")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundStyle(AppPalette.brandText)
-                    .accessibilityHidden(true)
-            }
+    private func nativeMassUnit(_ description: String?) -> String? {
+        guard let description else { return nil }
+        let unit = description.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"^1(?:\.0+)?\s+"#, with: "", options: .regularExpression)
+        switch unit {
+        case "g", "gram", "grams": return "g"
+        case "oz", "ounce", "ounces": return "oz"
+        default: return nil
         }
     }
 
-    @ViewBuilder private var servingSelectionControl: some View {
-        if !availableServings.isEmpty, canChangeServing || gramsPerSelectedServing != nil {
-            Menu {
-                ForEach(availableServings) { option in
-                    Button(option.description) { chooseServing(option) }
-                }
-                if gramsPerSelectedServing != nil {
-                    ForEach(["g", "oz"], id: \.self) { unit in
-                        Button(unit == "g" ? "Grams" : "Ounces") {
-                            displayMassUnit = unit
-                            if let amount = Double(quantity) { applyQuantity(amount) } else { massText = "" }
+    private var amountStep: (label: String, quantity: Double) {
+        let unit = displayMassUnit ?? nativeMassUnit(selectedServingOption?.description)
+        let step = unit == "g" ? 5.0 : unit == "oz" ? 1.0 : 0.5
+        if let displayMassUnit, let basis = gramsPerSelectedServing,
+           let grams = InventoryQuantityRules.convert(step, from: displayMassUnit, to: "g") {
+            return (Self.amountText(step), grams / basis)
+        }
+        return (step == 0.5 ? "½" : Self.amountText(step), step)
+    }
+
+    private func stepButton(increasing: Bool) -> some View {
+        let step = amountStep
+        let next = (Double(quantity) ?? 0) + (increasing ? step.quantity : -step.quantity)
+        return Button {
+            applyQuantity(next)
+        } label: {
+            Text((increasing ? "+" : "−") + step.label)
+                .appTextRole(.control).monospacedDigit()
+                .frame(minWidth: 48, minHeight: 44)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppPalette.brandText)
+        .disabled(selectedServingOption == nil || !next.isFinite || next <= 0)
+        .accessibilityLabel((increasing ? "Increase" : "Decrease") + " amount by " + step.label)
+        .accessibilityIdentifier(increasing ? "food_portion_increase" : "food_portion_decrease")
+    }
+
+    private var quantityControl: some View {
+        HStack(spacing: AppSpacing.compact) {
+            Text("Amount").appTextRole(.control)
+            Spacer(minLength: AppSpacing.compact)
+            HStack(spacing: 0) {
+                stepButton(increasing: false)
+                TextField("Quantity", text: displayedQuantity)
+                    .focused($amountFocused)
+                    .accessibilityLabel("Quantity")
+                    .keyboardType(.decimalPad)
+                    .appTextRole(.sectionTitle).monospacedDigit()
+                    .multilineTextAlignment(.center)
+                    .frame(minWidth: 54, maxWidth: 100, minHeight: 44)
+                    .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                stepButton(increasing: true)
+            }
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+        }
+    }
+
+    private func servingChoice(_ title: String, selected: Bool, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).appTextRole(.control)
+                .padding(.horizontal, AppSpacing.row)
+                .frame(minHeight: 40)
+                .foregroundStyle(selected ? AppPalette.brandText : AppPalette.text)
+                .background(selected ? AppPalette.brand.opacity(0.15) : AppPalette.control, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier(id)
+    }
+
+    private var servingSelectionControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Serving size").appTextRole(.control)
+                .accessibilityIdentifier("food_detail_serving_controls")
+            if let current = selectedServingOption {
+                let options = canChangeServing && availableServings.count <= 3 ? availableServings : [current]
+                let nativeUnits = options.compactMap { nativeMassUnit($0.description) }
+                ScrollView(.horizontal) {
+                    HStack(spacing: AppSpacing.compact) {
+                        ForEach(options) { option in
+                            servingChoice(option.description,
+                                          selected: displayMassUnit == nil && selectedServingID == option.id,
+                                          id: nativeMassUnit(option.description).map { "food_portion_" + $0 } ?? "food_portion_serving_" + option.id.uuidString) {
+                                chooseServing(option)
+                            }
+                        }
+                        if gramsPerSelectedServing != nil {
+                            ForEach(["g", "oz"].filter { !nativeUnits.contains($0) }, id: \.self) { unit in
+                                servingChoice(unit, selected: displayMassUnit == unit, id: "food_portion_" + unit) {
+                                    displayMassUnit = unit
+                                    if let amount = Double(quantity) { applyQuantity(amount) } else { massText = "" }
+                                }
+                            }
+                        }
+                        if canChangeServing && availableServings.count > 3 {
+                            Menu {
+                                ForEach(availableServings) { option in
+                                    Button(option.description) { chooseServing(option) }
+                                }
+                            } label: {
+                                Label("More", systemImage: "chevron.down")
+                                    .appTextRole(.control).frame(minHeight: 44)
+                            }
+                            .accessibilityIdentifier("food_portion_unit")
                         }
                     }
                 }
-            } label: {
-                HStack(alignment: .center, spacing: AppSpacing.compact) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Serving size")
-                            .appTextRole(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(displayMassUnit ?? selectedServingOption?.description ?? "Select")
-                            .appTextRole(.control)
-                            .foregroundStyle(AppPalette.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: AppSpacing.compact)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("food_portion_unit")
-        } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Base serving")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
-                Text(baseNutrients.description)
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Serving size")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
+                .scrollIndicators(.hidden)
+            } else {
                 Text(isLoadingDetails ? "Loading options" : adjustedNutrients.servingDescription)
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .appTextRole(.secondary)
             }
         }
     }
@@ -974,7 +1001,7 @@ struct FoodDetailView: View {
         if onUpdate != nil || onUpdateAccepted != nil {
             return reviewActionTitle ?? "Update item"
         }
-        return isLoggedItem ? "Update logged item" : "Add to log"
+        return isLoggedItem ? "Update logged item" : "Log to " + saveSession.checkpoint.mealName
     }
 
     private func navigationTitleText() -> String {
@@ -1314,7 +1341,6 @@ struct FoodDetailView: View {
             let singleUnitNutrients = ServingNutritionCalculator.baseServing(from: initialFoodItem)
             self.availableServings = [singleUnitNutrients]
             self.selectedServingID = singleUnitNutrients.id
-            self.baseLoggedItemNutrientsPerUnit = singleUnitNutrients
             self.isLoadingDetails = false
             
         } else if source == "recent_tap" {

@@ -51,7 +51,7 @@ struct FoodSearchView: View {
     @State private var showingMealDraft = false
     @State private var isSearchFocused = false
 
-    private static let compactPortionHeight = PresentationDetent.fraction(0.68)
+    private static let compactPortionHeight = PresentationDetent.fraction(0.85)
     @State private var portionHeight = compactPortionHeight
     @State private var selectedFoodItem: FoodItem?
     @State private var selectedFoodSource: String = "search_result"
