@@ -3326,11 +3326,11 @@ final class MyFitPlateUITests: XCTestCase {
                 XCTAssertTrue(done.isHittable)
             }
 
-            try performTextClippingAuditWithTimeoutRetry(on: app) { issue in
-                guard screen.route == "workout-history", let count = issue.element,
-                      count.elementType == .staticText, count.label == "5 sessions" else { return false }
-                return self.containsLargestTextGlyphs(count.label, style: .footnote, in: count, on: app)
+            if screen.route == "workout-history" {
+                let count = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "5 sessions")).firstMatch
+                XCTAssertTrue(count.waitForExistence(timeout: 5), app.debugDescription)
             }
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"

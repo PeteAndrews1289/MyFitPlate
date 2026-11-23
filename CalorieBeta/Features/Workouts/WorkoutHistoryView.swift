@@ -124,10 +124,15 @@ struct WorkoutHistoryView: View {
                             selectedProgram = ""; selectedBlock = ""; selectedSetup = ""; selectedType = ""
                         }
                     } else {
-                        WorkoutHistorySectionHeader(
-                            title: selectedExercise ?? "Recent sessions",
-                            subtitle: "\(filteredLogs.count) \(filteredLogs.count == 1 ? "session" : "sessions")\(hasCompleteCoverage ? "" : " · more history available")"
+                        let count = filteredLogs.count
+                        let sessionCount = "\(count) \(count == 1 ? "session" : "sessions")"
+                        let coverage = hasCompleteCoverage ? nil : "More history available"
+                        AppSectionHeader(
+                            title: selectedExercise ?? sessionCount,
+                            subtitle: selectedExercise == nil ? coverage : [sessionCount, coverage].compactMap { $0 }.joined(separator: " · ")
                         )
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isHeader)
 
                         LazyVStack(spacing: 0) {
                             ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
@@ -753,17 +758,6 @@ struct WorkoutHistoryRow: View {
             .appTextRole(.caption)
             .foregroundStyle(Color.accentPositive)
         }
-    }
-}
-
-private struct WorkoutHistorySectionHeader: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        AppSectionHeader(title: title, subtitle: subtitle)
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
     }
 }
 
