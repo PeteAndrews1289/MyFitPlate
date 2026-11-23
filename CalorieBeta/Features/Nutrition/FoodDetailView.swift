@@ -723,11 +723,25 @@ struct FoodDetailView: View {
             let basis = ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize)
             if let label = initialFoodItem.sourceMetadata?.labeledServing, !label.isEmpty, !basis.isEmpty,
                label.caseInsensitiveCompare(basis) != .orderedSame {
-                Text("Package serving \(label) · nutrition per \(basis)")
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("food_portion_package_serving")
+                HStack(spacing: AppSpacing.compact) {
+                    Text("Package serving \(label) · nutrition per \(basis)")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("food_portion_package_serving")
+                    if let labeled = labeledMassPortion(label) {
+                        Spacer(minLength: 0)
+                        Button("Use label") {
+                            displayMassUnit = nativeMassUnit(selectedServingOption?.description) == labeled.unit ? nil : labeled.unit
+                            applyQuantity(labeled.quantity)
+                        }
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.brandText)
+                        .fixedSize()
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("food_portion_use_label")
+                    }
+                }
             }
 
             servingSelectionControl
@@ -812,6 +826,17 @@ struct FoodDetailView: View {
         case "oz", "ounce", "ounces": return "oz"
         default: return nil
         }
+    }
+
+    // A counted item or fluid ounce has no implied mass. Only use an explicit
+    // amount and mass unit when applying a package label to the nutrition basis.
+    private func labeledMassPortion(_ label: String) -> (quantity: Double, unit: String)? {
+        let parts = label.split(whereSeparator: \.isWhitespace)
+        guard parts.count == 2, let amount = Double(parts[0]), amount.isFinite, amount > 0,
+              let unit = nativeMassUnit(String(parts[1])), let basis = gramsPerSelectedServing, basis > 0,
+              let grams = InventoryQuantityRules.convert(amount, from: unit, to: "g") else { return nil }
+        let quantity = grams / basis
+        return quantity.isFinite && quantity > 0 ? (quantity, unit) : nil
     }
 
     private var amountStep: (label: String, quantity: Double) {

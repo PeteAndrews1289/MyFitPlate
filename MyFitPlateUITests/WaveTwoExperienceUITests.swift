@@ -27,6 +27,12 @@ final class WaveTwoExperienceUITests: XCTestCase {
         XCTAssertTrue(package.waitForExistence(timeout: 5))
         XCTAssertTrue(package.label.contains("5.3 oz"))
         XCTAssertTrue(package.label.contains("100 g"))
+        let useLabel = app.buttons["food_portion_use_label"]
+        XCTAssertTrue(useLabel.isHittable)
+        useLabel.tap()
+        XCTAssertEqual(app.textFields["Quantity"].value as? String, "5.3")
+        XCTAssertTrue(app.staticTexts["food_detail_portion_total"].label.contains("150 cal"))
+        record(app, "Portion editor - printed yogurt serving applied")
         app.navigationBars.buttons["Cancel"].firstMatch.tap()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         app.buttons["food_search_more_actions"].tap()
