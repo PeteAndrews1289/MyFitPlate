@@ -215,6 +215,27 @@ final class WaveFourDailyTasksUITests: XCTestCase {
         XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
     }
 
+    func testCustomPortionCanBeTypedAndLoggedWithTheKeyboardOpen() {
+        let app = launch("food-search", reset: true)
+        app.buttons["repeat_food_review_0"].tap()
+        let amount = app.textFields["Quantity"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 8))
+        amount.tap()
+        amount.typeKey("a", modifierFlags: .command)
+        amount.typeText(XCUIKeyboardKey.delete.rawValue + "0")
+        let log = app.buttons["food_detail_log_action"]
+        XCTAssertFalse(log.isEnabled)
+        amount.typeKey("a", modifierFlags: .command)
+        amount.typeText(XCUIKeyboardKey.delete.rawValue + "3.75")
+        XCTAssertEqual(amount.value as? String, "3.75")
+        XCTAssertTrue(log.isHittable)
+        log.tap()
+        let undo = app.buttons["food_search_undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 8))
+        undo.tap()
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
+    }
+
     func testThreeItemMealHasOneReviewAndOneAcceptedSave() throws {
         let app = launch("food-search", reset: true)
         let mode = app.buttons["food_search_mode"]
