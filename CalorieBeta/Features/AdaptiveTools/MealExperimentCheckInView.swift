@@ -52,8 +52,6 @@ struct MealExperimentCheckInView: View {
                         Text(trial.observation == nil ? "Recorded sets and effort come directly from this workout."
                              : "Rating corrections keep the original recorded metrics. Your workout log is never edited here.").appTextRole(.secondary)
                         if needsLegacyConfirmation {
-                            Toggle("I confirm this legacy workout belongs to this comparison's program and session", isOn: $confirmedLegacySession)
-                                .accessibilityIdentifier("experiment_confirm_legacy")
                             Text("This older workout has no saved program/slot link, so the app cannot establish that match for you.")
                                 .appTextRole(.caption).foregroundStyle(.secondary)
                         }
@@ -75,6 +73,10 @@ struct MealExperimentCheckInView: View {
                 }
                 if let errorMessage { Text(errorMessage).appTextRole(.secondary).foregroundStyle(.secondary) }
                 Section {
+                    if needsLegacyConfirmation {
+                        MealExperimentConfirmation(label: "I confirm this workout belongs to this program and session", isConfirmed: $confirmedLegacySession)
+                            .accessibilityIdentifier("experiment_confirm_legacy")
+                    }
                     Button(trial.observation == nil ? "Save check-in" : "Save correction") {
                         do {
                             let session = sessions.first(where: { $0.id == sessionID })
@@ -91,6 +93,7 @@ struct MealExperimentCheckInView: View {
             .scrollContentBackground(.hidden).background(AppPalette.canvas)
             .navigationTitle("Meal check-in").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .onChange(of: sessionID) { _, _ in confirmedLegacySession = false }
             .onAppear {
                 guard !initialized else { return }
                 initialized = true

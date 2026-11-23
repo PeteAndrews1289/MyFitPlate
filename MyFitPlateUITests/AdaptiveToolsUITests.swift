@@ -56,11 +56,11 @@ final class AdaptiveToolsUITests: XCTestCase {
         if requiringHittable { XCTAssertTrue(element.isHittable, app.debugDescription) }
     }
 
-    @MainActor private func enableSwitch(_ toggle: XCUIElement, in app: XCUIApplication) {
-        reveal(toggle, in: app, searchUpWhenMissing: true)
-        if toggle.value as? String != "1" { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
-        let confirmed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: toggle)
-        XCTAssertEqual(XCTWaiter.wait(for: [confirmed], timeout: 4), .completed, app.debugDescription)
+    @MainActor private func confirmWorkout(_ confirmation: XCUIElement, in app: XCUIApplication) {
+        reveal(confirmation, in: app, searchUpWhenMissing: true)
+        XCTAssertFalse(confirmation.isSelected)
+        confirmation.tap()
+        XCTAssertTrue(confirmation.wait(for: \.isSelected, toEqual: true, timeout: 5), app.debugDescription)
     }
 
     @MainActor private func choose(_ identifier: String, option: String, in app: XCUIApplication) {
@@ -233,7 +233,7 @@ final class AdaptiveToolsUITests: XCTestCase {
         let option = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", Date().formatted(date: .abbreviated, time: .omitted))).firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 5))
         option.tap()
-        let legacy = app.switches["experiment_confirm_legacy"]
+        let legacy = app.buttons["experiment_confirm_legacy"]
         XCTAssertTrue(legacy.waitForExistence(timeout: 5), "The legacy fixture must require an explicit program/session confirmation.")
         let energy = app.segmentedControls["checkin_energy"]
         reveal(energy, in: app); energy.buttons["4"].tap()
@@ -242,7 +242,16 @@ final class AdaptiveToolsUITests: XCTestCase {
         let save = app.buttons["experiment_save_checkin"]
         reveal(save, in: app, requiringHittable: false)
         XCTAssertFalse(save.isEnabled, "Both ratings are filled; the unconfirmed legacy linkage must still prevent Save.")
-        enableSwitch(legacy, in: app)
+        confirmWorkout(legacy, in: app)
+        let session = app.buttons["experiment_session"]
+        reveal(session, in: app, searchUpWhenMissing: true)
+        session.tap()
+        app.buttons["Choose the completed session"].tap()
+        session.tap()
+        option.tap()
+        reveal(save, in: app)
+        XCTAssertFalse(save.isEnabled, "Re-selecting a legacy session must require a new confirmation.")
+        confirmWorkout(legacy, in: app)
         reveal(save, in: app)
         XCTAssertTrue(save.isEnabled)
         save.tap()
@@ -262,8 +271,8 @@ final class AdaptiveToolsUITests: XCTestCase {
         reveal(correctedEnergy, in: app)
         XCTAssertTrue(correctedEnergy.buttons["4"].isSelected)
         correctedEnergy.buttons["3"].tap()
-        let confirm = app.switches["experiment_confirm_legacy"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); enableSwitch(confirm, in: app)
+        let confirm = app.buttons["experiment_confirm_legacy"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirmWorkout(confirm, in: app)
         let saveCorrection = app.buttons["experiment_save_checkin"]
         reveal(saveCorrection, in: app)
         XCTAssertEqual(saveCorrection.label, "Save correction"); saveCorrection.tap()

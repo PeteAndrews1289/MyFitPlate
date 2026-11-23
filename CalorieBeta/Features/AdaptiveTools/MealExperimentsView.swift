@@ -9,6 +9,30 @@ struct FuelExperimentContext {
     let linkedFoods: [String]
 }
 
+struct MealExperimentConfirmation: View {
+    let label: String
+    @Binding var isConfirmed: Bool
+
+    var body: some View {
+        Button {
+            isConfirmed.toggle()
+        } label: {
+            HStack(spacing: AppSpacing.compact) {
+                Image(systemName: isConfirmed ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(isConfirmed ? AppPalette.brandText : Color.secondary)
+                    .accessibilityHidden(true)
+                Text(label)
+                    .multilineTextAlignment(.leading)
+            }
+            .appTextRole(.body)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isConfirmed ? .isSelected : [])
+    }
+}
+
 struct MealExperimentsView: View {
     var openCheckIn = false
     var preferredSessionID: String?
@@ -174,22 +198,7 @@ struct MealExperimentsView: View {
                         }.appTextRole(.secondary)
                     }
                 }
-                Button {
-                    familiar.toggle()
-                } label: {
-                    HStack(spacing: AppSpacing.compact) {
-                        Image(systemName: familiar ? "checkmark.square.fill" : "square")
-                            .foregroundStyle(familiar ? AppPalette.brandText : Color.secondary)
-                            .accessibilityHidden(true)
-                        Text("I already eat both meals comfortably and want to compare them")
-                            .multilineTextAlignment(.leading)
-                    }
-                    .appTextRole(.body)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(familiar ? .isSelected : [])
+                MealExperimentConfirmation(label: "I already eat both meals comfortably and want to compare them", isConfirmed: $familiar)
                 .accessibilityIdentifier("experiment_consent")
                 .onChange(of: [mealAID, mealBID]) { _, _ in familiar = false }
                 Button("Start comparison") { start(program) }
