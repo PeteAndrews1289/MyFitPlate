@@ -171,6 +171,10 @@ final class WaveFourDailyTasksUITests: XCTestCase {
 
     func testPortionPresetsAndMassUnitsPreserveTheReviewedAmount() throws {
         let app = launch("food-search", reset: true)
+        // Undo restores the diary. Remembered portions are a separate preference.
+        app.buttons["food_search_more_actions"].tap()
+        app.buttons["Food preferences"].tap()
+        app.buttons["Reset remembered servings"].tap()
         app.buttons["repeat_food_review_0"].tap()
         let total = app.staticTexts["food_detail_portion_total"]
         XCTAssertTrue(total.waitForExistence(timeout: 8))
