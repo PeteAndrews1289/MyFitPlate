@@ -474,7 +474,7 @@ struct FoodDetailView: View {
                                 onDismiss: saveSession.checkpoint.isSubmitted || saveSession.isSaving ? nil : { _ = saveSession.removeFuelContext() })
                         }
                         FoodDetailHeroCard(
-                            foodName: FoodSearchRanking.productDisplayName(foodName, brandName: initialFoodItem.sourceMetadata?.brandName),
+                            identity: FoodDisplayIdentity(name: foodName, brandName: initialFoodItem.sourceMetadata?.brandName),
                             servingDescription: displayedServingDescription
                         )
 
@@ -707,14 +707,21 @@ struct FoodDetailView: View {
 
     @ViewBuilder private var servingControlsCard: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Your portion").appTextRole(.sectionTitle)
-                    .accessibilityIdentifier("food_detail_serving_controls")
+            Rectangle().fill(AppPalette.text).frame(height: 2)
+            Text("Your portion").appTextRole(.control)
+                .accessibilityIdentifier("food_detail_serving_controls")
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0))))
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
+                Text("cal").appTextRole(.body)
                 Spacer()
-                Text("\(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
-                    .appTextRole(.secondary).monospacedDigit()
-                    .accessibilityIdentifier("food_detail_portion_total")
+                Text("\(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
+            .accessibilityIdentifier("food_detail_portion_total")
+            Divider()
 
             let basis = ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize)
             if let label = initialFoodItem.sourceMetadata?.labeledServing, !label.isEmpty, !basis.isEmpty,
@@ -748,7 +755,7 @@ struct FoodDetailView: View {
                     } label: {
                         Text(factor == 0.5 ? "½×" : factor == 1 ? "1×" : "2×")
                             .appTextRole(.control).frame(maxWidth: .infinity, minHeight: 44)
-                            .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
                     }
                     .buttonStyle(.plain)
                     .disabled(selectedServingOption == nil)
@@ -757,7 +764,7 @@ struct FoodDetailView: View {
                 }
             }
         }
-        .appSurface(.quiet)
+        .padding(.bottom, AppSpacing.row)
     }
 
     private var displayedServingDescription: String {

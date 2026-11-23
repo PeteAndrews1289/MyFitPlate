@@ -1,59 +1,33 @@
 import SwiftUI
 
+import PhosphorSwift
+
 struct FoodDetailHeroCard: View {
-    let foodName: String
+    let identity: FoodDisplayIdentity
     let servingDescription: String
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.row) {
-                    foodEmoji
-                    foodIdentity
-                }
-            } else {
-                HStack(alignment: .top, spacing: AppSpacing.group) {
-                    foodEmoji
-                    foodIdentity
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, AppSpacing.compact)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("food_detail_identity")
-    }
-
-    private var foodEmoji: some View {
-        Text(FoodEmojiMapper.getEmoji(for: foodName))
-            .font(.system(size: 30))
-            .frame(width: 54, height: 54)
-            .background(
-                AppPalette.control,
-                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                    .stroke(AppPalette.separator.opacity(0.55), lineWidth: 0.5)
-            }
-            .accessibilityHidden(true)
-    }
-
-    private var foodIdentity: some View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            Text(foodName)
-                .appTextRole(.sectionTitle)
+            if let brand = identity.brand {
+                Text(brand)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppPalette.brandText)
+            }
+            Text(identity.product)
+                .font(.system(.largeTitle, design: .serif, weight: .semibold))
                 .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Label(servingDescription, systemImage: "scalemass.fill")
-                .appTextRole(.secondary)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Ph.scales.regular.renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)
+                Text(servingDescription).appTextRole(.secondary)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.top, 2)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("food_detail_identity")
     }
 }
 

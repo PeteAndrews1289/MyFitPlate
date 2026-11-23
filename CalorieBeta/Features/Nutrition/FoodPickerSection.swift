@@ -1,4 +1,5 @@
 import SwiftUI
+import PhosphorSwift
 import MyFitPlateCore
 
 struct FoodPickerSection: View {
@@ -45,12 +46,18 @@ struct FoodPickerSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: title, subtitle: subtitle.isEmpty ? nil : subtitle)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                    .foregroundStyle(AppPalette.text)
+                if !subtitle.isEmpty { Text(subtitle).appTextRole(.secondary).foregroundStyle(.secondary) }
+            }
 
             if foods.isEmpty {
                 FoodSearchEmptyState(icon: "tray", title: emptyTitle, message: emptyMessage)
             } else {
                 VStack(spacing: 0) {
+                    Divider()
                     ForEach(Array(foods.enumerated()), id: \.element.id) { index, food in
                         FoodPickerRow(
                             food: food,
@@ -64,12 +71,30 @@ struct FoodPickerSection: View {
                         )
 
                         if index < foods.count - 1 {
-                            Divider().padding(.leading, 66)
+                            Divider()
                         }
                     }
                 }
-                .appSurface(.quiet, padding: 0)
             }
+        }
+    }
+}
+
+struct FoodDisplayIdentity {
+    let fullName: String
+    let brand: String?
+    let product: String
+
+    init(name: String, brandName: String?) {
+        fullName = FoodSearchRanking.productDisplayName(name, brandName: brandName)
+        if let reported = FoodSearchRanking.reportedBrandName(brandName),
+           let prefix = fullName.range(of: reported + " ", options: [.anchored, .caseInsensitive, .diacriticInsensitive]),
+           prefix.upperBound != fullName.endIndex {
+            brand = reported
+            product = String(fullName[prefix.upperBound...])
+        } else {
+            brand = nil
+            product = fullName
         }
     }
 }
@@ -87,18 +112,11 @@ struct FoodPickerRow: View {
     var quickActionID: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var displayName: String {
-        FoodSearchRanking.productDisplayName(food.name, brandName: food.sourceMetadata?.brandName)
+    private var identity: FoodDisplayIdentity {
+        FoodDisplayIdentity(name: food.name, brandName: food.sourceMetadata?.brandName)
     }
 
-    // Many catalog records prefix the brand to the title. Put it on its own
-    // line so it cannot truncate the flavor or size that distinguishes variants.
-    private var brandAndProduct: (brand: String, product: String)? {
-        guard let brand = FoodSearchRanking.reportedBrandName(food.sourceMetadata?.brandName),
-              let prefix = displayName.range(of: brand + " ", options: [.anchored, .caseInsensitive, .diacriticInsensitive]) else { return nil }
-        let product = String(displayName[prefix.upperBound...])
-        return product.isEmpty ? nil : (brand, product)
-    }
+    private var displayName: String { identity.fullName }
 
     private var detailText: String {
         let serving = ServingNutritionCalculator.displayPortion(food.servingSize)
@@ -136,8 +154,7 @@ struct FoodPickerRow: View {
                 }
             }
         }
-        .padding(.horizontal, AppSpacing.row)
-        .padding(.vertical, AppSpacing.compact)
+        .padding(.vertical, AppSpacing.row)
     }
 
     private var selectionButton: some View {
@@ -145,18 +162,17 @@ struct FoodPickerRow: View {
             onSelect(food)
         }) {
             HStack(spacing: 10) {
-                foodGlyph
-
-                VStack(alignment: .leading, spacing: 4) {
-                    let identity = brandAndProduct
-                    if let identity {
-                        Text(identity.brand).appTextRole(.caption).foregroundStyle(.secondary)
-                    }
-                    Text(identity?.product ?? displayName)
-                        .appTextRole(.control)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(identity.brand ?? identity.product)
+                        .font(.headline)
                         .foregroundStyle(AppPalette.text)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize || identity != nil ? nil : 2)
                         .fixedSize(horizontal: false, vertical: true)
+                    if identity.brand != nil {
+                        Text(identity.product)
+                            .appTextRole(.body)
+                            .foregroundStyle(AppPalette.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     Text(detailText)
                         .appFont(size: 13)
@@ -181,32 +197,15 @@ struct FoodPickerRow: View {
         .accessibilityHint("Review serving and nutrition")
     }
 
-    @ViewBuilder
-    private var foodGlyph: some View {
-        Group {
-            if food.sourceMetadata?.sourceType == .nihDSLD {
-                Image(systemName: "pills.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(FoodEmojiMapper.getEmoji(for: food.name))
-                    .font(.system(size: 26))
-            }
-        }
-        .frame(width: 40, height: 40)
-        .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-        .accessibilityHidden(true)
-    }
-
     private var actionTitle: String {
         if isQuickLogged { return isBuildingMeal ? "Selected" : "Logged" }
         if portionNotice != nil { return "Review" }
         return isBuildingMeal ? "Select" : "Log"
     }
 
-    private var actionSymbol: String {
-        if isQuickLogged { return "checkmark" }
-        return portionNotice == nil ? "plus" : "slider.horizontal.3"
+    private var actionIcon: Ph {
+        if isQuickLogged { return .check }
+        return portionNotice == nil ? .plus : .slidersHorizontal
     }
 
     private var actionLabel: String {
@@ -219,19 +218,18 @@ struct FoodPickerRow: View {
         HStack(spacing: AppSpacing.compact) {
             if let onQuickLog {
                 Button(action: { if portionNotice != nil { onSelect(food) } else { onQuickLog(food) } }) {
-                    HStack(spacing: 5) {
-                        if isLogging { ProgressView() } else { Image(systemName: actionSymbol) }
-                        Text(actionTitle)
-                    }
-                        .appFont(size: 17, weight: .medium)
-                        .foregroundStyle(isQuickLogged ? AppPalette.brandText : AppPalette.text)
-                        .padding(.horizontal, AppSpacing.compact)
-                        .frame(minWidth: 64, minHeight: 44)
-                        .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: AppRadius.control)
-                                .stroke(AppPalette.separator, lineWidth: 1)
+                    HStack(spacing: 4) {
+                        if isLogging {
+                            ProgressView()
+                        } else {
+                            actionIcon.bold.renderingMode(.template).resizable().scaledToFit().frame(width: 15, height: 15)
                         }
+                        Text(actionTitle).font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(isQuickLogged ? Color.secondary : AppPalette.brandText)
+                    .padding(.leading, AppSpacing.compact)
+                    .frame(minWidth: 48, minHeight: 44, alignment: .trailing)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .disabled(isQuickLogged || isLogging)

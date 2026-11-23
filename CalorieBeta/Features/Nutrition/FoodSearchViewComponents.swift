@@ -16,10 +16,10 @@ struct FoodRepeatQuickList: View {
                     isLogging: loggingFoodIDs.contains(food.id), isBuildingMeal: isBuildingMeal,
                     onSelect: onSelect, onQuickLog: onLog, onDelete: nil, source: nil,
                     selectionID: "repeat_food_review_\(index)", quickActionID: "repeat_food_add_\(index)")
-                if index < foods.count - 1 { Divider().padding(.leading, 50) }
+                if index < foods.count - 1 { Divider() }
             }
         }
-        .appSurface(.quiet, padding: 0)
+        .overlay(alignment: .top) { Divider() }
     }
 }
 
