@@ -191,16 +191,22 @@ final class AdaptiveToolsUITests: XCTestCase {
         let start = app.buttons["experiment_start"]
         reveal(start, in: app, requiringHittable: false)
         XCTAssertFalse(start.isEnabled, "Choosing both meals still requires explicit consent.")
-        reveal(consent, in: app)
-        XCTAssertFalse(consent.isSelected)
-        consent.tap()
-        XCTAssertTrue(consent.wait(for: \.isSelected, toEqual: true, timeout: 5))
-        choose("experiment_meal_b", option: "Blueberry Protein Overnight Oats", in: app)
-        XCTAssertTrue(app.staticTexts["Choose a different meal for A or B."].waitForExistence(timeout: 5))
-        reveal(consent, in: app)
-        XCTAssertFalse(consent.isSelected, "Changing a meal requires reviewing the new pair.")
-        XCTAssertFalse(start.isEnabled)
-        choose("experiment_meal_b", option: "Weeknight Chicken Power Bowl", in: app)
+        let oats = "Blueberry Protein Overnight Oats"
+        let bowl = "Weeknight Chicken Power Bowl"
+        for (picker, replacement, original) in [("experiment_meal_a", bowl, oats), ("experiment_meal_b", oats, bowl)] {
+            reveal(consent, in: app)
+            XCTAssertFalse(consent.isSelected)
+            consent.tap()
+            XCTAssertTrue(consent.wait(for: \.isSelected, toEqual: true, timeout: 5))
+            XCTAssertTrue(start.isEnabled)
+            choose(picker, option: replacement, in: app)
+            XCTAssertTrue(app.staticTexts["Choose a different meal for A or B."].waitForExistence(timeout: 5))
+            reveal(consent, in: app)
+            XCTAssertFalse(consent.isSelected, "Changing \(picker) must clear consent.")
+            choose(picker, option: original, in: app)
+            reveal(start, in: app, requiringHittable: false)
+            XCTAssertFalse(start.isEnabled, "Restoring a valid pair still needs fresh consent.")
+        }
         reveal(consent, in: app)
         consent.tap()
         XCTAssertTrue(consent.wait(for: \.isSelected, toEqual: true, timeout: 5))
