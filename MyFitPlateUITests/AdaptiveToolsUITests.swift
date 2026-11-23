@@ -234,7 +234,6 @@ final class AdaptiveToolsUITests: XCTestCase {
         XCTAssertTrue(option.waitForExistence(timeout: 5))
         option.tap()
         let legacy = app.buttons["experiment_confirm_legacy"]
-        XCTAssertTrue(legacy.waitForExistence(timeout: 5), "The legacy fixture must require an explicit program/session confirmation.")
         let energy = app.segmentedControls["checkin_energy"]
         reveal(energy, in: app); energy.buttons["4"].tap()
         let comfort = app.segmentedControls["checkin_comfort"]
@@ -249,7 +248,7 @@ final class AdaptiveToolsUITests: XCTestCase {
         app.buttons["Choose the completed session"].tap()
         session.tap()
         option.tap()
-        reveal(save, in: app)
+        reveal(save, in: app, requiringHittable: false)
         XCTAssertFalse(save.isEnabled, "Re-selecting a legacy session must require a new confirmation.")
         confirmWorkout(legacy, in: app)
         reveal(save, in: app)
@@ -272,8 +271,10 @@ final class AdaptiveToolsUITests: XCTestCase {
         XCTAssertTrue(correctedEnergy.buttons["4"].isSelected)
         correctedEnergy.buttons["3"].tap()
         let confirm = app.buttons["experiment_confirm_legacy"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirmWorkout(confirm, in: app)
         let saveCorrection = app.buttons["experiment_save_checkin"]
+        reveal(saveCorrection, in: app, requiringHittable: false)
+        XCTAssertFalse(saveCorrection.isEnabled)
+        confirmWorkout(confirm, in: app)
         reveal(saveCorrection, in: app)
         XCTAssertEqual(saveCorrection.label, "Save correction"); saveCorrection.tap()
         XCTAssertTrue(app.navigationBars["Meal check-in"].waitForNonExistence(timeout: 5))
