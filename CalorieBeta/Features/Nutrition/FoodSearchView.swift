@@ -200,7 +200,14 @@ struct FoodSearchView: View {
                 .navigationTitle(onFoodItemSelected == nil ? "Log food" : searchContext == "meal_planner" ? "Choose a food" : "Select ingredient")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button(onFoodItemSelected == nil ? "Done" : "Cancel") { dismiss() } }
+                    ToolbarItem(placement: .cancellationAction) {
+                        if onFoodItemSelected == nil {
+                            Button("Done", systemImage: "xmark") { dismiss() }
+                                .labelStyle(.iconOnly)
+                        } else {
+                            Button("Cancel") { dismiss() }
+                        }
+                    }
                     if onFoodItemSelected == nil {
                         ToolbarItem(placement: .principal) {
                             mealTargetContent.disabled(viewModel.isSavingDraft || (viewModel.isBuildingMeal && viewModel.mealDraft?.entries.isEmpty == false))
@@ -887,7 +894,7 @@ struct FoodSearchView: View {
                 if dynamicTypeSize.isAccessibilitySize {
                     Image(systemName: viewModel.isBuildingMeal ? "plus" : "square.stack")
                 } else {
-                    Text(viewModel.isBuildingMeal ? "Quick add" : "Select foods")
+                    Text(viewModel.isBuildingMeal ? "Quick add" : "Select")
                 }
             }
             .appFont(size: 13, weight: .medium)

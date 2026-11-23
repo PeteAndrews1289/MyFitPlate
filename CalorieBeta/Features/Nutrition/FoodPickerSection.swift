@@ -154,7 +154,7 @@ struct FoodPickerRow: View {
                 }
             }
         }
-        .padding(.vertical, AppSpacing.row)
+        .padding(.vertical, AppSpacing.compact)
     }
 
     private var selectionButton: some View {
@@ -163,16 +163,16 @@ struct FoodPickerRow: View {
         }) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(identity.brand ?? identity.product)
-                        .font(.headline)
-                        .foregroundStyle(AppPalette.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if identity.brand != nil {
-                        Text(identity.product)
-                            .appTextRole(.body)
-                            .foregroundStyle(AppPalette.text)
-                            .fixedSize(horizontal: false, vertical: true)
+                    Group {
+                        if let brand = identity.brand {
+                            Text("\(Text(brand).bold()) \(identity.product)")
+                                .appTextRole(.body)
+                        } else {
+                            Text(identity.product).font(.headline)
+                        }
                     }
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                     Text(detailText)
                         .appFont(size: 13)
@@ -187,6 +187,7 @@ struct FoodPickerRow: View {
 
                 Spacer(minLength: 6)
             }
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -221,14 +222,18 @@ struct FoodPickerRow: View {
                     HStack(spacing: 4) {
                         if isLogging {
                             ProgressView()
-                        } else {
+                        } else if portionNotice != nil && !isQuickLogged {
                             actionIcon.frame(width: 15, height: 15)
+                            Text(actionTitle).font(.subheadline.weight(.semibold))
+                        } else {
+                            actionIcon
+                                .frame(width: 16, height: 16)
+                                .frame(width: 30, height: 30)
+                                .background(AppPalette.control, in: Circle())
                         }
-                        Text(actionTitle).font(.subheadline.weight(.semibold))
                     }
                     .foregroundStyle(isQuickLogged ? Color.secondary : AppPalette.brandText)
-                    .padding(.leading, AppSpacing.compact)
-                    .frame(minWidth: 48, minHeight: 44, alignment: .trailing)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
