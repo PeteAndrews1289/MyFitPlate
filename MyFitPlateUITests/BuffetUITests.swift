@@ -173,9 +173,8 @@ final class BuffetUITests: XCTestCase {
         reveal(portion, in: app); settle(portion); portion.tap()
         let shared = app.switches["ayce_shared_portion"]
         XCTAssertTrue(shared.waitForExistence(timeout: 8))
-        let control = shared.switches.firstMatch.exists ? shared.switches.firstMatch : shared
-        settle(control)
-        control.press(forDuration: 0.1)
+        settle(shared)
+        shared.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let splitting = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: shared)
         XCTAssertEqual(XCTWaiter.wait(for: [splitting], timeout: 5), .completed, app.debugDescription)
         let amount = app.textFields["ayce_portion_amount"]

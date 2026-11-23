@@ -193,6 +193,7 @@ struct FoodSearchView: View {
         NavigationView {
             ZStack {
                 VStack(spacing: 0) {
+                    pinnedSearchHeader
                     searchResults
                     loggingFooter
                 }
@@ -558,9 +559,6 @@ struct FoodSearchView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
         .accessibilityIdentifier("food_search_results_scroll")
-        .safeAreaInset(edge: .top, spacing: 0) {
-            pinnedSearchHeader
-        }
     }
 
     private var loggingFooter: some View {
@@ -621,16 +619,18 @@ struct FoodSearchView: View {
                 viewModel.isBuildingMeal = true
                 showingMealDraft = true
             } label: {
-                HStack(spacing: AppSpacing.compact) {
-                    VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 2) {
+                    if dynamicTypeSize.isAccessibilitySize && canLog {
+                        Text("Review")
+                            .appTextRole(.control)
+                    } else {
                         Text(draft.isSubmitted ? "Finish logging meal" : "Review \(title)")
                             .appTextRole(.control)
                         Text("\(draft.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(draft.mealName) · \(draft.date.formatted(date: .abbreviated, time: .omitted))")
                             .appTextRole(.caption).foregroundStyle(.secondary)
                     }
-                    Image(systemName: "chevron.right")
-                        .appTextRole(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
