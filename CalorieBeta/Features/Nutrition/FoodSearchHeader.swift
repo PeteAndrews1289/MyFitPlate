@@ -1,5 +1,5 @@
 import SwiftUI
-import PhosphorSwift
+import MyFitPlateDesign
 import MyFitPlateCore
 
 struct FoodSearchHeader: View {
@@ -16,7 +16,7 @@ struct FoodSearchHeader: View {
     var body: some View {
         HStack(spacing: AppSpacing.compact) {
             if !dynamicTypeSize.isAccessibilitySize {
-                Ph.magnifyingGlass.bold.renderingMode(.template).resizable().scaledToFit()
+                PlateIcon.search
                     .frame(width: 20, height: 20)
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)

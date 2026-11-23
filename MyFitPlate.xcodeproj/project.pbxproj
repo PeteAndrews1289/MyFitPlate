@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E8C71A7B33DF4A919A1D2601 /* PhosphorSwift in Frameworks */ = {isa = PBXBuildFile; productRef = E8C71A7B33DF4A919A1D2603 /* PhosphorSwift */; };
+		E8C71A7B33DF4A919A1D2601 /* MyFitPlateDesign in Frameworks */ = {isa = PBXBuildFile; productRef = E8C71A7B33DF4A919A1D2603 /* MyFitPlateDesign */; };
 		02FA4AF952FDA646780FFC99 /* HealthActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474393F656E359C15028DD41 /* HealthActivityCard.swift */; };
 		035E97655B630DBAC9C29290 /* FirestoreDatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB95651294D4A7D538913023 /* FirestoreDatabaseService.swift */; };
 		07E71C19BADBEAD1B13CCFC3 /* FirstWeekGuidanceCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8451B45D5258E880A43419 /* FirstWeekGuidanceCards.swift */; };
@@ -694,7 +694,7 @@
 			files = (
 				3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */,
 				3EC693D42CB83700002222C6 /* FirebaseAnalyticsCore in Frameworks */,
-				E8C71A7B33DF4A919A1D2601 /* PhosphorSwift in Frameworks */,
+				E8C71A7B33DF4A919A1D2601 /* MyFitPlateDesign in Frameworks */,
 				3EB09F442CC7EB7C0088C849 /* FirebaseCore in Frameworks */,
 				3EC693D62CB83700002222C6 /* FirebaseAuth in Frameworks */,
 				4B6046A92DEE1F0E000B4A46 /* FirebaseCrashlytics in Frameworks */,
@@ -1239,7 +1239,7 @@
 			packageProductDependencies = (
 				3EC693D92CB83700002222C6 /* FirebaseAppCheck */,
 				3EC693D32CB83700002222C6 /* FirebaseAnalyticsCore */,
-				E8C71A7B33DF4A919A1D2603 /* PhosphorSwift */,
+				E8C71A7B33DF4A919A1D2603 /* MyFitPlateDesign */,
 				3EC693D52CB83700002222C6 /* FirebaseAuth */,
 				3EC693D72CB83700002222C6 /* FirebaseFirestore */,
 				3EB09F432CC7EB7C0088C849 /* FirebaseCore */,
@@ -1412,7 +1412,7 @@
 			mainGroup = 3EB2976D2CAEEDC80093E1B9;
 			packageReferences = (
 				3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-				E8C71A7B33DF4A919A1D2602 /* XCRemoteSwiftPackageReference "phosphor-icons/swift" */,
+				E8C71A7B33DF4A919A1D2602 /* XCLocalSwiftPackageReference "MyFitPlateDesign" */,
 				4BC927C12FF199C400C46AA9 /* XCLocalSwiftPackageReference "MyFitPlateCore" */,
 			);
 			productRefGroup = 3EB297772CAEEDC90093E1B9 /* Products */;
@@ -2422,17 +2422,13 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = MyFitPlateCore;
 		};
+		E8C71A7B33DF4A919A1D2602 /* XCLocalSwiftPackageReference "MyFitPlateDesign" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = MyFitPlateDesign;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		E8C71A7B33DF4A919A1D2602 /* XCRemoteSwiftPackageReference "phosphor-icons/swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/phosphor-icons/swift.git";
-			requirement = {
-				kind = exactVersion;
-				version = 2.1.0;
-			};
-		};
 		3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
@@ -2444,10 +2440,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E8C71A7B33DF4A919A1D2603 /* PhosphorSwift */ = {
+		E8C71A7B33DF4A919A1D2603 /* MyFitPlateDesign */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E8C71A7B33DF4A919A1D2602 /* XCRemoteSwiftPackageReference "phosphor-icons/swift" */;
-			productName = PhosphorSwift;
+			package = E8C71A7B33DF4A919A1D2602 /* XCLocalSwiftPackageReference "MyFitPlateDesign" */;
+			productName = MyFitPlateDesign;
 		};
 		12B1A6FB7423F1FCD680F8BB /* MyFitPlateShared */ = {
 			isa = XCSwiftPackageProductDependency;

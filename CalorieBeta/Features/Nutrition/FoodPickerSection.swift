@@ -1,5 +1,5 @@
 import SwiftUI
-import PhosphorSwift
+import MyFitPlateDesign
 import MyFitPlateCore
 
 struct FoodPickerSection: View {
@@ -203,9 +203,9 @@ struct FoodPickerRow: View {
         return isBuildingMeal ? "Select" : "Log"
     }
 
-    private var actionIcon: Ph {
+    private var actionIcon: PlateIcon {
         if isQuickLogged { return .check }
-        return portionNotice == nil ? .plus : .slidersHorizontal
+        return portionNotice == nil ? .plus : .adjustments
     }
 
     private var actionLabel: String {
@@ -222,7 +222,7 @@ struct FoodPickerRow: View {
                         if isLogging {
                             ProgressView()
                         } else {
-                            actionIcon.bold.renderingMode(.template).resizable().scaledToFit().frame(width: 15, height: 15)
+                            actionIcon.frame(width: 15, height: 15)
                         }
                         Text(actionTitle).font(.subheadline.weight(.semibold))
                     }

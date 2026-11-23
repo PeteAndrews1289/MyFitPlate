@@ -1,5 +1,5 @@
 {
-  "originHash" : "de51adf4b918da106d8db30b2bef0236a1e17294d995911a6c74d0d0a78ad22f",
+  "originHash" : "56189867583f291eeadc4c36936541c193c6547e322388d1565c6635ae67ea7b",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -116,15 +116,6 @@
       "state" : {
         "revision" : "f4a19a3c313dc2616c70bb49d29a799fb16be837",
         "version" : "2.4.1"
-      }
-    },
-    {
-      "identity" : "swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/phosphor-icons/swift.git",
-      "state" : {
-        "revision" : "9a9467181782bbe319ad4935d0993c77cd8a5fbc",
-        "version" : "2.1.0"
       }
     },
     {

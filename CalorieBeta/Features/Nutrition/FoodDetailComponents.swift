@@ -1,6 +1,6 @@
 import SwiftUI
 
-import PhosphorSwift
+import MyFitPlateDesign
 
 struct FoodDetailHeroCard: View {
     let identity: FoodDisplayIdentity
@@ -18,7 +18,7 @@ struct FoodDetailHeroCard: View {
                 .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
-                Ph.scales.regular.renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)
+                PlateIcon.scales.frame(width: 18, height: 18)
                 Text(servingDescription).appTextRole(.secondary)
             }
             .foregroundStyle(.secondary)
