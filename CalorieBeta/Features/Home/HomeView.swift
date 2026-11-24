@@ -29,6 +29,8 @@ struct HomeView: View {
     let isLivingDayHomeEnabled: Bool
 
     private struct DiaryRepeatReview: Identifiable { let id = UUID(); let session: DiaryTransferSession }
+    @State private var diaryJump: DiaryMealJump?
+    @State private var diaryFoodTarget: DiaryFoodLoggingTarget?
     @State private var diaryRepeatReview: DiaryRepeatReview?
     @State private var loadingRepeatMeal = false
     @State private var repeatMealError: String?
@@ -281,7 +283,7 @@ struct HomeView: View {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(spacing: 16) {
-                            if !isToday {
+                            if !isToday && !isLivingDayHomeEnabled {
                                 Text("Historical log · current targets")
                                     .appFont(size: 11, weight: .medium).foregroundStyle(.secondary)
                                     .accessibilityIdentifier("home_historical_target_scope")
@@ -324,8 +326,8 @@ struct HomeView: View {
                             }
 
                             HomeFoodDiarySection(
-                                currentLogForDisplay: currentLogForSelectedDate,
-                                isToday: isToday,
+                                foodLoggingTarget: $diaryFoodTarget, onAddFood: openDiaryFood, jump: diaryJump,
+                                currentLogForDisplay: currentLogForSelectedDate, dayContext: selectedDiaryDay,
                                 selectedDate: selectedDate,
                                 isDailyLogSpotlightActive: isSpotlightActive(for: "dailyLog"),
                                 showingAddExerciseView: $showingAddExerciseView,
@@ -432,6 +434,16 @@ struct HomeView: View {
                         .frame(width: geometry.size.width, alignment: .top)
                         .clipped()
                         .padding(.bottom, AppSpacing.section)
+                    }
+                    .onChange(of: diaryJump) { _, request in
+                        guard let request else { return }
+                        withAnimation(reduceMotion ? nil : AppMotion.standard) {
+                            if let mealID = request.mealID {
+                                proxy.scrollTo(mealID, anchor: .top)
+                            } else {
+                                proxy.scrollTo("dailyLog", anchor: .top)
+                            }
+                        }
                     }
                     .accessibilityIdentifier("home_scroll")
                     .scrollBounceBehavior(.basedOnSize, axes: .vertical)
@@ -897,8 +909,50 @@ struct HomeView: View {
         .tint(AppPalette.text)
     }
 
+    private func openDiaryFood(_ meal: String?) {
+        guard let day = selectedDiaryDay, let active = dailyLogService.activelyViewedDayContext,
+              active.userID == day.userID, active.dayKey == day.dayKey else { return }
+        diaryFoodTarget = DiaryFoodLoggingTarget(day: day, meal: meal)
+    }
+
+    private var diaryIndex: some View {
+        Menu {
+            Button("All entries") { diaryJump = DiaryMealJump() }
+            let meals = currentLogForSelectedDate?.meals.filter { !$0.foodItems.isEmpty } ?? []
+            if !meals.isEmpty {
+                Section("Jump to meal") {
+                    ForEach(meals) { meal in
+                        Button(meal.name) { diaryJump = DiaryMealJump(mealID: meal.id) }
+                    }
+                }
+            }
+            let recorded = Set(meals.map { MealPlanEditingRules.canonicalSlot($0.name) })
+            let missing = ["Breakfast", "Lunch", "Dinner", "Snacks"].filter {
+                !recorded.contains(MealPlanEditingRules.canonicalSlot($0))
+            }
+            if currentLogForSelectedDate != nil && !missing.isEmpty {
+                Section("Log food") {
+                    ForEach(missing, id: \.self) { meal in
+                        Button("Log " + meal.lowercased()) { openDiaryFood(meal) }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text("Diary").appTextRole(.screenTitle)
+                Image(systemName: "chevron.down").appTextRole(.caption)
+            }
+            .frame(minHeight: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Diary meals")
+        .accessibilityIdentifier("home_diary_index")
+    }
+
     private var homeScreenHeader: some View {
-        AppScreenHeader(title: "Home") {
+        HStack {
+            diaryIndex
+            Spacer(minLength: 0)
             HStack(spacing: AppSpacing.compact) {
                 Button { showingLoggingHabit = true } label: {
                     Image(systemName: "calendar.badge.checkmark")

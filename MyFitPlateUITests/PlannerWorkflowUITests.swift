@@ -65,6 +65,80 @@ final class PlannerWorkflowUITests: XCTestCase {
     }
 
     @MainActor
+    func testQuickHalfPortionReachesDiaryOnceAndDayReviewSkipsIt() {
+        let app = launch(arguments: ["-ui-testing-day-review-persistence"])
+        let amount = app.buttons["planner_actual_amount_planned-0-0"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 12))
+        let summary = app.staticTexts["planner_portion_summary_planned-0-0"]
+        amount.tap()
+        let larger = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "713 cal")).firstMatch
+        XCTAssertTrue(larger.waitForExistence(timeout: 5))
+        larger.tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 8))
+        XCTAssertTrue(summary.label.contains("713 cal"), summary.label)
+        app.buttons["planner_undo_logged_portion"].tap()
+        XCTAssertTrue(amount.waitForExistence(timeout: 8))
+        amount.tap()
+        let half = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "238 cal")).firstMatch
+        XCTAssertTrue(half.waitForExistence(timeout: 5))
+        attach(app, "Planner - choose diary portion")
+        half.tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 8))
+        XCTAssertTrue(summary.label.contains("238 cal"), summary.label)
+        XCTAssertFalse(app.buttons["meal_plan_log_planned-0-0"].isEnabled)
+        let remaining = app.buttons["planner_log_remaining"]
+        XCTAssertEqual(remaining.label, "Log 2 meals…")
+        reveal(remaining, in: app)
+        remaining.tap()
+        XCTAssertTrue(app.buttons["planned_log_action"].waitForExistence(timeout: 8))
+        let reviewed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planned_amount_'"))
+        XCTAssertEqual(Set(reviewed.allElementsBoundByIndex.map(\.label)),
+                       Set(["Edit amount for Chicken Pesto Grain Bowl", "Edit amount for Miso Salmon with Rice"]))
+        app.buttons["Close"].tap()
+        reveal(summary, in: app)
+        attach(app, "Planner - half portion logged")
+        app.buttons["tab_home"].tap()
+        let foods = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'diary_food_' AND NOT identifier BEGINSWITH 'diary_food_options_' AND label CONTAINS %@",
+            "Berry Protein Oats"))
+        reveal(foods.firstMatch, in: app)
+        XCTAssertEqual(foods.count, 1)
+        XCTAssertTrue(foods.firstMatch.label.contains("238"), foods.firstMatch.label)
+    }
+
+    @MainActor
+    func testInlineActualAmountChangesDiaryPortionAndKeepsPlan() {
+        let app = launch()
+        let amount = app.buttons["planner_actual_amount_planned-0-0"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 12))
+        amount.tap()
+        app.buttons["planner_custom_log_amount"].tap()
+        let input = app.textFields["planned_amount_input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10), app.debugDescription)
+        input.replaceContents(with: "2", in: app)
+        let energy = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'planned_energy_'")).firstMatch
+        XCTAssertEqual(energy.label, "950 cal")
+        let log = app.buttons["planned_log_action"]
+        XCTAssertEqual(log.label, "Log to Breakfast")
+        attach(app, "Adjusted breakfast ready to log")
+        log.tap()
+        XCTAssertTrue(log.waitForNonExistence(timeout: 10))
+        let recorded = app.buttons["meal_plan_log_planned-0-0"]
+        XCTAssertEqual(recorded.label, "Logged")
+        app.buttons["planner_edit_planned-0-0"].tap()
+        let original = app.staticTexts["planner_portion_nutrition"]
+        XCTAssertTrue(original.waitForExistence(timeout: 5))
+        XCTAssertTrue(original.label.contains("475"))
+        app.buttons["Cancel"].tap()
+        app.buttons["tab_home"].tap()
+        let diaryRow = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'diary_food_' AND NOT identifier BEGINSWITH 'diary_food_options_' AND label CONTAINS %@",
+            "Berry Protein Oats")).firstMatch
+        reveal(diaryRow, in: app)
+        XCTAssertTrue(diaryRow.label.contains("950"), diaryRow.label)
+    }
+
+    @MainActor
     func testCopyDayAppendsAndCanUndoWithoutLosingExistingMeals() {
         let app = launch()
         let copy = app.buttons["planner_copy_day"]

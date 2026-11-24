@@ -24,6 +24,50 @@ final class WaveOneDiaryDateUITests: XCTestCase {
     }
 
     @MainActor
+    func testYesterdayDinnerJumpEditAndSearchKeepMealAndDay() {
+        let app = launch(flags: ["-ui-testing-day-review-persistence"])
+        let todayEnergy = app.staticTexts["home_calories_remaining"]
+        let originalToday = todayEnergy.label
+        app.buttons["home_diary_previous"].tap()
+        let calendar = app.buttons["home_diary_calendar"]
+        let yesterday = calendar.label
+        let index = app.buttons["home_diary_index"]
+        index.tap()
+        app.buttons["Dinner"].tap()
+        let food = app.buttons["diary_food_yesterday-salmon"]
+        XCTAssertTrue(food.waitForExistence(timeout: 8))
+        XCTAssertTrue(food.isHittable)
+        XCTAssertTrue(food.label.contains("690"))
+        let dinner = app.buttons["diary_toggle_Dinner"]
+        dinner.tap()
+        index.tap()
+        app.buttons["Dinner"].tap()
+        XCTAssertTrue(food.waitForExistence(timeout: 5))
+        food.tap()
+        let destination = app.staticTexts["food_detail_destination"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        XCTAssertTrue(destination.label.contains("Dinner"), destination.label)
+        app.buttons["food_portion_half"].tap()
+        app.buttons["food_detail_log_action"].tap()
+        XCTAssertTrue(food.waitForExistence(timeout: 8))
+        XCTAssertTrue(food.label.contains("345"), food.label)
+        app.buttons["diary_add_Dinner"].tap()
+        let meal = app.buttons["food_search_meal_menu"]
+        XCTAssertTrue(meal.waitForExistence(timeout: 8))
+        XCTAssertTrue(meal.label.contains("Dinner"))
+        app.navigationBars["Log food"].buttons["Done"].tap()
+        XCTAssertTrue(index.waitForExistence(timeout: 8))
+        XCTAssertEqual(calendar.label, yesterday)
+        attach(app, "Yesterday - edited dinner")
+        app.buttons["home_diary_today"].tap()
+        XCTAssertEqual(todayEnergy.label, originalToday)
+        app.buttons["home_diary_previous"].tap()
+        index.tap()
+        app.buttons["Dinner"].tap()
+        XCTAssertTrue(food.label.contains("345"), food.label)
+    }
+
+    @MainActor
     func testSixMonthJumpKeepsDestinationAfterSearchAndForegrounding() {
         let app = launch()
         let calendar = app.buttons["home_diary_calendar"]
@@ -33,10 +77,14 @@ final class WaveOneDiaryDateUITests: XCTestCase {
         let historical = calendar.label
         XCTAssertEqual(calendar.value as? String, "Historical day")
         XCTAssertTrue(app.staticTexts["home_historical_target_scope"].exists)
-        let addFood = app.buttons["diary_add_food"]
-        reveal(addFood, in: app); addFood.tap()
+        let index = app.buttons["home_diary_index"]
+        index.tap()
+        let addFood = app.buttons["Log dinner"]
+        XCTAssertTrue(addFood.waitForExistence(timeout: 6))
+        addFood.tap()
         let destination = app.buttons["food_search_meal_menu"]
         XCTAssertTrue(destination.waitForExistence(timeout: 8))
+        XCTAssertTrue(destination.label.contains("Dinner"))
         var gregorian = Calendar(identifier: .gregorian)
         gregorian.timeZone = .current
         let sixMonthsAgo = gregorian.date(byAdding: .month, value: -6, to: Date())!
@@ -90,15 +138,6 @@ final class WaveOneDiaryDateUITests: XCTestCase {
         XCTAssertTrue(jump.waitForExistence(timeout: 5)); jump.tap()
         let sixMonths = app.buttons["6 months ago"]
         XCTAssertTrue(sixMonths.waitForExistence(timeout: 5)); sixMonths.tap()
-    }
-
-    @MainActor
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<12 {
-            if element.exists, element.isHittable { return }
-            app.scrollViews["home_scroll"].swipeUp()
-        }
-        XCTAssertTrue(element.isHittable, app.debugDescription)
     }
 
     @MainActor

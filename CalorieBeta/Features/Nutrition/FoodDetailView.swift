@@ -99,11 +99,11 @@ struct FoodDetailView: View {
             return matchesEntry || matchesDay ? log : nil
         }
         let capturedDay = userID.flatMap { owner in
-            if let dayContext, !dayContext.isOwned(by: owner) { return dayContext }
+            if let dayContext { return dayContext }
             if let sourceLog, let key = sourceLog.id {
-                return DiaryDayContext(userID: owner, date: sourceLog.date, timeZone: dayContext?.timeZone ?? .current, dayKey: key)
+                return DiaryDayContext(userID: owner, date: sourceLog.date, timeZone: .current, dayKey: key)
             }
-            return dayContext ?? DiaryDayContext(userID: owner, date: Calendar.current.startOfDay(for: date))
+            return DiaryDayContext(userID: owner, date: Calendar.current.startOfDay(for: date))
         }
         let session = FoodDetailSaveSession(food: inputFoodItem, userID: userID,
             date: date, mealName: targetMealName ?? DailyLogRules.determineMealType(), source: source,
@@ -494,7 +494,7 @@ struct FoodDetailView: View {
                         .accessibilityIdentifier("food_detail_save_error")
                 }
                 if onUpdate == nil && onUpdateAccepted == nil {
-                    Text(destinationDateText(style: .medium))
+                    Text(isLoggedItem ? saveSession.checkpoint.mealName + " · " + destinationDateText(style: .medium) : destinationDateText(style: .medium))
                         .appTextRole(.caption).foregroundStyle(.secondary)
                         .accessibilityLabel("\(saveSession.checkpoint.mealName), \(destinationDateText(style: .full))")
                         .padding(.vertical, 4)

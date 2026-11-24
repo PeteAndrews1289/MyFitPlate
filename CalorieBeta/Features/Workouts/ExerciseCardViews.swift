@@ -284,12 +284,11 @@ struct ExerciseCardView: View {
                 WorkoutSwapMenu(source: exercise, title: exercise.name, suggestions: swapSuggestions,
                     onChoose: onSwap, onBrowse: onBrowseSwaps)
             } else {
-                Text(exercise.name).appTextRole(.control).foregroundStyle(AppPalette.text)
+                Text(exercise.name).appTextRole(.sectionTitle).foregroundStyle(AppPalette.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             HStack(alignment: .center, spacing: AppSpacing.compact) {
-                exerciseIcon
                 Text("\(typeChip.title) · \(completedSetCount) of \(totalSetCount) sets")
                     .appTextRole(.caption)
                     .foregroundStyle(.secondary)
@@ -300,22 +299,6 @@ struct ExerciseCardView: View {
             }
             supersetBadge
         }
-    }
-
-    private var exerciseIcon: some View {
-        Image(systemName: exercise.type.icon)
-            .appFont(size: 15, weight: .medium)
-            .foregroundStyle(.secondary)
-            .frame(width: 26, height: 26)
-            .background(
-                AppPalette.canvas,
-                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    .stroke(AppPalette.separator, lineWidth: 0.5)
-            }
-            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -450,7 +433,11 @@ struct StrengthExerciseView: View {
             if !dynamicTypeSize.isAccessibilitySize {
                 HStack(spacing: 8) {
                     Text("Set").frame(width: 54)
-                    Text("Load (\(exercise.loadEquipment?.unit.rawValue ?? "lb"))").frame(maxWidth: .infinity)
+                    VStack(spacing: 1) {
+                        Text("Load (\(exercise.loadEquipment?.unit.rawValue ?? "lb"))")
+                        if exercise.loadEquipment?.loadingMeaning == .perHand { Text("per hand") }
+                    }
+                    .frame(maxWidth: .infinity)
                     Text("Reps").frame(maxWidth: .infinity)
                     Text("Log").frame(width: 48)
                 }
@@ -611,7 +598,7 @@ struct ProgressionTargetsReview: View {
         NavigationStack {
             Form {
                 Section {
-                    Text(exercise.name).appTextRole(.control)
+                    Text(exercise.name).appTextRole(.sectionTitle)
                     Text(plan.rationale).foregroundStyle(.secondary)
                     Text("Based on \(plan.sessionCount) recent \(plan.sessionCount == 1 ? "session" : "sessions"). Only unfinished regular sets will change.")
                         .appTextRole(.secondary).foregroundStyle(.secondary)

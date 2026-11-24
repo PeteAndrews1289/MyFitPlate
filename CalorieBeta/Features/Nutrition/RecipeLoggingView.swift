@@ -281,38 +281,8 @@ private struct RecipeLoggingIdentity: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.row) {
-                    artwork
-                    textBlock
-                }
-            } else {
-                HStack(alignment: .top, spacing: AppSpacing.group) {
-                    artwork
-                    textBlock
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var artwork: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            Image(systemName: "fork.knife")
-                .appTextRole(.sectionTitle)
-                .foregroundStyle(.secondary)
-                .frame(width: 64, height: 64)
-                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-                .accessibilityHidden(true)
-        } else {
-            Text(FoodEmojiMapper.getEmoji(for: name))
-                .font(.system(size: 34))
-                .frame(width: 64, height: 64)
-                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-                .accessibilityHidden(true)
-        }
+        textBlock
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var textBlock: some View {

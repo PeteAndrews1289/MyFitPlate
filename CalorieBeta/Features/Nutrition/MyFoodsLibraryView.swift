@@ -698,7 +698,6 @@ private struct MyFoodsLibraryRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
-            foodGlyph
 
             Button(action: editAction) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -754,24 +753,6 @@ private struct MyFoodsLibraryRow: View {
         .padding(.horizontal, AppSpacing.group)
         .padding(.vertical, AppSpacing.row)
         .accessibilityIdentifier("my_foods_row_\(entry.id)")
-    }
-
-    @ViewBuilder
-    private var foodGlyph: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            Image(systemName: "fork.knife")
-                .appTextRole(.control)
-                .foregroundStyle(.secondary)
-                .frame(width: 42, height: 42)
-                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-                .accessibilityHidden(true)
-        } else {
-            Text(FoodEmojiMapper.getEmoji(for: entry.item.name))
-                .font(.system(size: 23))
-                .frame(width: 42, height: 42)
-                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-                .accessibilityHidden(true)
-        }
     }
 
     private var normalizedBarcode: String? {

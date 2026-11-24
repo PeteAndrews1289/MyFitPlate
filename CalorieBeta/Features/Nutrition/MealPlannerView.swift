@@ -10,13 +10,132 @@ private enum MealPlannerSessionContext {
     static var positions: [String: Position] = [:]
 }
 
+private struct PlannedMealReviewRequest: Identifiable {
+    let id = UUID()
+    let review: PlannedMealSaveSession
+    var initialAmountID: String?
+}
+
 private struct PlannedMealLoggingReceiptView: View {
     @ObservedObject var review: PlannedMealSaveSession
     @EnvironmentObject private var dailyLogService: DailyLogService
     @EnvironmentObject private var fuelStore: TrainingFuelPlanStore
     @Environment(\.dismiss) private var dismiss
-    let onAccepted: () -> Void
+    let onAccepted: (UUID?) -> Void
     @State private var actualFood: FoodItem?
+
+    @State private var editingFood: FoodItem?
+    @State private var amountText = ""
+    @FocusState private var editingAmount: Bool
+    init(request: PlannedMealReviewRequest, onAccepted: @escaping (UUID?) -> Void) {
+        review = request.review
+        self.onAccepted = onAccepted
+        let checkpoint = request.review.checkpoint
+        if !checkpoint.isSubmitted, let id = request.initialAmountID,
+           let food = checkpoint.meals.flatMap(\.foodItems).first(where: { $0.id == id }) {
+            _editingFood = State(initialValue: food)
+            _amountText = State(initialValue: Self.inputAmount(for: food))
+        }
+    }
+
+    private static func inputAmount(for food: FoodItem) -> String {
+        PlannedMealLoggingRules.editablePortion(of: food).amount.formatted(.number.grouping(.never).precision(.significantDigits(1...16)))
+    }
+
+    private var adjustedFood: FoodItem? {
+        guard let editingFood, let amount = try? Double(amountText, format: .number.grouping(.never), lenient: false) else { return nil }
+        return PlannedMealLoggingRules.actualPortion(of: editingFood, amount: amount)
+    }
+
+    private func finishEdit() -> Bool {
+        guard let editingFood else { return true }
+        guard let adjustedFood, review.updateFood(adjustedFood, entryID: editingFood.id) else { return false }
+        self.editingFood = nil
+        editingAmount = false
+        return true
+    }
+
+    private func editAmount(_ food: FoodItem) {
+        guard finishEdit() else { return }
+        editingFood = food
+        amountText = Self.inputAmount(for: food)
+    }
+
+    @ViewBuilder
+    private func foodRow(_ food: FoodItem) -> some View {
+        let editing = editingFood?.id == food.id
+        let portion = PlannedMealLoggingRules.editablePortion(of: food)
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(food.name).appTextRole(.sectionTitle)
+                Spacer()
+                if editing {
+                    Button("Cancel edit") { editingFood = nil; editingAmount = false }
+                        .appTextRole(.secondary).buttonStyle(.borderless)
+                        .frame(minHeight: 44)
+                } else if !review.checkpoint.isSubmitted {
+                    Menu {
+                        Button("Edit ingredients") {
+                            guard finishEdit() else { return }
+                            actualFood = review.checkpoint.meals.flatMap(\.foodItems).first { $0.id == food.id }
+                        }
+                        Button("Leave out of log") {
+                            _ = review.omitFood(entryID: food.id)
+                        }
+                    } label: { Image(systemName: "ellipsis.circle").frame(minWidth: 44, minHeight: 44) }
+                    .accessibilityLabel("Options for " + food.name)
+                }
+            }
+            HStack {
+                if editing {
+                    HStack(spacing: 6) {
+                        TextField("Amount", text: $amountText)
+                            .keyboardType(.decimalPad).focused($editingAmount)
+                            .onAppear { editingAmount = true }
+                            .font(.body.weight(.semibold)).monospacedDigit()
+                            .accessibilityIdentifier("planned_amount_input")
+                        Text(portion.unit == "serving" ? "Servings" : portion.unit)
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                            .fixedSize()
+                    }
+                    .padding(.horizontal, AppSpacing.row)
+                    .frame(minHeight: 44)
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                } else if review.checkpoint.isSubmitted {
+                    Text(ServingNutritionCalculator.displayPortion(food.servingSize))
+                } else {
+                    Button {
+                        editAmount(food)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(portion.amount.formatted() + " " + portion.unit)
+                            Image(systemName: "pencil").font(.caption)
+                        }
+                        .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Edit amount for " + food.name)
+                    .accessibilityIdentifier("planned_amount_" + food.id)
+                }
+                Spacer()
+                if let visibleFood = editing ? adjustedFood : food {
+                    Text(visibleFood.calories.rounded().formatted() + " cal")
+                        .monospacedDigit().foregroundStyle(.secondary)
+                        .accessibilityIdentifier("planned_energy_" + food.id)
+                }
+            }
+            if editing && adjustedFood == nil {
+                Text("Check the amount and enter a positive portion.").appTextRole(.caption).foregroundStyle(AppPalette.caution)
+            }
+        }
+    }
+
+    private var logTitle: String {
+        if review.isSaving { return "Saving…" }
+        if review.checkpoint.isSubmitted { return "Retry reviewed meals" }
+        if review.checkpoint.meals.count == 1, let meal = review.checkpoint.meals.first { return "Log to " + meal.name }
+        return "Log reviewed meals"
+    }
 
     var body: some View {
         NavigationStack {
@@ -41,40 +160,62 @@ private struct PlannedMealLoggingReceiptView: View {
                     }
                 }
                 ForEach(review.checkpoint.meals) { meal in
-                    Section(meal.name) {
+                    Section {
                         ForEach(meal.foodItems) { food in
-                            VStack(alignment: .leading) {
-                                Text(food.name).fontWeight(.semibold)
-                                Text("\(ServingNutritionCalculator.displayPortion(food.servingSize)) · \(food.calories.formatted(.number.precision(.fractionLength(0)))) cal")
-                                    .foregroundStyle(.secondary)
-                                if !review.checkpoint.isSubmitted {
-                                    Button("Adjust portions, substitute or skip components") { actualFood = food }.frame(minHeight: 44)
-                                        .accessibilityIdentifier("planned_actual_\(food.id)")
-                                    Button("Leave this meal out of this log") { _ = review.omitFood(entryID: food.id) }.frame(minHeight: 44)
+                            foodRow(food)
+                        }
+                    } header: {
+                        HStack {
+                            Text(meal.name)
+                            Spacer()
+                            if meal.foodItems.count > 1 {
+                                let total = meal.foodItems.compactMap { food in
+                                    food.id == editingFood?.id ? adjustedFood?.calories : food.calories
+                                }
+                                if total.count == meal.foodItems.count {
+                                    Text(total.reduce(0, +).rounded().formatted() + " cal").monospacedDigit()
                                 }
                             }
                         }
                     }
                 }
-                if !review.checkpoint.isSubmitted {
-                    Button("Discard this unsubmitted log review", role: .destructive) { if review.discardUnsubmitted() { dismiss() } }.frame(minHeight: 44)
-                }
             }.appFormStyle()
-            .navigationTitle("Review planned meals")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.disabled(review.isSaving) } }
+            .navigationTitle(review.checkpoint.meals.count == 1 ? "Log planned meal" : "Review planned meals")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if !review.checkpoint.isSubmitted {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("Discard review", role: .destructive) {
+                                if review.discardUnsubmitted() { dismiss() }
+                            }
+                        } label: { Image(systemName: "ellipsis.circle") }
+                        .accessibilityLabel("Review options")
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { _ = finishEdit() }.disabled(adjustedFood == nil)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { if finishEdit() { dismiss() } }.disabled(review.isSaving)
+                }
+            }
             .safeAreaInset(edge: .bottom) {
-                Button(review.isSaving ? "Saving…" : review.checkpoint.isSubmitted ? "Retry reviewed meals" : "Log reviewed meals") {
+                Button(logTitle) {
+                    guard finishEdit() else { return }
+                    let previousUndoID = dailyLogService.undoChangeID
                     review.save(using: dailyLogService, fuelStore: fuelStore) { accepted in
                         guard accepted else { return }
-                        onAccepted(); dismiss()
+                        onAccepted(previousUndoID); dismiss()
                     }
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(review.isSaving || review.isAccepted)
+                .disabled(review.isSaving || review.isAccepted || review.checkpoint.meals.isEmpty || (editingFood != nil && adjustedFood == nil))
                 .padding(AppSpacing.screenHorizontal).background(.bar)
                 .accessibilityIdentifier("planned_log_action")
             }
-            .interactiveDismissDisabled(review.isSaving)
+            .interactiveDismissDisabled(review.isSaving || editingFood != nil)
             .sheet(item: $actualFood) { food in
                 ActualPlannedFoodReviewView(food: food, date: review.checkpoint.date) { review.updateFood($0, entryID: food.id) }
             }
@@ -141,7 +282,6 @@ struct MealPlannerView: View {
     @State private var loadingMessage = "Checking saved plan"
     @State private var showingMealPlanSurvey = false
     @State private var showingAddMealToPlan = false
-    @State private var showingLogDayConfirmation = false
     @State private var showingPantrySheet = false
     @State private var showingDiscardPlanConfirmation = false
     @State private var isDiscardingMealPlan = false
@@ -155,12 +295,12 @@ struct MealPlannerView: View {
     @State private var errorMessage: String?
 
     @State private var regeneratingMealID: String?
-    @State private var loggedFoodIDsByDate: [String: Set<String>] = [:]
+    @State private var loggedPlanFoodsByDate: [String: [String: FoodItem]] = [:]
     @State private var logReadIDs: [String: UUID] = [:]
     @State private var loggingMealID: String?
     @State private var loggedPortionUndo: (id: UUID, entryID: String, date: Date)?
     @State private var mealActionMessage: String?
-    @State private var planLoggingReview: PlannedMealSaveSession?
+    @State private var planLoggingReview: PlannedMealReviewRequest?
     @State private var isUpdatingPlan = false
     @State private var mealPendingDelete: PlannedMeal?
     @State private var weekPlans: [String: MealPlanDay] = [:]
@@ -352,8 +492,8 @@ struct MealPlannerView: View {
                        let key = AccountScopedStorageKey.make(prefix: "meal-planner-workspace", userID: owner) { UserDefaults.standard.set(mode.rawValue, forKey: key) }
                     if mode == .plan { Task { await refreshPlannedStock() } }
                 }
-                .sheet(item: $planLoggingReview) { review in
-                    PlannedMealLoggingReceiptView(review: review) { finishMealLog(review) }
+                .sheet(item: $planLoggingReview) { request in
+                    PlannedMealLoggingReceiptView(request: request) { finishMealLog(request.review, previousUndoID: $0) }
                 }
                 .mealPlannerPresentationBoundary()
 
@@ -423,21 +563,6 @@ struct MealPlannerView: View {
                  : "Remove this planned portion. Other allocations will be checked and kept. Meals already logged stay unchanged.")
         }
         .confirmationDialog(
-            "Log this planned day?",
-            isPresented: $showingLogDayConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Log planned meals") {
-                if let plan = planForSelectedDate {
-                    logDay(plan: plan)
-                }
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This adds the planned meals to the food log for \(selectedDate, formatter: DateFormatter.longDate).")
-        }
-        .confirmationDialog(
             "Clear this selected meal week?",
             isPresented: $showingDiscardPlanConfirmation,
             titleVisibility: .visible
@@ -496,7 +621,7 @@ struct MealPlannerView: View {
             guard let log else { return }
             let key = dateKey(for: log.date)
             logReadIDs[key] = nil
-            loggedFoodIDsByDate[key] = Set(log.meals.flatMap(\.foodItems).map(\.id))
+            rememberLoggedPlanFoods(log, for: key)
         }
         .mealPlannerPresentationBoundary()
     }
@@ -775,7 +900,7 @@ struct MealPlannerView: View {
                 }
                 if let plan = planForSelectedDate, Calendar.current.startOfDay(for: selectedDate) <= Calendar.current.startOfDay(for: Date()),
                    plan.meals.contains(where: { $0.foodItem != nil && !isMealLogged($0) }) {
-                    Button("Log meals for this day", systemImage: "checkmark.circle") { showingLogDayConfirmation = true }
+                    Button("Review meals to log", systemImage: "checkmark.circle") { logDay(plan: plan) }
                         .disabled(loggingMealID != nil)
                         .accessibilityIdentifier("meal_plan_log_day")
                 }
@@ -857,9 +982,11 @@ struct MealPlannerView: View {
                 MealCardView(
                     meal: meal,
                     isRegenerating: regeneratingMealID == meal.id,
-                    isLogged: isMealLogged(meal),
+                    loggedFood: loggedFood(for: meal),
                     isLogging: loggingMealID == PlannedMealLoggingRules.entryID(for: meal, date: selectedDate),
-                    onLog: { log(meal: $0, reviewFirst: true) },
+                    onLog: { log(meal: $0, date: plan.date, reviewFirst: true) },
+                    onLogPortion: { amount in log(meal: meal, date: plan.date, actualAmount: amount) },
+                    onAdjustAmount: { log(meal: meal, date: plan.date, reviewFirst: true, editAmount: true) },
                     onRegenerate: { regenerate(meal: meal) },
                     onDelete: { mealPendingDelete = meal },
                     onEdit: { editingMeal = meal },
@@ -881,9 +1008,21 @@ struct MealPlannerView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meal_plan_day")
         MealPlanSummaryCard(date: selectedDate, meals: plan.meals, goals: goalSettings)
-        Button("Copy this day", systemImage: "doc.on.doc") {
-            transferRequest = MealPlanTransferRequest(source: plan, meals: plan.meals, moving: false)
-        }.accessibilityIdentifier("planner_copy_day").frame(minHeight: 44)
+        let remaining = plan.meals.filter { !isMealLogged($0) }
+        HStack(spacing: AppSpacing.group) {
+            if remaining.count > 1, appState.pendingTrainingFuelTarget == nil,
+               remaining.allSatisfy({ mealExecutionAction($0, date: plan.date) == .log }) {
+                Button("Log " + remaining.count.formatted() + " meals…") { logDay(plan: plan) }
+                    .appTextRole(.control)
+                    .disabled(isUpdatingPlan || loggingMealID != nil)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("planner_log_remaining")
+                Spacer(minLength: 0)
+            }
+            Button("Copy this day", systemImage: "doc.on.doc") {
+                transferRequest = MealPlanTransferRequest(source: plan, meals: plan.meals, moving: false)
+            }.accessibilityIdentifier("planner_copy_day").frame(minHeight: 44)
+        }
     }
 
     private func planLeftoversAction(for meal: PlannedMeal, in source: MealPlanDay) -> (() -> Void)? {
@@ -910,7 +1049,7 @@ struct MealPlannerView: View {
         case .cook: workspace = .cook
         case .useStock, .recordStockUse:
             if let item = stockItem(for: meal) { plannedStockUse = PlannedStockUse(item: item, meal: meal, date: date) }
-        case .log: log(meal: meal)
+        case .log: log(meal: meal, date: date)
         case .checkStock: showingPantrySheet = true
         case .logged, .loadingStock: break
         }
@@ -1254,19 +1393,28 @@ struct MealPlannerView: View {
         }
     }
 
-    private func log(meal: PlannedMeal, reviewFirst: Bool = false) {
+    private func log(meal: PlannedMeal, date: Date, actualAmount: Double? = nil, reviewFirst: Bool = false, editAmount: Bool = false) {
         guard let userID = DIContainer.shared.authService.currentUserID, loggingMealID == nil, !isMealLogged(meal) else { return }
-        let date = selectedDate
-        guard let food = PlannedMealLoggingRules.food(for: meal, date: date) else {
+        guard Calendar.current.isDate(date, inSameDayAs: selectedDate),
+              Calendar.current.startOfDay(for: date) <= Calendar.current.startOfDay(for: Date()) else { return }
+        guard let plannedFood = PlannedMealLoggingRules.food(for: meal, date: date) else {
             mealActionMessage = "Add a food or recipe to this meal to review its nutrition before logging."
             editingMeal = meal
             return
         }
+        let food: FoodItem
+        if let actualAmount {
+            guard mealExecutionAction(meal, date: date) == .log,
+                  let adjusted = PlannedMealLoggingRules.actualPortion(of: plannedFood, amount: actualAmount) else { return }
+            food = adjusted
+        } else {
+            food = plannedFood
+        }
         let review = PlannedMealSaveSession(userID: userID, date: date,
             meals: [Meal(name: meal.mealType, foodItems: [food])], trainingFuelTarget: appState.pendingTrainingFuelTarget)
         if reviewFirst || review.restoredReview || review.errorMessage != nil || review.checkpoint.trainingFuelTarget != nil
-            || meal.plannedFood?.loggingPortionNotice() != nil {
-            planLoggingReview = review
+            || plannedFood.loggingPortionNotice() != nil || food.loggingPortionNotice() != nil {
+            planLoggingReview = PlannedMealReviewRequest(review: review, initialAmountID: editAmount ? food.id : nil)
             return
         }
         let previousUndoID = dailyLogService.undoChangeID
@@ -1274,21 +1422,31 @@ struct MealPlannerView: View {
         review.save(using: dailyLogService) { accepted in
             loggingMealID = nil
             guard DIContainer.shared.authService.currentUserID == userID else { return }
-            guard accepted else { planLoggingReview = review; return }
-            finishMealLog(review)
-            if let id = dailyLogService.undoID(forAddedFoods: [food.id], userID: userID), id != previousUndoID {
-                loggedPortionUndo = (id, food.id, date)
-            }
+            guard accepted else { planLoggingReview = PlannedMealReviewRequest(review: review); return }
+            finishMealLog(review, previousUndoID: previousUndoID)
         }
     }
 
-    private func finishMealLog(_ review: PlannedMealSaveSession) {
+    private func finishMealLog(_ review: PlannedMealSaveSession, previousUndoID: UUID?) {
         guard DIContainer.shared.authService.currentUserID == review.userID else { return }
         let checkpoint = review.checkpoint
         let key = dateKey(for: checkpoint.date)
         logReadIDs[key] = nil
-        loggedFoodIDsByDate[key, default: []].formUnion(checkpoint.meals.flatMap(\.foodItems).map(\.id))
+        let foods = checkpoint.meals.flatMap(\.foodItems)
+        for food in foods where loggedPlanFoodsByDate[key]?[food.id] == nil {
+            loggedPlanFoodsByDate[key, default: [:]][food.id] = food
+        }
+        if let log = dailyLogService.currentDailyLog, Calendar.current.isDate(log.date, inSameDayAs: checkpoint.date),
+           Set(log.meals.flatMap(\.foodItems).map(\.id)).isSuperset(of: foods.map(\.id)) {
+            rememberLoggedPlanFoods(log, for: key)
+        } else {
+            refreshLoggedMeals(for: checkpoint.date, forceRemote: true)
+        }
         loggedPortionUndo = nil
+        if checkpoint.trainingFuelTarget == nil, foods.count == 1, let food = foods.first, let owner = review.userID,
+           let id = dailyLogService.undoID(forAddedFoods: [food.id], userID: owner), id != previousUndoID {
+            loggedPortionUndo = (id, food.id, checkpoint.date)
+        }
         let destination = checkpoint.meals.count == 1 ? checkpoint.meals[0].name : "diary"
         mealActionMessage = "Logged to " + destination + " · " + checkpoint.date.formatted(date: .abbreviated, time: .omitted)
         if let target = checkpoint.trainingFuelTarget,
@@ -1309,7 +1467,7 @@ struct MealPlannerView: View {
                 loggedPortionUndo = nil
                 let key = dateKey(for: undo.date)
                 logReadIDs[key] = nil
-                loggedFoodIDsByDate[key]?.remove(undo.entryID)
+                loggedPlanFoodsByDate[key]?.removeValue(forKey: undo.entryID)
                 mealActionMessage = "Food log undone."
             } else {
                 mealActionMessage = dailyLogService.undoErrorMessage ?? "Couldn't undo this portion. Try again."
@@ -1319,7 +1477,9 @@ struct MealPlannerView: View {
 
     private func logDay(plan: MealPlanDay) {
         guard let userID = DIContainer.shared.authService.currentUserID, loggingMealID == nil else { return }
-        let destination = selectedDate
+        let destination = plan.date
+        guard Calendar.current.isDate(destination, inSameDayAs: selectedDate),
+              Calendar.current.startOfDay(for: destination) <= Calendar.current.startOfDay(for: Date()) else { return }
         let unloggedMeals = plan.meals.filter { !isMealLogged($0) }
         let unresolved = unloggedMeals.filter { PlannedMealLoggingRules.food(for: $0, date: destination) == nil }
         guard unresolved.isEmpty else {
@@ -1334,30 +1494,43 @@ struct MealPlannerView: View {
         }
 
         guard !mealGroups.isEmpty else { return }
-        planLoggingReview = PlannedMealSaveSession(userID: userID, date: destination,
+        let review = PlannedMealSaveSession(userID: userID, date: destination,
             meals: mealGroups.map { Meal(name: $0.mealName, foodItems: $0.foodItems) })
+        planLoggingReview = PlannedMealReviewRequest(review: review)
     }
 
     private func isMealLogged(_ meal: PlannedMeal) -> Bool {
-        let ids = loggedFoodIDsByDate[dateKey(for: selectedDate)] ?? []
-        return PlannedMealLoggingRules.isLogged(meal, date: selectedDate, loggedFoodIDs: ids)
+        loggedFood(for: meal) != nil
+    }
+
+    private func loggedFood(for meal: PlannedMeal) -> FoodItem? {
+        let id = PlannedMealLoggingRules.entryID(for: meal, date: selectedDate)
+        return loggedPlanFoodsByDate[dateKey(for: selectedDate)]?[id]
+    }
+
+    private func rememberLoggedPlanFoods(_ log: DailyLog, for key: String) {
+        var foods: [String: FoodItem] = [:]
+        for food in log.meals.flatMap(\.foodItems) where food.id.hasPrefix("planned-") {
+            foods[food.id] = food
+        }
+        loggedPlanFoodsByDate[key] = foods
     }
 
     private func refreshLoggedMeals(for requestedDate: Date? = nil, forceRemote: Bool = false) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { loggedFoodIDsByDate = [:]; return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { loggedPlanFoodsByDate = [:]; return }
         let date = requestedDate ?? selectedDate
         let key = dateKey(for: date)
         let requestID = UUID()
         logReadIDs[key] = requestID
         if !forceRemote, let log = dailyLogService.currentDailyLog, Calendar.current.isDate(log.date, inSameDayAs: date) {
-            loggedFoodIDsByDate[key] = Set(log.meals.flatMap(\.foodItems).map(\.id))
+            rememberLoggedPlanFoods(log, for: key)
             return
         }
         DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: date) { result in
             DispatchQueue.main.async {
                 guard DIContainer.shared.authService.currentUserID == userID, logReadIDs[key] == requestID else { return }
                 if case .success(let log) = result {
-                    loggedFoodIDsByDate[key] = Set(log.meals.flatMap(\.foodItems).map(\.id))
+                    rememberLoggedPlanFoods(log, for: key)
                 }
             }
         }

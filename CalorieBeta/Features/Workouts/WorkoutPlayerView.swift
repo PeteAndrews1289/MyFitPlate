@@ -423,6 +423,11 @@ struct WorkoutPlayerView: View {
         }
     }
 
+    private var canUndoLastSet: Bool {
+        guard let lastCompletedSetID else { return false }
+        return routine.exercises.contains { $0.sets.contains { $0.id == lastCompletedSetID && $0.isCompleted } }
+    }
+
     private func workoutLayout(_ proxy: ScrollViewProxy) -> some View {
         VStack(spacing: 0) {
             if !dynamicTypeSize.isAccessibilitySize {
@@ -431,13 +436,6 @@ struct WorkoutPlayerView: View {
                     .padding(.top, 14)
                     .padding(.bottom, 8)
             }
-            if restTimer.state != nil || restTimer.completion != nil {
-                WorkoutRestControlsView(timer: restTimer, context: restExerciseName,
-                                        showsContextCaption: setInputFocus == nil)
-                    .padding(.horizontal, AppSpacing.screenHorizontal)
-                    .padding(.bottom, AppSpacing.compact)
-            }
-
             exerciseList(proxy)
                 .scrollDismissesKeyboard(.interactively)
                 .toolbar {
@@ -477,8 +475,15 @@ struct WorkoutPlayerView: View {
                     .background(AppPalette.canvas)
                     .accessibilityIdentifier("workout_input_context")
             }
-            if let lastCompletedSetID,
-               routine.exercises.contains(where: { $0.sets.contains { $0.id == lastCompletedSetID && $0.isCompleted } }) {
+            if restTimer.state != nil || restTimer.completion != nil {
+                WorkoutRestControlsView(timer: restTimer, context: restExerciseName,
+                                        showsContextCaption: setInputFocus == nil,
+                                        onUndoSet: canUndoLastSet ? undoLastSet : nil)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.bottom, AppSpacing.compact)
+            }
+
+            if canUndoLastSet && restTimer.state == nil {
                 HStack {
                     Text("Set completed").appFont(size: 13).foregroundStyle(.secondary)
                         .lineLimit(2)

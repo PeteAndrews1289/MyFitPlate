@@ -100,49 +100,8 @@ private struct RecipeIdentityHeader: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.row) {
-                    recipeArtwork
-                    identityText
-                }
-            } else {
-                HStack(alignment: .top, spacing: AppSpacing.group) {
-                    recipeArtwork
-                    identityText
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var recipeArtwork: some View {
-        if let imageURLString = recipe.imageURL, let url = URL(string: imageURLString) {
-            CachedAsyncImage(url: url) { image in
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 68, height: 68)
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-            } placeholder: {
-                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                    .fill(AppPalette.control)
-                    .frame(width: 68, height: 68)
-            }
-            .accessibilityHidden(true)
-        } else if dynamicTypeSize.isAccessibilitySize {
-            Image(systemName: "fork.knife")
-                .appTextRole(.sectionTitle)
-                .foregroundStyle(.secondary)
-                .frame(width: 68, height: 68)
-                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-                .accessibilityHidden(true)
-        } else {
-            FoodGlyph(recipe.name, pointSize: 36)
-                .frame(width: 68, height: 68)
-                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-        }
+        identityText
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var identityText: some View {

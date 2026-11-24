@@ -133,6 +133,8 @@ struct SwipeableFoodItemView: View {
     let onDelete: (String) -> Void
     let onLogUpdated: () -> Void
     let date: Date
+    let mealName: String
+    let dayContext: DiaryDayContext?
     var onMove: ((String) -> Void)?
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
@@ -166,10 +168,6 @@ struct SwipeableFoodItemView: View {
 
             VStack(alignment: .leading, spacing: AppSpacing.compact) {
                 HStack(alignment: .top, spacing: AppSpacing.row) {
-                    FoodGlyph(initialFoodItem.name, pointSize: 26)
-                        .frame(width: 40, height: 40)
-                        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-
                     VStack(alignment: .leading, spacing: 3) {
                         Text(initialFoodItem.name)
                             .appTextRole(.body)
@@ -180,7 +178,7 @@ struct SwipeableFoodItemView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         if !initialFoodItem.servingSize.isEmpty {
-                            Text(initialFoodItem.servingSize)
+                            Text(ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize))
                                 .appTextRole(.secondary)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -272,8 +270,8 @@ struct SwipeableFoodItemView: View {
                 initialFoodItem: initialFoodItem,
                 dailyLog: $dailyLog,
                 date: date,
-                source: "log_swipe",
-                onLogUpdated: onLogUpdated
+                source: "log_swipe", targetMealName: mealName,
+                onLogUpdated: onLogUpdated, dayContext: dayContext
             )
         }
         .padding(.bottom, 1)

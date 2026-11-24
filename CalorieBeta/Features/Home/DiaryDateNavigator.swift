@@ -40,11 +40,18 @@ struct DiaryDateNavigator: View {
 
     private var canReturnToToday: Bool { !day.isToday() || day.timeZoneIdentifier != TimeZone.current.identifier }
 
+    private var dateTitle: String {
+        guard day.isToday() || day.calendar.isDateInYesterday(day.displayDate) else { return formattedDate(.medium) }
+        let date = day.displayDate.formatted(Date.FormatStyle(calendar: day.calendar, timeZone: day.timeZone)
+            .month(.abbreviated).day())
+        return (day.isToday() ? "Today · " : "Yesterday · ") + date
+    }
+
     private var calendarButton: some View {
         Button { showingCalendar = true } label: {
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(day.isToday() ? "Today · \(formattedDate(.medium))" : formattedDate(.medium))
+                    Text(dateTitle)
                         .appFont(size: 17, weight: .semibold)
                         .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("home_date_label")

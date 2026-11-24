@@ -15,7 +15,7 @@ struct WorkoutSwapMenu: View {
                 isExpanded.toggle()
             } label: {
                 HStack(spacing: AppSpacing.compact) {
-                    Text(title).appTextRole(.control)
+                    Text(title).appTextRole(.sectionTitle)
                         .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold)).foregroundStyle(.secondary)

@@ -359,12 +359,14 @@ struct WorkoutRestControlsView: View {
     @ObservedObject private var timer: RestTimer
     private let context: String?
     private let showsContextCaption: Bool
+    private let onUndoSet: (() -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(timer: RestTimer, context: String? = nil, showsContextCaption: Bool = true) {
+    init(timer: RestTimer, context: String? = nil, showsContextCaption: Bool = true, onUndoSet: (() -> Void)? = nil) {
         _timer = ObservedObject(wrappedValue: timer)
         self.context = context
         self.showsContextCaption = showsContextCaption
+        self.onUndoSet = onUndoSet
     }
 
     var body: some View {
@@ -384,10 +386,21 @@ struct WorkoutRestControlsView: View {
                         skipButton(for: rest)
                     }
                 }
-                if showsContextCaption, let context, !context.isEmpty {
-                    Text(context).appFont(size: 11, weight: .semibold).foregroundStyle(.secondary)
-                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(context)
+                if (showsContextCaption && context?.isEmpty == false) || onUndoSet != nil {
+                    HStack(spacing: AppSpacing.compact) {
+                        if showsContextCaption, let context, !context.isEmpty {
+                            Text(context).appTextRole(.secondary).foregroundStyle(.secondary)
+                                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        if let onUndoSet {
+                            Button("Undo set", action: onUndoSet)
+                                .appTextRole(.secondary).buttonStyle(.plain)
+                                .foregroundStyle(AppPalette.brandText)
+                                .frame(minHeight: 36)
+                                .accessibilityIdentifier("workout_undo_set")
+                        }
+                    }
                 }
                 if let error = timer.errorMessage {
                     Text(error).appFont(size: 13).foregroundStyle(AppPalette.caution)
@@ -409,14 +422,17 @@ struct WorkoutRestControlsView: View {
                 .appFont(size: 11, weight: .semibold).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("workout_rest_status")
-            Text(timer.formattedTime()).appFont(size: 17, weight: .semibold)
-                .foregroundStyle(AppPalette.recovery).monospacedDigit()
+            Text(timer.formattedTime())
+                .font(.system(.title2, design: .rounded, weight: .semibold))
+                .foregroundStyle(AppPalette.text).monospacedDigit()
+                .lineLimit(1).fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Rest timer")
                 .accessibilityValue(timer.formattedTime())
                 .accessibilityHint(context.map { "Minutes and seconds remaining. Rest for \($0)." } ?? "Minutes and seconds remaining.")
                 .accessibilityIdentifier("workout_rest_timer")
         }
-        .frame(minWidth: 56, alignment: .leading)
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(1)
     }
 
     @ViewBuilder

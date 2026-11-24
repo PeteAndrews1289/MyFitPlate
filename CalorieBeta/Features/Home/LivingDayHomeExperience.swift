@@ -158,33 +158,44 @@ struct LivingDayHomeExperience: View {
             LivingDayBudgetView(
                 budget: snapshot.budget,
                 hydration: hydration,
-                onAddWater: onAddWater, compactPresentation: compactPresentation
+                onAddWater: onAddWater, compactPresentation: compactPresentation,
+                isHistorical: !showsCurrentDayActions
             )
             .anchorPreference(key: SpotlightBoundsKey.self, value: .bounds) {
                 isHeaderSpotlightActive ? $0 : nil
             }
             if compactPresentation {
-                if showsCurrentDayActions {
-                    LivingDayActionButton(action: snapshot.nextAction) {
-                        onActionSelected(snapshot.nextAction)
+                HStack(spacing: AppSpacing.compact) {
+                    if showsCurrentDayActions {
+                        Button { onActionSelected(snapshot.nextAction) } label: {
+                            HStack(spacing: AppSpacing.compact) {
+                                Image(systemName: snapshot.nextAction.icon)
+                                Text(snapshot.nextAction.title).appTextRole(.control)
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right").appTextRole(.caption)
+                            }
+                            .foregroundStyle(AppPalette.brandText).padding(.horizontal, AppSpacing.row)
+                            .frame(minHeight: 44)
+                            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(snapshot.nextAction.accessibilityHint)
+                        .accessibilityIdentifier("livingDayCurrentAction")
                     }
+                    Button {
+                        withAnimation(reduceMotion ? nil : AppMotion.standard) { isGuidanceExpanded.toggle() }
+                    } label: {
+                        if showsCurrentDayActions {
+                            Image(systemName: "info.circle").frame(width: 44, height: 44)
+                        } else {
+                            Label("Day timeline", systemImage: "clock").appTextRole(.secondary).frame(minHeight: 44)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showsCurrentDayActions ? "Why this step and day timeline" : "Day timeline")
+                    .accessibilityValue(isGuidanceExpanded ? "Expanded" : "Collapsed")
+                    .accessibilityIdentifier("home_guidance_disclosure")
                 }
-                Button {
-                    withAnimation(reduceMotion ? nil : AppMotion.standard) {
-                        isGuidanceExpanded.toggle()
-                    }
-                } label: {
-                    HStack {
-                        Text(showsCurrentDayActions ? "Why this step & day timeline" : "Day timeline")
-                        Spacer()
-                        Image(systemName: isGuidanceExpanded ? "chevron.down" : "chevron.right")
-                            .accessibilityHidden(true)
-                    }
-                    .frame(minHeight: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).appTextRole(.secondary)
-                .accessibilityValue(isGuidanceExpanded ? "Expanded" : "Collapsed")
-                .accessibilityIdentifier("home_guidance_disclosure")
                 if isGuidanceExpanded {
                     header
                     supportingContent
@@ -227,6 +238,7 @@ struct LivingDayHomeExperience: View {
                     }
                 }
                 if compactPresentation {
+                    Text(snapshot.nextAction.detail).appTextRole(.body)
                     Text(DailyNextActionAnnotationRules.make(for: snapshot.nextAction).text)
                         .appTextRole(.secondary).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -577,16 +589,24 @@ private struct LivingDayBudgetView: View {
     let hydration: LivingDayHydrationState?
     let onAddWater: () -> Void
     var compactPresentation = false
+    var isHistorical = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let calories = budget.nutrients.first(where: { $0.kind == .calories }) {
                 VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                    if let target = calories.target, let consumed = calories.consumed {
+                    if isHistorical, let consumed = calories.consumed {
+                        Text("\(consumed.formatted(.number.precision(.fractionLength(0)))) cal logged")
+                            .appTextRole(.metric).monospacedDigit()
+                            .accessibilityIdentifier("home_calories_logged")
+                        Text(calories.target.map { "Current goal · " + $0.formatted(.number.precision(.fractionLength(0))) + " cal" } ?? "Current goal unavailable")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("home_historical_target_scope")
+                    } else if let target = calories.target, let consumed = calories.consumed {
                         let remaining = target - consumed
                         Text("\(Int(abs(remaining).rounded()).formatted()) cal \(remaining >= 0 ? "left" : "over")")
-                            .appFont(size: 28, weight: .bold).monospacedDigit()
+                            .appTextRole(.metric).monospacedDigit()
                             .accessibilityIdentifier("home_calories_remaining")
                         Text("\(calories.goalProgressText) logged")
                             .appTextRole(.secondary).foregroundStyle(.secondary)

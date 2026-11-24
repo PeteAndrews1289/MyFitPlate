@@ -31,8 +31,6 @@ struct FoodLoggingDraftView: View {
                             VStack(alignment: .leading, spacing: AppSpacing.compact) {
                                 Button { editingEntry = entry } label: {
                                     HStack(alignment: .top, spacing: AppSpacing.row) {
-                                        Text(FoodEmojiMapper.getEmoji(for: entry.food.name))
-                                            .accessibilityHidden(true)
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(entry.food.name).foregroundStyle(AppPalette.text).fontWeight(.semibold)
                                             Text(entry.preparedFood?.servingSize ?? entry.food.servingSize)

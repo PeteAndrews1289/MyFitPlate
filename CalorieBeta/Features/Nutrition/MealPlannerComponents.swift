@@ -40,7 +40,7 @@ struct MealPlanSummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            Text("\(meals.count) \(meals.count == 1 ? "meal" : "meals") · \(Int(totalCalories.rounded()).formatted()) of \(Int(calorieGoal.rounded()).formatted()) cal · \(Int(totalProtein.rounded()).formatted()) g protein")
+            Text("\(meals.count) \(meals.count == 1 ? "meal" : "meals") planned · \(Int(totalCalories.rounded()).formatted()) of \(Int(calorieGoal.rounded()).formatted()) cal · \(Int(totalProtein.rounded()).formatted()) g protein")
                 .appTextRole(.secondary).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             ProgressView(value: min(max(totalCalories / calorieGoal, 0), 1))
@@ -142,9 +142,12 @@ struct MealPlannerEmptyState: View {
 struct MealCardView: View {
     let meal: PlannedMeal
     var isRegenerating: Bool
-    var isLogged: Bool
+    let loggedFood: FoodItem?
+    private var isLogged: Bool { loggedFood != nil }
     var isLogging = false
     var onLog: (PlannedMeal) -> Void
+    var onLogPortion: (Double) -> Void
+    var onAdjustAmount: () -> Void
     var onRegenerate: () -> Void
     var onDelete: () -> Void
     var onEdit: () -> Void
@@ -206,34 +209,71 @@ struct MealCardView: View {
         .accessibilityIdentifier(primaryActionIdentifier)
     }
 
+    private func portionMenu(food: FoodItem, portion: (amount: Double, unit: String), amount: String, nutrition: String) -> some View {
+        Menu {
+            Section("Log to " + meal.mealType) {
+                ForEach([0.5, 1.5, 2.0] as [Double], id: \.self) { factor in
+                    portionChoice(food: food, amount: portion.amount * factor, unit: portion.unit)
+                }
+            }
+            Button("Custom amount…", systemImage: "pencil", action: onAdjustAmount)
+                .accessibilityIdentifier("planner_custom_log_amount")
+        } label: {
+            Text("\(Text(amount).foregroundStyle(AppPalette.brandText)) \(Image(systemName: "chevron.down"))  ·  \(nutrition)")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+                .frame(minHeight: 32, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .buttonStyle(.plain).disabled(isLogging || isRegenerating)
+        .accessibilityLabel("Choose a portion to log for " + name + ", planned " + amount)
+        .accessibilityIdentifier("planner_actual_amount_" + meal.id)
+    }
+
+    private func energyText(for food: FoodItem) -> String {
+        food.calories.rounded().formatted() + " cal"
+    }
+
+    @ViewBuilder
+    private func portionChoice(food: FoodItem, amount: Double, unit: String) -> some View {
+        if let adjusted = PlannedMealLoggingRules.actualPortion(of: food, amount: amount) {
+            let quantity = amount.formatted() + " " + MealPrepQuantityRules.displayUnit(unit, quantity: amount)
+            Button(quantity + " · " + energyText(for: adjusted)) { onLogPortion(amount) }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             HStack(alignment: .top, spacing: AppSpacing.row) {
-                Button(action: onEdit) {
-                    HStack(alignment: .top, spacing: AppSpacing.row) {
-                        FoodGlyph(name, pointSize: 26).frame(width: 44, height: 44)
-                            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                VStack(alignment: .leading, spacing: 4) {
+                    Button(action: onEdit) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(meal.mealType).appTextRole(.caption).foregroundStyle(.secondary)
-                            Text(name).appTextRole(.control).fixedSize(horizontal: false, vertical: true)
-                            if let food = meal.plannedFood {
-                                let portion = meal.portions == 1 ? ServingNutritionCalculator.displayPortion(food.servingSize) : "\(meal.portions.formatted(.number.precision(.fractionLength(0...2)))) × original portion"
-                                Text([portion, "\(Int(food.calories.rounded()).formatted())\u{00A0}cal", "\(Int(food.protein.rounded()).formatted())\u{00A0}g protein"]
-                                    .filter { !$0.isEmpty }.joined(separator: " · "))
-                                    .appTextRole(.secondary).foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            if let summary = MealPlanCookingRules.summary(for: meal) {
-                                Text(summary).appTextRole(.caption).foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .accessibilityIdentifier("planner_batch_summary_\(meal.id)")
-                            }
+                            Text(name).appTextRole(.sectionTitle).fixedSize(horizontal: false, vertical: true)
                         }
-                    }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Recipe and portions for " + name)
+                    .accessibilityIdentifier("planner_edit_\(meal.id)")
+                    if let food = loggedFood ?? meal.plannedFood {
+                        let portion = PlannedMealLoggingRules.editablePortion(of: food)
+                        let amount = portion.amount.formatted() + " " + MealPrepQuantityRules.displayUnit(portion.unit, quantity: portion.amount)
+                        let nutrition = energyText(for: food) + " · " + food.protein.rounded().formatted() + " g protein"
+                        if executionAction == .log {
+                            portionMenu(food: food, portion: portion, amount: amount, nutrition: nutrition)
+                        } else {
+                            Text((isLogged ? "Logged · " : "") + amount + " · " + nutrition)
+                                .appTextRole(.secondary).foregroundStyle(.secondary)
+                                .accessibilityIdentifier("planner_portion_summary_" + meal.id)
+                        }
+                    }
+                    if let summary = MealPlanCookingRules.summary(for: meal) {
+                        Text(summary).appTextRole(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("planner_batch_summary_\(meal.id)")
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Recipe and portions for " + name)
-                .accessibilityIdentifier("planner_edit_\(meal.id)")
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if usesInlineAction { actionButton(compact: true) }
                 Menu {
                     if executionAction == .log {

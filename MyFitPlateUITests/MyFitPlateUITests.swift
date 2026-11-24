@@ -1556,7 +1556,7 @@ final class MyFitPlateUITests: XCTestCase {
         try performTextClippingAuditWithTimeoutRetry(on: app)
 
         let homeScrollView = app.scrollViews["home_scroll"]
-        let dailyLog = app.staticTexts["Daily log"]
+        let dailyLog = app.staticTexts["diary_meals_heading"]
         XCTAssertTrue(homeScrollView.waitForExistence(timeout: 5))
         XCTAssertTrue(dailyLog.waitForExistence(timeout: 8))
         revealIncrementally(dailyLog, in: homeScrollView, topInset: 20, bottomInset: 120)
@@ -2185,7 +2185,7 @@ final class MyFitPlateUITests: XCTestCase {
         let changed = expectation(for: NSPredicate(format: "label != %@", todayLabel), evaluatedWith: date)
         XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
         XCTAssertTrue(livingDay.exists, "Historical days must retain the current chart")
-        XCTAssertTrue(app.staticTexts["home_calories_remaining"].exists)
+        XCTAssertTrue(app.staticTexts["home_calories_logged"].exists)
         XCTAssertFalse(app.buttons["livingDayAddWaterButton"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["livingDayCurrentAction"].exists)
         let historical = XCTAttachment(screenshot: app.screenshot())
@@ -2662,7 +2662,7 @@ final class MyFitPlateUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(trustButton.waitForExistence(timeout: 8), "Home should expose the food trust review")
         XCTAssertTrue(
-            app.staticTexts["Daily log"].waitForExistence(timeout: 8),
+            app.staticTexts["diary_meals_heading"].waitForExistence(timeout: 8),
             "Home should finish loading the deterministic diary before interaction"
         )
         let trustHittable = expectation(

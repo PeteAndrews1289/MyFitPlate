@@ -41,11 +41,11 @@ public enum AppTextRole: CaseIterable, Sendable {
         }
     }
 
-    /// Rounded display type gives the app its identity; ordinary reading and controls
-    /// use the system face so dense logs and longer explanations stay crisp.
+    /// Serif headings identify content. Controls use the system face and metrics use rounded digits.
     public var design: Font.Design {
         switch self {
-        case .display, .screenTitle, .metric: .rounded
+        case .display, .screenTitle, .sectionTitle: .serif
+        case .metric: .rounded
         default: .default
         }
     }

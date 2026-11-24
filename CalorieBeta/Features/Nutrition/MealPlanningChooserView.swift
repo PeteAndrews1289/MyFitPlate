@@ -238,9 +238,6 @@ private struct MealPlanningLibraryRow: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: AppSpacing.row) {
-                FoodGlyph(name, pointSize: 26)
-                    .frame(width: 44, height: 44)
-                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name).appTextRole(.control).foregroundStyle(AppPalette.text)
                     Text(detail).appTextRole(.caption).foregroundStyle(.secondary)

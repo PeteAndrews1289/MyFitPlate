@@ -1096,11 +1096,12 @@ struct FoodSearchView: View {
 
     @ViewBuilder
     private var savedAndRecentFoodsContent: some View {
-        FoodHorizontalScroller(
+        FoodHistorySection(
             title: "My foods",
-            subtitle: "Saved foods with your usual serving.",
             foods: viewModel.savedFoods,
             quickLoggedFoodIDs: viewModel.selectedFoodIDs,
+            loggingFoodIDs: viewModel.loggingFoodIDs,
+            isBuildingMeal: viewModel.isBuildingMeal,
             emptyTitle: "No saved foods yet",
             emptyMessage: "Star foods from detail screens and they will appear here.",
             onSelect: { handleSelection(food: $0, source: "custom_food") },
@@ -1110,11 +1111,12 @@ struct FoodSearchView: View {
             headerAction: onFoodItemSelected == nil ? { showingMyFoodsLibrary = true } : nil
         )
 
-        FoodHorizontalScroller(
+        FoodHistorySection(
             title: "Recent foods",
-            subtitle: "Your fastest path for repeat meals.",
             foods: viewModel.recentFoods,
             quickLoggedFoodIDs: viewModel.selectedFoodIDs,
+            loggingFoodIDs: viewModel.loggingFoodIDs,
+            isBuildingMeal: viewModel.isBuildingMeal,
             emptyTitle: "No recent foods",
             emptyMessage: "Foods you log will appear here for one-tap reuse.",
             onSelect: { handleSelection(food: $0, source: "recent_tap") },

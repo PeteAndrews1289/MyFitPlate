@@ -1,9 +1,22 @@
 import SwiftUI
 import MyFitPlateCore
 
+struct DiaryMealJump: Equatable {
+    let id = UUID()
+    var mealID: UUID?
+}
+
+struct DiaryFoodLoggingTarget: Identifiable {
+    let id = UUID()
+    let day: DiaryDayContext
+    let meal: String?
+}
+
 struct HomeFoodDiaryGroupedContent: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     var meals: [Meal]
+    var jump: DiaryMealJump?
+    let dayContext: DiaryDayContext?
     var selectedDate: Date
     var onDeleteFood: (String) -> Void
     var onAddFood: (String) -> Void
@@ -27,7 +40,7 @@ struct HomeFoodDiaryGroupedContent: View {
                                     Image(systemName: collapsedMeals.contains(meal.id) ? "chevron.right" : "chevron.down")
                                         .appTextRole(.caption).foregroundStyle(.secondary).frame(width: 14)
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(meal.name).appTextRole(.control)
+                                        Text(meal.name).appTextRole(.sectionTitle)
                                         Text("\(itemCount.formatted()) \(itemCount == 1 ? "item" : "items") · \(Int(mealCalories.rounded()).formatted()) cal")
                                             .appTextRole(.caption).foregroundStyle(.secondary)
                                     }
@@ -57,7 +70,7 @@ struct HomeFoodDiaryGroupedContent: View {
                                             initialFoodItem: foodItem,
                                             dailyLog: $dailyLogService.currentDailyLog,
                                             onDelete: { itemID in onDeleteFood(itemID) },
-                                            onLogUpdated: { }, date: selectedDate
+                                            onLogUpdated: { }, date: selectedDate, mealName: meal.name, dayContext: dayContext
                                         )
                                         Menu {
                                             Button("Duplicate serving", systemImage: "plus.square.on.square") { onTransferFood(foodItem, .copy) }
@@ -70,14 +83,17 @@ struct HomeFoodDiaryGroupedContent: View {
 
                                     if index < meal.foodItems.count - 1 {
                                         Divider()
-                                            .padding(.leading, 50)
                                     }
                                 }
                             }
                         }
                     }
+                    .id(meal.id)
                 }
             }
+        }
+        .onChange(of: jump) { _, request in
+            if let mealID = request?.mealID { collapsedMeals.remove(mealID) }
         }
         .onChange(of: selectedDate) { _, _ in collapsedMeals.removeAll() }
     }
@@ -85,12 +101,9 @@ struct HomeFoodDiaryGroupedContent: View {
 
 struct HomeFoodDiarySection: View {
     @EnvironmentObject var dailyLogService: DailyLogService
-    @Environment(\.colorScheme) var colorScheme
-    private struct FoodLoggingTarget: Identifiable {
-        let id = UUID()
-        let meal: String?
-    }
-    @State private var foodLoggingTarget: FoodLoggingTarget?
+    @Binding var foodLoggingTarget: DiaryFoodLoggingTarget?
+    let onAddFood: (String?) -> Void
+    let jump: DiaryMealJump?
     @State private var savingDayStatus = false
     @State private var dayStatusError: String?
     @State private var transferReview: TransferReview?
@@ -100,7 +113,7 @@ struct HomeFoodDiarySection: View {
     private struct TransferReview: Identifiable { let id = UUID(); let session: DiaryTransferSession }
 
     var currentLogForDisplay: DailyLog?
-    var isToday: Bool
+    let dayContext: DiaryDayContext?
     var selectedDate: Date
     var isDailyLogSpotlightActive: Bool
 
@@ -111,23 +124,11 @@ struct HomeFoodDiarySection: View {
     var onDeleteFood: (String) -> Void
     var onDeleteExercise: (String) -> Void
 
-    private var hasDailyEntries: Bool {
-        guard let log = currentLogForDisplay else { return false }
-        return !log.meals.flatMap(\.foodItems).isEmpty
-            || !(log.exercises?.isEmpty ?? true)
-            || (log.waterTracker?.totalOunces ?? 0) > 0
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Daily log")
-                        .appFont(size: 19, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                }
-
+                Text("Meals").appTextRole(.sectionTitle)
+                    .accessibilityIdentifier("diary_meals_heading")
                 Spacer()
                 Menu {
                     Button("Copy this day", systemImage: "doc.on.doc") { beginTransfer(mode: .copy) }
@@ -138,7 +139,7 @@ struct HomeFoodDiarySection: View {
                 } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
                 .accessibilityLabel("Daily food options").accessibilityIdentifier("diary_day_options")
                 Button {
-                    foodLoggingTarget = FoodLoggingTarget(meal: nil)
+                    onAddFood(nil)
                 } label: {
                     Image(systemName: "plus.circle.fill").frame(width: 44, height: 44)
                 }
@@ -155,13 +156,12 @@ struct HomeFoodDiarySection: View {
                 }.accessibilityIdentifier("diary_transfer_resume")
             }
             if let transferMessage { Text(transferMessage).appTextRole(.secondary).foregroundStyle(AppPalette.caution) }
-            if !hasDailyEntries {
-                EmptyDailyLogView(isToday: isToday)
-            } else if let currentLogForDisplay {
-                HomeFoodDiaryGroupedContent(meals: currentLogForDisplay.meals, selectedDate: selectedDate,
-                    onDeleteFood: onDeleteFood, onAddFood: { meal in
-                        foodLoggingTarget = FoodLoggingTarget(meal: meal)
-                    }, onTransferFood: { food, mode in beginTransfer(mode: mode, foodIDs: [food.id]) },
+            if let currentLogForDisplay {
+                if currentLogForDisplay.meals.allSatisfy({ $0.foodItems.isEmpty }) {
+                    EmptyDailyLogView(onAddFood: { onAddFood($0) })
+                }
+                HomeFoodDiaryGroupedContent(meals: currentLogForDisplay.meals, jump: jump, dayContext: dayContext, selectedDate: selectedDate,
+                    onDeleteFood: onDeleteFood, onAddFood: onAddFood, onTransferFood: { food, mode in beginTransfer(mode: mode, foodIDs: [food.id]) },
                     onCopyMeal: { meal in beginTransfer(mode: .copy, foodIDs: meal.foodItems.map(\.id)) })
 
                 let dedupedExercises = (currentLogForDisplay.exercises ?? []).dedupedAgainstHealthKit()
@@ -169,6 +169,9 @@ struct HomeFoodDiarySection: View {
                     Divider().padding(.vertical, 8)
                     HomeActivityWidget(exercises: dedupedExercises, showingAddExerciseView: $showingAddExerciseView, selectedExerciseForDetail: $selectedExerciseForDetail, showingWorkoutDetail: $showingWorkoutDetail, onDeleteExercise: onDeleteExercise)
                 }
+            }
+            if currentLogForDisplay == nil {
+                Text("No entries loaded for this day.").appTextRole(.secondary).foregroundStyle(.secondary)
             }
             if Calendar.current.startOfDay(for: selectedDate) <= Calendar.current.startOfDay(for: Date()), let log = currentLogForDisplay {
                 Divider()
@@ -194,10 +197,19 @@ struct HomeFoodDiarySection: View {
             }
         }
         .frame(maxWidth: 520)
-        .appSurface(.emphasized)
+        .padding(.vertical, AppSpacing.compact)
         .featureSpotlight(isActive: isDailyLogSpotlightActive)
         .sheet(item: $foodLoggingTarget) { target in
-            FoodSearchView(dailyLog: $dailyLogService.currentDailyLog, searchContext: "diary", selectedMeal: target.meal)
+            if let active = dailyLogService.activelyViewedDayContext,
+               active.userID == target.day.userID, active.dayKey == target.day.dayKey,
+               active.isOwned(by: DIContainer.shared.authService.currentUserID) {
+                FoodSearchView(dailyLog: $dailyLogService.currentDailyLog, searchContext: "diary", selectedMeal: target.meal)
+            } else {
+                VStack(spacing: AppSpacing.row) {
+                    Text("The selected diary has changed.").appTextRole(.control)
+                    Button("Return to diary") { foodLoggingTarget = nil }
+                }
+            }
         }
         .sheet(item: $transferReview, onDismiss: loadPendingTransfer) { review in
             DiaryTransferReviewView(session: review.session)
@@ -247,29 +259,28 @@ struct HomeFoodDiarySection: View {
 }
 
 struct EmptyDailyLogView: View {
-    let isToday: Bool
+    let onAddFood: (String) -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "plus.viewfinder")
-                .appFont(size: 28, weight: .semibold)
-                .foregroundStyle(AppPalette.brandText)
-                .frame(width: 56, height: 56)
-                .background(AppPalette.brand.opacity(0.10), in: Circle())
-
-            Text(isToday ? "Ready for your first log" : "Nothing logged on this day")
-                .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.textPrimary)
-
-            Text(isToday ? "Use the center + button to search, scan, take a photo, or describe a meal." : "Switch dates or use this as a clean slate for planning.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Choose a meal to log your first food for this day.")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+                .padding(.bottom, AppSpacing.compact)
+            ForEach(["Breakfast", "Lunch", "Dinner", "Snacks"], id: \.self) { meal in
+                Divider()
+                Button { onAddFood(meal) } label: {
+                    HStack {
+                        Text(meal).appTextRole(.control)
+                        Spacer()
+                        Image(systemName: "plus").foregroundStyle(AppPalette.brandText)
+                    }
+                    .frame(minHeight: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add food to " + meal)
+                .accessibilityIdentifier("diary_add_" + meal)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 22)
-        .padding(.horizontal, 18)
     }
 }
 

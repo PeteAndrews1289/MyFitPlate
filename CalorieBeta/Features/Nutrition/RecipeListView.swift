@@ -313,7 +313,6 @@ private struct RecipeLibraryRow: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
                 HStack(alignment: .top, spacing: AppSpacing.row) {
-                    recipeGlyph
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
                             Text(recipe.name)
@@ -363,12 +362,6 @@ private struct RecipeLibraryRow: View {
         }
         .padding(.horizontal, AppSpacing.group)
         .padding(.vertical, AppSpacing.row)
-    }
-
-    private var recipeGlyph: some View {
-        FoodGlyph(recipe.name, pointSize: 26)
-            .frame(width: 44, height: 44)
-            .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
     }
 
     @ViewBuilder

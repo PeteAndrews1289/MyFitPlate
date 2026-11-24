@@ -98,6 +98,19 @@ final class RecipePortionTests: XCTestCase {
         XCTAssertNotEqual(try RecipePortionRules.revisionID(for: source), originalRevision)
     }
 
+    func testPlannedServingCanBeLoggedInCookedGramsWithoutEditingItsYield() throws {
+        let source = recipe()
+        let planned = try RecipePortionRules.foodItem(for: source, selection: .init(unit: .servings, amount: 1))
+        XCTAssertEqual(PlannedMealLoggingRules.editablePortion(of: planned).amount, 200)
+        let eaten = try XCTUnwrap(PlannedMealLoggingRules.actualPortion(of: planned, amount: 180))
+        let snapshot = try XCTUnwrap(eaten.recipePortionSnapshot)
+        XCTAssertEqual(eaten.calories, 180, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(snapshot.servingsEquivalent), 0.9, accuracy: 0.001)
+        XCTAssertEqual(snapshot.yieldServings, 4)
+        XCTAssertEqual(snapshot.sourceNutrition.calories, 800)
+        XCTAssertEqual(planned.recipePortionSnapshot?.cookedGrams, 200)
+    }
+
     func testRepeatAndPlanMultiplierScaleThePortionEvidenceOnce() throws {
         let source = recipe()
         let selection = RecipePortionSelection(unit: .servings, amount: 1.5)

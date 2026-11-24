@@ -28,7 +28,7 @@ final class DesignNavigationUITests: XCTestCase {
         let previous = app.buttons["home_diary_previous"]
         XCTAssertTrue(previous.waitForExistence(timeout: 8))
         previous.tap()
-        let energy = app.descendants(matching: .any).matching(identifier: "home_calories_remaining").firstMatch
+        let energy = app.descendants(matching: .any).matching(identifier: "home_calories_logged").firstMatch
         XCTAssertTrue(energy.waitForExistence(timeout: 8))
         let before = energy.label
         app.buttons["quick_log_button"].tap()
