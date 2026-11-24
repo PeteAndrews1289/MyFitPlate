@@ -898,8 +898,7 @@ struct MealPlannerView: View {
                 Button("Go to date", systemImage: "calendar") {
                     if let owner = DIContainer.shared.authService.currentUserID { dateJump = .init(date: selectedDate, userID: owner) }
                 }
-                if let plan = planForSelectedDate, Calendar.current.startOfDay(for: selectedDate) <= Calendar.current.startOfDay(for: Date()),
-                   plan.meals.contains(where: { $0.foodItem != nil && !isMealLogged($0) }) {
+                if let plan = planForSelectedDate, !mealsForDayReview(in: plan).isEmpty {
                     Button("Review meals to log", systemImage: "checkmark.circle") { logDay(plan: plan) }
                         .disabled(loggingMealID != nil)
                         .accessibilityIdentifier("meal_plan_log_day")
@@ -1008,10 +1007,9 @@ struct MealPlannerView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meal_plan_day")
         MealPlanSummaryCard(date: selectedDate, meals: plan.meals, goals: goalSettings)
-        let remaining = plan.meals.filter { !isMealLogged($0) }
+        let remaining = mealsForDayReview(in: plan)
         HStack(spacing: AppSpacing.group) {
-            if remaining.count > 1, appState.pendingTrainingFuelTarget == nil,
-               remaining.allSatisfy({ mealExecutionAction($0, date: plan.date) == .log }) {
+            if remaining.count > 1 {
                 Button("Log " + remaining.count.formatted() + " meals…") { logDay(plan: plan) }
                     .appTextRole(.control)
                     .disabled(isUpdatingPlan || loggingMealID != nil)
@@ -1475,21 +1473,20 @@ struct MealPlannerView: View {
         }
     }
 
+    private func mealsForDayReview(in plan: MealPlanDay) -> [PlannedMeal] {
+        guard appState.pendingTrainingFuelTarget == nil,
+              Calendar.current.isDate(plan.date, inSameDayAs: selectedDate),
+              Calendar.current.startOfDay(for: plan.date) <= Calendar.current.startOfDay(for: Date()) else { return [] }
+        let remaining = plan.meals.filter { !isMealLogged($0) }
+        guard remaining.allSatisfy({ $0.plannedFood != nil && mealExecutionAction($0, date: plan.date) == .log }) else { return [] }
+        return remaining
+    }
+
     private func logDay(plan: MealPlanDay) {
         guard let userID = DIContainer.shared.authService.currentUserID, loggingMealID == nil else { return }
         let destination = plan.date
-        guard Calendar.current.isDate(destination, inSameDayAs: selectedDate),
-              Calendar.current.startOfDay(for: destination) <= Calendar.current.startOfDay(for: Date()) else { return }
-        let unloggedMeals = plan.meals.filter { !isMealLogged($0) }
-        let unresolved = unloggedMeals.filter { PlannedMealLoggingRules.food(for: $0, date: destination) == nil }
-        guard unresolved.isEmpty else {
-            mealActionMessage = "\(unresolved.count) planned meals need reviewed nutrition. Add a food or recipe in Edit meal before logging the day. Nothing has been logged."
-            editingMeal = unresolved.first
-            return
-        }
-
-        let mealGroups: [(mealName: String, foodItems: [FoodItem])] = plan.meals.compactMap { meal in
-            guard !isMealLogged(meal), let foodItem = PlannedMealLoggingRules.food(for: meal, date: destination) else { return nil }
+        let mealGroups: [(mealName: String, foodItems: [FoodItem])] = mealsForDayReview(in: plan).compactMap { meal in
+            guard let foodItem = PlannedMealLoggingRules.food(for: meal, date: destination) else { return nil }
             return (mealName: meal.mealType, foodItems: [foodItem])
         }
 

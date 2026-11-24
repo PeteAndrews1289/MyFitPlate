@@ -89,6 +89,17 @@ final class InventoryFlowsUITests: XCTestCase {
     /// One connected journey across two actual plan dates. Committed mock server
     /// records are process-local; native repository tests cover their durable replay.
     @MainActor
+    func testPlannerToolsKeepCookingAndDiaryLoggingSeparate() {
+        let app = launch(flags: ["-ui-testing-inventory-yesterday-batch"])
+        selectPlannedDay(offset: -1, app: app)
+        let tools = app.buttons["meal_plan_tools"]
+        tools.tap()
+        XCTAssertTrue(app.buttons["Go to date"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["meal_plan_log_day"].exists,
+                       "A day that still needs cooking must keep the individual meal review.")
+    }
+
+    @MainActor
     func testFourPortionBatchAndNextDayLeftoverShareStockWithoutRebuyingOrDuplicateDiaryFood() {
         let app = launch(flags: ["-ui-testing-inventory-yesterday-batch"])
         selectPlannedDay(offset: -1, app: app)
