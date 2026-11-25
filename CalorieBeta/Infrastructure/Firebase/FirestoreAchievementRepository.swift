@@ -128,6 +128,9 @@ class FirestoreAchievementRepository: AchievementRepositoryProtocol {
             object = try await db.runTransaction { [self] transaction, errorPointer -> Any? in
             do {
                 try command.validate(currentUserID: currentUserID())
+                // A competing award writes the receipt, status and balance together. Read its
+                // receipt first so a replay always reads the status and balance after the award.
+                let receiptSnapshot = try transaction.getDocument(receipt)
                 let profile = try transaction.getDocument(owner)
                 guard let profileData = profile.data(), let oldPoints = profileData["totalAchievementPoints"] as? Int,
                       oldPoints >= 0, oldPoints <= Int.max - command.points else { throw AchievementAwardError.invalid }
@@ -136,7 +139,6 @@ class FirestoreAchievementRepository: AchievementRepositoryProtocol {
                 let migration = try LegacyAchievementBalanceReceipt.preserving(existingMigration,
                     ownerID: command.ownerID, profilePoints: oldPoints)
                 let current = try transaction.getDocument(canonical)
-                let receiptSnapshot = try transaction.getDocument(receipt)
                 var known: [UserAchievementStatus] = []
                 if current.exists { known.append(try checkedStatus(current, achievementID: command.achievementID)) }
                 for reference in aliases where reference.path != canonical.path {

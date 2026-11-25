@@ -147,6 +147,10 @@ final class InventoryIntakeLifecycleIntegrationTests: XCTestCase {
         let receipt = try XCTUnwrap(receipts.documents.first).data(as: AchievementAwardReceipt.self)
         XCTAssertTrue(receipt.result.status.isUnlocked)
         XCTAssertEqual(receipt.result.status.awardEvidence, receipt.command.evidence)
+        for result in results {
+            XCTAssertEqual(result.totalPoints, 110)
+            XCTAssertEqual(result.status.awardEvidence?.facts?["foodID"], receipt.command.evidence.facts?["foodID"])
+        }
         var stale = first.status; stale.isUnlocked = false; stale.currentProgress = 0
         stale.awardEvidence = nil; stale.awardRulesVersion = nil; stale.awardedPoints = nil
         try await repository.saveUserStatus(userID: client.userID, status: stale)
