@@ -241,15 +241,15 @@ public class WorkoutAnalyticsService: ObservableObject {
             }
             let currentVolume = calculateTotalVolume(log: currentLog)
             let previousVolume = calculateTotalVolume(log: previousLog)
-            let measured = currentLog.elapsedSeconds.map { $0.isFinite && $0 > 0 } == true
-                && previousLog.elapsedSeconds.map { $0.isFinite && $0 > 0 } == true
-            let currentDuration = measured ? currentLog.elapsedSeconds ?? 0 : 0
-            let previousDuration = measured ? previousLog.elapsedSeconds ?? 0 : 0
-
             let volDiff = previousVolume > 0 ? (currentVolume - previousVolume) / previousVolume : 0.0
-            let durDiff = previousDuration > 0 ? (Double(currentDuration) - Double(previousDuration)) / Double(previousDuration) : 0.0
-
-            return WorkoutComparison(volumeDiffPercent: volDiff, durationDiffPercent: durDiff, previousDate: previousLog.date, durationIsMeasured: measured)
+            let change: Double?
+            if let previous = previousLog.recordedDurationSeconds, previous > 0, let current = currentLog.recordedDurationSeconds {
+                change = (current - previous) / previous
+            } else {
+                change = nil
+            }
+            return WorkoutComparison(volumeDiffPercent: volDiff, durationDiffPercent: change ?? 0, previousDate: previousLog.date,
+                                     durationIsMeasured: change != nil)
         } catch {
             AppLog.workouts.error("Failed to compare workouts: \(error.localizedDescription, privacy: .public)")
             return nil

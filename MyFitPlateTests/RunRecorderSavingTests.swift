@@ -5,6 +5,27 @@ import XCTest
 
 final class RunRecorderSavingTests: XCTestCase {
     @MainActor
+    func testLocationGrantMakesTheOpenRecorderReadyWithoutStartingARun() throws {
+        try withIsolatedRecorder { _, _, saver, backup, _ in
+            let recorder = RunRecorderViewModel(metric: true, store: saver,
+                                                completedRunStore: backup, persistsRecovery: false)
+            defer { recorder.closePreparation() }
+            recorder.locationService.updateAuthorization(.notDetermined)
+            recorder.prepare()
+            XCTAssertEqual(recorder.stage, .permission)
+
+            let recordingID = recorder.session.id
+            recorder.locationService.updateAuthorization(.authorizedWhenInUse)
+            XCTAssertEqual(recorder.stage, .ready)
+            XCTAssertEqual(recorder.session.id, recordingID)
+            XCTAssertNil(recorder.session.startDate)
+
+            recorder.locationService.updateAuthorization(.denied)
+            XCTAssertEqual(recorder.stage, .permission)
+        }
+    }
+
+    @MainActor
     func testRestoredLegacyMovingAndElapsedDraftsFinishAndRetryTheirActualMeasuredTime() throws {
         try withIsolatedRecorder { _, clock, saver, backup, ownerID in
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -116,6 +137,8 @@ final class RunRecorderSavingTests: XCTestCase {
             XCTAssertEqual(original.sensors?.heartRate.count, 1)
             saver.completeNext(with: outcome)
             XCTAssertEqual(first.saveState, .localRecoveryPending)
+            XCTAssertEqual(first.saveState.localStatus, "Recording retained · save needed")
+            XCTAssertEqual(first.displayedHealthStatus, outcome == .savedAwaitingReadAccess ? "Saved · awaiting read access" : "Saved")
             XCTAssertFalse(first.saveState.isSaved)
             XCTAssertEqual(try drafts.load(userID: ownerID)?.pendingCompletion?.run, original)
             clock.date.addTimeInterval(600)

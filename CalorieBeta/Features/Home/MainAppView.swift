@@ -769,10 +769,8 @@ struct ContentView: View {
         }
         .task(id: appCoordinator.pendingRequest?.id) {
             while appCoordinator.pendingRequest != nil, !Task.isCancelled {
-                if !deferredDeepLinkIsBlocked && ReviewPromptPresentation.isScreenCalm {
-                    processPendingDeepLinkIfReady()
-                    return
-                }
+                processPendingDeepLinkIfReady()
+                if appCoordinator.pendingRequest == nil { return }
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
         }
@@ -855,6 +853,8 @@ struct ContentView: View {
         }
         .sheet(isPresented: $shouldShowFirstSessionChoice, onDismiss: handleFirstSessionChoiceDismissed) {
             FirstSessionChoiceView(
+                startsWithTraining: ["Strength", "Muscle Gain"].contains(goalSettings.trainingIntent),
+                onOpenTraining: { handleFirstSessionChoice(.openTraining) },
                 onImportHistory: { handleFirstSessionChoice(.importHistory) },
                 onLogFirstMeal: { handleFirstSessionChoice(.logFirstMeal) },
                 onExplore: { handleFirstSessionChoice(.explore) },
@@ -919,6 +919,12 @@ struct ContentView: View {
     }
 
     private func processPendingDeepLinkIfReady() {
+        if let request = appCoordinator.pendingRequest, let owner = currentUserID,
+           request.resolvedRoute(currentUserID: owner).isActiveSession, let id = request.objectID,
+           VisibleActivityScreen.current == .init(route: request.route, owner: owner, sessionID: id) {
+            _ = appCoordinator.takePendingRequest()
+            return
+        }
         guard !deferredDeepLinkIsBlocked, ReviewPromptPresentation.isScreenCalm,
               let request = appCoordinator.takePendingRequest() else { return }
         let route = request.resolvedRoute(currentUserID: currentUserID)
@@ -943,7 +949,7 @@ struct ContentView: View {
         ])
 
         switch route {
-        case .foodSearch, .trust, .builder, .runs, .profile, .settings, .unavailable,
+        case .activeWorkout, .activeRun, .activeFast, .foodSearch, .trust, .builder, .runs, .profile, .settings, .unavailable,
              .tools, .foodPreferences, .recipes, .pantry, .grocery, .buffet, .plateCalculator, .weekRescue, .mealExperiments, .cookingTimer:
             presentedDeepLinkRoute = route
         case .trainingFuel:
@@ -958,6 +964,8 @@ struct ContentView: View {
     @ViewBuilder
     private func deepLinkedContent(for route: Route) -> some View {
         switch route {
+        case .activeWorkout, .activeRun, .activeFast:
+            ActivityDestinationView(route: route, sessionID: presentedDeepLinkRequest?.objectID, owner: currentUserID)
         case .foodSearch:
             FoodSearchView(
                 dailyLog: $dailyLogService.currentDailyLog,
@@ -1026,8 +1034,23 @@ struct ContentView: View {
         didQueueUITestDeepLink = true
 
         let arguments = ProcessInfo.processInfo.arguments
-        guard arguments.contains("-ui-testing"),
-              let flagIndex = arguments.firstIndex(of: "-deep-link-url"),
+        guard arguments.contains("-ui-testing") else { return }
+        if isScreenshotMode, arguments.contains("-ui-testing-open-run-activity"), currentUserID == ScreenshotDemoData.userID,
+           let draft = try? RunRecordingDraftStore().load(userID: ScreenshotDemoData.userID),
+           let url = MyFitPlateLinks.ActivityDestination.run.url(sessionID: draft.session.id) {
+            appCoordinator.handle(url: url, appState: appState)
+            return
+        }
+        if isScreenshotMode, arguments.contains("-ui-testing-open-fast-activity"), currentUserID == ScreenshotDemoData.userID {
+            let manager = FastingManager.shared
+            manager.activateAccount(currentUserID)
+            if manager.session == nil { _ = manager.startFast(hours: 16, source: "simulator-fixture") }
+            if let id = manager.session?.id, let url = MyFitPlateLinks.ActivityDestination.fast.url(sessionID: id.uuidString) {
+                appCoordinator.handle(url: url, appState: appState)
+            }
+            return
+        }
+        guard let flagIndex = arguments.firstIndex(of: "-deep-link-url"),
               arguments.indices.contains(flagIndex + 1),
               let url = URL(string: arguments[flagIndex + 1]) else { return }
         appCoordinator.handle(url: url, appState: appState)
@@ -1542,6 +1565,8 @@ struct ContentView: View {
             switch choice {
             case .importHistory:
                 shouldShowFirstSessionMFPImport = true
+            case .openTraining:
+                appState.selectedTab = Route.workouts.selectedTab
             case .logFirstMeal:
                 appState.selectedTab = 0
                 shouldShowFirstSessionFoodSearch = true
@@ -1640,6 +1665,7 @@ private struct DeepLinkedRunHistoryView: View {
 private enum FirstSessionChoice: String {
     case importHistory = "import_history"
     case logFirstMeal = "log_first_meal"
+    case openTraining = "open_training"
     case tour = "take_tour"
     case explore
 }
@@ -1659,6 +1685,8 @@ enum ReviewPromptPresentation {
 }
 
 private struct FirstSessionChoiceView: View {
+    var startsWithTraining = false
+    var onOpenTraining: () -> Void = {}
     let onImportHistory: () -> Void
     let onLogFirstMeal: () -> Void
     let onExplore: () -> Void
@@ -1675,13 +1703,13 @@ private struct FirstSessionChoiceView: View {
                     Button("Close", systemImage: "xmark", action: onExplore)
                         .labelStyle(.iconOnly).buttonStyle(AppIconButtonStyle(.plain))
                 }
-                OnboardingHeadline(title: "Make today yours.", subtitle: "Start with one small thing. The rest can wait.")
-                VStack(alignment: .leading, spacing: AppSpacing.row) {
-                    Text("Your first meal is a great start").appTextRole(.sectionTitle)
-                    Text("Search, scan a barcode or try a photo. You can edit every entry later.")
-                        .appTextRole(.body).foregroundStyle(.secondary)
-                }.appSurface(.quiet)
+                OnboardingHeadline(title: startsWithTraining ? "Your first workout" : "Your first meal", subtitle: startsWithTraining ? "Choose a program or open a saved routine in Train." : "Search a food, scan a barcode or use the camera.")
                 VStack(spacing: 0) {
+                    if startsWithTraining {
+                        option("Log a meal", detail: "Open Food Search.", icon: "fork.knife",
+                               identifier: "first_session_log", action: onLogFirstMeal)
+                        Divider()
+                    }
                     option("Take a quick tour", detail: "Three things worth knowing.", icon: "sparkles",
                            identifier: "first_session_tour", action: onTour)
                     Divider()
@@ -1694,9 +1722,9 @@ private struct FirstSessionChoiceView: View {
         }
         .safeAreaInset(edge: .bottom) {
             OnboardingActionDock {
-                Button("Log first meal", systemImage: "plus", action: onLogFirstMeal)
+                Button(startsWithTraining ? "Open Train" : "Log first meal", systemImage: startsWithTraining ? "dumbbell" : "plus", action: startsWithTraining ? onOpenTraining : onLogFirstMeal)
                     .buttonStyle(AppActionButtonStyle(.primary))
-                    .accessibilityIdentifier("first_session_log")
+                    .accessibilityIdentifier(startsWithTraining ? "first_session_train" : "first_session_log")
                 Button("Explore on my own", action: onExplore)
                     .buttonStyle(OnboardingTextButtonStyle())
                     .accessibilityIdentifier("first_session_explore")
@@ -1725,5 +1753,104 @@ private struct FirstSessionChoiceView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+// A system tap can foreground a recorder that is already presented. Reusing it
+// keeps the same elapsed clock, unsaved input and rest controls on screen.
+struct VisibleActivityScreen: Equatable {
+    let route: Route
+    let owner: String
+    let sessionID: String
+    @MainActor static var current: VisibleActivityScreen?
+}
+
+private struct VisibleActivityModifier: ViewModifier {
+    let screen: VisibleActivityScreen?
+    @State private var isVisible = false
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                isVisible = true
+                if let screen { VisibleActivityScreen.current = screen }
+            }
+            .onChange(of: screen) { previous, next in
+                guard isVisible else { return }
+                if VisibleActivityScreen.current == previous { VisibleActivityScreen.current = nil }
+                if let next { VisibleActivityScreen.current = next }
+            }
+            .onDisappear {
+                isVisible = false
+                if VisibleActivityScreen.current == screen { VisibleActivityScreen.current = nil }
+            }
+    }
+}
+
+extension View {
+    func visibleActivity(_ route: Route, owner: String?, sessionID: String?) -> some View {
+        let screen = owner.flatMap { owner in sessionID.map { VisibleActivityScreen(route: route, owner: owner, sessionID: $0) } }
+        return modifier(VisibleActivityModifier(screen: screen))
+    }
+}
+
+private struct ActivityDestinationView: View {
+    let route: Route
+    let sessionID: String?
+    let owner: String?
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var fasting = FastingManager.shared
+    @State private var workout: WorkoutSessionDraft?
+    @State private var found = false
+    @State private var loaded = false
+
+    private var activityName: String {
+        switch route {
+        case .activeWorkout: "Workout"
+        case .activeRun: "Run"
+        default: "Fast"
+        }
+    }
+
+    var body: some View {
+        Group {
+            if !loaded {
+                ProgressView()
+            } else if found, let sessionID, owner == DIContainer.shared.authService.currentUserID {
+                if route == .activeWorkout, let workout {
+                    WorkoutPlayerView(routine: workout.routine, programContext: workout.programContext,
+                        requiredSessionID: sessionID, onWorkoutComplete: { dismiss() })
+                } else if route == .activeRun {
+                    RunRecorderView(requiredRecordingID: sessionID)
+                } else if route == .activeFast, fasting.session?.id == UUID(uuidString: sessionID) {
+                    NavigationStack {
+                        ScrollView { FastingTrackerCard().padding(AppSpacing.group) }
+                            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+                    }
+                    .visibleActivity(.activeFast, owner: owner, sessionID: sessionID)
+                } else { unavailable }
+            } else { unavailable }
+        }
+        .task(id: sessionID) {
+            defer { loaded = true }
+            guard let owner, owner == DIContainer.shared.authService.currentUserID, let sessionID else { return }
+            switch route {
+            case .activeWorkout:
+                workout = try? WorkoutDraftStore().load(userID: owner)
+                found = workout?.sessionID == sessionID
+            case .activeRun:
+                let stored = try? RunRecordingDraftStore().load(userID: owner)
+                found = stored?.session.id == sessionID && !RunFallbackStore.shared.containsRecording(id: sessionID, for: owner)
+            case .activeFast:
+                fasting.activateAccount(owner)
+                found = fasting.session?.id.uuidString == sessionID
+            default: break
+            }
+        }
+    }
+
+    private var unavailable: some View {
+        AppSheetScaffold(title: "\(activityName) unavailable", subtitle: "This activity is no longer active in this account.", dismiss: { dismiss() }) {
+            Button("Done") { dismiss() }.buttonStyle(AppActionButtonStyle(.primary)).padding(AppSpacing.group)
+        }
     }
 }

@@ -1820,16 +1820,17 @@ final class MyFitPlateUITests: XCTestCase {
 
         let meal = app.buttons["planner_edit_planned-0-0"]
         XCTAssertTrue(meal.waitForExistence(timeout: 10))
+        app.buttons["planner_view_mode"].tap()
         let tools = app.buttons["meal_plan_tools"]
         tools.tap()
-        let discard = app.buttons["Discard meal plan"]
+        let discard = app.buttons["meal_plan_discard"]
         XCTAssertTrue(discard.waitForExistence(timeout: 5))
         XCTAssertTrue(discard.isEnabled)
         discard.tap()
 
-        XCTAssertTrue(app.staticTexts["Clear this selected meal week?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Clear ", "?")).firstMatch.waitForExistence(timeout: 5))
         let discardExplanation = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
-            "Review the selected week", "Pantry items, manual grocery items, and meals already added to your food log")).firstMatch
+            "planned meals for", "Pantry items, manual grocery items, and meals already added to your food log")).firstMatch
         XCTAssertTrue(discardExplanation.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["meal_plan_discard_confirm"].exists)
     }

@@ -11,8 +11,9 @@ import ActivityKit
 // is adapted into a plain RunLocationFix for the tested RunSession engine, and raw
 // CLLocations are kept aside for the HealthKit route.
 
-final class RunLocationService: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published var authorizationStatus: CLAuthorizationStatus
+final class RunLocationService: NSObject, CLLocationManagerDelegate {
+    private(set) var authorizationStatus: CLAuthorizationStatus
+    var onAuthorizationChange: (@MainActor () -> Void)?
 
     var onLocation: ((CLLocation) -> Void)?
     var onError: (() -> Void)?
@@ -51,8 +52,15 @@ final class RunLocationService: NSObject, ObservableObject, CLLocationManagerDel
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         DispatchQueue.main.async {
-            self.authorizationStatus = manager.authorizationStatus
+            self.updateAuthorization(manager.authorizationStatus)
         }
+    }
+
+    @MainActor
+    func updateAuthorization(_ status: CLAuthorizationStatus) {
+        guard status != authorizationStatus else { return }
+        authorizationStatus = status
+        onAuthorizationChange?()
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -92,23 +100,52 @@ final class RunRecorderViewModel: ObservableObject {
         case pending, syncingLocal, appleHealth, healthConfirmationPending, healthConfirmationUnknown, routeSyncPending, localOnly, localRecoveryPending, failed
 
         var isSaved: Bool { self == .syncingLocal || self == .appleHealth || self == .healthConfirmationPending || self == .healthConfirmationUnknown || self == .routeSyncPending || self == .localOnly }
-        var message: String {
+        var localStatus: String {
             switch self {
-            case .pending: return "Saving your run…"
-            case .syncingLocal: return "Saved in MyFitPlate. Syncing to Apple Health…"
-            case .appleHealth: return "Saved to Apple Health."
-            case .healthConfirmationPending: return "Apple Health saved your run. Confirmation will be available when Health can be read."
-            case .healthConfirmationUnknown: return "Your recording is kept in MyFitPlate. Apple Health sync has not been confirmed."
-            case .routeSyncPending: return "Workout saved to Apple Health. Its route still needs syncing; your private route is retained temporarily."
-            case .localOnly: return "Saved in MyFitPlate. Apple Health sync was unavailable."
-            case .localRecoveryPending: return "Your reviewed recording is kept, but its full MyFitPlate copy still needs saving. Retry also checks any pending Apple Health sync."
-            case .failed: return "Your run still needs saving. Try again; your reviewed time and distance stay unchanged."
+            case .pending: "Saving…"
+            case .failed, .localRecoveryPending: "Recording retained · save needed"
+            default: "Saved"
             }
         }
+
+        var healthStatus: String {
+            switch self {
+            case .pending: "Waiting for save"
+            case .syncingLocal: "Syncing…"
+            case .appleHealth, .routeSyncPending: "Saved"
+            case .healthConfirmationPending: "Saved · awaiting read access"
+            case .healthConfirmationUnknown, .localRecoveryPending: "Awaiting confirmation"
+            case .localOnly, .failed: "Sync unavailable"
+            }
+        }
+
     }
     @Published private(set) var saveState: SaveState = .pending
     private var pendingCompletionWeightLbs: Double?
+    private var restoredHealthPhase: RunHealthExportJob.Phase?
     private var lastHealthOutcome: RunHealthSaveOutcome?
+
+    var displayedHealthStatus: String {
+        guard saveState == .localRecoveryPending else { return saveState.healthStatus }
+        switch lastHealthOutcome {
+        case .saved, .savedRoutePending: return "Saved"
+        case .savedAwaitingReadAccess: return "Saved · awaiting read access"
+        case .confirmationRequired: return "Awaiting confirmation"
+        case .failed, nil: break
+        }
+        switch restoredHealthPhase {
+        case .complete, .writingRoute, .routeRetryRequired: return "Saved"
+        default: return "Awaiting confirmation"
+        }
+    }
+
+    var routeNeedsConfirmation: Bool {
+        if saveState == .routeSyncPending { return true }
+        guard saveState == .localRecoveryPending else { return false }
+        if case .savedRoutePending = lastHealthOutcome { return true }
+        return restoredHealthPhase == .routeRetryRequired || restoredHealthPhase == .writingRoute
+    }
+
     var saveReviewActiveSeconds: Double { session.snapshot(at: currentDate())?.movingSeconds ?? elapsedSeconds }
     var saveReviewRequirement: RunSaveReviewRules.Requirement {
         RunSaveReviewRules.requirement(activeSeconds: saveReviewActiveSeconds, distanceMeters: distanceMeters)
@@ -138,10 +175,11 @@ final class RunRecorderViewModel: ObservableObject {
     private let routeStore: RunRouteArchiveStore
     private let persistsRecovery: Bool
     private let exportJobs: RunHealthExportJobStore?
+    private let requiredRecordingID: String?
     private let validateStart: (() -> Bool)?
     private let onStarted: ((String) -> Void)?
     private let metric: Bool
-    private let ownerID: String?
+    let ownerID: String?
     private let currentDate: () -> Date
     private let recordsLocation: Bool
     private var latestFix: RunLocationFix?
@@ -185,7 +223,8 @@ final class RunRecorderViewModel: ObservableObject {
          draftStore: RunRecordingDraftStore = RunRecordingDraftStore(),
          routeStore: RunRouteArchiveStore = RunRouteArchiveStore(), persistsRecovery: Bool? = nil,
          workoutResultStore: RunWorkoutResultStore? = nil,
-         exportJobs: RunHealthExportJobStore? = nil, validateStart: (() -> Bool)? = nil, onStarted: ((String) -> Void)? = nil, scheduledContext: RunScheduledContext? = nil) {
+         exportJobs: RunHealthExportJobStore? = nil, validateStart: (() -> Bool)? = nil, onStarted: ((String) -> Void)? = nil, scheduledContext: RunScheduledContext? = nil, requiredRecordingID: String? = nil) {
+        self.requiredRecordingID = requiredRecordingID
         self.metric = metric
         self.currentDate = currentDate
         self.recordsLocation = recordsLocation
@@ -206,6 +245,10 @@ final class RunRecorderViewModel: ObservableObject {
         session = newSession
         route = RunRouteRecording(recordingID: newSession.id)
         sensors = RunSensorCheckpoint(recordingID: newSession.id)
+        locationService.onAuthorizationChange = { [weak self] in
+            guard let self, self.didLoadDraft else { return }
+            self.prepare()
+        }
         locationService.onLocation = { [weak self] location in
             Task { @MainActor in
                 self?.ingest(location)
@@ -307,6 +350,7 @@ final class RunRecorderViewModel: ObservableObject {
             return
         }
         if !didLoadDraft { restoreDraftIfNeeded() }
+        if requiredRecordingID != nil && recoveryBlocked { return }
         if case .summary = stage { return }
         if stage == .paused {
             startTimer()
@@ -365,7 +409,13 @@ final class RunRecorderViewModel: ObservableObject {
                 try seedRouteRecoveryFixture(userID: ownerID)
             }
             #endif
-            guard let draft = try draftStore.load(userID: ownerID) else { return }
+            let matchingDraft = try draftStore.load(userID: ownerID)
+            if let requiredRecordingID, matchingDraft?.session.id != requiredRecordingID || completedRunStore.containsRecording(id: requiredRecordingID, for: ownerID) {
+                recoveryBlocked = true
+                recoveryMessage = "This run is no longer active in this account."
+                return
+            }
+            guard let draft = matchingDraft else { return }
             // A completed local commit takes precedence if removing its recovery file
             // was interrupted. Never resurrect a run already in history.
             if completedRunStore.containsRecording(id: draft.session.id, for: ownerID) {
@@ -409,6 +459,7 @@ final class RunRecorderViewModel: ObservableObject {
                 saveState = .failed
                 if let job = try? exportJobs?.load(recordingID: pending.run.recordingID ?? pending.run.id, userID: ownerID),
                    job.phase != .queued, job.phase != .workoutRetryRequired {
+                    restoredHealthPhase = job.phase
                     saveState = .localRecoveryPending
                 }
                 recoveryMessage = "Your reviewed run is kept. Retry saves the same time, distance and recording without starting it again."
@@ -506,7 +557,7 @@ final class RunRecorderViewModel: ObservableObject {
 
     func begin() {
         guard stage == .ready, !recoveryBlocked else { return }
-        guard validateStart?() ?? true else {
+        guard requiredRecordingID == nil, validateStart?() ?? true else {
             recoveryMessage = "This planned run changed. Close this screen and review the current session before starting."
             return
         }
@@ -864,6 +915,7 @@ final class RunRecorderViewModel: ObservableObject {
 
     func closePreparation() {
         guard stage == .ready || stage == .permission else { return }
+        locationService.onAuthorizationChange = nil
         discard()
     }
 
@@ -1100,10 +1152,10 @@ struct RunRecorderView: View {
     private var primaryMetric: RunDisplayMetric { RunDisplayMetric(rawValue: displayMetric) ?? .time }
 
     init(plan: RunWorkoutPlan? = nil, validateStart: (() -> Bool)? = nil, onStarted: ((String) -> Void)? = nil,
-         scheduledContext: RunScheduledContext? = nil) {
+         scheduledContext: RunScheduledContext? = nil, requiredRecordingID: String? = nil) {
         let metric = UserDefaults.standard.object(forKey: "useMetricBodyUnits") as? Bool
             ?? (Locale.current.measurementSystem != .us)
-        _viewModel = StateObject(wrappedValue: RunRecorderViewModel(metric: metric, workoutPlan: plan, validateStart: validateStart, onStarted: onStarted, scheduledContext: scheduledContext))
+        _viewModel = StateObject(wrappedValue: RunRecorderViewModel(metric: metric, workoutPlan: plan, validateStart: validateStart, onStarted: onStarted, scheduledContext: scheduledContext, requiredRecordingID: requiredRecordingID))
     }
 
     var body: some View {
@@ -1131,6 +1183,8 @@ struct RunRecorderView: View {
                         workoutPlanName: viewModel.workoutPlan?.name,
                         workoutResult: viewModel.finishedWorkoutResult,
                         saveState: viewModel.saveState,
+                        healthStatus: viewModel.displayedHealthStatus,
+                        routeNeedsConfirmation: viewModel.routeNeedsConfirmation,
                         planProgressMessage: viewModel.planProgressMessage,
                         workoutReceiptMessage: viewModel.workoutReceiptMessage,
                         onRetryReceipt: viewModel.retryWorkoutReceipt,
@@ -1160,9 +1214,6 @@ struct RunRecorderView: View {
                     }
                 }
             }
-            .onReceive(viewModel.locationService.$authorizationStatus) { _ in
-                if viewModel.stage == .permission { viewModel.prepare() }
-            }
         }
         .sheet(isPresented: $showingDisplaySettings) { displaySettings }
         .sheet(item: $goalToRevise) { step in
@@ -1175,6 +1226,7 @@ struct RunRecorderView: View {
             previousIdleTimerSetting = UIApplication.shared.isIdleTimerDisabled
             updateScreenAwake()
         }
+        .visibleActivity(.activeRun, owner: viewModel.ownerID, sessionID: viewModel.stage == .running || viewModel.stage == .paused ? viewModel.session.id : nil)
         .task { viewModel.prepare() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { viewModel.refreshAfterForeground() } else { viewModel.checkpointForBackground() }
@@ -1373,12 +1425,14 @@ struct RunRecorderView: View {
     }
 
     private var signalCard: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            Label(viewModel.gpsSignal.title, systemImage: viewModel.gpsSignal == .ready ? "location.fill" : "location.slash")
+        let signal: RunGPSSignal = viewModel.stage == .ready && viewModel.gpsSignal == .lost
+            ? .acquiring : viewModel.gpsSignal
+        return VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Label(signal.title, systemImage: signal == .ready ? "location.fill" : "location.slash")
                 .appTextRole(.secondary)
-                .foregroundStyle(viewModel.gpsSignal == .ready ? AppPalette.positive : AppPalette.caution)
+                .foregroundStyle(signal == .ready ? AppPalette.positive : AppPalette.caution)
                 .accessibilityIdentifier("run_gps_status")
-            Text(viewModel.gpsSignal.detail)
+            Text(signal.detail)
                 .appTextRole(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1947,6 +2001,8 @@ private struct RunRecorderSummary: View {
     let workoutPlanName: String?
     let workoutResult: RunWorkoutResult?
     let saveState: RunRecorderViewModel.SaveState
+    let healthStatus: String
+    let routeNeedsConfirmation: Bool
     let planProgressMessage: String?
     let workoutReceiptMessage: String?
     let onRetryReceipt: () -> Void
@@ -1973,10 +2029,7 @@ private struct RunRecorderSummary: View {
                             .appFont(size: 13, weight: .semibold)
                             .foregroundColor(.brandForeground)
                     }
-                    Text(saveState.message)
-                        .appFont(size: 13)
-                        .foregroundColor(saveState == .failed ? AppPalette.critical : Color(UIColor.secondaryLabel))
-                        .accessibilityIdentifier("run_save_status")
+
                     if let planProgressMessage {
                         Text(planProgressMessage).appTextRole(.caption).foregroundStyle(.secondary)
                     }
@@ -1995,6 +2048,16 @@ private struct RunRecorderSummary: View {
                 }
 
                 RunTimingSummaryCard(run: run, accessibilityPrefix: "run_summary_timing")
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    LabeledContent("MyFitPlate", value: saveState.localStatus)
+                    LabeledContent("Apple Health", value: healthStatus)
+                    if routeNeedsConfirmation {
+                        LabeledContent("Route", value: "Awaiting sync")
+                    }
+                }
+                .appTextRole(.secondary).appSurface(.quiet)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("run_save_status")
                 if let laps = run.manualLaps, !laps.isEmpty { RunManualLapsCard(laps: laps, metric: metric) }
 
                 if let workoutResult {
@@ -2028,7 +2091,7 @@ private struct RunRecorderSummary: View {
                         .accessibilityIdentifier("run_retry_save")
                 } else {
                     if saveState == .localOnly || saveState == .routeSyncPending || saveState == .healthConfirmationPending || saveState == .healthConfirmationUnknown {
-                        Button(saveState == .healthConfirmationPending || saveState == .healthConfirmationUnknown ? "Check Health status" : "Retry Health sync", action: onRetry)
+                        Button(saveState == .routeSyncPending ? "Retry route sync" : saveState == .localOnly ? "Retry Health sync" : "Check Health status", action: onRetry)
                             .buttonStyle(AppActionButtonStyle(.secondary))
                             .accessibilityIdentifier("run_retry_health_sync")
                     }

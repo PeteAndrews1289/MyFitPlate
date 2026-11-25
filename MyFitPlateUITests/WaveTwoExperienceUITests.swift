@@ -9,6 +9,25 @@ final class WaveTwoExperienceUITests: XCTestCase {
     }
 
     @MainActor
+    func testZeroAndUnreportedEnergyStayDistinctInSearchAndPortionReview() {
+        let app = launch("food-search", flags: ["-ui-testing-food-energy-coverage"])
+        let search = app.textFields["food_search_field"].firstMatch
+        search.tap()
+        search.typeText("water")
+        let confirmed = app.buttons["food_picker_row_qa-water-confirmed"]
+        let unresolved = app.buttons["food_picker_row_qa-water-unresolved"]
+        XCTAssertTrue(confirmed.waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertTrue(confirmed.label.contains("0 cal"), confirmed.label)
+        XCTAssertFalse(unresolved.label.contains("0 cal"), unresolved.label)
+        unresolved.tap()
+        XCTAssertTrue(app.staticTexts["Serving details needed"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["food_detail_portion_total"].exists)
+        let save = app.buttons["food_detail_log_action"]
+        XCTAssertTrue(save.exists)
+        XCTAssertFalse(save.isEnabled, app.debugDescription)
+    }
+
+    @MainActor
     func testBrandedFlavorAndPrintedSizeAreVisibleBeforeOpeningPortion() {
         let app = launch("food-search", flags: ["-ui-testing-branded-food-search", "-ui-testing-product-sizes"])
         let search = app.textFields["food_search_field"].firstMatch
@@ -31,6 +50,9 @@ final class WaveTwoExperienceUITests: XCTestCase {
         XCTAssertTrue(useLabel.isHittable)
         useLabel.tap()
         XCTAssertEqual(app.textFields["Quantity"].value as? String, "5.3")
+        let amountUnit = app.staticTexts["food_detail_amount_unit"]
+        XCTAssertEqual(amountUnit.label, "oz")
+        XCTAssertTrue(amountUnit.isHittable)
         XCTAssertTrue(app.staticTexts["food_detail_portion_total"].label.contains("150 cal"))
         record(app, "Portion editor - printed yogurt serving applied")
         app.navigationBars.buttons["Cancel"].firstMatch.tap()
@@ -38,6 +60,37 @@ final class WaveTwoExperienceUITests: XCTestCase {
         app.buttons["food_search_more_actions"].tap()
         XCTAssertTrue(app.buttons["Scan barcode"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Photograph food"].isHittable)
+    }
+
+    @MainActor
+    func testQuickAddAndPrintedPackageSaveThePortionsShownInSearch() {
+        let app = launch("food-search", flags: ["-ui-testing-branded-food-search", "-ui-testing-product-sizes", "-ui-testing-reset-editor-drafts", "-screenshot-dark-mode"])
+        let search = app.textFields["food_search_field"].firstMatch
+        search.tap()
+        search.typeText("Chobani vanilla 5.3oz\n")
+        let row = app.buttons["food_picker_row_ui-vanilla-small"]
+        reveal(row, app: app)
+        XCTAssertTrue(row.label.contains("100 g · 100 cal"))
+        record(app, "Food search in dark mode")
+        app.buttons["food_picker_add_ui-vanilla-small"].tap()
+        let receipt = app.descendants(matching: .any)["food_search_log_result"].firstMatch
+        let undo = app.buttons["food_search_undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 8))
+        XCTAssertTrue(receipt.label.contains("100 g · 100 cal"), receipt.label)
+        undo.tap()
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
+
+        row.tap()
+        let label = app.buttons["food_portion_use_label"]
+        label.tap()
+        XCTAssertTrue(label.isSelected)
+        XCTAssertFalse(app.buttons["food_portion_oz"].isSelected)
+        record(app, "Portion editor in dark mode")
+        app.buttons["food_detail_log_action"].tap()
+        XCTAssertTrue(undo.waitForExistence(timeout: 8))
+        XCTAssertTrue(receipt.label.contains("5.3 oz · 150 cal"), receipt.label)
+        undo.tap()
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
     }
 
     @MainActor
@@ -153,21 +206,27 @@ final class WaveTwoExperienceUITests: XCTestCase {
         let app = launch("program-detail", flags: ["-ui-testing-wave2-phul", "-screenshot-dark-mode",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         openBlock(app)
-        let name = any(app, "block_name")
-        replace(name, with: "PHUL working block", app: app)
+        let name = app.textFields["block_name"]
+        revealProgramControl(name, in: app.scrollViews["workout_block_editor_scroll"])
+        name.tap()
+        let clear = app.buttons["block_clear_name"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        clear.tap()
+        name.typeText("PHUL working block")
+        XCTAssertEqual(name.value as? String, "PHUL working block")
         let save = app.buttons["block_save"]
         XCTAssertTrue(save.isEnabled)
         assertVisibleControl(save, app: app)
         record(app, "PHUL - large text block review")
         save.tap()
         XCTAssertTrue(save.waitForNonExistence(timeout: 15))
-        let progress = any(app, "program_progress_summary")
-        reveal(progress, app: app)
+        let progress = app.staticTexts["program_progress_summary"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
         XCTAssertTrue(progress.label.contains("39 of 48"))
         openBlock(app)
-        XCTAssertEqual(any(app, "block_name").value as? String, "PHUL working block")
+        XCTAssertEqual(app.textFields["block_name"].value as? String, "PHUL working block")
         let current = app.buttons["block_session_39"]
-        reveal(current, app: app)
+        revealProgramControl(current, in: app.scrollViews["workout_block_editor_scroll"])
         XCTAssertTrue(current.isEnabled)
         record(app, "PHUL - progress intact after authored block")
     }
@@ -270,9 +329,22 @@ final class WaveTwoExperienceUITests: XCTestCase {
         reveal(title, app: app)
         XCTAssertTrue(title.exists)
     }
+    @MainActor private func revealProgramControl(_ element: XCUIElement, in scroll: XCUIElement) {
+        let top = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.035, dy: 0.24))
+        let bottom = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.035, dy: 0.78))
+        for _ in 0..<16 {
+            if element.isHittable { return }
+            let above = element.exists && element.frame.maxY < scroll.frame.midY
+            let start = above ? top : bottom
+            start.press(forDuration: 0.05, thenDragTo: above ? bottom : top, withVelocity: .slow, thenHoldForDuration: 0.15)
+        }
+        XCTAssertTrue(element.isHittable, scroll.debugDescription)
+    }
     @MainActor private func openBlock(_ app: XCUIApplication) {
         let open = app.buttons["program_edit_block"]
-        XCTAssertTrue(open.waitForExistence(timeout: 10)); reveal(open, app: app); open.tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        revealProgramControl(open, in: app.scrollViews.firstMatch)
+        open.tap()
         XCTAssertTrue(app.buttons["block_save"].waitForExistence(timeout: 10))
     }
     @MainActor private func select(_ title: String, picker: XCUIElement, app: XCUIApplication) {

@@ -50,11 +50,6 @@ struct WorkoutNextSessionReviewView: View {
                         Text(errorMessage).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
                             .accessibilityIdentifier("next_session_error")
                     }
-                    if hasExistingDraft {
-                        Button("Open unfinished review") { openExistingDraft() }
-                            .buttonStyle(AppActionButtonStyle(.secondary))
-                            .accessibilityIdentifier("next_session_existing_draft")
-                    }
                 }
                 .padding(AppSpacing.screenHorizontal)
             }
@@ -66,12 +61,20 @@ struct WorkoutNextSessionReviewView: View {
             } }
             .safeAreaInset(edge: .bottom) {
                 VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                    Text("Only reviewed movements change when you save.")
-                        .appTextRole(.caption).foregroundStyle(.secondary)
-                    Button(isPreparing ? "Checking targets…" : "Review save") { Task { await prepareSave() } }
-                        .buttonStyle(AppActionButtonStyle(.primary))
-                        .disabled(reviewed.isEmpty || isLoading || isPreparing || currentOwner != context.ownerID)
-                        .accessibilityIdentifier("next_session_review_save")
+                    if hasExistingDraft {
+                        Text("A block review for this program is saved on this device.").appTextRole(.caption).foregroundStyle(.secondary)
+                        Button("Open unfinished review", action: openExistingDraft)
+                            .buttonStyle(AppActionButtonStyle(.primary))
+                            .disabled(currentOwner != context.ownerID)
+                            .accessibilityIdentifier("next_session_existing_draft")
+                    } else {
+                        Text("Only reviewed movements change when you save.")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                        Button(isPreparing ? "Checking targets…" : "Review save") { Task { await prepareSave() } }
+                            .buttonStyle(AppActionButtonStyle(.primary))
+                            .disabled(reviewed.isEmpty || isLoading || isPreparing || currentOwner != context.ownerID)
+                            .accessibilityIdentifier("next_session_review_save")
+                    }
                 }
                 .padding(AppSpacing.row).background(.bar)
             }
@@ -88,7 +91,7 @@ struct WorkoutNextSessionReviewView: View {
                     }
                 }
             }
-            .sheet(item: $proposal) { proposal in
+            .sheet(item: $proposal, onDismiss: refreshPendingBlock) { proposal in
                 NavigationStack {
                     WorkoutBlockEditorView(program: proposal.program, workoutService: workoutService,
                                            initialBlock: proposal.block,
@@ -113,7 +116,15 @@ struct WorkoutNextSessionReviewView: View {
         return try JSONDecoder().decode(WorkoutProgram.self, from: JSONEncoder().encode(active))
     }
 
+    private func refreshPendingBlock() {
+        guard currentOwner == context.ownerID else { return }
+        do {
+            hasExistingDraft = try WorkoutBlockEditorView.hasUnfinishedDraft(programID: context.programID, userID: context.ownerID)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     private func load() async {
+        refreshPendingBlock()
         defer { isLoading = false }
         do {
             let latest = try currentProgram()

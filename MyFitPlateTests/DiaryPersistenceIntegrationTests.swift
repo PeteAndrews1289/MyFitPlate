@@ -1032,6 +1032,70 @@ final class DiaryPersistenceIntegrationTests: XCTestCase {
         XCTAssertEqual(savedSession.programLinkDecision, .program)
     }
 
+    @MainActor
+    func testStandalonePHULRoutineReplayKeepsOneSetOneDiaryActivityAndOriginalSlotOnSecondClient() async throws {
+        let client = makeClient()
+        let email = "standalone-\(UUID())@example.test"
+        let password = UUID().uuidString
+        let uid = try await client.auth.createUser(withEmail: email, password: password).user.uid
+        let directory = try XCTUnwrap(directories.last)
+        let workouts = FirestoreWorkoutRepository(db: client.db, outboxURL: directory.appendingPathComponent("workouts.json"),
+                                                  currentUserID: { client.auth.currentUser?.uid })
+        let container = DIContainer.shared
+        let previous = (container.authService, container.workoutRepository, container.nutritionRepository)
+        let auth = MockAuthService(); auth.currentUserID = uid
+        container.authService = auth; container.workoutRepository = workouts; container.nutritionRepository = client.repository
+        defer { (container.authService, container.workoutRepository, container.nutritionRepository) = previous }
+        let now = Date()
+        var plan = try XCTUnwrap(WorkoutRules.generatePreBuiltPrograms().first { $0.name.contains("PHUL") })
+        plan.id = "phul"; plan.userID = uid; plan.currentProgressIndex = 39
+        for routine in plan.routines { routine.userID = uid }
+        _ = try await workouts.saveProgram(userID: uid, program: plan)
+        let day = try XCTUnwrap(DiaryDayContext(userID: uid, date: now))
+        await accept(DailyLog(id: day.dayKey, date: now, meals: [Meal(name: "Lunch", foodItems: [food("existing-lunch")])]), client: client, userID: uid)
+        try await waitForSync(client, userID: uid)
+
+        let routine = try XCTUnwrap(plan.routine(forSlot: 39)?.deepCopy())
+        routine.exercises[0].sets[0].isCompleted = true
+        routine.exercises[0].sets[0].weight = 135
+        routine.exercises[0].sets[0].reps = 8
+        var draft = WorkoutSessionDraft(routine: routine, now: now)
+        draft.elapsed = 180
+        XCTAssertTrue(draft.prepareCompletion(weightPounds: 180))
+        let log = try XCTUnwrap(draft.completion)
+        let exercise = try XCTUnwrap(draft.diaryExercise)
+        let suite = "standalone-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let training = WorkoutService(defaults: defaults)
+        training.setActiveProgram(plan)
+        let diary = DailyLogService()
+        for _ in 0..<2 {
+            let historyAccepted = await training.saveWorkoutSessionLog(log)
+            let diaryAccepted = await diary.saveWorkoutExercise(for: uid, exercise: exercise)
+            let programAccepted = await training.recordProgramCompletion(log)
+            XCTAssertTrue(historyAccepted && diaryAccepted && programAccepted)
+        }
+        try await waitForWorkoutSync(workouts, userID: uid)
+        try await waitForSync(client, userID: uid)
+        let reopened = makeClient()
+        _ = try await reopened.auth.signIn(withEmail: email, password: password)
+        let user = reopened.db.collection("users").document(uid)
+        let history = try await user.collection("workoutSessionLogs").getDocuments(source: .server)
+        XCTAssertEqual(history.documents.map(\.documentID), [draft.sessionID])
+        let saved = try XCTUnwrap(history.documents.first).data(as: WorkoutSessionLog.self)
+        XCTAssertEqual(saved.programLinkDecision, .standalone)
+        XCTAssertNil(saved.programContext)
+        XCTAssertEqual(saved.completedExercises.flatMap(\.sets).map(\.weight), [135])
+        XCTAssertEqual(saved.completedExercises.flatMap(\.sets).map(\.reps), [8])
+        let savedDay = try await user.collection("dailyLogs").document(day.dayKey).getDocument(source: .server).data(as: DailyLog.self)
+        XCTAssertEqual(savedDay.exercises?.map(\.sessionID), [draft.sessionID])
+        XCTAssertEqual(savedDay.meals.flatMap(\.foodItems).map(\.id), ["existing-lunch"])
+        let savedPlan = try await user.collection("workoutPrograms").document("phul").getDocument(source: .server).data(as: WorkoutProgram.self)
+        XCTAssertEqual(savedPlan.currentProgressIndex, 39)
+        XCTAssertEqual(savedPlan.routine(forSlot: 39)?.id, routine.id)
+    }
+
     func testWorkoutWritesSurviveOfflineQueueAndRetryWithoutDuplicateHistory() async throws {
         let client = makeClient()
         let uid = try await client.auth.signInAnonymously().user.uid

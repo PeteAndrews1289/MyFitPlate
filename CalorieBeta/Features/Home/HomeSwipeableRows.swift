@@ -127,6 +127,96 @@ struct SwipeableExerciseRowView: View {
     }
 }
 
+struct DiaryFoodRow: View {
+    private let name: String
+    private let portion: String
+    private let calories: String
+    private let protein: String
+    private let carbs: String
+    private let fats: String
+    private let badge: FoodTrustMiniBadge
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(food: FoodItem) {
+        // FoodItem equality reflects identity. Keep the values this row displays so an edit
+        // under the same diary ID refreshes the serving, nutrients and source badge together.
+        name = food.name
+        portion = ServingNutritionCalculator.displayPortion(food.servingSize)
+        calories = food.calories.rounded().formatted()
+        protein = food.protein.rounded().formatted()
+        carbs = food.carbs.rounded().formatted()
+        fats = food.fats.rounded().formatted()
+        badge = FoodTrustMiniBadge(food: food, source: "recent_tap")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(name)
+                        .appTextRole(.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(AppPalette.text)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if !portion.isEmpty {
+                        Text(portion)
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if dynamicTypeSize.isAccessibilitySize {
+                        foodCalories
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !dynamicTypeSize.isAccessibilitySize {
+                    foodCalories
+                        .fixedSize()
+                }
+            }
+
+            // Nutrition has the row's full width, so long food names and the adjacent
+            // food-options control cannot squeeze the macros or evidence into ellipses.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppSpacing.compact) {
+                    macroSummaryText.fixedSize()
+                    Spacer(minLength: 0)
+                    if badge.needsAttention { badge.fixedSize() }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    macroSummaryText
+                        .fixedSize(horizontal: false, vertical: true)
+                    if badge.needsAttention { badge.fixedSize(horizontal: false, vertical: true) }
+                }
+            }
+        }
+        .padding(.vertical, 10)
+    }
+
+    private var foodCalories: some View {
+        Text("\(calories) cal")
+            .appTextRole(.body)
+            .fontWeight(.semibold)
+            .foregroundStyle(AppPalette.text)
+            .monospacedDigit()
+    }
+
+    private var macroSummary: String {
+        "P \(protein) g · C \(carbs) g · F \(fats) g"
+    }
+
+    private var macroSummaryText: some View {
+        Text(macroSummary)
+            .appTextRole(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("\(protein) grams protein, \(carbs) grams carbohydrates, \(fats) grams fat")
+    }
+}
+
 struct SwipeableFoodItemView: View {
     let initialFoodItem: FoodItem
     @Binding var dailyLog: DailyLog?
@@ -139,7 +229,6 @@ struct SwipeableFoodItemView: View {
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
     @State private var showDetailView = false
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ZStack(alignment: .trailing) {
@@ -166,53 +255,7 @@ struct SwipeableFoodItemView: View {
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
 
-            VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                HStack(alignment: .top, spacing: AppSpacing.row) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(initialFoodItem.name)
-                            .appTextRole(.body)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(AppPalette.text)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        if !initialFoodItem.servingSize.isEmpty {
-                            Text(ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize))
-                                .appTextRole(.secondary)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if dynamicTypeSize.isAccessibilitySize {
-                            foodCalories
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if !dynamicTypeSize.isAccessibilitySize {
-                        foodCalories
-                            .fixedSize()
-                    }
-                }
-
-                // Nutrition has the row's full width, so long food names and the adjacent
-                // food-options control cannot squeeze the macros or evidence into ellipses.
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: AppSpacing.compact) {
-                        macroSummaryText.fixedSize()
-                        Spacer(minLength: 0)
-                        FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
-                            .fixedSize()
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        macroSummaryText
-                            .fixedSize(horizontal: false, vertical: true)
-                        FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            .padding(.vertical, 10)
+            DiaryFoodRow(food: initialFoodItem)
             .contentShape(Rectangle())
             .offset(x: offset)
             .onTapGesture {
@@ -275,24 +318,5 @@ struct SwipeableFoodItemView: View {
             )
         }
         .padding(.bottom, 1)
-    }
-
-    private var foodCalories: some View {
-        Text("\(Int(initialFoodItem.calories.rounded()).formatted()) cal")
-            .appTextRole(.body)
-            .fontWeight(.semibold)
-            .foregroundStyle(AppPalette.text)
-            .monospacedDigit()
-    }
-
-    private var macroSummary: String {
-        "P \(Int(initialFoodItem.protein.rounded()).formatted()) g · C \(Int(initialFoodItem.carbs.rounded()).formatted()) g · F \(Int(initialFoodItem.fats.rounded()).formatted()) g"
-    }
-
-    private var macroSummaryText: some View {
-        Text(macroSummary)
-            .appTextRole(.caption)
-            .foregroundStyle(.secondary)
-            .accessibilityLabel("\(Int(initialFoodItem.protein.rounded()).formatted()) grams protein, \(Int(initialFoodItem.carbs.rounded()).formatted()) grams carbohydrates, \(Int(initialFoodItem.fats.rounded()).formatted()) grams fat")
     }
 }

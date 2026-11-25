@@ -183,10 +183,14 @@ public class FatSecretFoodAPIService {
                 let decodedResponse = try JSONDecoder().decode(FatSecretFoodResponse.self, from: data)
                 guard let food = decodedResponse.food else { completion(.failure(APIError.noData)); return }
 
-                guard !food.servings.serving.isEmpty else { completion(.failure(APIError.apiError("No serving information was found for this item."))); return }
+                let servings = food.servings.serving.filter { serving in
+                    guard let energy = serving.parsedOptionalNutrient(.calories) else { return false }
+                    return energy.isFinite && energy >= 0
+                }
+                guard !servings.isEmpty else { completion(.failure(APIError.apiError("No serving information was found for this item."))); return }
 
                 var availableServings: [ServingSizeOption] = []
-                for serving in food.servings.serving {
+                for serving in servings {
                     let option = ServingSizeOption(
                         description: serving.displayDescription,
                         servingWeightGrams: serving.parsedServingWeightGrams,
@@ -224,10 +228,10 @@ public class FatSecretFoodAPIService {
                     availableServings.append(option)
                 }
                 
-                guard let baseServing = food.servings.serving.first(where: { $0.parsedServingWeightGrams == 100.0 && $0.metricServingUnit?.lowercased() == "g" }) ?? food.servings.serving.first else {
+                guard let baseServing = servings.first(where: { $0.parsedServingWeightGrams == 100.0 && $0.metricServingUnit?.lowercased() == "g" }) ?? servings.first else {
                     return completion(.failure(NSError(domain: "FatSecretFoodAPIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No serving options were returned for this food."])))
                 }
-                let baseFoodItem = FoodItem(
+                var baseFoodItem = FoodItem(
                     id: food.foodID, name: FoodSearchRanking.productDisplayName(food.foodName, brandName: food.brandName),
                     calories: baseServing.parsedNutrient(.calories), protein: baseServing.parsedNutrient(.protein),
                     carbs: baseServing.parsedNutrient(.carbohydrate), fats: baseServing.parsedNutrient(.fat),
@@ -267,6 +271,7 @@ public class FatSecretFoodAPIService {
                     brandName: FoodSearchRanking.reportedBrandName(food.brandName)
                 )
                 
+                baseFoodItem.sourceMetadata?.providerReportedCalories = true
                 completion(.success((foodInfo: baseFoodItem, availableServings: availableServings)))
 
             } catch {
@@ -299,9 +304,9 @@ public class FatSecretFoodAPIService {
         let fullName = FoodSearchRanking.productDisplayName(fatSecretFoodItem.foodName ?? "Unknown", brandName: fatSecretFoodItem.brandName)
         let preview = parseSearchNutritionPreview(from: fatSecretFoodItem.foodDescription)
 
-        return FoodItem(
+        var item = FoodItem(
             id: fatSecretFoodItem.foodID, name: fullName,
-            calories: preview.calories, protein: preview.protein, carbs: preview.carbs, fats: preview.fats,
+            calories: preview.calories ?? 0, protein: preview.protein, carbs: preview.carbs, fats: preview.fats,
             saturatedFat: nil, polyunsaturatedFat: nil, monounsaturatedFat: nil, fiber: nil,
             servingSize: preview.servingDescription, servingWeight: preview.servingWeightGrams, timestamp: nil,
             calcium: nil, iron: nil, potassium: nil, sodium: nil,
@@ -313,11 +318,13 @@ public class FatSecretFoodAPIService {
             sourceID: fatSecretFoodItem.foodID,
             brandName: FoodSearchRanking.reportedBrandName(fatSecretFoodItem.brandName)
         )
+        item.sourceMetadata?.providerReportedCalories = preview.calories != nil
+        return item
     }
 
-    private func parseSearchNutritionPreview(from description: String?) -> (servingDescription: String, servingWeightGrams: Double, calories: Double, protein: Double, carbs: Double, fats: Double) {
+    private func parseSearchNutritionPreview(from description: String?) -> (servingDescription: String, servingWeightGrams: Double, calories: Double?, protein: Double, carbs: Double, fats: Double) {
         guard let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return ("Tap to see details", 0, 0, 0, 0, 0)
+            return ("Tap to see details", 0, nil, 0, 0, 0)
         }
 
         let servingDescription = description.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -326,7 +333,7 @@ public class FatSecretFoodAPIService {
         return (
             servingDescription: servingDescription ?? "Tap to see details",
             servingWeightGrams: servingWeight,
-            calories: extractNutritionValue(afterAny: ["Calories"], in: description) ?? 0,
+            calories: extractNutritionValue(afterAny: ["Calories"], in: description),
             protein: extractNutritionValue(afterAny: ["Protein"], in: description) ?? 0,
             carbs: extractNutritionValue(afterAny: ["Carbs", "Carbohydrate"], in: description) ?? 0,
             fats: extractNutritionValue(afterAny: ["Fat", "Fats"], in: description) ?? 0

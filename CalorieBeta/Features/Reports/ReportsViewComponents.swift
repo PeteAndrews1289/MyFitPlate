@@ -1,6 +1,7 @@
 import MyFitPlateCore
 
 import SwiftUI
+import Charts
 
 enum ReportFocus: String, CaseIterable, Identifiable {
     case nutrition, training, recovery
@@ -12,26 +13,105 @@ struct ReportNutritionSummary: View {
     let summary: ReportSummary?
     let period: String
 
+    let calories: [DateValuePoint]
+    let protein: [DateValuePoint]
+    let range: ClosedRange<Date>
+
+    @Binding var showsProtein: Bool
+    @Binding var selectedDate: Date?
+    let openDiary: (Date) -> Void
+    private var points: [DateValuePoint] { showsProtein ? protein : calories }
+    private var accent: Color { showsProtein ? AppPalette.protein : AppPalette.energy }
+    private var unit: String { showsProtein ? "g" : "cal" }
+    private var average: Double? { showsProtein ? summary?.averageProtein : summary?.averageCalories }
+    private var selectedPoint: DateValuePoint? {
+        guard let selectedDate else { return nil }
+        return points.first { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: "Nutrition", subtitle: period)
-            if let summary, summary.daysLogged > 0 {
-                AppMetricStrip(items: [
-                    AppMetricItem(label: "Daily calories", value: "\(Int(summary.averageCalories.rounded()).formatted()) cal", accent: AppPalette.energy),
-                    AppMetricItem(label: "Daily protein", value: "\(Int(summary.averageProtein.rounded()).formatted()) g", accent: AppPalette.protein)
-                ])
-                Text("Averages from \(summary.daysLogged.formatted()) fully logged \(summary.daysLogged == 1 ? "day" : "days"). Partial days are excluded.")
+            HStack {
+                Text("Daily intake").appTextRole(.sectionTitle)
+                Spacer()
+                Picker("Intake metric", selection: $showsProtein) {
+                    Text("Calories").tag(false)
+                    Text("Protein").tag(true)
+                }
+                .pickerStyle(.menu).fixedSize()
+                .accessibilityIdentifier("reports_intake_metric")
+            }
+            if let latest = points.last {
+                let value = selectedDate == nil ? (average ?? latest.value) : selectedPoint?.value
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(value.map { $0.formatted(.number.precision(.fractionLength(0))) } ?? "—")
+                        .appTextRole(.display).monospacedDigit()
+                    Text(unit).appTextRole(.control).foregroundStyle(.secondary)
+                    Spacer()
+                    if selectedDate != nil {
+                        Button("Reset") { selectedDate = nil }.appTextRole(.secondary)
+                    }
+                }
+                Text(metricCaption(latest: latest.date))
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("reports_intake_caption")
+                Chart {
+                    ForEach(points) { point in
+                        BarMark(x: .value("Day", point.date, unit: .day), y: .value(unit, point.value))
+                            .cornerRadius(3)
+                            .foregroundStyle(accent.opacity(selectedDate == nil || selectedPoint?.id == point.id ? 1 : 0.45))
+                    }
+                    if let selectedDate {
+                        RuleMark(x: .value("Selected day", selectedDate, unit: .day))
+                            .foregroundStyle(.secondary.opacity(0.5))
+                    }
+                    if let average {
+                        RuleMark(y: .value("Fully logged day average", average))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .chartXScale(domain: range)
+                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) { AxisValueLabel(format: .dateTime.month(.abbreviated).day()) } }
+                .chartYAxis { AxisMarks(values: .automatic(desiredCount: 3)) }
+                .chartXSelection(value: $selectedDate)
+                .chartGesture { proxy in
+                    SpatialTapGesture().onEnded { proxy.selectXValue(at: $0.location.x) }
+                }
+                .frame(height: 118)
+                .accessibilityLabel("Daily recorded " + (showsProtein ? "protein" : "calories"))
+                if let selectedDate {
+                    Button("Open diary day", systemImage: "book.pages") { openDiary(selectedDate) }
+                        .buttonStyle(AppActionButtonStyle(.secondary, fillsWidth: false))
+                        .accessibilityIdentifier("reports_open_diary_day")
+                }
+                Text(evidence)
                     .appTextRole(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("reports_nutrition_evidence")
             } else {
-                Text("Confirm fully logged days in your diary to see meaningful intake averages.")
+                Text("No food recorded for " + period + ".")
                     .appTextRole(.secondary).foregroundStyle(.secondary)
             }
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .appSurface(.quiet)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: range.lowerBound) { selectedDate = nil }
+        .onChange(of: Calendar.current.startOfDay(for: range.upperBound)) { selectedDate = nil }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reports_overview")
+    }
+
+    private func metricCaption(latest: Date) -> String {
+        if let selectedDate {
+            return selectedDate.formatted(.dateTime.month(.abbreviated).day()) + (selectedPoint == nil ? " · No intake recorded" : " · Recorded intake")
+        }
+        return average == nil ? "Latest logged · " + latest.formatted(.dateTime.month(.abbreviated).day()) : "Daily average · " + period
+    }
+
+    private var evidence: String {
+        if let count = summary?.daysLogged, count > 0 {
+            return "Dashed line: average of " + count.formatted() + (count == 1 ? " fully logged day." : " fully logged days.")
+        }
+        return "Partial days are shown. Confirm a day in the diary to see an average."
     }
 }
 
@@ -119,3 +199,47 @@ struct ReportSectionHeader: View {
         AppSectionHeader(title: title, subtitle: subtitle)
     }
 }
+
+#if !TARGET_IS_WIDGET_EXTENSION
+struct ReportDiaryDayView: View {
+    let day: DiaryDayContext
+    let log: DailyLog
+    @EnvironmentObject private var service: DailyLogService
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var failed = false
+    @State private var openingEditor = false
+    @State private var visible = false
+
+    var body: some View {
+        NutritionReviewDayDetail(log: log)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Edit in diary", action: openEditor).disabled(openingEditor)
+                }
+            }
+            .alert("Couldn’t open the diary editor", isPresented: $failed) {
+                Button("Try again", action: openEditor)
+                Button("Cancel", role: .cancel) {}
+            }
+            .onAppear { visible = true }
+            .onDisappear { visible = false }
+            .onReceive(appState.$isUserLoggedIn) { _ in
+                if !day.isOwned(by: DIContainer.shared.authService.currentUserID) { dismiss() }
+            }
+    }
+
+    private func openEditor() {
+        guard day.isOwned(by: DIContainer.shared.authService.currentUserID) else { dismiss(); return }
+        openingEditor = true
+        service.fetchLog(for: day.userID, day: day) { result in
+            openingEditor = false
+            guard visible, day.isOwned(by: DIContainer.shared.authService.currentUserID) else { return }
+            guard case .success(let current) = result, current.id == day.dayKey else { failed = true; return }
+            dismiss()
+            appState.selectedTab = 0
+        }
+    }
+}
+#endif

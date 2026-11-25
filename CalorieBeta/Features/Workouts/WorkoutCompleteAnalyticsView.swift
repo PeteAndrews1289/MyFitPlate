@@ -50,8 +50,14 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private var freshProgramStatus: String? {
-        guard isFreshCompletion, let ownerUserID, ownerUserID == DIContainer.shared.authService.currentUserID,
-              log.programLinkDecision != .standalone, let context = log.programContext,
+        guard let ownerUserID, ownerUserID == DIContainer.shared.authService.currentUserID else { return nil }
+        if log.programLinkDecision == .standalone {
+            guard isFreshCompletion, let program = workoutService.activeProgram, program.userID == ownerUserID,
+                  program.archivedAt == nil, let slot = program.currentProgressIndex, (0..<program.totalSlots).contains(slot),
+                  let next = program.routine(forSlot: slot) else { return "Standalone workout" }
+            return "Standalone workout · \(program.name) is still on \(next.name)"
+        }
+        guard isFreshCompletion, let context = log.programContext,
               let program = workoutService.userPrograms.first(where: { $0.id == context.programID && $0.userID == ownerUserID }),
               program.archivedAt == nil, let next = program.currentProgressIndex else { return nil }
         if next == program.totalSlots { return "End of program reached" }
@@ -86,9 +92,12 @@ struct WorkoutCompleteAnalyticsView: View {
         return seconds / 60
     }
 
-    private var estimatedDurationMinutes: Int {
-        if let elapsed = log.elapsedSeconds, elapsed.isFinite, elapsed > 0 { return max(1, Int(elapsed) / 60) }
-        return max(cardioMinutes, completedSetCount * 2)
+    private var sessionTime: (label: String, value: String) {
+        if let seconds = log.recordedDurationSeconds {
+            return ("Duration", Duration.seconds(seconds).formattedWorkoutTime)
+        }
+        let estimate = max(cardioMinutes, completedSetCount * 2)
+        return estimate > 0 ? ("Estimated time", "\(estimate.formatted()) min") : ("Duration", "Unavailable")
     }
 
     var body: some View {
@@ -115,13 +124,13 @@ struct WorkoutCompleteAnalyticsView: View {
                 }
                 WorkoutSummaryHeroCard(
                     date: log.date,
-                    programStatus: freshProgramStatus,
+                    routineName: log.displayName(routines: workoutService.userRoutines, programs: workoutService.userPrograms),
+                    programStatus: freshProgramStatus ?? log.programPosition(in: workoutService.userPrograms),
                     totalVolume: displayedAnalytics.totalVolume,
                     exerciseCount: log.completedExercises.count,
                     setCount: completedSetCount,
                     repCount: totalRepCount,
-                    estimatedMinutes: estimatedDurationMinutes,
-                    durationIsMeasured: log.elapsedSeconds.map { $0.isFinite && $0 > 0 } ?? false,
+                    sessionTime: sessionTime,
                     isAnimated: isAnimated,
                     canEdit: log.id != nil,
                     isEditingDisabled: isSavingWorkoutEdit,
@@ -130,6 +139,8 @@ struct WorkoutCompleteAnalyticsView: View {
                         showingWorkoutEditor = true
                     }
                 )
+
+                SessionExerciseBreakdownCard(exercises: log.completedExercises)
 
                 WorkoutNextTimeCard(log: log, ownerID: ownerUserID,
                     hasPendingCorrection: pendingCorrection != nil || isSavingWorkoutEdit, workoutService: workoutService)
@@ -146,7 +157,7 @@ struct WorkoutCompleteAnalyticsView: View {
                             Text("Actual duration change: \(formatPercent(comp.durationDiffPercent)). Duration is context, not a speed or quality score.")
                                 .appTextRole(.secondary).foregroundStyle(.secondary)
                         } else {
-                            Text("Actual duration is unavailable for one of these sessions; no pace comparison is inferred from set count.")
+                            Text("Comparing duration needs two timed workouts and a previous time above zero.")
                                 .appTextRole(.caption).foregroundStyle(.secondary)
                         }
                     }.appSurface(.quiet)
@@ -163,7 +174,6 @@ struct WorkoutCompleteAnalyticsView: View {
                     .buttonStyle(AppActionButtonStyle(.secondary))
                     .accessibilityIdentifier("workout_meal_checkin")
                 }
-                SessionExerciseBreakdownCard(exercises: log.completedExercises)
 
                 if !displayedAnalytics.personalRecords.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
@@ -531,14 +541,7 @@ struct WorkoutCompleteAnalyticsView: View {
 
     private func workoutRecoveryHandoffCard(plan: TodayFuelPlan) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: plan.title, subtitle: plan.summary) {
-                Label(
-                    plan.kind == .overTargetReview ? "Fuel Check" : "Recovery Meal",
-                    systemImage: recoveryHandoffIcon(for: plan.kind)
-                )
-                .appTextRole(.caption)
-                .foregroundStyle(recoveryHandoffColor(for: plan.kind))
-            }
+            Text(plan.title).appTextRole(.sectionTitle)
 
             Text(plan.detail)
                 .appTextRole(.secondary)
@@ -591,14 +594,14 @@ struct WorkoutCompleteAnalyticsView: View {
             AppMetricItem(
                 label: plan.remainingCalories >= 0 ? "Budget" : "Over",
                 value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
-                accent: plan.remainingCalories >= 0 ? AppPalette.brand : AppPalette.caution
+                accent: plan.remainingCalories >= 0 ? AppPalette.energy : AppPalette.caution
             )
         ]
         if let protein = plan.targetProteinGrams {
-            items.append(AppMetricItem(label: "Protein", value: "\(protein) g", accent: AppPalette.effort))
+            items.append(AppMetricItem(label: "Protein", value: "\(protein) g", accent: AppPalette.protein))
         }
         if let carbs = plan.targetCarbGrams {
-            items.append(AppMetricItem(label: "Carbs", value: "\(carbs) g", accent: AppPalette.achievement))
+            items.append(AppMetricItem(label: "Carbs", value: "\(carbs) g", accent: AppPalette.carbohydrate))
         }
         return items
     }
@@ -624,14 +627,6 @@ struct WorkoutCompleteAnalyticsView: View {
         }
         .buttonStyle(AppActionButtonStyle(.secondary))
         .disabled(insightsService.isGeneratingSuggestion)
-    }
-
-    private func recoveryHandoffIcon(for kind: TodayFuelPlan.Kind) -> String {
-        kind == .overTargetReview ? "exclamationmark.triangle.fill" : "fork.knife.circle.fill"
-    }
-
-    private func recoveryHandoffColor(for kind: TodayFuelPlan.Kind) -> Color {
-        kind == .overTargetReview ? AppPalette.caution : AppPalette.brand
     }
 
     private func openRecoveryFoodSearch() {
@@ -1021,13 +1016,13 @@ private struct CompletedSetEditorRow: View {
 
 struct WorkoutSummaryHeroCard: View {
     let date: Date
+    let routineName: String
     let programStatus: String?
     let totalVolume: Double
     let exerciseCount: Int
     let setCount: Int
     let repCount: Int
-    let estimatedMinutes: Int
-    let durationIsMeasured: Bool
+    let sessionTime: (label: String, value: String)
     let isAnimated: Bool
     let canEdit: Bool
     let isEditingDisabled: Bool
@@ -1052,7 +1047,7 @@ struct WorkoutSummaryHeroCard: View {
                         identifier: "workout_summary_volume"
                     )
                     summaryMetric(
-                        durationIsMeasured ? "Duration" : "Estimated time", value: "\(estimatedMinutes.formatted()) min",
+                        sessionTime.label, value: sessionTime.value,
                         identifier: "workout_summary_duration"
                     )
                 }
@@ -1093,7 +1088,7 @@ struct WorkoutSummaryHeroCard: View {
             }
 
             HStack(alignment: .center, spacing: AppSpacing.compact) {
-                Text(date.formatted(date: .abbreviated, time: .shortened))
+                Text(routineName + " · " + date.formatted(date: .abbreviated, time: .shortened))
                     .appTextRole(.secondary)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1140,108 +1135,48 @@ struct WorkoutSummaryHeroCard: View {
 }
 
 private struct SessionExerciseBreakdownCard: View {
+    @AppStorage(BodyUnits.preferenceKey) private var useMetric = BodyUnits.prefersMetric()
     let exercises: [CompletedExercise]
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(
-                title: "Session Breakdown",
-                subtitle: "\(exercises.count) exercises completed"
-            )
-
-            VStack(spacing: 0) {
-                ForEach(Array(exercises.prefix(8).enumerated()), id: \.element.id) { index, exercise in
-                    SessionExerciseRow(exercise: exercise)
-
-                    if index < min(exercises.count, 8) - 1 {
-                        Divider()
-                            .padding(.leading, 64)
+            Text("Recorded sets").appTextRole(.sectionTitle)
+            ForEach(exercises) { exercise in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(exercise.exerciseName).appTextRole(.control).foregroundStyle(AppPalette.text)
+                    if exercise.exercise.type == .strength, let meaning = exercise.exercise.loadEquipment?.loadingMeaning, meaning != .asLogged {
+                        Text(meaning.title).appTextRole(.caption).foregroundStyle(.secondary)
+                    }
+                    if exercise.sets.isEmpty { Text("No recorded sets").appTextRole(.secondary).foregroundStyle(.secondary) }
+                    ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(set.resolvedSetType == .normal ? "Set \(index + 1)" : "Set \(index + 1) · \(set.resolvedSetType.rawValue.capitalized)")
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: AppSpacing.compact)
+                            Text(measurement(set, exercise: exercise)).monospacedDigit()
+                        }
+                        .appTextRole(.body)
+                        .accessibilityElement(children: .combine)
                     }
                 }
-
-                if exercises.count > 8 {
-                    Text("+\(exercises.count - 8) more")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(AppSpacing.row)
-                }
+                Divider()
             }
-            .appSurface(.quiet, padding: 0)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workout_summary_breakdown")
     }
-}
 
-private struct SessionExerciseRow: View {
-    let exercise: CompletedExercise
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var volume: Double {
-        exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
-    }
-
-    private var bestSetText: String {
-        switch exercise.exercise.type {
-        case .strength:
-            guard let bestSet = exercise.sets.max(by: { lhs, rhs in
-                (lhs.weight * Double(lhs.reps)) < (rhs.weight * Double(rhs.reps))
-            }) else { return "No sets" }
-            return "\(String(format: "%g", bestSet.weight)) lb x \(bestSet.reps)"
-
-        case .cardio:
-            let totalDistance = exercise.sets.reduce(0) { $0 + ($1.distance ?? 0) }
-            let totalMinutes = exercise.sets.reduce(0) { $0 + (($1.durationInSeconds ?? 0) / 60) }
-            if totalDistance > 0 && totalMinutes > 0 {
-                return "\(String(format: "%.1f", totalDistance)) mi in \(totalMinutes) min"
-            }
-            if totalMinutes > 0 {
-                return "\(totalMinutes) min"
-            }
-            return "\(exercise.sets.count) sets"
-
-        case .flexibility:
-            let totalSeconds = exercise.sets.reduce(0) { $0 + ($1.durationInSeconds ?? 0) }
-            return totalSeconds > 0 ? "\(totalSeconds) sec" : "\(exercise.sets.count) sets"
+    private func measurement(_ set: CompletedSet, exercise: CompletedExercise) -> String {
+        if exercise.exercise.type == .strength {
+            let unit = exercise.exercise.loadEquipment?.unit ?? .lb
+            if exercise.exercise.loadEquipment?.loadingMeaning == .bodyweightOnly { return "\(set.reps) reps" }
+            let weight = unit.displayWeight(set.weight).formatted(.number.precision(.fractionLength(0...2)))
+            return "\(weight) \(unit.rawValue) × \(set.reps)"
         }
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: AppSpacing.row) {
-            Text(ExerciseEmojiMapper.getEmoji(for: exercise.exerciseName))
-                .font(.system(size: 26))
-                .fixedSize()
-                .frame(width: 40, height: 40)
-                .background(
-                    AppPalette.canvas,
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                )
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(exercise.exerciseName)
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("\(exercise.sets.count) sets · \(bestSetText)")
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if volume > 0 {
-                    Text("\(Int(volume).formatted()) lb volume")
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, AppSpacing.group)
-        .padding(.vertical, AppSpacing.row)
-        .accessibilityElement(children: .combine)
+        let distance = set.distance.map { RunFormat.distanceText(meters: $0 * RunFormat.metersPerMile, metric: useMetric) }
+        let time = set.durationInSeconds.map { Duration.seconds($0).formattedWorkoutTime }
+        let parts = [distance, time].compactMap { $0 }
+        return parts.isEmpty ? "Completed" : parts.joined(separator: " · ")
     }
 }
 

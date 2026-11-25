@@ -53,7 +53,7 @@ struct WeekInMotionView: View {
                     summary: motion.trainingSummary,
                     progress: nil,
                     icon: "figure.mixed.cardio",
-                    color: .brandPrimary,
+                    color: AppPalette.effort,
                     isLast: false
                 )
                 evidenceRow(
@@ -66,14 +66,16 @@ struct WeekInMotionView: View {
                     color: .accentProtein,
                     isLast: false
                 )
-                evidenceRow(
-                    title: "Recovery timing",
-                    summary: motion.recoverySummary,
-                    progress: motion.recoveryProgress,
-                    icon: "bolt.heart.fill",
-                    color: .accentCarbs,
-                    isLast: false
-                )
+                if motion.observation.kind != .recovery {
+                    evidenceRow(
+                        title: "Recovery timing",
+                        summary: motion.recoverySummary,
+                        progress: motion.recoveryProgress,
+                        icon: "bolt.heart.fill",
+                        color: AppPalette.recovery,
+                        isLast: false
+                    )
+                }
                 evidenceRow(
                     title: "Trust coverage",
                     summary: motion.trustSummary,
@@ -323,6 +325,19 @@ struct WeekInMotionView: View {
                     .appFont(size: 16, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                if motion.observation.kind == .recovery {
+                    if recap.recoveryFuelPendingRuns > 0 {
+                        Text("\(recap.recoveryFuelPendingRuns) recovery windows still open").appTextRole(.secondary)
+                    }
+                    let days = motion.days.filter { $0.runCount > 0 }
+                    if !days.isEmpty {
+                        Menu("View running days") {
+                            ForEach(days, id: \.date) { day in
+                                Button(day.date.formatted(date: .abbreviated, time: .omitted)) { selectedDay = WeekInMotionDaySelection(day: day) }
+                            }
+                        }.foregroundStyle(AppPalette.brandText)
+                    }
+                }
                 Text(motion.observation.basis)
                     .appFont(size: 11, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
@@ -332,7 +347,7 @@ struct WeekInMotionView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("week_in_motion_observation")
     }
 

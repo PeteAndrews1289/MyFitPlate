@@ -9,6 +9,7 @@ public enum AppDataFreshnessState: CaseIterable, Equatable, Sendable {
 
 /// A shared, deterministic interpretation of when synchronized data should still be trusted.
 public struct AppDataFreshness: Equatable, Sendable {
+    public static let defaultStaleAfter: TimeInterval = 2 * 60 * 60
     public let state: AppDataFreshnessState
     public let updatedAt: Date?
     public let age: TimeInterval?
@@ -17,7 +18,7 @@ public struct AppDataFreshness: Equatable, Sendable {
         updatedAt: Date?,
         now: Date = Date(),
         currentFor: TimeInterval = 15 * 60,
-        staleAfter: TimeInterval = 2 * 60 * 60
+        staleAfter: TimeInterval = AppDataFreshness.defaultStaleAfter
     ) {
         self.updatedAt = updatedAt
 

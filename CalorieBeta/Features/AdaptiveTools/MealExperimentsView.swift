@@ -34,6 +34,7 @@ struct MealExperimentConfirmation: View {
 }
 
 struct MealExperimentsView: View {
+    @AppStorage("useMetricBodyUnits") private var useMetric = Locale.current.measurementSystem != .us
     var openCheckIn = false
     var preferredSessionID: String?
     var reminderTarget: ReminderTarget?
@@ -282,7 +283,7 @@ struct MealExperimentsView: View {
                         if let observation = trial.observation {
                             Text("\(observation.sessionDate.formatted(date: .abbreviated, time: .omitted)) · Energy \(observation.energy)/5 · Comfort \(observation.comfort)/5 · \(observation.workingSets) working sets")
                                 .appTextRole(.secondary)
-                            Text("Logged volume: \(Int(observation.volume.rounded()).formatted()) lb × reps")
+                            Text("Logged volume · " + BodyUnits.weightString(lbs: observation.volume, metric: useMetric, decimals: 0) + " × reps")
                                 .appTextRole(.secondary).foregroundStyle(.secondary)
                             if !observation.confounders.isEmpty {
                                 Text(observation.confounders.joined(separator: " · "))
@@ -297,7 +298,7 @@ struct MealExperimentsView: View {
                             if let history = trial.observationHistory, !history.isEmpty {
                                 DisclosureGroup("Earlier check-ins") {
                                     ForEach(Array(history.enumerated()), id: \.offset) { _, value in
-                                        Text("Energy \(value.energy)/5 · Comfort \(value.comfort)/5 · \(value.minutesBefore) minutes before")
+                                        Text("\((value.recordedAt ?? value.sessionDate).formatted(date: .abbreviated, time: .omitted)) · Energy \(value.energy)/5 · Comfort \(value.comfort)/5 · \(value.minutesBefore) minutes before")
                                             .appTextRole(.secondary)
                                     }
                                 }

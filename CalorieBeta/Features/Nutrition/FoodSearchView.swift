@@ -943,6 +943,7 @@ struct FoodSearchView: View {
               systemImage: viewModel.lastLogSucceeded ? "checkmark.circle" : "exclamationmark.triangle")
             .appFont(size: 13, weight: .medium).fixedSize(horizontal: false, vertical: true)
             .accessibilityLabel(message)
+            .accessibilityIdentifier("food_search_log_result")
         if viewModel.canUndoQuickLog && dailyLogService.canUndoDiaryChange {
             Button(viewModel.lastLogSucceeded ? "Undo" : "Retry Undo", action: viewModel.undoQuickLog)
                 .appFont(size: 17, weight: .semibold)

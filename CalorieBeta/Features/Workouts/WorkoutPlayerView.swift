@@ -40,7 +40,7 @@ struct WorkoutPlayerView: View {
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
 
-    @State private var routine: WorkoutRoutine
+    @StateObject private var routine: WorkoutRoutine
     @StateObject private var restTimer = RestTimer()
     @StateObject private var totalWorkoutTimer: TotalWorkoutTimer
 
@@ -92,6 +92,7 @@ struct WorkoutPlayerView: View {
     @State private var shouldApplyLegacyProgramChoice = false
     @State private var savedSessionNeedsCompletion = false
     @State private var resumedSession = false
+    private let requiredSessionID: String?
     private let ownerID: String?
     private let freezesReviewedSetup: Bool
     private let draftStore = WorkoutDraftStore()
@@ -232,9 +233,10 @@ struct WorkoutPlayerView: View {
         return routine.exercises.first(where: { $0.id == exerciseID })?.name
     }
 
-    init(routine: WorkoutRoutine, programContext: WorkoutProgramSessionContext? = nil, initialSessionEdit: WorkoutSessionEditReceipt? = nil, freezesReviewedSetup: Bool = false, onWorkoutComplete: @escaping () -> Void) {
-        // Guarantee a fresh workout by deep copying the template and resetting all completed states.
-        let activeRoutine = routine.deepCopy() ?? routine
+    init(routine: WorkoutRoutine, programContext: WorkoutProgramSessionContext? = nil, initialSessionEdit: WorkoutSessionEditReceipt? = nil, freezesReviewedSetup: Bool = false, requiredSessionID: String? = nil, onWorkoutComplete: @escaping () -> Void) {
+        // The exercise and set arrays have value semantics. Reset only this session's copy.
+        let activeRoutine = WorkoutRoutine(id: routine.id, userID: routine.userID, name: routine.name,
+                                          dateCreated: routine.dateCreated, exercises: routine.exercises, notes: routine.notes)
 
         var acceptedInitialEdit: WorkoutSessionEditReceipt?
         if let initialSessionEdit, let adjusted = try? WorkoutSessionAdaptationRules.applying(initialSessionEdit, to: activeRoutine.exercises) {
@@ -254,11 +256,12 @@ struct WorkoutPlayerView: View {
             }
         }
 
-        _routine = State(initialValue: activeRoutine)
+        _routine = StateObject(wrappedValue: activeRoutine)
         var initialDraft = WorkoutSessionDraft(routine: activeRoutine, programContext: programContext)
         if let acceptedInitialEdit { initialDraft.sessionEdits = [acceptedInitialEdit] }
         _draft = State(initialValue: initialDraft)
         ownerID = DIContainer.shared.authService.currentUserID
+        self.requiredSessionID = requiredSessionID
         self.freezesReviewedSetup = freezesReviewedSetup
         _totalWorkoutTimer = StateObject(wrappedValue: TotalWorkoutTimer(routineId: activeRoutine.id))
         self.onWorkoutComplete = onWorkoutComplete
@@ -275,8 +278,10 @@ struct WorkoutPlayerView: View {
                     if let exercise = parkedExercises.first {
                         Button("Return to " + exercise.name) { setExerciseParked(false, id: exercise.id) }
                     }
-                    Button(completedSetCount == 0 ? "Close Without Logging" : "Finish Anyway", role: .destructive) {
-                        completeWorkout()
+                    if completedSetCount == 0 && draft.completion == nil {
+                        Button("Close Without Logging", role: .destructive, action: closeWorkout)
+                    } else {
+                        Button("Finish Anyway", role: .destructive, action: completeWorkout)
                     }
                     Button("Keep Training", role: .cancel) {}
                 } message: {
@@ -294,7 +299,7 @@ struct WorkoutPlayerView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Save & Leave") {
-                        guard persistDraft() else { return }
+                        guard persistDraft() != nil else { return }
                         totalWorkoutTimer.pause()
                         hasLeftSession = true
                         dismiss()
@@ -392,6 +397,7 @@ struct WorkoutPlayerView: View {
                 }
             }
         }
+        .visibleActivity(.activeWorkout, owner: ownerID, sessionID: didStartSession && !hasLeftSession ? draft.sessionID : nil)
         .onAppear(perform: startSession)
         .onDisappear {
             if DIContainer.shared.authService.currentUserID != ownerID {
@@ -717,6 +723,13 @@ struct WorkoutPlayerView: View {
         .disabled(draft.completion != nil)
     }
 
+    private var sessionOrigin: String? {
+        if draft.programLinkDecision == .standalone { return "Standalone workout" }
+        guard let context = draft.programContext else { return nil }
+        let program = workoutService.userPrograms.first { $0.id == context.programID && $0.userID == DIContainer.shared.authService.currentUserID }
+        return (program?.name ?? "Program") + " · Session \(context.slotIndex + 1)"
+    }
+
     @ViewBuilder
     private func sessionHeader(_ proxy: ScrollViewProxy) -> some View {
         if setInputFocus != nil && !dynamicTypeSize.isAccessibilitySize {
@@ -742,6 +755,7 @@ struct WorkoutPlayerView: View {
         } else {
         WorkoutSessionHeaderCard(
             routineName: routine.name,
+            sessionOrigin: sessionOrigin,
             elapsedTime: totalWorkoutTimer.formattedTime(),
             restTime: restTimer.timeRemaining > 0 ? restTimer.formattedTime() : nil,
             completedSets: completedSetCount,
@@ -868,14 +882,8 @@ struct WorkoutPlayerView: View {
             showingLegacyProgramReview = true
             return
         }
-        draft.routine = routine
-        draft.selectedSetID = selectedSetID
-        draft.elapsed = totalWorkoutTimer.totalTimeElapsed
-        guard draft.prepareCompletion(weightPounds: goalSettings.weight) else {
-            closeWorkout()
-            return
-        }
-        guard persistDraft(), let log = draft.completion, let exercise = draft.diaryExercise else { return }
+        guard let prepared = persistDraft(preparingCompletion: true),
+              let log = prepared.completion, let exercise = prepared.diaryExercise else { return }
         isSaving = true
         saveMessage = nil
         Task { @MainActor in
@@ -999,14 +1007,25 @@ struct WorkoutPlayerView: View {
     private func startSession() {
         guard !didStartSession, let ownerID else { return }
         do {
-            if let saved = try draftStore.load(userID: ownerID) {
+            let existing = try draftStore.load(userID: ownerID)
+            if let requiredSessionID, existing?.sessionID != requiredSessionID || DIContainer.shared.authService.currentUserID != ownerID {
+                dismiss()
+                return
+            }
+            if let saved = existing {
                 guard saved.routine.id == routine.id else {
                     savedSessionNeedsCompletion = saved.completion != nil
                     showingExistingSession = true
                     return
                 }
                 draft = saved
-                routine = saved.routine
+                // The template and draft share an ID even when their sets differ.
+                // Restore the saved contents into the player's observed session object.
+                routine.name = saved.routine.name
+                routine.userID = saved.routine.userID
+                routine.dateCreated = saved.routine.dateCreated
+                routine.notes = saved.routine.notes
+                routine.exercises = saved.routine.exercises
                 if let id = saved.selectedSetID, routine.exercises.contains(where: { $0.sets.contains { $0.id == id && !$0.isCompleted && $0.isDeferred != true } }) { selectedSetID = id }
                 resumedSession = true
                 didStartSession = true
@@ -1015,11 +1034,11 @@ struct WorkoutPlayerView: View {
                 LiveActivityManager.shared.startWorkout(routineName: routine.name, sessionID: draft.sessionID,
                                                        workoutStartTime: totalWorkoutTimer.activityStartTime)
                 restTimer.restore(saved.completion == nil ? saved.rest : nil, sessionID: draft.sessionID)
-                persistDraft()
                 return
             }
             beginFreshSession()
         } catch {
+            if requiredSessionID != nil { dismiss(); return }
             saveMessage = "Your previous workout draft could not be read. It has been kept on this device."
             showingExistingSession = true
         }
@@ -1239,17 +1258,34 @@ struct WorkoutPlayerView: View {
     }
 
     @discardableResult
-    private func persistDraft(exercises: [RoutineExercise]? = nil) -> Bool {
+    private func persistDraft(exercises: [RoutineExercise]? = nil, preparingCompletion: Bool = false) -> WorkoutSessionDraft? {
         guard didStartSession, !hasLeftSession, let ownerID,
-              DIContainer.shared.authService.currentUserID == ownerID else { return false }
-        guard let copy = routine.deepCopy() else { return false }
+              DIContainer.shared.authService.currentUserID == ownerID else { return nil }
+        guard let copy = routine.deepCopy() else {
+            saveMessage = "Couldn’t copy these sets for saving. Keep this workout open and try again."
+            return nil
+        }
         if let exercises { copy.exercises = exercises }
-        draft.routine = copy
-        draft.selectedSetID = selectedSetID
-        draft.elapsed = totalWorkoutTimer.totalTimeElapsed
-        draft.rest = draft.completion == nil ? restTimer.state : nil
-        draft.updatedAt = Date()
-        do { try draftStore.save(draft, userID: ownerID); return true } catch { saveMessage = "Could not save a recovery copy on this device. Keep this workout open and try again."; return false }
+        // Routines compare by ID. Assemble a single snapshot from the player's actual
+        // sets before publishing it, so a same-ID edit cannot be skipped by SwiftUI.
+        var snapshot = draft
+        snapshot.routine = copy
+        snapshot.selectedSetID = selectedSetID
+        snapshot.elapsed = totalWorkoutTimer.totalTimeElapsed
+        if preparingCompletion, !snapshot.prepareCompletion(weightPounds: goalSettings.weight) {
+            saveMessage = "Couldn’t prepare the completed sets. Your workout is still open."
+            return nil
+        }
+        snapshot.rest = snapshot.completion == nil ? restTimer.state : nil
+        snapshot.updatedAt = Date()
+        do {
+            try draftStore.save(snapshot, userID: ownerID)
+            draft = snapshot
+            return snapshot
+        } catch {
+            saveMessage = "Could not save a recovery copy on this device. Keep this workout open and try again."
+            return nil
+        }
     }
 
     private func notifyWorkoutCompleteIfNeeded() {

@@ -250,6 +250,52 @@ final class WaveZeroCompletionUITests: XCTestCase {
     }
 
     @MainActor
+    func testWidgetRefreshReturnsFromYesterdayToTodaysDiary() throws {
+        let app = launch("home")
+        let previous = app.buttons["home_diary_previous"]
+        XCTAssertTrue(previous.waitForExistence(timeout: 10))
+        previous.tap()
+        let calendar = app.buttons["home_diary_calendar"]
+        let historical = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Historical day"), object: calendar)
+        XCTAssertEqual(XCTWaiter.wait(for: [historical], timeout: 10), .completed)
+        app.open(try XCTUnwrap(URL(string: "myfitplate://today")))
+        let today = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Today"), object: calendar)
+        XCTAssertEqual(XCTWaiter.wait(for: [today], timeout: 10), .completed)
+        XCTAssertFalse(app.buttons["home_diary_next"].isEnabled)
+    }
+
+    @MainActor
+    func testActivityLinkOpensOnlyItsSavedWorkout() {
+        let app = launch("home", flags: ["-ui-testing-active-workout-link-fixture", "-deep-link-url", "myfitplate://active-workout?id=old-workout"])
+        XCTAssertTrue(app.staticTexts["Workout unavailable"].firstMatch.waitForExistence(timeout: 15))
+        app.terminate()
+        app.launchArguments = arguments("home", flags: ["-deep-link-url", "myfitplate://active-workout?id=qa-activity-workout"])
+        app.launch()
+        XCTAssertTrue(any(app, "workout_resumed").waitForExistence(timeout: 15), app.debugDescription)
+    }
+
+    @MainActor
+    func testRunAndFastActivityLinksReopenTheirOwnControls() {
+        let app = launch("home", flags: ["-ui-testing-active-run-link-fixture", "-ui-testing-open-run-activity"])
+        let resume = app.buttons["run_pause_resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 15), app.debugDescription)
+        XCTAssertTrue(resume.label.localizedCaseInsensitiveContains("resume"), resume.label)
+        app.terminate()
+        app.launchArguments = arguments("home", flags: ["-ui-testing-open-fast-activity"])
+        app.launch()
+        XCTAssertTrue(any(app, "fasting_active_session").waitForExistence(timeout: 15), app.debugDescription)
+    }
+
+    @MainActor
+    func testExpiredRunAndFastLinksExplainTheMissingSession() {
+        for (host, title) in [("active-run", "Run unavailable"), ("active-fast", "Fast unavailable")] {
+            let app = launch("home", flags: ["-deep-link-url", "myfitplate://" + host + "?id=closed-session"])
+            XCTAssertTrue(app.staticTexts[title].firstMatch.waitForExistence(timeout: 15))
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testUnknownDeepLinkShowsUnavailableInsteadOfSilentlyOpeningHome() {
         let app = launch("home", flags: ["-deep-link-url", "myfitplate://unshipped-destination"])
         XCTAssertTrue(any(app, "deep_link_unavailable").waitForExistence(timeout: 15))

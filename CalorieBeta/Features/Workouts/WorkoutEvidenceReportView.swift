@@ -4,6 +4,7 @@ import Charts
 
 struct WorkoutEvidenceReportView: View {
     var initialProgramID: String?
+    private let initialDates: ClosedRange<Date>?
     @EnvironmentObject private var workoutService: WorkoutService
     @State private var logs: [WorkoutSessionLog] = []
     @State private var programID = ""
@@ -20,10 +21,31 @@ struct WorkoutEvidenceReportView: View {
     @State private var updatedAt: Date?
     @State private var ownerID: String?
     @State private var evaluationDate = Date()
+    @State private var showsAllSessions = false
+    init(initialProgramID: String? = nil, initialDates: ClosedRange<Date>? = nil) {
+        self.initialProgramID = initialProgramID
+        self.initialDates = initialDates
+        if let initialDates {
+            _range = State(initialValue: -2)
+            _customStart = State(initialValue: initialDates.lowerBound)
+            _customEnd = State(initialValue: initialDates.upperBound)
+        }
+    }
+
     private var scope: WorkoutReportScope {
-        let start = range == -1 ? Calendar.current.startOfDay(for: customStart)
-            : range == 0 ? nil : Calendar.current.date(byAdding: .day, value: -range, to: evaluationDate)
-        let end = range == -1 ? Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: customEnd))?.addingTimeInterval(-0.001) : evaluationDate
+        let start: Date?
+        let end: Date?
+        switch range {
+        case -2:
+            start = initialDates?.lowerBound
+            end = initialDates?.upperBound
+        case -1:
+            start = Calendar.current.startOfDay(for: customStart)
+            end = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: customEnd))?.addingTimeInterval(-0.001)
+        default:
+            start = range == 0 ? nil : Calendar.current.date(byAdding: .day, value: 1 - range, to: Calendar.current.startOfDay(for: evaluationDate))
+            end = evaluationDate
+        }
         return WorkoutReportScope(startDate: start, endDate: end, programID: programID.isEmpty ? nil : programID,
             blockID: blockID.isEmpty ? nil : blockID, exerciseType: ExerciseType(rawValue: type), setupKey: setup.isEmpty ? nil : setup)
     }
@@ -47,25 +69,31 @@ struct WorkoutEvidenceReportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppScreenHeader(title: "Your training, explained", subtitle: "Patterns from your saved sessions.")
                 filters
                 if isLoading { ProgressView("Refreshing complete history") }
                 if let errorMessage {
                     Text(errorMessage).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
                     Button("Retry complete history") { Task { await load() } }.buttonStyle(AppActionButtonStyle(.secondary))
                 }
-                if let snapshot {
-                    summary(snapshot)
-                    if !availableSetups.isEmpty || !setup.isEmpty { trends(snapshot) }
-                    muscleSets(snapshot)
+                if updatedAt != nil, errorMessage == nil, let comparison = StrengthPeriodComparison.make(logs: logs, scope: scope, now: evaluationDate) {
+                    comparisonCard(comparison)
+                    if let snapshot {
+                        Text(snapshot.durationSummary).appTextRole(.secondary).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("report_session_duration")
+                    }
+                }
+                if updatedAt != nil, let snapshot {
+                    let sessions = selectedLogs
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        Text("Supporting sessions · \(selectedLogs.count)").appTextRole(.sectionTitle)
-                        ForEach(Array(selectedLogs.enumerated()), id: \.offset) { _, log in
+                        Text("Supporting sessions · \(sessions.count)").appTextRole(.sectionTitle)
+                        ForEach(Array(sessions.prefix(showsAllSessions ? sessions.count : 3).enumerated()), id: \.offset) { _, log in
                             let outcome = WorkoutOutcomeEvidenceRules.session(log)
                             NavigationLink(destination: WorkoutCompleteAnalyticsView(log: log)) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(log.date.formatted(date: .abbreviated, time: .shortened)).appTextRole(.control)
-                                    Text("\(WorkoutSetMath.workingSetCount(log)) working sets · \(log.programContext == nil || log.programLinkDecision == .standalone ? "Unassigned" : "Linked plan receipt")")
+                                    Text(log.displayName(routines: workoutService.userRoutines, programs: workoutService.userPrograms)).appTextRole(.control)
+                                    Text("\(log.date.formatted(date: .abbreviated, time: .shortened)) · \(WorkoutSetMath.workingSetCount(log)) working sets")
+                                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                                    Text(log.programPosition(in: workoutService.userPrograms))
                                         .appTextRole(.secondary).foregroundStyle(.secondary)
                                 }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             }.buttonStyle(.plain)
@@ -74,9 +102,9 @@ struct WorkoutEvidenceReportView: View {
                                 Text("\(outcome.substitutionExerciseIDs.count) recorded substitutions · replacement work remains separate")
                                     .appTextRole(.caption).foregroundStyle(.secondary)
                             }
-                            DisclosureGroup("Original set coverage evidence") {
+                            DisclosureGroup("Set coverage details") {
                                 Text(outcome.explanation).appTextRole(.secondary)
-                                Text("Receipt: \(outcome.sessionID)").appTextRole(.caption).textSelection(.enabled)
+                                Text("Session ID · \(outcome.sessionID)").appTextRole(.caption).textSelection(.enabled)
                                 if let slot = outcome.slotIndex, !outcome.isUnassigned {
                                     Text("Program position \(slot + 1) · frozen block \(outcome.blockID ?? "not recorded")")
                                         .appTextRole(.caption).foregroundStyle(.secondary)
@@ -84,7 +112,16 @@ struct WorkoutEvidenceReportView: View {
                             }.buttonStyle(AppListButtonStyle()).frame(minHeight: 44)
                             Divider()
                         }
+                        if sessions.count > 3 {
+                            Button(showsAllSessions ? "Show latest three" : "Show all \(sessions.count) sessions") {
+                                showsAllSessions.toggle()
+                            }
+                            .buttonStyle(.plain).foregroundStyle(AppPalette.brandText).frame(minHeight: 44)
+                        }
                     }.appSurface(.quiet)
+                    summary(snapshot)
+                    if !availableSetups.isEmpty || !setup.isEmpty { trends(snapshot) }
+                    muscleSets(snapshot)
                     if let document = outcomeDocument, let data = try? JSONEncoder().encode(document), let text = String(data: data, encoding: .utf8) {
                         ShareLink("Share reproducible report snapshot", item: text).frame(minHeight: 44)
                     }
@@ -100,7 +137,15 @@ struct WorkoutEvidenceReportView: View {
     }
     private var filters: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            Picker("Period", selection: $range) { Text("30 days").tag(30); Text("90 days").tag(90); Text("All").tag(0); Text("Custom").tag(-1) }
+            Picker("Period", selection: $range) {
+                if let initialDates {
+                    Text((initialDates.lowerBound..<initialDates.upperBound).formatted(.interval.year().month(.abbreviated).day())).tag(-2)
+                }
+                Text("30 days").tag(30)
+                Text("90 days").tag(90)
+                Text("All").tag(0)
+                Text("Custom").tag(-1)
+            }
                 .accessibilityIdentifier("report_period")
             if range == -1 { DatePicker("From", selection: $customStart, displayedComponents: .date); DatePicker("Through", selection: $customEnd, in: customStart..., displayedComponents: .date) }
             DisclosureGroup {
@@ -116,18 +161,54 @@ struct WorkoutEvidenceReportView: View {
             .tint(AppPalette.text)
         }.appSurface(.quiet)
     }
+    private func comparisonCard(_ comparison: StrengthPeriodComparison) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text("Strength comparison").appTextRole(.sectionTitle)
+            Grid(alignment: .leading, horizontalSpacing: AppSpacing.group, verticalSpacing: AppSpacing.row) {
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    Text("Working sets")
+                    Text("Training days")
+                }.appTextRole(.caption).foregroundStyle(.secondary)
+                periodRow("Selected", comparison.current)
+                Divider()
+                periodRow("Previous", comparison.previous)
+            }
+            if comparison.programMixChanged || comparison.exerciseMixChanged {
+                Text(comparison.programMixChanged ? "The linked programs differ between these periods." : "The exercise or equipment mix differs between these periods.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
+            if comparison.includesPartialDay {
+                Text("Through " + evaluationDate.formatted(date: .omitted, time: .shortened) + " on the last day of each period.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
+            if comparison.current.workingSets == 0 || comparison.previous.workingSets == 0 {
+                Text("Only saved strength sessions with working sets count here.").appTextRole(.caption).foregroundStyle(.secondary)
+            }
+        }.appSurface(.quiet).accessibilityIdentifier("strength_period_comparison")
+    }
+
+    private func periodRow(_ label: String, _ period: StrengthPeriodComparison.Period) -> some View {
+        GridRow {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).appTextRole(.control)
+                Text((period.dates.lowerBound..<period.dates.upperBound).formatted(.interval.year().month(.abbreviated).day()))
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Text(period.workingSets.formatted()).appTextRole(.sectionTitle).monospacedDigit()
+            Text(period.trainingDays.formatted()).appTextRole(.sectionTitle).monospacedDigit()
+        }
+    }
+
     private func summary(_ snapshot: WorkoutEvidenceSnapshot) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             Text(snapshot.headline).appTextRole(.sectionTitle)
-            Text("\(Int(snapshot.durationSeconds / 60)) recorded session minutes · effort on \(snapshot.effortSets)/\(snapshot.workingSets) working sets")
-                .appTextRole(.secondary)
+            if StrengthPeriodComparison.make(logs: logs, scope: scope, now: evaluationDate) == nil || errorMessage != nil {
+                Text(snapshot.durationSummary).appTextRole(.secondary).accessibilityIdentifier("report_session_duration")
+            }
             Text("Adherence & original set coverage").appTextRole(.control)
             Text("\(sessionOutcomes.filter { !$0.isUnassigned && $0.completion == .completed }.count) completed · \(sessionOutcomes.filter { !$0.isUnassigned && $0.completion == .partial }.count) partial · \(sessionOutcomes.filter { !$0.isUnassigned && $0.completion == .unknown }.count) coverage unknown · \(snapshot.unassignedSessions) unassigned receipts")
                 .appTextRole(.secondary).accessibilityIdentifier("report_outcome_summary")
-            DisclosureGroup("How coverage is counted") {
-            Text("\(snapshot.completedLinkedSlots) distinct linked positions. Coverage uses each receipt's frozen original set identities and recorded roles; it does not mean rep, load or effort targets were achieved. Legacy or missing evidence stays Unknown. Coverage is session-wide, including when a movement filter is selected.")
-                .appTextRole(.caption).foregroundStyle(.secondary)
-            }.tint(AppPalette.text).appTextRole(.secondary)
             Text("\(sessionOutcomes.filter { !$0.substitutionExerciseIDs.isEmpty }.count) receipts with substitutions · effort on \(snapshot.effortSets)/\(snapshot.workingSets) working sets. Compare performance separately below.")
                 .appTextRole(.secondary)
             if let breaks = outcomeDocument?.recordedBreaks, !breaks.isEmpty {
@@ -145,7 +226,10 @@ struct WorkoutEvidenceReportView: View {
                 Text("Plan evidence: \(review.completedSlots) completed-set positions, \(review.partialSlots) partial, \(review.unknownSlots) unknown, \(review.skippedSlots) declared skips, \(review.movedSlots) explicitly moved. \(review.totalSlots) planned positions; passed alone does not establish completion.")
                     .appTextRole(.secondary).accessibilityIdentifier("report_block_adherence")
             }
-            DisclosureGroup("How loads are compared") {
+            DisclosureGroup("How sets and loads are counted") {
+                Text("\(snapshot.completedLinkedSlots) distinct linked positions. Coverage uses each receipt's frozen original set identities and recorded roles; it does not mean rep, load or effort targets were achieved. Legacy or missing evidence stays Unknown. Coverage is session-wide, including when a movement filter is selected.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+
                 Text("External load volume stays separated by movement, implement and convention. Assistance and bodyweight are reported as sets/repetitions, not invented lifted mass. Duration is session-wide even when a movement filter is selected.")
                     .appTextRole(.caption).foregroundStyle(.secondary)
             }.tint(AppPalette.text).appTextRole(.secondary)

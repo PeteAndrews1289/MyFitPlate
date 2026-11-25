@@ -34,6 +34,35 @@ final class WaveFourDailyTasksUITests: XCTestCase {
         XCTAssertTrue(app.buttons["workout_summary_edit"].waitForExistence(timeout: 8))
     }
 
+    func testStandaloneFromTrainRecordsItsSetWithoutAdvancingActivePHUL() throws {
+        let flags = ["-ui-testing-wave2-phul"]
+        let app = launch("train", reset: true, extra: flags)
+        XCTAssertTrue(app.staticTexts["Session 40 of 48"].waitForExistence(timeout: 10))
+        let saved = app.buttons["train_saved_routines"]
+        reveal(saved, app: app); saved.tap()
+        let start = app.buttons["Start Lower Hypertrophy"]
+        reveal(start, app: app); start.tap()
+        let origin = app.staticTexts["workout_session_origin"]
+        XCTAssertTrue(origin.waitForExistence(timeout: 10))
+        XCTAssertEqual(origin.label, "Standalone workout")
+        let complete = app.buttons["set_complete_wave2-set-3-0-0"]
+        reveal(complete, app: app); complete.tap()
+        app.buttons["Finish Workout"].tap(); app.buttons["Finish Anyway"].tap()
+        let done = app.buttons["workout_summary_done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 12))
+        XCTAssertTrue(app.staticTexts["workout_summary_program_status"].label.contains("Standalone workout"))
+        let sets = app.descendants(matching: .any)["workout_summary_breakdown"].firstMatch
+        XCTAssertTrue(sets.waitForExistence(timeout: 5))
+        XCTAssertLessThan(sets.frame.minY, done.frame.minY)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '×'")).firstMatch.exists)
+        try record("Standalone - saved set before recovery", app: app)
+        done.tap()
+        if !saved.isHittable, app.navigationBars.buttons.firstMatch.exists { app.navigationBars.buttons.firstMatch.tap() }
+        XCTAssertTrue(app.staticTexts["Session 40 of 48"].waitForExistence(timeout: 8))
+        app.terminate(); app.launchArguments = arguments("train", reset: false, extra: flags); app.launch()
+        XCTAssertTrue(app.staticTexts["Session 40 of 48"].waitForExistence(timeout: 10))
+    }
+
     func testSwapFromExerciseNameKeepsLoggedSetRecoversAndUndoes() {
         let fixture = ["-ui-testing-wave2-phul"]
         let app = launch("train", reset: true, extra: fixture)

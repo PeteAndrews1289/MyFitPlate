@@ -138,7 +138,8 @@ final class RepeatLoggingUITests: XCTestCase {
         let older = app.buttons["review_day_detail_0"]
         XCTAssertTrue(older.waitForExistence(timeout: 5)); reveal(older, in: app); older.tap()
         XCTAssertTrue(app.navigationBars["Review this day"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["No food is recorded for this day. That does not establish zero intake."].exists)
+        XCTAssertTrue(app.staticTexts["diary_review_empty"].label.contains("Intake is unknown"))
+        XCTAssertFalse(app.staticTexts["diary_review_totals"].exists)
         app.navigationBars["Review this day"].buttons.firstMatch.tap()
         reveal(app.staticTexts["review_days_scope"], in: app)
         XCTAssertEqual(app.staticTexts["review_days_scope"].label, prior)

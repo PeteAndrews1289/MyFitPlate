@@ -49,7 +49,7 @@ final class CookingDesignUITests: XCTestCase {
         XCTAssertNotEqual(timer.value as? String, "00:00")
         let pause = app.buttons["cooking_featured_timer_toggle"]
         XCTAssertTrue(pause.isHittable)
-        XCTAssertGreaterThanOrEqual(pause.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(pause.frame.height + 0.000001, 44, "Ignore floating-point noise in the converted screen coordinates.")
         XCTAssertEqual(pause.value as? String, "Running")
         pause.tap()
         XCTAssertEqual(pause.value as? String, "Paused")

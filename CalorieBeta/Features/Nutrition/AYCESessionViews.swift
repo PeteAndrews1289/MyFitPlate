@@ -624,7 +624,7 @@ struct AYCEFlowView: View {
             }
         }
         .background(AppPalette.canvas.ignoresSafeArea())
-        .tint(AppPalette.brand)
+        .tint(AppPalette.brandText)
         .interactiveDismissDisabled(manager.isSavingDiary)
         .sheet(isPresented: $showingHistory) { BuffetSessionHistoryView(sessions: manager.sessionHistory) }
         .accessibilityElement(children: .contain)
@@ -637,14 +637,14 @@ struct AYCEFlowView: View {
         return "Buffet meal"
     }
 
-    private var screenSubtitle: String {
+    private var screenSubtitle: String? {
         if manager.session?.endedAt != nil {
             return "Review the session before adding it to your diary"
         }
         if let session = manager.session {
-            return "\(session.city.name) mid-range value estimates"
+            return session.restaurantName.flatMap { $0.isEmpty ? nil : $0 }
         }
-        return manager.message ?? "Track estimated menu value as you eat"
+        return manager.message ?? "Choose a cuisine to start your first round."
     }
 }
 
@@ -1030,7 +1030,6 @@ private struct AYCELiveSessionView: View {
                         if dynamicTypeSize.isAccessibilitySize { catalogFilters(session) }
                         if !isSearching && searchText.isEmpty {
                             valueStatus(session)
-                            roundActions(session)
                             captureActions
                         }
                         if let message = manager.message {
@@ -1070,15 +1069,23 @@ private struct AYCELiveSessionView: View {
                 .safeAreaInset(edge: .top) { catalogControls(session) }
                 .safeAreaInset(edge: .bottom) {
                     AYCEBottomActionBar {
-                        Button {
-                            HapticsService.shared.playImpact(style: .medium)
-                            onEnd()
-                        } label: {
-                            Label("Review session", systemImage: "checkmark.circle.fill")
+                        let count = AYCEStableRoundRules.current(AYCEStableRoundRules.migrated(session))?.entries.count ?? 0
+                        HStack(spacing: AppSpacing.row) {
+                            Button(action: onEnd) {
+                                Text("Review meal")
+                            }
+                            .buttonStyle(AppActionButtonStyle(count > 0 ? .ghost : .primary, fillsWidth: count == 0))
+                            .disabled(session.entries.isEmpty || isPricingScan)
+                            .accessibilityIdentifier("ayce_end_button")
+                            if count > 0 {
+                                Button { manager.finishRound() } label: {
+                                    Text("Finish round · \(count) \(count == 1 ? "food" : "foods")")
+                                }
+                                .buttonStyle(AppActionButtonStyle(.primary))
+                                .disabled(isPricingScan)
+                                .accessibilityIdentifier("ayce_finish_round")
+                            }
                         }
-                        .buttonStyle(AppActionButtonStyle(.primary))
-                        .disabled(session.entries.isEmpty || isPricingScan)
-                        .accessibilityIdentifier("ayce_end_button")
                     }
                 }
                 .sheet(item: $portionItem) { item in
@@ -1130,7 +1137,7 @@ private struct AYCELiveSessionView: View {
         let round = AYCEStableRoundRules.completed(AYCEStableRoundRules.migrated(session)).count + 1
         return HStack(spacing: AppSpacing.row) {
             VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                Text("Round \(round) · \(session.entries.count) \(session.entries.count == 1 ? "food" : "foods") in your meal")
+                Text("Whole meal · \(session.entries.count) \(session.entries.count == 1 ? "food" : "foods") · Round \(round)")
                     .appTextRole(.secondary).foregroundStyle(.secondary)
                 Text("\(Int(totals.calories.rounded()).formatted()) cal · \(Int(totals.protein.rounded()).formatted()) g protein")
                     .appTextRole(.control).monospacedDigit().contentTransition(.numericText())
@@ -1138,6 +1145,10 @@ private struct AYCELiveSessionView: View {
             }
             Spacer(minLength: AppSpacing.compact)
             Menu {
+                if AYCEStableRoundRules.completed(AYCEStableRoundRules.migrated(session)).last?.entries.isEmpty == false {
+                    Button("Repeat last round", systemImage: "repeat") { roundToRepeat = session }
+                        .accessibilityIdentifier("ayce_repeat_round")
+                }
                 Button("Round history and corrections", systemImage: "clock.arrow.circlepath") { showingRoundHistory = true }
                     .accessibilityIdentifier("ayce_round_history")
                 Button("Value and Lock Screen", systemImage: "slider.horizontal.3") { showingSessionDetails = true }
@@ -1145,8 +1156,13 @@ private struct AYCELiveSessionView: View {
                     Button("Change cuisine") { manager.discard() }.disabled(isPricingScan)
                 }
             } label: {
-                Image(systemName: "ellipsis").frame(width: 44, height: 44)
-                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                HStack(spacing: AppSpacing.compact) {
+                    if round > 1 { Text("Rounds").appTextRole(.control) }
+                    Image(systemName: round > 1 ? "chevron.down" : "ellipsis")
+                }
+                .foregroundStyle(AppPalette.text).padding(.horizontal, AppSpacing.row)
+                .frame(minWidth: 44, minHeight: 44)
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
             }
             .accessibilityLabel("Buffet session options")
             .accessibilityIdentifier("ayce_session_options")
@@ -1161,6 +1177,7 @@ private struct AYCELiveSessionView: View {
         return NavigationStack {
             Form {
                 Section("Meal value") {
+                    LabeledContent("Regional menu estimates", value: session.city.name)
                     Text(AYCERules.statusLine(session: session)).appTextRole(.control)
                     Text("Est. menu value \(AYCERules.money(totals.restaurantValue)) · Paid \(AYCERules.money(session.buffetPrice))")
                     AYCEProgressRow(label: "Menu break-even", value: progress,
@@ -1179,26 +1196,6 @@ private struct AYCELiveSessionView: View {
             .navigationTitle("Session details").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingSessionDetails = false } } }
         }
-    }
-
-    private func roundActions(_ session: AYCESession) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack { finishRoundButton(session); repeatRoundButton(session) }
-            VStack(alignment: .leading) { finishRoundButton(session); repeatRoundButton(session) }
-        }
-        .appTextRole(.secondary)
-    }
-    private func finishRoundButton(_ session: AYCESession) -> some View {
-        Button("Finish round") { manager.finishRound() }
-            .buttonStyle(.bordered).frame(minHeight: 44)
-            .disabled(AYCEStableRoundRules.current(AYCEStableRoundRules.migrated(session))?.entries.isEmpty != false)
-            .accessibilityIdentifier("ayce_finish_round")
-    }
-    private func repeatRoundButton(_ session: AYCESession) -> some View {
-        Button("Repeat last round") { roundToRepeat = session }
-            .buttonStyle(.bordered).frame(minHeight: 44)
-            .disabled(AYCEStableRoundRules.completed(AYCEStableRoundRules.migrated(session)).last?.entries.isEmpty != false)
-            .accessibilityIdentifier("ayce_repeat_round")
     }
 
     private func catalogControls(_ session: AYCESession) -> some View {

@@ -648,14 +648,21 @@ struct SleepHistoryDetailView: View {
     let report: EnhancedSleepReport
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.isPresented) private var isPresented
     @State private var accountChanged = false
     @State private var routine = SleepRoutineNotes()
+    @State private var savedRoutine: SleepRoutineNotes?
+    @FocusState private var focusedNight: String?
     @State private var owner: String?
     @State private var noteError: String?
-    @State private var noteReadFailed = false
-    @State private var saved = false
+    @State private var confirmsDiscard = false
+
+    private var hasEdits: Bool {
+        savedRoutine.map { $0 != routine } ?? false
+    }
 
     var body: some View {
+        ScrollViewReader { proxy in
         List {
             Section("Recorded sleep") {
                 LabeledContent("Dates", value: report.dateRange)
@@ -665,14 +672,26 @@ struct SleepHistoryDetailView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 if let notice = report.evidenceNotice { Text(notice).foregroundStyle(.secondary) }
             }
+            if !report.nightEvidence.isEmpty {
+                Section("Sleep windows") {
+                    SleepWindowChart(report: report) { night in
+                        proxy.scrollTo(night.id, anchor: .top)
+                    }
+                }
+            }
             Section("Your routine") {
                 Toggle("Compare with a preferred sleep window", isOn: $routine.usesPreferredWindow)
+                    .disabled(savedRoutine == nil)
                 if routine.usesPreferredWindow {
                     DatePicker("Bedtime", selection: minuteBinding(\.preferredBedtimeMinutes), displayedComponents: .hourAndMinute)
                     DatePicker("Wake time", selection: minuteBinding(\.preferredWakeMinutes), displayedComponents: .hourAndMinute)
                 }
                 Text("A personal planning preference. It does not change Apple Health records or prescribe how much sleep you need.")
                     .font(.caption).foregroundStyle(.secondary)
+                if savedRoutine == nil, let noteError {
+                    Text(noteError).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                    Button("Retry loading notes", action: loadNotes)
+                }
             }
             if report.nightEvidence.isEmpty {
                 Section("Earlier report") {
@@ -681,7 +700,8 @@ struct SleepHistoryDetailView: View {
             }
             ForEach(report.nightEvidence.reversed()) { night in
                 Section("Night of \(formatDate(night.night, zone: night.timeZoneIdentifier, includesTime: false))") {
-                    LabeledContent("Recorded asleep", value: duration(night.timeAsleep))
+                    LabeledContent("Recorded asleep", value: duration(night.timeAsleep)).id(night.id)
+                        .accessibilityIdentifier("sleep_selected_night")
                     if night.timeInBed > 0 { LabeledContent("Recorded in bed", value: duration(night.timeInBed)) } else { Text("Time in bed was not reported.").foregroundStyle(.secondary) }
                     LabeledContent("Sleep episodes", value: "\(night.episodes.count)")
                     if night.daytimeEpisodeCount > 0 {
@@ -710,31 +730,43 @@ struct SleepHistoryDetailView: View {
                         }
                         Text(SleepNightEvidence.calculationVersion).font(.caption2).foregroundStyle(.secondary)
                     }
-                    TextField("Optional note for this night", text: Binding(
-                        get: { routine.nightNotes[night.id] ?? "" },
-                        set: { routine.nightNotes[night.id] = String($0.prefix(500)) }), axis: .vertical)
-                        .lineLimit(2...4)
+                    noteField(for: night.id)
                 }
             }
+        }
         }
         .appFormStyle()
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: AppSpacing.compact) {
-                if let noteError {
-                    Text(noteError).appTextRole(.caption).foregroundStyle(AppPalette.caution)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            if hasEdits {
+                VStack(spacing: AppSpacing.compact) {
+                    if let noteError {
+                        Text(noteError).appTextRole(.caption).foregroundStyle(AppPalette.caution)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Button("Save routine and notes", action: saveNotes)
+                        .buttonStyle(AppActionButtonStyle(.primary))
+                        .accessibilityIdentifier("sleep_history_save_notes")
                 }
-                Button(saved ? "Saved on this device" : "Save routine and notes") { saveNotes() }
-                    .buttonStyle(AppActionButtonStyle(.primary))
-                    .disabled(saved || noteReadFailed)
-                    .accessibilityIdentifier("sleep_history_save_notes")
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.compact)
+                .background(AppPalette.canvas)
             }
-            .padding(.horizontal, AppSpacing.screenHorizontal)
-            .padding(.vertical, AppSpacing.compact)
-            .background(AppPalette.canvas)
         }
         .navigationTitle("Sleep history").navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(hasEdits && isPresented)
+        .interactiveDismissDisabled(hasEdits)
+        .toolbar {
+            if hasEdits && isPresented {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Back", systemImage: "chevron.backward") { confirmsDiscard = true }
+                }
+            }
+        }
+        .confirmationDialog("Discard unsaved sleep changes?", isPresented: $confirmsDiscard, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sleep_history_detail")
         .opacity(accountChanged ? 0 : 1)
@@ -743,13 +775,33 @@ struct SleepHistoryDetailView: View {
         .onReceive(appState.$isUserLoggedIn) { _ in
             if let owner, owner != DIContainer.shared.authService.currentUserID { accountChanged = true; dismiss() }
         }
-        .onAppear {
-            owner = DIContainer.shared.authService.currentUserID
-            if let owner {
-                do { routine = try SleepRoutineNoteStore.load(userID: owner) } catch { noteReadFailed = true; noteError = "Saved routine notes could not be opened. Their file is kept. Reopen this view to retry." }
+        .onAppear(perform: loadNotes)
+        .onChange(of: hasEdits) { _, dirty in
+            if !dirty, savedRoutine != nil { noteError = nil }
+        }
+    }
+
+    private func noteField(for nightID: String) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.compact) {
+            TextField("Optional note for this night", text: Binding(
+                get: { routine.nightNotes[nightID] ?? "" },
+                set: { routine.nightNotes[nightID] = $0.isEmpty ? nil : String($0.prefix(500)) }), axis: .vertical)
+                .lineLimit(2...4)
+                .focused($focusedNight, equals: nightID)
+                .accessibilityIdentifier("sleep_night_note_\(nightID)")
+            if focusedNight == nightID, routine.nightNotes[nightID] != nil {
+                Button {
+                    routine.nightNotes.removeValue(forKey: nightID)
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Clear note")
+                .accessibilityIdentifier("sleep_night_clear_\(nightID)")
             }
         }
-        .onChange(of: routine) { _, _ in saved = false }
+        .disabled(savedRoutine == nil)
     }
 
     private func formatDate(_ date: Date, zone: String, includesTime: Bool) -> String {
@@ -769,15 +821,129 @@ struct SleepHistoryDetailView: View {
         (Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date())
             .formatted(date: .omitted, time: .shortened)
     }
+    private func loadNotes() {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard owner == nil || owner == userID else { accountChanged = true; dismiss(); return }
+        guard savedRoutine == nil else { return }
+        owner = userID
+        do {
+            var loaded = try SleepRoutineNoteStore.load(userID: userID)
+            loaded.nightNotes = loaded.nightNotes.filter { !$0.value.isEmpty }
+            routine = loaded
+            savedRoutine = loaded
+            noteError = nil
+        } catch {
+            noteError = "Your saved routine and notes couldn’t be opened."
+        }
+    }
+
     private func saveNotes() {
-        guard let owner else { return }
+        guard hasEdits, let owner else { return }
         do {
             try SleepRoutineNoteStore.save(routine, userID: owner, currentUserID: DIContainer.shared.authService.currentUserID)
-            noteError = nil; saved = true
+            savedRoutine = routine
+            focusedNight = nil
+            noteError = nil
+            ToastManager.shared.showToast(message: "Sleep changes saved on this device.")
         } catch { noteError = "Routine notes could not be saved. Your edits are still here." }
     }
     private func duration(_ value: Double) -> String {
         let minutes = max(0, Int((value / 60).rounded()))
         return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+    }
+}
+
+private struct SleepWindowChart: View {
+    let report: EnhancedSleepReport
+    let select: (SleepNightEvidence) -> Void
+    @Environment(\.locale) private var locale
+    @State private var page = 0
+
+    var body: some View {
+        if let first = report.nightEvidence.min(by: { $0.night < $1.night }),
+           let last = report.nightEvidence.max(by: { $0.night < $1.night }),
+           let zone = TimeZone(identifier: first.timeZoneIdentifier) {
+            let calendar = reportCalendar(zone)
+            let range = report.requestedNights ?? first.night...last.night
+            let count = (calendar.dateComponents([.day], from: calendar.startOfDay(for: range.lowerBound),
+                                                 to: calendar.startOfDay(for: range.upperBound)).day ?? 0) + 1
+            let offset = min(page, max(0, (count - 1) / 7)) * 7
+            let dates = (offset..<min(offset + 7, count)).reversed().compactMap {
+                calendar.date(byAdding: .day, value: -$0, to: calendar.startOfDay(for: range.upperBound))
+            }
+            let byDay = Dictionary(grouping: report.nightEvidence) { calendar.startOfDay(for: $0.night) }
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                if count > 7 {
+                    HStack {
+                        Button("Earlier", systemImage: "chevron.left") { page += 1 }.disabled(offset + 7 >= count)
+                        Spacer()
+                        Button("Later", systemImage: "chevron.right") { page -= 1 }.disabled(offset == 0)
+                    }.appTextRole(.secondary)
+                }
+                HStack {
+                    Color.clear.frame(width: 53, height: 1)
+                    HStack(spacing: 0) {
+                        let hours = [18, 0, 6, 12, 18]
+                        ForEach(hours.indices, id: \.self) { index in
+                            if index > 0 { Spacer(minLength: 0) }
+                            Text(clockLabel(hour: hours[index], calendar: calendar)).lineLimit(1).minimumScaleFactor(0.75)
+                        }
+                    }.appTextRole(.caption).foregroundStyle(.secondary)
+                    Color.clear.frame(width: 9, height: 1)
+                }
+                ForEach(dates, id: \.self) { date in
+                    let dateLabel = Text(date, format: Date.FormatStyle(timeZone: zone).month(.abbreviated).day())
+                        .frame(width: 53, alignment: .leading).appTextRole(.caption)
+                    if let night = byDay[date]?.first {
+                        Button { select(night) } label: {
+                            HStack {
+                                dateLabel
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(.quaternary).frame(height: 3)
+                                        ForEach(Array(night.clockSegments.enumerated()), id: \.offset) { _, part in
+                                            Capsule().fill(AppPalette.recovery)
+                                                .frame(width: max(1, geo.size.width * (part.upperBound - part.lowerBound) / 24), height: 9)
+                                                .offset(x: geo.size.width * part.lowerBound / 24)
+                                        }
+                                    }.frame(maxHeight: .infinity)
+                                }
+                                Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary).frame(width: 9)
+                            }.frame(minHeight: 36).contentShape(Rectangle())
+                        }.buttonStyle(.plain).accessibilityIdentifier("sleep_window_recorded")
+                    } else {
+                        HStack {
+                            dateLabel
+                            Text("No record").appTextRole(.caption).foregroundStyle(.secondary)
+                            Capsule().fill(.quaternary).frame(height: 2)
+                            Color.clear.frame(width: 9, height: 1)
+                        }
+                        .frame(minHeight: 36)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("sleep_window_missing")
+                    }
+                }
+                Text("Sleep window · " + zone.identifier.replacingOccurrences(of: "_", with: " "))
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func clockLabel(hour: Int, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        let usesDayPeriod = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: locale)?.contains("a") == true
+        formatter.setLocalizedDateFormatFromTemplate(usesDayPeriod ? "j" : "jm")
+        let time = calendar.date(from: DateComponents(year: 2001, month: 1, day: 15, hour: hour))
+        return time.map(formatter.string(from:)) ?? ""
+    }
+
+    private func reportCalendar(_ zone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        return calendar
     }
 }

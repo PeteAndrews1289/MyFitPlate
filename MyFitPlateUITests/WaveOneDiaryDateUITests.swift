@@ -50,7 +50,13 @@ final class WaveOneDiaryDateUITests: XCTestCase {
         app.buttons["food_portion_half"].tap()
         app.buttons["food_detail_log_action"].tap()
         XCTAssertTrue(food.waitForExistence(timeout: 8))
-        XCTAssertTrue(food.label.contains("345"), food.label)
+        let updated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "345 cal"), object: food)
+        XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 5), .completed, food.label)
+        food.tap()
+        let editedTotal = app.descendants(matching: .any)["food_detail_portion_total"].firstMatch
+        XCTAssertTrue(editedTotal.waitForExistence(timeout: 5))
+        XCTAssertTrue(editedTotal.label.contains("345 cal"), editedTotal.label)
+        app.buttons["food_detail_cancel"].tap()
         app.buttons["diary_add_Dinner"].tap()
         let meal = app.buttons["food_search_meal_menu"]
         XCTAssertTrue(meal.waitForExistence(timeout: 8))

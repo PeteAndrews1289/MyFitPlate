@@ -164,6 +164,15 @@ final class HealthKitManagerTests: XCTestCase {
         XCTAssertEqual(mockStore.executedQueries.count, 1)
     }
 
+    func testReportReadingsKeepDaysWithoutHealthSamplesMissing() {
+        let finished = expectation(description: "Empty Apple Health report")
+        manager.fetch7DayReadings(for: .restingHeartRate, options: .discreteAverage, unit: .count()) { values in
+            XCTAssertEqual(values, Array<Double?>(repeating: nil, count: 7))
+            finished.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+    }
+
     func testFetchBiologicalSex() {
         mockStore.biologicalSexResult = MockBiologicalSexObject(sex: .female)
         XCTAssertEqual(manager.fetchBiologicalSex()?.biologicalSex, .female)

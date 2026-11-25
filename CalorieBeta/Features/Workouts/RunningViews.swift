@@ -2330,19 +2330,16 @@ struct RunDetailView: View {
     private var detailScroll: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                routeHeader
                 statsSummary
                 reviewStatus
                 RunTimingSummaryCard(run: run, accessibilityPrefix: "run_detail_timing")
+                if !viewModel.splits.isEmpty { splitsCard }
                 if let laps = run.manualLaps, !laps.isEmpty { RunManualLapsCard(laps: laps, metric: useMetric) }
+                routeHeader
                 healthSyncCard
                 analysisCards
                 workoutResultSection
                 runFuelSection
-
-                if !viewModel.splits.isEmpty {
-                    splitsCard
-                }
 
                 if let comparison = viewModel.ghostPaceComparison {
                     ghostPaceCard(comparison)
@@ -2611,13 +2608,14 @@ struct RunDetailView: View {
         } catch { runReviewNotice = "The pending run review could not be read. Its saved evidence is kept unchanged." }
     }
 
-    private var comparableRunsCard: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.row) {
+    @ViewBuilder private var comparableRunsCard: some View {
+        if viewModel.comparableRuns.isEmpty {
+            Label("No comparable run in this distance range", systemImage: "chart.line.uptrend.xyaxis")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+                .accessibilityIdentifier("run_eligible_comparisons")
+        } else {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(title: "Similar runs", subtitle: "Earlier \(run.isIndoor ? "indoor" : "outdoor") runs within 20% of this distance, with the same session type.")
-            if viewModel.comparableRuns.isEmpty {
-                Text("No eligible comparison yet. Your next similar run will have this one as a reference.")
-                    .appTextRole(.secondary).foregroundStyle(.secondary)
-            } else {
                 ForEach(Array(viewModel.comparableRuns.prefix(3))) { previous in
                     NavigationLink {
                         RunDetailView(run: previous)
@@ -2631,8 +2629,8 @@ struct RunDetailView: View {
                 }
                 Text("\(viewModel.comparableRuns.count) eligible runs. Routes, weather and effort are not matched; these are observations, not a fitness prediction.")
                     .appTextRole(.caption).foregroundStyle(.secondary)
-            }
-        }.appSurface(.quiet).accessibilityIdentifier("run_eligible_comparisons")
+            }.appSurface(.quiet).accessibilityIdentifier("run_eligible_comparisons")
+        }
     }
 
     private var importedWorkoutDraft: RunWorkoutPlan {
@@ -2869,7 +2867,7 @@ struct RunDetailView: View {
                 id: "distance",
                 label: "Distance",
                 value: RunFormat.distanceText(meters: run.distanceMeters, metric: useMetric),
-                accent: AppPalette.brand
+                accent: AppPalette.effort
             )
         ]
 
@@ -2895,7 +2893,7 @@ struct RunDetailView: View {
                     id: "calories",
                     label: "Calories",
                     value: "\(Int(calories.rounded()).formatted()) cal",
-                    accent: AppPalette.effort
+                    accent: AppPalette.energy
                 )
             )
         }

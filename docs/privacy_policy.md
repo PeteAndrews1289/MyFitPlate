@@ -1,6 +1,6 @@
 # MyFitPlate Privacy Policy
 
-**Effective date:** July 17, 2026
+**Effective date:** November 24, 2026
 
 MyFitPlate ("we," "our," or "us") provides nutrition, fitness, training, and wellness tools. This policy explains what information MyFitPlate handles, why it is used, when it is shared, and the choices available to you.
 
@@ -10,7 +10,7 @@ MyFitPlate ("we," "our," or "us") provides nutrition, fitness, training, and wel
 - **Nutrition and wellness information:** Food and water logs, recipes, pantry items, calorie and nutrient goals, weight history, height, age, sex or gender settings, dietary preferences, fasting entries, and journal content you choose to save.
 - **Training information:** Workout plans, exercises, sets, repetitions, effort ratings, completed sessions, runs, routes, pace, distance, heart-rate-derived summaries, and equipment such as running shoes.
 - **Apple Health information:** With your Apple Health permission, MyFitPlate may read or write the specific HealthKit categories shown in Apple's permission sheet, including workouts, activity, sleep, heart rate, body measurements, nutrition, and hydration. HealthKit information is never used for advertising or sold to data brokers.
-- **Location information:** Precise location is used only while you actively record an outdoor route. MyFitPlate does not continuously track location in the background outside an active recording.
+- **Location information:** With your permission, MyFitPlate uses precise location to record your route, distance, and pace during an outdoor run, including while the screen is locked. Starting in version 2.4, the recorder also checks GPS readiness before a run. Recording route points begins when you tap **Start run**. Closing the recorder before you start ends the GPS check.
 - **Photos, camera, microphone, and speech:** Images, audio, or transcribed text you choose to provide for food, menu, nutrition-label, or voice logging.
 - **App diagnostics and usage:** Feature interactions, a resettable app-instance/device identifier, approximate location derived by Google Analytics, device and app version, performance information, and crash diagnostics. Analytics are configured without your MyFitPlate account identifier and exclude nutrition, HealthKit, body, and workout values. Google states that the IP address used to derive approximate location is discarded before Analytics logs the data.
 

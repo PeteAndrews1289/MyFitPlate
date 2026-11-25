@@ -1,6 +1,28 @@
 import Foundation
 
 public enum MyFitPlateLinks {
+    public enum ActivityDestination: String, Sendable {
+        case workout = "active-workout"
+        case run = "active-run"
+        case fast = "active-fast"
+
+        public func url(sessionID: String?) -> URL? {
+            var link = URLComponents()
+            link.scheme = "myfitplate"
+            if let sessionID, !sessionID.isEmpty {
+                link.host = rawValue
+                link.queryItems = [URLQueryItem(name: "id", value: sessionID)]
+            } else {
+                switch self {
+                case .workout: link.host = "workouts"
+                case .run: link.host = "runs"
+                case .fast: link.host = "home"
+                }
+            }
+            return link.url
+        }
+    }
+
     public static let appStoreURLString = "https://apps.apple.com/app/myfitplate/id6740922831"
     public static let privacyPolicyURLString = "https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/privacy_policy.md"
     public static let termsOfServiceURLString = "https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/terms_of_service.md"

@@ -156,3 +156,31 @@ public final class SleepHistoryStore {
         }
     }
 }
+
+public extension SleepNightEvidence {
+    /// Positions on the report's civil clock, in hours after 18:00. Split at offset
+    /// changes so a skipped clock hour stays blank and a repeated hour can overlap.
+    var clockSegments: [Range<Double>] {
+        guard let zone = TimeZone(identifier: timeZoneIdentifier) else { return [] }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        guard let evening = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: night) else { return [] }
+        let initialOffset = zone.secondsFromGMT(for: evening)
+        func position(_ date: Date, offset: Int) -> Double {
+            min(24, max(0, (date.timeIntervalSince(evening) + Double(offset - initialOffset)) / 3600))
+        }
+        return episodes.flatMap { interval -> [Range<Double>] in
+            var parts: [Range<Double>] = []
+            var cursor = interval.start
+            while cursor < interval.end {
+                let transition = zone.nextDaylightSavingTimeTransition(after: cursor)
+                let stop = min(transition.flatMap { $0 > cursor ? $0 : nil } ?? interval.end, interval.end)
+                let offset = zone.secondsFromGMT(for: cursor)
+                let low = position(cursor, offset: offset), high = position(stop, offset: offset)
+                if high > low { parts.append(low..<high) }
+                cursor = stop
+            }
+            return parts
+        }
+    }
+}

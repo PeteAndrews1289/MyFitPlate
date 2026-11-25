@@ -78,8 +78,6 @@ struct LivingDayShareOptionsView: View {
                             Text(document.text).textSelection(.enabled).appTextRole(.secondary)
                         }.accessibilityIdentifier("livingDayShareText")
                     }
-                    Text("The preview is a frozen snapshot of this date. Export is kept in memory and cleared when this screen closes.")
-                        .appTextRole(.caption)
                 }.padding(20)
             }
             .safeAreaInset(edge: .bottom) {

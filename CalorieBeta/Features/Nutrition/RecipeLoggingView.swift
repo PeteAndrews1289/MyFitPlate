@@ -71,7 +71,7 @@ struct RecipeLoggingView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                    RecipeLoggingIdentity(name: frozenFood?.name ?? recipe.name, isSavedReview: frozenFood != nil)
+                    RecipeLoggingIdentity(name: frozenFood?.name ?? recipe.name, snapshot: frozenFood?.recipePortionSnapshot ?? (hasFrozenReview ? nil : portionSnapshot), isSavedReview: hasFrozenReview)
                     if saveSession.restoredReview && saveSession.items.isEmpty {
                         Text("This unfinished review has no portion to log.")
                             .appTextRole(.secondary).foregroundStyle(.secondary)
@@ -276,6 +276,7 @@ struct RecipeLoggingView: View {
 
 private struct RecipeLoggingIdentity: View {
     let name: String
+    let snapshot: RecipePortionSnapshot?
     let isSavedReview: Bool
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -292,7 +293,9 @@ private struct RecipeLoggingIdentity: View {
                 .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("recipe_log_title")
-            Text(isSavedReview ? "Review the saved portion and destination before logging." : "Review the meal destination and ingredient amounts before logging.")
+            let yield = snapshot?.yieldServings.map { "Makes \($0.formatted()) \($0 == 1 ? "serving" : "servings")" }
+            let weight = snapshot?.cookedBatchWeightGrams.map { "\($0.formatted()) g cooked" }
+            Text([yield, weight].compactMap { $0 }.isEmpty ? (isSavedReview ? "Saved portion" : "Choose your portion") : [yield, weight].compactMap { $0 }.joined(separator: " · "))
                 .appTextRole(dynamicTypeSize.isAccessibilitySize ? .caption : .secondary)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

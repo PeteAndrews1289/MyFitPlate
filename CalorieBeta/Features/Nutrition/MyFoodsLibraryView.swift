@@ -707,7 +707,7 @@ private struct MyFoodsLibraryRow: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(entry.item.servingSize.isEmpty ? "Serving details unavailable" : entry.item.servingSize)
+                    Text(entry.item.diaryPortionSummary)
                         .appTextRole(.secondary)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)

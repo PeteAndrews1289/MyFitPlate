@@ -178,7 +178,7 @@ struct UserProfileView: View {
                 AppMetricItem(
                     label: "Level",
                     value: "\(levelProgress.level)",
-                    accent: AppPalette.brand
+                    accent: AppPalette.text
                 ),
                 AppMetricItem(
                     label: "Points",
@@ -192,10 +192,13 @@ struct UserProfileView: View {
                 )
             ])
             if let receipt = achievementService.legacyBalanceReceipt {
-                Text(receipt.explanation)
-                    .appTextRole(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("profile_points_provenance")
+                DisclosureGroup("Points history") {
+                    Text(receipt.explanation).appTextRole(.secondary).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("profile_points_provenance")
+                }
+                .appTextRole(.control).tint(AppPalette.text)
+                .accessibilityIdentifier("profile_points_history")
             } else if let notice = achievementService.legacyBalanceNotice {
                 Text(notice).appTextRole(.caption).foregroundStyle(AppPalette.caution)
                 Button("Retry balance receipt") { achievementService.retryLegacyBalanceReceipt() }

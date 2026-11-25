@@ -35,6 +35,17 @@ final class SleepNightEvidenceTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(one.first).timeAsleep, 9 * 3600)
         XCTAssertEqual(one.first?.timeInBed, 0, "No in-bed evidence must not be invented from envelope")
     }
+    func testClockWindowsShowDSTTransitionsAndDoNotFillDaytimeGaps() throws {
+        let spring = sample("2026-03-07T23:00:00-05:00", "2026-03-08T06:00:00-04:00", .asleepCore)
+        let nap = sample("2026-03-08T13:00:00-04:00", "2026-03-08T13:30:00-04:00", .asleepCore)
+        let night = try XCTUnwrap(SleepNightEvidence.normalize([spring, nap, spring], now: date("2026-03-09T00:00:00Z"), calendar: calendar).first)
+        XCTAssertEqual(night.clockSegments, [5..<8, 9..<12, 19..<19.5])
+        let fall = sample("2026-10-31T23:00:00-04:00", "2026-11-01T06:00:00-05:00", .asleepCore)
+        let repeated = try XCTUnwrap(SleepNightEvidence.normalize([fall], now: date("2026-11-02T00:00:00Z"), calendar: calendar).first)
+        XCTAssertEqual(repeated.clockSegments, [5..<8, 7..<12])
+        XCTAssertEqual(repeated.timeAsleep, 8 * 3600)
+    }
+
     func testBoundarySplitPreservesActualTotalAcrossDistinctNights() {
         let sample = sample("2026-11-03T17:30:00-05:00", "2026-11-03T19:30:00-05:00", .asleepUnspecified)
         let nights = SleepNightEvidence.normalize([sample], now: date("2026-11-04T12:00:00Z"), calendar: calendar)

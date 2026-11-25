@@ -552,6 +552,8 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
     public var brandName: String?
     /// Original serving printed on a provider label when nutrition uses a different basis.
     public var labeledServing: String?
+    /// Whether the provider explicitly reported calories. Older records may have no evidence either way.
+    public var providerReportedCalories: Bool?
     public var barcode: String?
     public var matchedFoodID: String?
     public var createdAt: Date?

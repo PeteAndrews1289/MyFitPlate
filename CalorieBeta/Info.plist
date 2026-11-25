@@ -26,7 +26,7 @@
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>MyFitPlate saves workouts, nutrition, hydration, and body measurements you choose to record to Apple Health so your data stays synchronized.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>MyFitPlate uses your location to track your route, distance, and pace while you record a run. Location is only used during an active recording.</string>
+	<string>MyFitPlate checks GPS as you prepare for a run. After you tap Start run, it records your route, distance, and pace, even with the screen locked.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>MyFitPlate uses the microphone so you can log food by speaking while a recording is active.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

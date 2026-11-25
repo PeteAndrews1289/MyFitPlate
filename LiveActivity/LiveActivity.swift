@@ -72,6 +72,7 @@ struct WorkoutActivityWidget: Widget {
             .activityBackgroundTint(Color.black.opacity(0.8))
             .activitySystemActionForegroundColor(Color.white)
 
+            .widgetURL(MyFitPlateLinks.ActivityDestination.workout.url(sessionID: context.attributes.sessionID))
         } dynamicIsland: { context in
             // 2. Dynamic Island UI
             DynamicIsland {
@@ -151,6 +152,7 @@ struct WorkoutActivityWidget: Widget {
                 Image(systemName: context.state.isResting ? "timer" : "figure.strengthtraining.traditional")
                     .foregroundStyle(context.state.isResting ? LiveActivityPalette.recovery : LiveActivityPalette.effort)
             }
+            .widgetURL(MyFitPlateLinks.ActivityDestination.workout.url(sessionID: context.attributes.sessionID))
         }
     }
 }

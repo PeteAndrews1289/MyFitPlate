@@ -19,6 +19,10 @@ struct RunStoryPosterView: View {
     @State private var renderRequest = UUID()
     @State private var renderFailed = false
 
+    private var shareTitle: String {
+        options.showDate ? "Run · " + run.startDate.formatted(date: .abbreviated, time: .omitted) : "My run"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -64,9 +68,9 @@ struct RunStoryPosterView: View {
                     }.appTextRole(.control).appSurface(.quiet)
 
                     if let renderedImage {
-                        ShareLink(item: renderedImage, subject: Text("MyFitPlate Run Story"),
-                            message: Text(MyFitPlateLinks.shareMessage("My latest run, fueled and tracked with MyFitPlate.")),
-                            preview: SharePreview("MyFitPlate Run Story", image: renderedImage)) {
+                        ShareLink(item: renderedImage, subject: Text(shareTitle),
+                            message: Text(MyFitPlateLinks.shareMessage(shareTitle)),
+                            preview: SharePreview(Text(shareTitle), image: renderedImage)) {
                             Label("Share story image", systemImage: "square.and.arrow.up")
                         }
                         .buttonStyle(AppActionButtonStyle(.primary))
@@ -291,19 +295,28 @@ private struct RouteTraceShape: Shape {
 
 private struct RunSummaryCSV: Transferable {
     let content: String
+    let filename: String
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .commaSeparatedText) { value in Data(value.content.utf8) }
-            .suggestedFileName("run-summary.csv")
+            .suggestedFileName { $0.filename }
     }
 }
 
 struct RunSummaryExportView: View {
+    private var localRunDay: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: run.startDate)
+    }
+
     @Environment(\.dismiss) private var dismiss
     let run: Run
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppSectionHeader(title: "Export run summary", subtitle: "A CSV you can open in a spreadsheet.")
+                AppSectionHeader(title: "Export run summary", subtitle: run.startDate.formatted(date: .complete, time: .shortened))
                 Text("Includes distance in meters, active and elapsed seconds, average pace, available energy/heart-rate totals, source, and known pause/recovery timing. Unknown events stay marked unknown.")
                     .appTextRole(.secondary)
                 if run.reviewAnnotation != nil {
@@ -312,7 +325,7 @@ struct RunSummaryExportView: View {
                 }
                 Label("No route coordinates, account information or Health identifiers are included.", systemImage: "location.slash")
                     .appTextRole(.caption).foregroundStyle(.secondary)
-                ShareLink(item: RunSummaryCSV(content: RunSummaryExport.csv(run: run)), preview: SharePreview("Run summary CSV")) {
+                ShareLink(item: RunSummaryCSV(content: RunSummaryExport.csv(run: run), filename: "MyFitPlate-Run-" + localRunDay + ".csv"), preview: SharePreview(Text("Run · " + run.startDate.formatted(date: .abbreviated, time: .omitted)))) {
                     Label("Export summary.csv", systemImage: "square.and.arrow.up")
                 }.buttonStyle(AppActionButtonStyle(.primary)).accessibilityIdentifier("run_summary_export")
                 Spacer()

@@ -423,6 +423,7 @@ struct CoachingDashboardView: View {
                         icon: style.icon,
                         title: insight.title,
                         description: insight.message,
+                        evidence: insight.evidence,
                         color: style.color
                     )
                 }
@@ -626,6 +627,7 @@ private struct CoachingInsightRow: View {
     let icon: String
     let title: String
     let description: String
+    let evidence: InsightEvidenceSnapshot?
     let color: Color
 
     var body: some View {
@@ -640,6 +642,12 @@ private struct CoachingInsightRow: View {
                 Text(title)
                     .appFont(size: 16, weight: .bold)
                     .foregroundColor(.textPrimary)
+                if let evidence {
+                    let zone = TimeZone(identifier: evidence.timeZoneIdentifier) ?? .current
+                    let dates = Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: zone)
+                    Text(evidence.sourceLabel + " · " + evidence.windowStart.formatted(dates) + " – " + evidence.windowEnd.formatted(dates))
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
                 Text(description)
                     .appFont(size: 14)
                     .foregroundColor(Color(UIColor.secondaryLabel))

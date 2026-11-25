@@ -16,6 +16,14 @@ struct ReportsView: View {
 
     @State private var selectedTimeframe: ReportTimeframe = .week
     @State private var selectedFocus: ReportFocus = .nutrition
+    private struct DiaryDestination: Identifiable {
+        let day: DiaryDayContext
+        let log: DailyLog
+        var id: String { day.userID + "|" + day.dayKey }
+    }
+    @State private var diaryDestination: DiaryDestination?
+    @State private var intakeDay: Date?
+    @State private var showsProtein = false
     @State private var showsMaiaInsight = false
     @State private var customStartDate: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
     @State private var customEndDate: Date = Date()
@@ -111,18 +119,18 @@ struct ReportsView: View {
 
                     if selectedFocus == .nutrition {
                         if hasLoadedSelectedPeriod {
-                            ReportNutritionSummary(summary: viewModel.summary, period: selectedPeriodLabel)
+                            ReportNutritionSummary(summary: viewModel.summary, period: selectedPeriodLabel,
+                                calories: viewModel.calorieTrend, protein: viewModel.proteinTrend, range: selectedTrendRange,
+                                showsProtein: $showsProtein, selectedDate: $intakeDay) { date in
+                                    guard let owner = projectedOwner, owner == DIContainer.shared.authService.currentUserID,
+                                          let day = DiaryDayContext(userID: owner, date: date), !day.isFuture() else { return }
+                                    let entry = viewModel.diaryEntry(for: day) ?? DailyLog(id: day.dayKey, date: day.startOfDay, meals: [])
+                                    diaryDestination = DiaryDestination(day: day, log: entry)
+                                }
                         }
-                        TrendDashboardView(
-                            weightHistory: goalSettings.weightHistory,
-                            dateRange: selectedTrendRange,
-                            title: selectedTrendTitle,
-                            compactPresentation: true
-                        )
-                        .featureSpotlight(isActive: isActive("reports-trend"))
                     }
 
-                    contentStateView
+                    contentStateView(highlightsTrend: isActive("reports-trend"))
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.group)
@@ -146,6 +154,7 @@ struct ReportsView: View {
         .onReceive(appState.$isUserLoggedIn) { _ in
             let owner = DIContainer.shared.authService.currentUserID
             guard projectedOwner != owner else { return }
+            diaryDestination = nil; intakeDay = nil; showsProtein = false
             projectedOwner = owner; viewModel.invalidateAccountProjection()
             showingDetailedInsights = false; showingWeeklyReport = false; showsMaiaInsight = false
             guard let owner, goalSettings.isActiveAccount(owner) else { return }
@@ -161,6 +170,7 @@ struct ReportsView: View {
             }
         }
         .task { await loadWeekInMotion() }
+        .onChange(of: selectedTrendRange) { _, _ in intakeDay = nil }
         .onChange(of: selectedTimeframe) { _, _ in
             fetchDataForCurrentSelection()
         }
@@ -177,6 +187,9 @@ struct ReportsView: View {
         #if !TARGET_IS_WIDGET_EXTENSION
         .navigationDestination(isPresented: $showingDetailedInsights) {
             DetailedInsightsView(insightsService: insightsService)
+        }
+        .sheet(item: $diaryDestination) { destination in
+            NavigationStack { ReportDiaryDayView(day: destination.day, log: destination.log) }
         }
         .sheet(isPresented: $showingWeeklyReport) {
             WeeklyRecapView(initialRecap: weeklyRecapLoader.recap)
@@ -250,7 +263,7 @@ struct ReportsView: View {
         ])
     }
 
-    private var contentStateView: some View {
+    private func contentStateView(highlightsTrend: Bool) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             if viewModel.isLoading {
                 ProgressView("Loading selected dates…")
@@ -270,7 +283,7 @@ struct ReportsView: View {
                 .appSurface(.quiet)
                 .accessibilityIdentifier("reports_period_error")
             }
-            reportsContentSection
+            reportsContentSection(highlightsTrend: highlightsTrend)
         }
     }
 
@@ -284,18 +297,28 @@ struct ReportsView: View {
     }
 
     @ViewBuilder
-    private var reportsContentSection: some View {
+    private func reportsContentSection(highlightsTrend: Bool) -> some View {
         switch selectedFocus {
-        case .nutrition: AnyView(nutritionReports)
+        case .nutrition: AnyView(nutritionReports(highlightsTrend: highlightsTrend))
         case .training: AnyView(trainingReports)
         case .recovery: AnyView(recoveryReports)
         }
     }
 
-    private var nutritionReports: some View {
+    private func nutritionReports(highlightsTrend: Bool) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             if hasLoadedSelectedPeriod {
-                reportPair
+                mealDistributionDestination
+            }
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                TrendDashboardView(
+                    weightHistory: goalSettings.weightHistory,
+                    dateRange: selectedTrendRange,
+                    title: selectedTrendTitle,
+                    compactPresentation: true
+                )
+                .featureSpotlight(isActive: highlightsTrend)
+                weightDestination
             }
             #if !TARGET_IS_WIDGET_EXTENSION
             NavigationLink(destination: MetabolismDashboardView()) {
@@ -330,19 +353,21 @@ struct ReportsView: View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             ReportSectionHeader(title: "Training", subtitle: selectedPeriodLabel)
             if hasLoadedSelectedPeriod, let workoutReport = viewModel.weeklyWorkoutReport {
-                #if !TARGET_IS_WIDGET_EXTENSION
-                NavigationLink(destination: WorkoutAnalyticsView(viewModel: viewModel)) {
-                    WorkoutReportCard(report: workoutReport)
-                }
-                .buttonStyle(AnimatedCardButtonStyle())
-                .accessibilityIdentifier("reports_workout_detail")
-                #else
                 WorkoutReportCard(report: workoutReport)
-                #endif
             } else if hasLoadedSelectedPeriod {
-                ReportsMessageState(icon: "dumbbell", title: "Build your training picture",
-                    message: "Workouts recorded during these dates appear here.", color: .secondary)
+                Text("No diary workouts recorded for these dates.").appTextRole(.secondary).foregroundStyle(.secondary)
             }
+            #if !TARGET_IS_WIDGET_EXTENSION
+            NavigationLink {
+                WorkoutEvidenceReportView(initialDates: selectedTrendRange)
+            } label: {
+                AppListRow(icon: "dumbbell", iconColor: AppPalette.effort,
+                    title: "Strength performance", subtitle: "Sets, loads and muscle groups") {
+                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                }.appSurface(.quiet, padding: 0)
+            }
+            .buttonStyle(.plain).accessibilityIdentifier("reports_strength_performance")
+            #endif
             ReportSectionHeader(title: "Weekly review", subtitle: "Last 7 days · independent of the selected dates")
             weekInMotionSection
         }
@@ -352,8 +377,29 @@ struct ReportsView: View {
 
     private var recoveryReports: some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
+            ReportSectionHeader(title: "Sleep history", subtitle: selectedPeriodLabel)
+            if let report = viewModel.enhancedSleepReport {
+                let nightCount = report.dailySleepData.count
+                if nightCount > 0 {
+                    Text(Duration.seconds(report.averageTimeAsleep).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)))
+                        .appTextRole(.display).monospacedDigit()
+                    Text("Average recorded sleep · " + nightCount.formatted() + (nightCount == 1 ? " night" : " nights"))
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                }
+                NavigationLink {
+                    SleepHistoryDetailView(report: report)
+                } label: {
+                    AppListRow(icon: "moon.fill", iconColor: AppPalette.recovery,
+                        title: report.nightEvidence.isEmpty ? "Sleep history" : "Sleep windows & night details", subtitle: report.dateRange) {
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }.appSurface(.quiet, padding: 0)
+                }.buttonStyle(.plain).accessibilityIdentifier("reports_sleep_history")
+            } else if hasLoadedSelectedPeriod || viewModel.sleepHistoryNotice != nil {
+                Text(viewModel.sleepHistoryNotice ?? "No readable sleep records for the selected dates. Missing nights are not zero sleep.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+            }
             ReportSectionHeader(title: "Recovery", subtitle: "Recent evidence · independent of the selected dates")
-            if let wellnessScore = viewModel.wellnessScore {
+            if let wellnessScore = viewModel.wellnessScore, wellnessScore.hasNutrition || wellnessScore.sleepScore != nil {
                 Text("Yesterday’s fully logged food day and recent sleep are separate habit summaries. Heart-rate readings are context only.")
                     .appTextRole(.caption).foregroundStyle(.secondary)
                 WellnessScoreCardView(
@@ -361,20 +407,6 @@ struct ReportsView: View {
                     mealScore: viewModel.mealScore,
                     sleepReport: nil
                 )
-            }
-            ReportSectionHeader(title: "Sleep history", subtitle: "Selected report dates")
-            if let report = viewModel.enhancedSleepReport {
-                NavigationLink {
-                    SleepHistoryDetailView(report: report)
-                } label: {
-                    AppListRow(icon: "moon.fill", iconColor: AppPalette.recovery,
-                        title: "Inspect \(report.dailySleepData.count) recorded nights", subtitle: report.dateRange) {
-                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
-                    }.appSurface(.quiet, padding: 0)
-                }.buttonStyle(.plain).accessibilityIdentifier("reports_sleep_history")
-            } else {
-                Text(viewModel.sleepHistoryNotice ?? "No readable sleep records for the selected dates. Missing nights are not zero sleep.")
-                    .appTextRole(.secondary).foregroundStyle(.secondary)
             }
             Text("Apple Health snapshot · last 7 days")
                 .appTextRole(.secondary).foregroundStyle(.secondary)
@@ -393,27 +425,13 @@ struct ReportsView: View {
     }
 
     @ViewBuilder
-    private var reportPair: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: AppSpacing.row) {
-                mealDistributionDestination
-                weightDestination
-            }
-        } else {
-            HStack(alignment: .top, spacing: AppSpacing.row) {
-                mealDistributionDestination
-                weightDestination
-            }
-        }
-    }
-
-    @ViewBuilder
     private var mealDistributionDestination: some View {
         #if !TARGET_IS_WIDGET_EXTENSION
-        NavigationLink(destination: CalorieTrackingView(viewModel: viewModel)) {
+        NavigationLink(destination: CalorieTrackingView(viewModel: viewModel, reportDates: selectedTrendRange)) {
             mealDistributionCard
         }
         .buttonStyle(AnimatedCardButtonStyle())
+        .accessibilityIdentifier("reports_nutrition_detail")
         #else
         mealDistributionCard
         #endif
@@ -422,10 +440,11 @@ struct ReportsView: View {
     @ViewBuilder
     private var weightDestination: some View {
         #if !TARGET_IS_WIDGET_EXTENSION
-        NavigationLink(destination: WeightTrackingView()) {
+        NavigationLink(destination: WeightTrackingView(reportDates: selectedTrendRange)) {
             WeightCardReport
         }
         .buttonStyle(AnimatedCardButtonStyle())
+        .accessibilityIdentifier("reports_weight_detail")
         #else
         WeightCardReport
         #endif
@@ -438,7 +457,7 @@ struct ReportsView: View {
             Label("Custom range", systemImage: "calendar").labelStyle(.iconOnly).tag(ReportTimeframe.custom)
         }
         .pickerStyle(.segmented)
-        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 210)
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 195)
         .accessibilityIdentifier("reports_timeframe")
     }
 
@@ -494,139 +513,45 @@ struct ReportsView: View {
     }
 
     private var WeightCardReport: some View {
-        let progress = goalSettings.calculateWeightProgress().map { min(max($0, 0), 100) } ?? 0
-        let progressFraction = (progress / 100.0) * (5.0 / 6.0)
-
-        return VStack(alignment: .center, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Weight")
-                        .appTextRole(.control)
-                    Text("Current goal · all entries")
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+        let progress = goalSettings.calculateWeightProgress()
+        return HStack {
+            Text("Weight history").appTextRole(.control)
+            Spacer()
+            if let progress, progress.isFinite {
+                Text(min(max(progress, 0), 100).formatted(.number.precision(.fractionLength(0))) + "% of current goal")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
             }
-
-            ZStack {
-                Circle()
-                    .trim(from: 0, to: 5/6)
-                    .stroke(Color(UIColor.secondarySystemFill), style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                    .rotationEffect(.degrees(120))
-                    .frame(width: 105, height: 105)
-                Circle()
-                    .trim(from: 0, to: progressFraction)
-                    .stroke(progress >= 100 ? AppPalette.positive : AppPalette.effort, style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                    .rotationEffect(.degrees(120))
-                    .frame(width: 105, height: 105)
-                    .animation(AppMotion.standard, value: goalSettings.weight)
-                VStack {
-                    Text("\(Int(progress.rounded()).formatted())%")
-                        .appTextRole(.sectionTitle)
-                    Text("Progress")
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            Image(systemName: "chevron.right").appTextRole(.caption).foregroundStyle(.secondary)
         }
-        .foregroundStyle(AppPalette.text)
-        .appSurface(.quiet)
-        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 180)
+        .frame(minHeight: 44).contentShape(Rectangle())
     }
 
-    @ViewBuilder private var mealDistributionCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var mealDistributionCard: some View {
+        let meals = viewModel.mealDistributionData.filter { $0.totalCalories > 0 }.sorted {
+            if $0.totalCalories == $1.totalCalories { return $0.mealName < $1.mealName }
+            return $0.totalCalories > $1.totalCalories
+        }
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Calories")
-                        .appTextRole(.control)
-                    Text("By meal")
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Calories by meal").appTextRole(.sectionTitle)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                Image(systemName: "chevron.right").appTextRole(.caption).foregroundStyle(.secondary)
             }
-            .foregroundColor(.textPrimary)
-
-            if !viewModel.mealDistributionData.isEmpty {
-                let groupedMeals = Dictionary(grouping: viewModel.mealDistributionData, by: { $0.mealName })
-                let orderedMealNames = ["Breakfast", "Lunch", "Dinner", "Snacks"]
-
-                let processedData: [(meal: String, totalCalories: Double)] = orderedMealNames.compactMap { mealName in
-                    let totalCals = groupedMeals[mealName]?.reduce(0) { $0 + $1.totalCalories } ?? 0
-                    return totalCals > 0 ? (mealName, totalCals) : nil
-                }
-
-                let mealColors: [String: Color] = [
-                    "Breakfast": AppPalette.caution,
-                    "Lunch": AppPalette.recovery,
-                    "Dinner": AppPalette.effort,
-                    "Snacks": AppPalette.fat
-                ]
-                let totalCalories = processedData.reduce(0) { $0 + $1.totalCalories }
-
-                ZStack {
-                    Chart(processedData, id: \.meal) { dp in
-                        SectorMark(
-                            angle: .value("Calories", dp.totalCalories),
-                            innerRadius: .ratio(0.64),
-                            angularInset: 2
-                        )
-                        .foregroundStyle(mealColors[dp.meal, default: .gray])
-                        .cornerRadius(5)
-                    }
-                    .chartLegend(.hidden)
-                    .frame(height: 112)
-                    .animation(AppMotion.standard, value: processedData.map { $0.totalCalories })
-
-                    VStack(spacing: 0) {
-                        Text(Int(totalCalories.rounded()).formatted())
-                            .appTextRole(.sectionTitle)
-                            .foregroundStyle(AppPalette.text)
-                        Text("cal")
-                            .appTextRole(.caption)
-                            .foregroundStyle(.secondary)
+            if meals.isEmpty {
+                Text("No meals logged for these dates.").appTextRole(.secondary).foregroundStyle(.secondary)
+            } else {
+                Text("Average per day with food recorded").appTextRole(.secondary).foregroundStyle(.secondary)
+                ForEach(meals) { meal in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(meal.mealName).appTextRole(.body)
+                        Spacer()
+                        Text(meal.totalCalories.formatted(.number.precision(.fractionLength(0))) + " cal")
+                            .appTextRole(.control).monospacedDigit()
                     }
                 }
-
-                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 6) {
-                    ForEach(processedData, id: \.meal) { dp in
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(mealColors[dp.meal, default: .gray])
-                                .frame(width: 8, height: 8)
-                            Text(dp.meal)
-                                .appTextRole(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-            } else if !viewModel.isLoading {
-                VStack(spacing: 6) {
-                    Image(systemName: "fork.knife")
-                        .appFont(size: 24)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
-                    Text("No meals logged")
-                        .appTextRole(.secondary)
-                        .foregroundStyle(AppPalette.text)
-                    Text("Log a meal to see your daily split.")
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
             }
+            Text("View nutrition trends").appTextRole(.secondary).foregroundStyle(AppPalette.brandText)
         }
         .appSurface(.quiet)
-        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 180)
     }
 }

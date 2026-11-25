@@ -82,13 +82,16 @@ final class WaveTwoMealWorkspaceDepthUITests: XCTestCase {
         reveal(preview, app: app); preview.tap()
         let use = app.buttons["planner_use_draft"]
         XCTAssertTrue(use.waitForExistence(timeout: 15), app.debugDescription)
-        XCTAssertTrue(any(app, "planner_constraint_report").exists, app.debugDescription)
+        XCTAssertTrue(any(app, "planner_constraint_report").waitForExistence(timeout: 10), app.debugDescription)
         attach(app, "Meal workspace - saved week preview is a separate checked date review")
         let discard = app.buttons["planner_discard_draft"]
         reveal(discard, app: app); discard.tap()
         let confirm = app.buttons["Discard draft"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription); confirm.tap()
         XCTAssertTrue(use.waitForNonExistence(timeout: 10), app.debugDescription)
+        let viewMode = app.buttons["planner_view_mode"]
+        XCTAssertTrue(viewMode.waitForExistence(timeout: 5))
+        if viewMode.label == "Show selected day" { viewMode.tap() }
         let summary = any(app, "meal_plan_summary")
         reveal(summary, app: app)
         XCTAssertTrue(summary.exists, app.debugDescription)
@@ -142,6 +145,8 @@ final class WaveTwoMealWorkspaceDepthUITests: XCTestCase {
         select("Cook", app: app)
         let mode = app.segmentedControls["meal_prep_mode_picker"]
         reveal(mode, app: app); mode.buttons["Steps"].tap()
+        let allStepsControl = app.buttons["cooking_all_steps"]
+        reveal(allStepsControl, app: app); allStepsControl.tap()
         let first = app.buttons["meal_prep_step_0"], second = app.buttons["meal_prep_step_2"]
         reveal(first, app: app); XCTAssertEqual(first.value as? String, "Complete", app.debugDescription)
         reveal(second, app: app); XCTAssertEqual(second.value as? String, "Not complete", app.debugDescription)
@@ -171,6 +176,7 @@ final class WaveTwoMealWorkspaceDepthUITests: XCTestCase {
         _ = launch(flags: flags, reset: false, includesWorkspaceFixture: false, app: app)
         select("Cook", app: app)
         reveal(mode, app: app); mode.buttons["Steps"].tap()
+        reveal(allStepsControl, app: app); allStepsControl.tap()
         reveal(second, app: app); XCTAssertEqual(second.value as? String, "Complete", app.debugDescription)
         XCTAssertEqual(app.buttons["meal_prep_step_3"].value as? String, "Not complete", app.debugDescription)
         XCTAssertFalse(first.exists, app.debugDescription)
@@ -213,6 +219,7 @@ final class WaveTwoMealWorkspaceDepthUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Reusable meals"].waitForExistence(timeout: 10), app.debugDescription)
     }
     @MainActor private func openSavedWeeks(_ app: XCUIApplication) {
+        if app.buttons["planner_view_mode"].label == "Show week" { app.buttons["planner_view_mode"].tap() }
         app.buttons["meal_plan_tools"].tap()
         let library = app.buttons["Saved meal weeks"]
         XCTAssertTrue(library.waitForExistence(timeout: 5), app.debugDescription); library.tap()

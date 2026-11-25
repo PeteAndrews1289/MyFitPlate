@@ -126,6 +126,126 @@ final class SupportingDesignUITests: XCTestCase {
         }
     }
 
+    func testReportsShowPartialIntakeAndKeepDatesInStrengthDetail() {
+        let app = launch("reports")
+        let metric = app.buttons["reports_intake_metric"]
+        XCTAssertTrue(metric.waitForExistence(timeout: 15))
+        let caption = app.staticTexts["reports_intake_caption"]
+        XCTAssertGreaterThan(app.staticTexts["reports_screen_header"].frame.width, 60)
+        XCTAssertTrue(caption.label.contains("Latest logged"))
+        let chart = app.otherElements.matching(NSPredicate(format: "label == %@", "Daily recorded calories")).firstMatch
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.6)).tap()
+        XCTAssertTrue(caption.label.contains("Recorded intake"))
+        let chartDay = caption.label
+        app.buttons["reports_open_diary_day"].tap()
+        XCTAssertTrue(app.navigationBars["Food diary"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Edit in diary"].waitForExistence(timeout: 8))
+        record(app, "Chart diary day")
+        XCTAssertTrue(app.staticTexts["diary_review_totals"].label.contains("g protein"))
+        let breakfast = app.buttons["diary_toggle_Breakfast"]
+        let foodID = firstDiaryFood(in: app).identifier
+        let food = element(foodID, in: app)
+        XCTAssertTrue(food.label.contains("grams protein"))
+        XCTAssertFalse(app.buttons["diary_add_Breakfast"].exists)
+        breakfast.tap()
+        XCTAssertEqual(breakfast.value as? String, "Collapsed")
+        XCTAssertFalse(food.exists)
+        breakfast.tap()
+        XCTAssertTrue(food.waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        XCTAssertEqual(caption.label, chartDay)
+        app.buttons["Reset"].tap()
+        XCTAssertTrue(caption.label.contains("Latest logged"))
+        metric.tap()
+        app.buttons["Protein"].tap()
+        XCTAssertTrue(app.staticTexts["reports_nutrition_evidence"].label.contains("Partial days"))
+        record(app, "Reports - protein for the latest logged day")
+        app.segmentedControls["reports_focus"].buttons["Training"].tap()
+        let strength = app.buttons["reports_strength_performance"]
+        revealReportContent(strength, in: app)
+        strength.tap()
+        let period = app.buttons["report_period"]
+        XCTAssertTrue(period.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Strength comparison"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Previous"].exists)
+        record(app, "Strength period comparison")
+        let now = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: now))!
+        let end = Calendar.current.date(byAdding: DateComponents(day: 1, second: -1), to: Calendar.current.startOfDay(for: now))!
+        let expectedPeriod = (start..<end).formatted(.interval.year().month(.abbreviated).day())
+        XCTAssertTrue(period.label.contains(expectedPeriod) || period.staticTexts[expectedPeriod].exists, period.debugDescription)
+        let duration = app.staticTexts["report_session_duration"]
+        revealReportContent(duration, in: app)
+        XCTAssertEqual(duration.label, "Duration unavailable")
+        record(app, "Strength duration from untimed sessions")
+    }
+
+    func testIntakeChartOpensFullDiaryForTheSameHistoricalDay() {
+        let app = launch("reports")
+        let chart = app.otherElements.matching(NSPredicate(format: "label == %@", "Daily recorded calories")).firstMatch
+        XCTAssertTrue(chart.waitForExistence(timeout: 12))
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.6)).tap()
+        app.buttons["reports_open_diary_day"].tap()
+        let fullDate = app.staticTexts["diary_review_full_date"]
+        XCTAssertTrue(fullDate.waitForExistence(timeout: 8))
+        let dateLabel = fullDate.label
+        let reportFood = firstDiaryFood(in: app)
+        let foodID = reportFood.identifier
+        let foodLabel = reportFood.label
+        app.buttons["Edit in diary"].tap()
+        let calendar = app.buttons["home_diary_calendar"]
+        XCTAssertTrue(calendar.waitForExistence(timeout: 12))
+        XCTAssertTrue(calendar.label.contains(dateLabel))
+        XCTAssertEqual(calendar.value as? String, "Historical day")
+        app.buttons["home_diary_index"].tap()
+        app.buttons["Breakfast"].tap()
+        let diaryFood = app.buttons[foodID]
+        XCTAssertTrue(diaryFood.waitForExistence(timeout: 8))
+        XCTAssertEqual(diaryFood.label, foodLabel)
+    }
+
+    private func firstDiaryFood(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format:
+            "identifier BEGINSWITH 'diary_food_' AND NOT identifier BEGINSWITH 'diary_food_options_'")).firstMatch
+    }
+
+    func testStrengthDurationShowsHowManySessionsWereTimed() {
+        let app = launch("reports", flags: ["-ui-testing-partially-timed-workouts"])
+        let focus = app.segmentedControls["reports_focus"]
+        XCTAssertTrue(focus.waitForExistence(timeout: 10))
+        focus.buttons["Training"].tap()
+        let strength = app.buttons["reports_strength_performance"]
+        revealReportContent(strength, in: app)
+        strength.tap()
+        let duration = app.staticTexts["report_session_duration"]
+        XCTAssertTrue(duration.waitForExistence(timeout: 10))
+        revealReportContent(duration, in: app)
+        XCTAssertEqual(duration.label, "45 min recorded · 1 of 2 sessions timed")
+        record(app, "Strength duration with partial timing")
+    }
+
+    func testNutritionAndWeightOpenOnTheSameReportDates() {
+        let app = launch("reports")
+        let period = app.segmentedControls["reports_timeframe"]
+        XCTAssertTrue(period.waitForExistence(timeout: 12))
+        period.buttons["7 days"].tap()
+        let nutrition = app.buttons["reports_nutrition_detail"]
+        revealReportContent(nutrition, in: app)
+        nutrition.tap()
+        let dates = app.staticTexts["nutrition_trends_dates"]
+        XCTAssertTrue(dates.waitForExistence(timeout: 10))
+        let selected = dates.label
+        XCTAssertTrue(selected.contains(" – "))
+        app.navigationBars.buttons.firstMatch.tap()
+        let weight = app.buttons["reports_weight_detail"]
+        revealReportContent(weight, in: app)
+        weight.tap()
+        XCTAssertTrue(app.navigationBars["Weight"].waitForExistence(timeout: 8), app.debugDescription)
+        let scope = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+                                                          selected + " · ", "measurement")).firstMatch
+        XCTAssertTrue(scope.waitForExistence(timeout: 8), app.debugDescription)
+    }
+
     func testReportsSeparateSelectedPeriodFromRecentRecoveryAndWeeklyReview() {
         let app = launch("reports")
         let focus = app.segmentedControls["reports_focus"]
@@ -136,7 +256,7 @@ final class SupportingDesignUITests: XCTestCase {
         record(app, "Reports - compact trend and immediate focus")
         XCTAssertTrue(element("reports_nutrition_content", in: app).waitForExistence(timeout: 15))
         XCTAssertFalse(element("reports_recovery_content", in: app).exists)
-        let calorieDetail = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Calories, By meal,")).firstMatch
+        let calorieDetail = app.buttons["reports_nutrition_detail"]
         revealReportContent(calorieDetail, in: app)
         record(app, "Reports - nutrition focus")
 
@@ -145,7 +265,7 @@ final class SupportingDesignUITests: XCTestCase {
         XCTAssertTrue(element("reports_training_content", in: app).waitForExistence(timeout: 10))
         XCTAssertFalse(element("reports_nutrition_content", in: app).exists)
         XCTAssertTrue(app.staticTexts["Last 7 days · independent of the selected dates"].exists)
-        let workoutDetail = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Workout summary,")).firstMatch
+        let workoutDetail = app.buttons["reports_strength_performance"]
         revealReportContent(workoutDetail, in: app)
         record(app, "Reports - training and weekly scope")
 
@@ -154,10 +274,42 @@ final class SupportingDesignUITests: XCTestCase {
         XCTAssertTrue(element("reports_recovery_content", in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Recent evidence · independent of the selected dates"].exists)
         XCTAssertTrue(app.staticTexts["Apple Health snapshot · last 7 days"].exists)
+        XCTAssertFalse(app.staticTexts["Recorded habits"].exists, "A week without habit scores should show the measured Health data directly.")
         XCTAssertFalse(element("reports_training_content", in: app).exists)
         let healthMetric = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Heart rate variability,")).firstMatch
         revealReportContent(healthMetric, in: app)
         record(app, "Reports - honest recovery scope")
+    }
+
+    func testReceiptShowsAllNamedItemsBeforeEditingAndRestoresTheCorrectProduct() {
+        let app = launch("receipt-review", flags: ["-ui-testing-reset-editor-drafts"])
+        let names = ["Greek Yogurt", "Baby Spinach", "Jasmine Rice"]
+        let save = app.buttons["receipt_add_to_pantry_button"]
+        XCTAssertTrue(save.waitForExistence(timeout: 12))
+        for (index, name) in names.enumerated() {
+            let row = app.buttons["receipt_product_\(index)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            XCTAssertTrue(row.label.contains(name))
+            XCTAssertTrue(row.isHittable)
+            XCTAssertLessThan(row.frame.maxY, save.frame.minY)
+        }
+        XCTAssertFalse(app.textFields["Item name"].exists)
+        record(app, "Receipt - all three products above the pantry action")
+        app.buttons["receipt_product_1"].tap()
+        let name = app.textFields["Item name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.replaceContents(with: "Baby Spinach QA", in: app)
+        name.typeText("\n")
+        app.buttons["receipt_product_1"].tap()
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-ui-testing-reset-editor-drafts" }
+        app.launch()
+        let edited = app.buttons["receipt_product_1"]
+        XCTAssertTrue(edited.waitForExistence(timeout: 10))
+        XCTAssertTrue(edited.label.contains("Baby Spinach QA"))
+        XCTAssertTrue(app.buttons["receipt_product_0"].label.contains("Greek Yogurt"))
+        XCTAssertTrue(app.buttons["receipt_product_2"].label.contains("Jasmine Rice"))
+        XCTAssertTrue(save.isEnabled)
     }
 
     private func revealReportContent(_ target: XCUIElement, in app: XCUIApplication) {
@@ -247,7 +399,7 @@ final class SupportingDesignUITests: XCTestCase {
         reveal(focus, in: app, direction: .down)
         focus.buttons["Training"].tap()
         XCTAssertTrue(error.exists)
-        XCTAssertFalse(app.buttons["reports_workout_detail"].exists)
+        XCTAssertTrue(app.buttons["reports_strength_performance"].exists)
         XCTAssertFalse(app.staticTexts["Workout summary"].exists)
         let weeklyReview = app.staticTexts["Last 7 days · independent of the selected dates"]
         reveal(weeklyReview, in: app)

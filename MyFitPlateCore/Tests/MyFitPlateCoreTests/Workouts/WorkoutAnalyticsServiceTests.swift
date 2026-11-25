@@ -261,6 +261,22 @@ final class WorkoutAnalyticsServiceTests: XCTestCase {
         let comparison = await service.compareAgainstPrevious(currentLog: currentLog, userID: "user_123")
         XCTAssertNotNil(comparison)
         XCTAssertEqual(comparison?.volumeDiffPercent ?? 0.0, (1000.0 - 900.0) / 900.0, accuracy: 0.001)
+        XCTAssertEqual(comparison?.durationIsMeasured, false)
+    }
+
+    func testDurationComparisonRequiresAUsablePreviousTimer() async {
+        var current = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 200)])])
+        current.elapsedSeconds = 0
+        var previous = current
+        previous.id = "previous"
+        previous.date = current.date.addingTimeInterval(-86_400)
+        for seconds in [60.0, 0.0, 90_000.0] {
+            previous.elapsedSeconds = seconds
+            mockRepo.mockFetchHistoryResult = [previous]
+            let comparison = await service.compareAgainstPrevious(currentLog: current, userID: "user_123")
+            XCTAssertEqual(comparison?.durationIsMeasured, seconds == 60)
+            if seconds == 60 { XCTAssertEqual(comparison?.durationDiffPercent, -1) }
+        }
     }
 
     func testConfirmedRecordsDoNotCrossLoadingMeaningsOrNamedMachines() async {

@@ -658,15 +658,26 @@ public enum ServingNutritionCalculator {
         )
     }
 
-    public static func adjustedNutrition(base: ServingSizeOption, quantityText: String) -> AdjustedServingNutrition {
+    public static func adjustedNutrition(base: ServingSizeOption, quantityText: String, displayMassUnit: String? = nil) -> AdjustedServingNutrition {
         let quantity = safeQuantity(Double(quantityText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        return adjustedNutrition(base: base, quantityValue: quantity)
+        return adjustedNutrition(base: base, quantityValue: quantity, displayMassUnit: displayMassUnit)
     }
 
-    public static func adjustedNutrition(base: ServingSizeOption, quantityValue: Double) -> AdjustedServingNutrition {
+    public static func adjustedNutrition(base: ServingSizeOption, quantityValue: Double, displayMassUnit: String? = nil) -> AdjustedServingNutrition {
         let quantity = safeQuantity(quantityValue)
-        let unit = normalizedServingDescription(base.description)
-        let servingDescription = quantity == 1 ? unit : "\(String(format: "%g", quantity)) x \(unit)"
+        let baseUnit = normalizedServingDescription(base.description)
+        let unit: String
+        let recordedQuantity: Double
+        if let displayMassUnit, let grams = measuredGrams(in: baseUnit),
+           let amount = InventoryQuantityRules.convert(quantity * grams, from: "g", to: displayMassUnit),
+           amount.isFinite, amount > 0 {
+            unit = displayMassUnit
+            recordedQuantity = amount
+        } else {
+            unit = baseUnit
+            recordedQuantity = quantity
+        }
+        let servingDescription = recordedQuantity == 1 ? unit : "\(String(format: "%g", recordedQuantity)) x \(unit)"
         let servingWeight = (base.servingWeightGrams ?? 0) * quantity
 
         return AdjustedServingNutrition(
@@ -702,7 +713,7 @@ public enum ServingNutritionCalculator {
             vitaminK: base.vitaminK.map { $0 * quantity },
             servingDescription: servingDescription,
             servingWeightGrams: servingWeight,
-            quantityValue: quantity,
+            quantityValue: recordedQuantity,
             servingUnit: unit
         )
     }

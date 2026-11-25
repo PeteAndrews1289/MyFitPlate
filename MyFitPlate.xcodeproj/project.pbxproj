@@ -48,6 +48,7 @@
 		3B70DA74A9F6595992D1B796 /* ImageProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1848CAF90E79615BE2E987 /* ImageProcessingView.swift */; };
 		3BDBF1798F58CCE426C3DED1 /* CrashManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FA8ACE4194342C840B83C5 /* CrashManager.swift */; };
 		3D61D8BDA7E88324F40DBB0B /* SettingsSupportSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08E2530D8B1786C5B6CD31B /* SettingsSupportSection.swift */; };
+		D61124000000000000000012 /* LegalDocumentReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61124000000000000000011 /* LegalDocumentReader.swift */; };
 		3D70A48A61E380FC0217298E /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E177692C65003E9F6183CFE9 /* RunActivityAttributes.swift */; };
 		3EB09F442CC7EB7C0088C849 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3EB09F432CC7EB7C0088C849 /* FirebaseCore */; };
 		3EB2977E2CAEEDCA0093E1B9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3EB2977D2CAEEDCA0093E1B9 /* Assets.xcassets */; };
@@ -208,6 +209,8 @@
 		BE2026110300000000000204 /* ReceiptProductMatchReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2026110300000000000204 /* ReceiptProductMatchReviewView.swift */; };
 		BE2026110300000000000205 /* LoggingHabitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2026110300000000000205 /* LoggingHabitView.swift */; };
 		BE2026110300000000000300 /* WorkoutInstructionManifest.json in Resources */ = {isa = PBXBuildFile; fileRef = FE2026110300000000000300 /* WorkoutInstructionManifest.json */; };
+		D61124000000000000000032 /* terms_of_service.md in Resources */ = {isa = PBXBuildFile; fileRef = D61124000000000000000031 /* terms_of_service.md */; };
+		D61124000000000000000022 /* privacy_policy.md in Resources */ = {isa = PBXBuildFile; fileRef = D61124000000000000000021 /* privacy_policy.md */; };
 		BE2026110300000000000301 /* WorkoutDemo-bench-press.mov in Resources */ = {isa = PBXBuildFile; fileRef = FE2026110300000000000301 /* WorkoutDemo-bench-press.mov */; };
 		BE2026110300000000000302 /* WorkoutDemo-deadlift.mov in Resources */ = {isa = PBXBuildFile; fileRef = FE2026110300000000000302 /* WorkoutDemo-deadlift.mov */; };
 		BE2026110300000000000303 /* WorkoutDemo-squat.mov in Resources */ = {isa = PBXBuildFile; fileRef = FE2026110300000000000303 /* WorkoutDemo-squat.mov */; };
@@ -504,6 +507,7 @@
 		C05C9EC77D624D92FD222778 /* ProgramDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProgramDetailView.swift; sourceTree = "<group>"; };
 		C07742A9E6594EA69E96F305 /* MaiaConversationControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaiaConversationControls.swift; sourceTree = "<group>"; };
 		C08E2530D8B1786C5B6CD31B /* SettingsSupportSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsSupportSection.swift; sourceTree = "<group>"; };
+		D61124000000000000000011 /* LegalDocumentReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LegalDocumentReader.swift; sourceTree = "<group>"; };
 		C10A15D4158AE76C0E6F7530 /* UsefulMealQuestionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalorieBeta/Features/AdaptiveTools/UsefulMealQuestionCard.swift; sourceTree = SOURCE_ROOT; };
 		C1E1EB112828BB51ADA9159E /* RestaurantValueRadarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestaurantValueRadarView.swift; sourceTree = "<group>"; };
 		C1E1EB142828BB51ADA9159E /* CelebrationOverlayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CelebrationOverlayView.swift; sourceTree = "<group>"; };
@@ -590,6 +594,8 @@
 		FE2026110300000000000204 /* ReceiptProductMatchReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptProductMatchReviewView.swift; sourceTree = "<group>"; };
 		FE2026110300000000000205 /* LoggingHabitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggingHabitView.swift; sourceTree = "<group>"; };
 		FE2026110300000000000300 /* WorkoutInstructionManifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = WorkoutInstructionManifest.json; path = WorkoutInstructionManifest.json; sourceTree = "<group>"; };
+		D61124000000000000000031 /* terms_of_service.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = terms_of_service.md; path = docs/terms_of_service.md; sourceTree = SOURCE_ROOT; };
+		D61124000000000000000021 /* privacy_policy.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = privacy_policy.md; path = docs/privacy_policy.md; sourceTree = SOURCE_ROOT; };
 		FE2026110300000000000301 /* WorkoutDemo-bench-press.mov */ = {isa = PBXFileReference; lastKnownFileType = video.quicktime; name = "WorkoutDemo-bench-press.mov"; path = "WorkoutDemonstrations/WorkoutDemo-bench-press.mov"; sourceTree = "<group>"; };
 		FE2026110300000000000302 /* WorkoutDemo-deadlift.mov */ = {isa = PBXFileReference; lastKnownFileType = video.quicktime; name = "WorkoutDemo-deadlift.mov"; path = "WorkoutDemonstrations/WorkoutDemo-deadlift.mov"; sourceTree = "<group>"; };
 		FE2026110300000000000303 /* WorkoutDemo-squat.mov */ = {isa = PBXFileReference; lastKnownFileType = video.quicktime; name = "WorkoutDemo-squat.mov"; path = "WorkoutDemonstrations/WorkoutDemo-squat.mov"; sourceTree = "<group>"; };
@@ -1189,6 +1195,7 @@
 				6EBBF453DBE05DBD865C367D /* SettingsAccountSection.swift */,
 				CEB2249C4E46F695E632A88F /* MFPImportView.swift */,
 				C08E2530D8B1786C5B6CD31B /* SettingsSupportSection.swift */,
+				D61124000000000000000011 /* LegalDocumentReader.swift */,
 				341DD372936EF5CFC7F0F944 /* SettingsAppearanceSection.swift */,
 				7B066B44563BD41796195AA9 /* SettingsPreferencesSection.swift */,
 				AFDBE72F924A47DE950FF36F /* ReminderSettingsView.swift */,
@@ -1207,6 +1214,8 @@
 				FE2026110300000000000302 /* WorkoutDemo-deadlift.mov */,
 				FE2026110300000000000301 /* WorkoutDemo-bench-press.mov */,
 				FE2026110300000000000300 /* WorkoutInstructionManifest.json */,
+				D61124000000000000000031 /* terms_of_service.md */,
+				D61124000000000000000021 /* privacy_policy.md */,
 				40A958A848E62C2C71292CA8 /* Localizable.xcstrings */,
 			);
 			path = Resources;
@@ -1440,6 +1449,8 @@
 				BE2026110300000000000302 /* WorkoutDemo-deadlift.mov in Resources */,
 				BE2026110300000000000301 /* WorkoutDemo-bench-press.mov in Resources */,
 				BE2026110300000000000300 /* WorkoutInstructionManifest.json in Resources */,
+				D61124000000000000000032 /* terms_of_service.md in Resources */,
+				D61124000000000000000022 /* privacy_policy.md in Resources */,
 				3EB297822CAEEDCA0093E1B9 /* Preview Assets.xcassets in Resources */,
 				3EB2977E2CAEEDCA0093E1B9 /* Assets.xcassets in Resources */,
 				4BCCF5062DFC830E00ACC8F4 /* GoogleService-Info.plist in Resources */,
@@ -1723,6 +1734,7 @@
 				A8F0F9AFC335F40903B0FB7B /* SettingsAccountSection.swift in Sources */,
 				74B253540F8A4FBC915004F8 /* MFPImportView.swift in Sources */,
 				3D61D8BDA7E88324F40DBB0B /* SettingsSupportSection.swift in Sources */,
+				D61124000000000000000012 /* LegalDocumentReader.swift in Sources */,
 				AF90FDB7CEC5C05D3BCC5C44 /* SettingsAppearanceSection.swift in Sources */,
 				BB353BD4E6A7CFDC34095208 /* SettingsPreferencesSection.swift in Sources */,
 				0AE619D6741BDA784D18628D /* SettingsComponents.swift in Sources */,

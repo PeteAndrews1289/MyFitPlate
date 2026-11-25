@@ -3,6 +3,7 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 import AppIntents
+import MyFitPlateShared
 
 struct FastingActivityWidget: Widget {
     var body: some WidgetConfiguration {
@@ -64,6 +65,7 @@ struct FastingActivityWidget: Widget {
             .activityBackgroundTint(Color.black.opacity(0.85))
             .activitySystemActionForegroundColor(Color.white)
 
+            .widgetURL(MyFitPlateLinks.ActivityDestination.fast.url(sessionID: context.attributes.sessionID?.uuidString))
         } dynamicIsland: { context in
             // 2. Dynamic Island UI
             DynamicIsland {
@@ -113,6 +115,7 @@ struct FastingActivityWidget: Widget {
             } minimal: {
                 Image(systemName: "flame.fill").foregroundStyle(LiveActivityPalette.caution)
             }
+            .widgetURL(MyFitPlateLinks.ActivityDestination.fast.url(sessionID: context.attributes.sessionID?.uuidString))
         }
     }
 }

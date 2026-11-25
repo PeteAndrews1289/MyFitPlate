@@ -40,6 +40,89 @@ final class WorkoutWaveTwoTrainingDepthTests: XCTestCase {
             CompletedExercise(exerciseName: exercise.name, exercise: exercise, sets: (0..<3).map { _ in CompletedSet(reps: reps, weight: weight, effort: SetEffort(scale: .rpe, value: 7)) })
         ])
     }
+
+    func testDurationSummaryCountsOnlyValidTimedSessionsInScope() throws {
+        func timed(_ id: String, _ seconds: Double?, days: Int = 1) -> WorkoutSessionLog {
+            var session = log(exercise(), days: days, id: id)
+            session.elapsedSeconds = seconds
+            return session
+        }
+        func report(_ logs: [WorkoutSessionLog]) throws -> WorkoutEvidenceSnapshot {
+            try WorkoutEvidenceReportRules.snapshot(logs: logs, scope: .init(), now: now)
+        }
+
+        let missing = timed("missing", nil)
+        let short = timed("short", 45)
+        let invalid = [timed("negative", -1), timed("long", 86_401), timed("nonfinite", .nan)]
+        let untimed = try report([missing] + invalid)
+        XCTAssertEqual(untimed.timedSessionCount, 0)
+        XCTAssertEqual(untimed.sessionIDs.count, 4)
+        XCTAssertEqual(untimed.durationSummary, "Duration unavailable")
+        XCTAssertEqual(try report([]).durationSummary, "Duration unavailable")
+
+        let partial = try report([short, missing, short, timed("future", 120, days: -1)])
+        XCTAssertEqual(partial.durationSeconds, 45)
+        XCTAssertEqual(partial.timedSessionCount, 1)
+        XCTAssertEqual(partial.durationSummary, Duration.seconds(45).formattedWorkoutTime + " recorded · 1 of 2 sessions timed")
+
+        let full = try report([short, timed("longer", 3_555), timed("zero", 0)])
+        XCTAssertEqual(full.durationSeconds, 3_600)
+        XCTAssertEqual(full.timedSessionCount, 3)
+        XCTAssertEqual(full.durationSummary, Duration.seconds(3_600).formattedWorkoutTime + " recorded")
+        XCTAssertEqual(try report([timed("zero", 0)]).durationSummary, Duration.zero.formattedWorkoutTime + " recorded")
+        XCTAssertEqual(try report([timed("fraction", 0.25)]).durationSummary, "<1 sec recorded")
+        XCTAssertEqual(try report([timed("boundary", 86_400)]).timedSessionCount, 1)
+    }
+
+    func testEarlierDurationSnapshotsRemainReadableWithoutInventingCoverage() throws {
+        var session = log(exercise())
+        for seconds in [0.0, 120.0] {
+            session.elapsedSeconds = seconds
+            let report = try WorkoutOutcomeReportDocument(logs: [session], scope: .init(), now: now)
+            let data = try JSONEncoder().encode(report)
+            var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            var performance = try XCTUnwrap(json["performance"] as? [String: Any])
+            performance.removeValue(forKey: "timedSessionCount")
+            json["performance"] = performance
+            let legacy = try JSONDecoder().decode(WorkoutOutcomeReportDocument.self, from: JSONSerialization.data(withJSONObject: json))
+            XCTAssertNil(legacy.performance.timedSessionCount)
+            XCTAssertEqual(legacy.performance.fingerprint, report.performance.fingerprint)
+            XCTAssertEqual(legacy.performance.durationSummary, seconds == 0 ? "Duration unavailable" :
+                            Duration.seconds(seconds).formattedWorkoutTime + " recorded · timing coverage unknown")
+        }
+    }
+
+    func testStrengthComparisonCountsMatchingSetsAndDistinctDaysAtTheSameCutoff() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let clock = ISO8601DateFormatter()
+        let cutoff = try XCTUnwrap(clock.date(from: "2026-11-02T15:00:00-05:00"))
+        let start = try XCTUnwrap(clock.date(from: "2026-10-27T00:00:00-04:00"))
+        let scope = WorkoutReportScope(startDate: start, endDate: cutoff.addingTimeInterval(3600),
+                                       setupKey: WorkoutEvidenceReportRules.setupKey(exercise()))
+        func session(_ id: String, _ timestamp: String) throws -> WorkoutSessionLog {
+            var session = log(exercise(), id: id)
+            session.date = try XCTUnwrap(clock.date(from: timestamp))
+            return session
+        }
+        let first = try session("first", "2026-11-01T08:00:00-05:00")
+        let second = try session("second", "2026-11-01T09:00:00-05:00")
+        let previous = try session("previous", "2026-10-26T15:00:00-04:00")
+        let later = try session("after-cutoff", "2026-10-26T15:01:00-04:00")
+        var other = second
+        other.id = "other"
+        other.completedExercises = log(exercise(.assistance)).completedExercises
+        let comparison = try XCTUnwrap(StrengthPeriodComparison.make(logs: [first, first, second, previous, later, other],
+                                                                      scope: scope, now: cutoff, calendar: calendar))
+        XCTAssertEqual(comparison.current.workingSets, 6)
+        XCTAssertEqual(comparison.current.trainingDays, 1)
+        XCTAssertEqual(comparison.previous.workingSets, 3)
+        XCTAssertEqual(comparison.previous.trainingDays, 1)
+        XCTAssertEqual(comparison.previous.dates.upperBound, previous.date)
+        XCTAssertTrue(comparison.includesPartialDay)
+        XCTAssertNil(StrengthPeriodComparison.make(logs: [first], scope: .init(), now: cutoff))
+    }
+
     private func program(progress: Int = 0) throws -> WorkoutProgram {
         var value = WorkoutProgram(id: "program", userID: "owner", name: "PHUL", dateCreated: now,
             routines: [WorkoutRoutine(id: "routine", userID: "owner", name: "Upper", dateCreated: now, exercises: [exercise()])],

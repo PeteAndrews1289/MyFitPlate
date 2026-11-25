@@ -51,6 +51,25 @@ public struct WidgetData: Codable, Equatable, Sendable {
         self.pathDate = pathDate
     }
 
+    public func needsDayRefresh(at date: Date = Date(), calendar: Calendar = .current) -> Bool {
+        let state = AppDataFreshness(updatedAt: lastUpdated, now: date).state
+        guard state == .current || state == .aging, let day = pathDate ?? lastUpdated else { return true }
+        return !calendar.isDate(day, inSameDayAs: date)
+    }
+
+    /// Precompute the transition so a delayed WidgetKit reload cannot leave yesterday’s shortcut tappable.
+    public func nextDayRefreshBoundary(after date: Date, calendar: Calendar = .current) -> Date? {
+        guard !needsDayRefresh(at: date, calendar: calendar), let lastUpdated,
+              let midnight = calendar.dateInterval(of: .day, for: date)?.end else { return nil }
+        return min(midnight, lastUpdated.addingTimeInterval(AppDataFreshness.defaultStaleAfter + 1))
+    }
+
+    public func currentNextAction(at date: Date = Date(), calendar: Calendar = .current) -> DailyNextAction? {
+        guard !needsDayRefresh(at: date, calendar: calendar), let action = nextAction,
+              let url = URL(string: action.deepLink), url.scheme == "myfitplate" else { return nil }
+        return action
+    }
+
     public static var previewData: WidgetData {
         .init(
             calories: 1_250,

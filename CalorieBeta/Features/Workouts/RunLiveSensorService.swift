@@ -9,7 +9,7 @@ import MyFitPlateCore
     var onHeartRate: ((RunHeartRateSample) -> Void)?
     var onCadence: ((RunCadenceSample) -> Void)?
     private let health = HKHealthStore()
-    private let pedometer = CMPedometer()
+    private var pedometer: CMPedometer?
     private var query: HKAnchoredObjectQuery?
     private var generation = UUID()
 
@@ -36,6 +36,8 @@ import MyFitPlateCore
             health.execute(query)
         }
         if CMPedometer.isCadenceAvailable() {
+            let pedometer = CMPedometer()
+            self.pedometer = pedometer
             pedometer.startUpdates(from: resumedAt) { [weak self] data, error in
                 guard error == nil, let data, let value = data.currentCadence?.doubleValue else { return }
                 let sample = RunCadenceSample(date: data.endDate, stepsPerMinute: value * 60)
@@ -50,7 +52,8 @@ import MyFitPlateCore
         generation = UUID()
         if let query { health.stop(query) }
         query = nil
-        pedometer.stopUpdates()
+        pedometer?.stopUpdates()
+        pedometer = nil
     }
-    deinit { if let query { health.stop(query) }; pedometer.stopUpdates() }
+    deinit { if let query { health.stop(query) }; pedometer?.stopUpdates() }
 }

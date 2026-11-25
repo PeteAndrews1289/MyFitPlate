@@ -118,22 +118,18 @@ struct FoodPickerRow: View {
 
     private var displayName: String { identity.fullName }
 
-    private var detailText: String {
-        let serving = ServingNutritionCalculator.displayPortion(food.servingSize)
-        if food.sourceMetadata?.sourceType == .nihDSLD {
-            return "\(serving) · \(food.reportedMicronutrientCount) label nutrients"
-        }
-        let energy = food.calories.isFinite && food.calories >= 0 ? "\(food.calories.formatted(.number.precision(.fractionLength(0)))) cal" : nil
-        if let label = food.sourceMetadata?.labeledServing, !label.isEmpty {
-            return ["Labeled serving " + label, energy.map { $0 + " per " + serving }].compactMap { $0 }.joined(separator: " · ")
-        }
-        return [serving.isEmpty ? nil : serving, energy].compactMap { $0 }.joined(separator: " · ")
+    private var detailText: String { food.diaryPortionSummary }
+
+    private var printedServing: String? {
+        guard let label = food.sourceMetadata?.labeledServing?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !label.isEmpty, label.caseInsensitiveCompare(ServingNutritionCalculator.displayPortion(food.servingSize)) != .orderedSame else { return nil }
+        return "Printed serving · " + label
     }
 
     private var portionNotice: String? { food.loggingPortionNotice(source: source) }
 
     private var selectionAccessibilityLabel: String {
-        [displayName, detailText, portionNotice].compactMap { $0 }.joined(separator: ", ")
+        [displayName, detailText, printedServing, portionNotice == detailText ? nil : portionNotice].compactMap { $0 }.joined(separator: ", ")
     }
 
     // No swipe-to-reveal here: a row-level DragGesture claims vertical drags too, which
@@ -163,24 +159,21 @@ struct FoodPickerRow: View {
         }) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Group {
-                        if let brand = identity.brand {
-                            Text("\(Text(brand).bold()) \(identity.product)")
-                                .appTextRole(.body)
-                        } else {
-                            Text(identity.product).font(.headline)
-                        }
+                    if let brand = identity.brand {
+                        Text(brand).appTextRole(.secondary).foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(AppPalette.text)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                    Text(detailText)
-                        .appFont(size: 13)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(nil)
+                    Text(identity.product)
+                        .font(.headline)
+                        .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
+                    Text(detailText)
+                        .appTextRole(.secondary).monospacedDigit().foregroundStyle(AppPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let printedServing {
+                        Text(printedServing).appTextRole(.caption).foregroundStyle(.secondary)
+                    }
 
-                    if let portionNotice {
+                    if let portionNotice, portionNotice != detailText {
                         Text(portionNotice).appTextRole(.caption).foregroundStyle(AppPalette.caution)
                     }
                 }
@@ -259,28 +252,21 @@ struct FoodPickerRow: View {
 }
 
 struct FoodTrustMiniBadge: View {
-    let food: FoodItem
-    let descriptor: FoodSourceDescriptor
-    let metadata: FoodSourceMetadata?
+    private let descriptor: FoodSourceDescriptor
+    private let evaluation: FoodTrustEvaluation
 
     init(food: FoodItem, source: String? = nil) {
-        self.food = food
-        self.metadata = food.sourceMetadata
-        self.descriptor = FoodSourceClassifier.descriptor(
+        let descriptor = FoodSourceClassifier.descriptor(
             for: source ?? "unknown",
             foodID: food.id,
             metadata: food.sourceMetadata
         )
+        self.init(food: food, descriptor: descriptor, metadata: food.sourceMetadata)
     }
 
     init(food: FoodItem, descriptor: FoodSourceDescriptor, metadata: FoodSourceMetadata? = nil) {
-        self.food = food
         self.descriptor = descriptor
-        self.metadata = metadata
-    }
-
-    private var evaluation: FoodTrustEvaluation {
-        FoodTrustEvaluation.evaluate(item: food, descriptor: descriptor, metadata: metadata)
+        self.evaluation = FoodTrustEvaluation.evaluate(item: food, descriptor: descriptor, metadata: metadata)
     }
 
     private var tint: Color {
@@ -292,6 +278,10 @@ struct FoodTrustMiniBadge: View {
         case .low:
             return evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
+    }
+
+    var needsAttention: Bool {
+        evaluation.level == .low || evaluation.level == .review || evaluation.requiresCorrection || descriptor.isEstimated
     }
 
     private var title: String {

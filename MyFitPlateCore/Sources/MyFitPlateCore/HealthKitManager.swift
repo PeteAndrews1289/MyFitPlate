@@ -29,6 +29,7 @@ public protocol HealthKitManaging {
     func saveWeightSample(weightLbs: Double, date: Date)
     func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping @Sendable (HKAuthorizationRequestStatus, Error?) -> Void)
     func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void)
+    func fetch7DayReadings(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double?]) -> Void)
     func saveWater(ounces: Double, date: Date)
     func isHealthDataAvailable() -> Bool
     func fetchLatestWeight(completion: @escaping (HKQuantitySample?) -> Void)
@@ -36,6 +37,13 @@ public protocol HealthKitManaging {
 }
 
 public extension HealthKitManaging {
+    func fetch7DayReadings(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double?]) -> Void) {
+        // Older providers have already replaced missing quantities with zero.
+        fetch7DayTrend(for: typeIdentifier, options: options, unit: unit) { values in
+            completion(values.map { $0 > 0 ? $0 : nil })
+        }
+    }
+
     func canSaveCopiedNutrition(for foodItem: FoodItem) -> Bool { false }
     func saveCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) { completion(false) }
     func deleteCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) { completion(false) }
@@ -353,6 +361,12 @@ public class HealthKitManager: HealthKitManaging {
     }
 
     public func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void) {
+        fetch7DayReadings(for: typeIdentifier, options: options, unit: unit) { readings in
+            completion(readings.map { $0 ?? 0 })
+        }
+    }
+
+    public func fetch7DayReadings(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double?]) -> Void) {
         guard let quantityType = HKQuantityType.quantityType(forIdentifier: typeIdentifier) else {
             completion([])
             return
@@ -372,7 +386,7 @@ public class HealthKitManager: HealthKitManaging {
         let query = HKStatisticsCollectionQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: options, anchorDate: anchorDate, intervalComponents: daily)
         
         query.initialResultsHandler = { _, results, _ in
-            var trends: [Double] = Array(repeating: 0.0, count: 7)
+            var trends: [Double?] = Array(repeating: nil, count: 7)
             guard let statsCollection = results else {
                 DispatchQueue.main.async { completion(trends) }
                 return
@@ -383,9 +397,9 @@ public class HealthKitManager: HealthKitManaging {
                 if daysAgo >= 0 && daysAgo < 7 {
                     let index = 6 - daysAgo
                     if options.contains(.cumulativeSum) {
-                        trends[index] = statistics.sumQuantity()?.doubleValue(for: unit) ?? 0
+                        trends[index] = statistics.sumQuantity()?.doubleValue(for: unit)
                     } else if options.contains(.discreteAverage) {
-                        trends[index] = statistics.averageQuantity()?.doubleValue(for: unit) ?? 0
+                        trends[index] = statistics.averageQuantity()?.doubleValue(for: unit)
                     }
                 }
             }

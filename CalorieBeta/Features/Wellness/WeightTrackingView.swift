@@ -9,7 +9,13 @@ struct WeightTrackingView: View {
     @State private var showingTargetWeightSheet = false
     @State private var showingCaloricCalculatorSheet = false
     @State private var targetWeightInput = ""
-    @State private var selectedChartTimeframe: WeightChartTimeframe = .month
+    private let reportDates: ClosedRange<Date>?
+    @State private var selectedChartTimeframe: WeightChartTimeframe?
+
+    init(reportDates: ClosedRange<Date>? = nil) {
+        self.reportDates = reportDates
+        _selectedChartTimeframe = State(initialValue: reportDates == nil ? .month : nil)
+    }
     @State private var showingChartDeleteAlert = false
     @State private var chartEntryToDeleteID: String?
     @State private var chartEntryToDeleteDetails = ""
@@ -74,6 +80,9 @@ struct WeightTrackingView: View {
 
         let calendar = Calendar.current
         let startDate: Date?
+        guard let selectedChartTimeframe else {
+            return allHistory.filter { reportDates?.contains($0.date) == true }
+        }
         switch selectedChartTimeframe {
         case .week:
             startDate = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now))
@@ -270,6 +279,11 @@ struct WeightTrackingView: View {
             currentWeightSummary
 
             timeframePicker
+            if selectedChartTimeframe == nil, let reportDates {
+                Text("\(reportDates.lowerBound.formatted(date: .abbreviated, time: .omitted)) – \(reportDates.upperBound.formatted(date: .abbreviated, time: .omitted)) · \(filteredDataForLineChart.count) measurements")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("weight_report_scope")
+            }
 
             if !filteredDataForLineChart.isEmpty {
                 WeightChartView(
@@ -306,22 +320,16 @@ struct WeightTrackingView: View {
 
     @ViewBuilder
     private var timeframePicker: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            Picker("Timeframe", selection: $selectedChartTimeframe.animation(AppMotion.standard)) {
-                ForEach(WeightChartTimeframe.allCases) { timeframe in
-                    Text(timeframe.rawValue).tag(timeframe)
-                }
+        let picker = Picker("Timeframe", selection: $selectedChartTimeframe.animation(AppMotion.standard)) {
+            if reportDates != nil { Text("Report dates").tag(nil as WeightChartTimeframe?) }
+            ForEach(WeightChartTimeframe.allCases) { timeframe in
+                Text(timeframe.rawValue).tag(Optional(timeframe))
             }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier("weight_timeframe_picker")
+        }.accessibilityIdentifier("weight_timeframe_picker")
+        if dynamicTypeSize.isAccessibilitySize || reportDates != nil {
+            picker.pickerStyle(.menu)
         } else {
-            Picker("Timeframe", selection: $selectedChartTimeframe.animation(AppMotion.standard)) {
-                ForEach(WeightChartTimeframe.allCases) { timeframe in
-                    Text(timeframe.rawValue).tag(timeframe)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("weight_timeframe_picker")
+            picker.pickerStyle(.segmented)
         }
     }
 

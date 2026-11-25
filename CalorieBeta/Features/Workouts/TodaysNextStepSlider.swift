@@ -375,6 +375,11 @@ struct TodaysNextStepSlider: View {
                             Text("Session \(slot + 1): \(program.routine(forSlot: slot)?.name ?? "Session") · \(program.date(forSlot: slot)?.formatted(date: .abbreviated, time: .omitted) ?? "Unscheduled") · \(completed ? "already recorded, kept" : "will skip")")
                                 .appTextRole(.secondary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         }
+                        if end < program.totalSlots, let next = program.routine(forSlot: end) {
+                            Text("Up next · " + next.name).appTextRole(.control)
+                        } else {
+                            Text("End of program").appTextRole(.control)
+                        }
                         Button("Skip workouts", role: .destructive) {
                             if let target = pendingSkip { onSkipTo(target) }; pendingSkip = nil
                         }.buttonStyle(AppActionButtonStyle(.primary)).accessibilityIdentifier("workout_skip_confirm")

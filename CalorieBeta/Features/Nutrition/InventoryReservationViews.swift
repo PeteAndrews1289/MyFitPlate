@@ -34,17 +34,21 @@ struct PlannedStockReservationsView: View {
                             .foregroundStyle(service.isFresh ? .secondary : AppPalette.caution)
                         if snapshot.excludedPastMeals > 0 { Text("\(snapshot.excludedPastMeals) past planned meal entries are excluded. Past meals are not assumed to have been cooked or eaten.").font(.caption) }
                     }
-                    Section("Physical stock and planned allocations") {
+                    Section("In your pantry") {
                         ForEach(snapshot.physicalStock.filter { !$0.isCookedBatch && $0.isArchived != true }) { lot in
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(lot.name).fontWeight(.semibold)
                                 if lot.quantityUnknown == true || lot.quantityVerified != true {
-                                    Text("Physical amount unconfirmed · no automatic reservation").foregroundStyle(AppPalette.caution)
+                                    Text("Confirm the amount in your pantry to calculate availability.").foregroundStyle(AppPalette.caution)
                                 } else {
-                                    Text("Physical \(lot.quantity.formatted()) \(lot.unit)")
-                                    Text("Planned \(snapshot.reserved(in: lot.id).formatted()) \(lot.unit) · Unallocated physical \((snapshot.available(in: lot.id) ?? 0).formatted()) \(lot.unit)")
+                                    Text("\(lot.quantity.formatted()) \(lot.unit) in pantry")
+                                    Text("\(snapshot.reserved(in: lot.id).formatted()) \(lot.unit) for planned meals")
                                         .font(.caption).foregroundStyle(.secondary)
-                                    Text("Usability still depends on preparation, compatible units and your entered label date.").font(.caption).foregroundStyle(.secondary)
+                                    if let available = snapshot.available(in: lot.id) {
+                                        Text("\(available.formatted()) \(lot.unit) available").font(.caption.weight(.semibold))
+                                    } else {
+                                        Text("Available amount unknown").font(.caption).foregroundStyle(AppPalette.caution)
+                                    }
                                 }
                             }.accessibilityElement(children: .combine).accessibilityIdentifier("inventory_reservation_lot_\(lot.id)")
                         }

@@ -303,6 +303,11 @@ struct WorkoutRoutinesView: View {
             Text("Your training").appTextRole(.sectionTitle)
             VStack(spacing: 0) {
                 if let program = workoutService.activeProgram {
+                    NavigationLink { oneOffWorkouts } label: {
+                        TrainingNavigationRow(icon: "dumbbell", title: "Saved routines", subtitle: "Start a standalone workout")
+                    }
+                    .accessibilityIdentifier("train_saved_routines")
+                    trainingDivider
                     NavigationLink { programOverview } label: {
                         TrainingNavigationRow(icon: "calendar", title: "Program & schedule", subtitle: program.name)
                     }
@@ -349,12 +354,6 @@ struct WorkoutRoutinesView: View {
                             .environmentObject(achievementService)
                             .workoutPresentationBoundary()
                     }
-                    NavigationLink { oneOffWorkouts } label: {
-                        TrainingNavigationRow(icon: "dumbbell", title: "Saved routines", subtitle: "Start a separate workout or edit a routine")
-                            .appSurface(.quiet, padding: 0)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("train_saved_routines")
                     NavigationLink { planLibrary } label: {
                         TrainingNavigationRow(icon: "rectangle.stack", title: "Explore plans", subtitle: "Pre-built, generated and custom programs")
                             .appSurface(.quiet, padding: 0)

@@ -139,6 +139,8 @@ struct WorkoutHistoryView: View {
                                 NavigationLink(destination: WorkoutCompleteAnalyticsView(log: log)) {
                                     WorkoutHistoryRow(
                                         log: log,
+                                        routineName: log.displayName(routines: workoutService.userRoutines, programs: workoutService.userPrograms),
+                                        programPosition: log.programPosition(in: workoutService.userPrograms),
                                         personalRecordCount: WorkoutHistoryInsights.personalRecordCount(for: log, allLogs: logs)
                                     )
                                 }
@@ -639,6 +641,8 @@ private struct WorkoutHistoryHighlightsCard: View {
 
 struct WorkoutHistoryRow: View {
     let log: WorkoutSessionLog
+    let routineName: String
+    let programPosition: String
     let personalRecordCount: Int
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -651,12 +655,6 @@ struct WorkoutHistoryRow: View {
 
     private var completedSetCount: Int {
         log.completedExercises.reduce(0) { $0 + $1.sets.count }
-    }
-
-    private var exercisePreview: String {
-        let preview = log.completedExercises.prefix(2).map { $0.exerciseName }.joined(separator: ", ")
-        guard !preview.isEmpty else { return "Workout" }
-        return preview + (log.completedExercises.count > 2 ? "..." : "")
     }
 
     // Split into typed steps: the previous single chained expression with inline
@@ -732,13 +730,13 @@ struct WorkoutHistoryRow: View {
 
     private var sessionIdentity: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(exercisePreview)
+            Text(routineName)
                 .appTextRole(.control)
                 .foregroundStyle(AppPalette.text)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
 
             Text(
-                [log.date.formatted(date: .omitted, time: .shortened), topSetText]
+                [log.date.formatted(date: .omitted, time: .shortened), programPosition, topSetText]
                     .compactMap { $0 }
                     .joined(separator: " · ")
             )

@@ -99,6 +99,7 @@ struct SettingsSupportSection: View {
             }
             .accessibilityIdentifier("settings_account_access")
         }
+        .legalDocumentLinks()
         .sheet(isPresented: $showingSupportFallback) {
             supportFallbackSheet
         }
@@ -434,6 +435,7 @@ struct AIDataConsentSheet: View {
             }
         }
         .tint(AppPalette.brand)
+        .legalDocumentLinks()
         .onAppear {
             if let consent = AIDataConsentStore.shared.consent(for: userID) {
                 includeHealthData = consent.includesHealthData

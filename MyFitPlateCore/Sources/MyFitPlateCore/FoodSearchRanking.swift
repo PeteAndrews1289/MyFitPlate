@@ -1,9 +1,33 @@
 import Foundation
 
 extension FoodItem {
+    public var hasUnspecifiedServing: Bool {
+        let serving = servingSize.trimmingCharacters(in: .whitespacesAndNewlines)
+        return serving.isEmpty || serving.caseInsensitiveCompare("Tap to see details") == .orderedSame
+    }
+
+    public var hasUnresolvedProviderNutrition: Bool {
+        if sourceMetadata?.reviewStatus == .userConfirmed || sourceMetadata?.reviewStatus == .userEdited { return false }
+        if let reported = sourceMetadata?.providerReportedCalories { return !reported }
+        return FoodSearchRanking.needsNutritionHydration(self) && calories == 0 && protein == 0 && carbs == 0 && fats == 0
+    }
+
+    /// The nutrition on a FoodItem already describes its stored portion, including remembered servings.
+    public var diaryPortionSummary: String {
+        if hasUnspecifiedServing { return "Choose a serving" }
+        let portion = ServingNutritionCalculator.displayPortion(servingSize)
+        if sourceMetadata?.sourceType == .nihDSLD { return "\(portion) · \(reportedMicronutrientCount) label nutrients" }
+        if hasUnresolvedProviderNutrition { return portion }
+        let energy = calories.isFinite && calories >= 0 ? "\(calories.formatted(.number.precision(.fractionLength(0)))) cal" : nil
+        return [portion.isEmpty ? nil : portion, energy].compactMap { $0 }.joined(separator: " · ")
+    }
+
     /// Show a reason to open the portion editor only when the serving or nutrition needs attention.
     public func loggingPortionNotice(source: String? = nil) -> String? {
-        if servingSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Choose a serving" }
+        if hasUnspecifiedServing { return "Choose a serving" }
+        if hasUnresolvedProviderNutrition {
+            return "Check serving and nutrition"
+        }
         if let finding = FoodDataSanity.findings(for: self).first(where: { $0.severity == .warning }) {
             return finding.message
         }
@@ -534,19 +558,41 @@ public enum FoodSearchRanking {
         }
     }
 
-    /// Builds the item a quick-log should record once food details have been fetched.
-    /// Prefers the serving that matches what the search row previewed (so logged calories
-    /// match what the user saw); falls back to the details' base serving.
+    private static func servingKey(_ text: String) -> String {
+        let key = normalized(text)
+        return key.hasPrefix("per ") ? String(key.dropFirst(4)) : key
+    }
+
+    public static func matchesPreviewServing(_ option: ServingSizeOption, preview: ServingSizeOption) -> Bool {
+        guard servingKey(option.description) == servingKey(preview.description),
+              option.calories.rounded() == preview.calories.rounded() else { return false }
+        // A number of legacy provider rows use one gram as an unknown weight.
+        guard let lhs = option.servingWeightGrams, let rhs = preview.servingWeightGrams,
+              lhs > 1, rhs > 1 else { return true }
+        return abs(lhs - rhs) < 0.5
+    }
+
+    /// Explicit selections may fall back to the provider's base. A direct diary add must keep the shown portion.
     public static func hydratedQuickLogItem(
         preview: FoodItem,
         detailBase: FoodItem,
-        availableServings: [ServingSizeOption]
+        availableServings: [ServingSizeOption],
+        preserveDisplayedPortion: Bool = false
     ) -> FoodItem {
-        let previewServing = normalized(preview.servingSize)
+        let previewServing = servingKey(preview.servingSize)
+        if preserveDisplayedPortion, (preview.quantityValue ?? ServingNutritionCalculator.parseQuantity(from: preview.servingSize).quantity) != 1 { return preview }
+        let previewBase = ServingNutritionCalculator.baseServing(from: preview)
         guard !previewServing.isEmpty,
-              let match = availableServings.first(where: { normalized($0.description) == previewServing }) else {
+              let match = availableServings.first(where: {
+                  preserveDisplayedPortion ? matchesPreviewServing($0, preview: previewBase) : servingKey($0.description) == previewServing
+              }) else {
+            if preserveDisplayedPortion && (!matchesPreviewServing(ServingNutritionCalculator.baseServing(from: detailBase), preview: previewBase)
+                || preview.calories.rounded() != detailBase.calories.rounded()) {
+                return preview
+            }
             return detailBase
         }
+        if preserveDisplayedPortion && preview.calories.rounded() != match.calories.rounded() { return preview }
 
         let adjusted = ServingNutritionCalculator.adjustedNutrition(base: match, quantityValue: 1)
         return FoodItem(

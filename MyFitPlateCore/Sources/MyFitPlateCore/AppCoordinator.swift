@@ -18,6 +18,7 @@ public class AppCoordinator: ObservableObject {
         let routeName = host?.isEmpty == false ? host : paths.first?.lowercased()
         let extraPath = host?.isEmpty == false ? paths : Array(paths.dropFirst())
         let route = route(for: routeName)
+        let opensToday = routeName == "today"
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let ownerItems = query.filter { ["user", "userid", "owner"].contains($0.name.lowercased()) }
         let dayItems = query.filter { ["day", "date"].contains($0.name.lowercased()) }
@@ -32,8 +33,8 @@ public class AppCoordinator: ObservableObject {
         let validDay = day.map { DiaryDayContext(userID: "link-validation", date: Date(), dayKey: $0) != nil } ?? true
         let valid = !mutates && ownerItems.count <= 1 && dayItems.count <= 1 && objectItems.count <= 1 && extraPath.count <= 1
             && !(extraPath.first != nil && !objectItems.isEmpty) && validToken(owner) && validToken(object) && validDay
-            && (object == nil || route == .recipes) && (day == nil || [.home, .foodSearch, .trust].contains(route))
-        let request = valid ? AppLinkRequest(route: route, ownerID: owner, objectID: object, dayKey: day) : AppLinkRequest(route: .unavailable)
+            && (object == nil || route == .recipes || route.isActiveSession) && (day == nil || (!opensToday && [.home, .foodSearch, .trust].contains(route)))
+        let request = valid ? AppLinkRequest(route: route, ownerID: owner, objectID: object, dayKey: day, opensToday: opensToday) : AppLinkRequest(route: .unavailable)
         enqueue(request)
         return request.route
     }
@@ -71,7 +72,10 @@ public class AppCoordinator: ObservableObject {
 
     private func route(for routeName: String?) -> Route {
         switch routeName {
-        case "home", nil:
+        case "active-workout": return .activeWorkout
+        case "active-run": return .activeRun
+        case "active-fast": return .activeFast
+        case "home", "today", nil:
             return .home
         case "maia", "coach", "coaching":
             return .maia

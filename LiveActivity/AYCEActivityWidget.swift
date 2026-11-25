@@ -98,6 +98,7 @@ struct AYCEActivityWidget: Widget {
                 Image(systemName: "fork.knife")
                     .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
             }
+            .widgetURL(URL(string: "myfitplate://buffet"))
         }
     }
 }

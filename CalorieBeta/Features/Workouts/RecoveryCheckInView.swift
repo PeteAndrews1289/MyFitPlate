@@ -134,7 +134,7 @@ struct RecoveryPlanningActionsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             Text("Choose your next step").appTextRole(.control)
-            Text("These options open a review. Completed sessions, active workouts and program progress stay protected.")
+            Text("Review an upcoming session or a lighter training week.")
                 .appTextRole(.secondary).foregroundStyle(.secondary)
             Button("Keep my plan") { review = nil; message = "Plan kept. No targets or workout records were changed." }
                 .frame(minHeight: 44).accessibilityIdentifier("recovery_keep_plan")
@@ -151,7 +151,7 @@ struct RecoveryPlanningActionsView: View {
                 }
                 if let review {
                     Text(review.summary).appTextRole(.secondary).fixedSize(horizontal: false, vertical: true)
-                    Text("This reviews the whole selected future week, not only \(evidence.group.displayName.lowercased()). Loads target 90% and normal sets 75%, rounded to supported equipment.")
+                    Text("Whole week · 90% of planned load and 75% of normal sets, rounded for your equipment.")
                         .appTextRole(.caption).foregroundStyle(.secondary)
                     Button("Open lighter week editor") { openReviewedBlock() }
                         .frame(minHeight: 44).accessibilityIdentifier("recovery_open_lighten_editor")

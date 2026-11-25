@@ -380,6 +380,10 @@ public struct WorkoutSessionLog: Identifiable, Codable {
     public var programContext: WorkoutProgramSessionContext?
     public var programLinkDecision: WorkoutProgramLinkDecision?
     public var elapsedSeconds: TimeInterval?
+    public var recordedDurationSeconds: TimeInterval? {
+        guard let elapsedSeconds, (0...86_400).contains(elapsedSeconds) else { return nil }
+        return elapsedSeconds
+    }
     public var projectionBodyWeightPounds: Double?
     public var generatedDiaryExercise: LoggedExercise?
     public var correctionRevisionID: String?
@@ -392,6 +396,33 @@ public struct WorkoutSessionLog: Identifiable, Codable {
         self.aiInsights = aiInsights
         self.programContext = programContext
         self.programLinkDecision = programLinkDecision
+    }
+}
+
+public extension WorkoutSessionLog {
+    func displayName(routines: [WorkoutRoutine], programs: [WorkoutProgram]) -> String {
+        if let recorded = generatedDiaryExercise?.name, !recorded.isEmpty { return recorded }
+        if let routine = routines.first(where: { $0.id == routineID }) { return routine.name }
+        if let context = programContext, let program = programs.first(where: { $0.id == context.programID }),
+           let routine = program.routine(forSlot: context.slotIndex), routine.id == routineID { return routine.name }
+        let movements = completedExercises.prefix(2).map(\.exerciseName).joined(separator: ", ")
+        return movements.isEmpty ? "Strength workout" : movements
+    }
+
+    func programPosition(in programs: [WorkoutProgram]) -> String {
+        if programLinkDecision == .standalone { return "Standalone workout" }
+        guard let context = programContext else { return "No recorded program" }
+        let name = programs.first(where: { $0.id == context.programID })?.name ?? "Program"
+        let position = "Session \(context.slotIndex + 1)"
+        return [name, context.blockSession?.weekName, position].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+extension Duration {
+    public var formattedWorkoutTime: String {
+        if self > .zero && self < .seconds(1) { return "<1 sec" }
+        let units: Set<UnitsFormatStyle.Unit> = self < .seconds(60) ? [.seconds] : [.hours, .minutes]
+        return formatted(.units(allowed: units, width: .abbreviated))
     }
 }
 

@@ -2,6 +2,27 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class FoodSearchRankingTests: XCTestCase {
+    func testEnergyCoverageSeparatesMissingReportedZeroAndReviewedLegacyPortions() throws {
+        var source = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        let water = FoodItem(id: "123", name: "Water", calories: 0, servingSize: "1 bottle")
+        source.providerReportedCalories = false
+        let missing = water.withSourceMetadata(source)
+        XCTAssertFalse(missing.diaryPortionSummary.contains("0 cal"))
+        XCTAssertNotNil(missing.loggingPortionNotice())
+        source.providerReportedCalories = true
+        let measured = water.withSourceMetadata(source)
+        XCTAssertTrue(measured.diaryPortionSummary.contains("0 cal"))
+        XCTAssertNil(measured.loggingPortionNotice())
+        XCTAssertEqual(try JSONDecoder().decode(FoodItem.self, from: JSONEncoder().encode(measured)).diaryPortionSummary, measured.diaryPortionSummary)
+        XCTAssertTrue(water.withSourceMetadata(.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")).hasUnresolvedProviderNutrition)
+        source.reviewStatus = .userEdited
+        source.providerReportedCalories = false
+        XCTAssertFalse(water.withSourceMetadata(source).hasUnresolvedProviderNutrition)
+        var placeholder = missing
+        placeholder.servingSize = "Tap to see details"
+        XCTAssertEqual(placeholder.diaryPortionSummary, "Choose a serving")
+    }
+
     func testRepeatSuggestionsPreferMealHistoryAndKeepDifferentPortions() {
         let usual = FoodItem(id: "usual", name: "Greek yogurt", calories: 140, servingSize: "1 cup", servingWeight: 180)
         var copy = usual
@@ -648,6 +669,19 @@ final class FoodSearchRankingTests: XCTestCase {
         XCTAssertEqual(hydrated.servingSize, "1 cup", "The serving the search row previewed wins")
         XCTAssertEqual(hydrated.calories, 150, accuracy: 0.001)
         XCTAssertEqual(hydrated.potassium ?? 0, 172, accuracy: 0.001, "Micros ride along at the matched serving")
+    }
+
+    func testQuickAddKeepsTheAmountShownEvenWhenTheProviderChangesItsDefault() {
+        let preview = FoodItem(id: "12345", name: "Oats", calories: 150, servingSize: "1 cup", servingWeight: 40)
+        let different = FoodItem(id: "12345", name: "Oats", calories: 379, servingSize: "100 g", servingWeight: 100)
+        let changedCup = ServingSizeOption(description: "1 cup", servingWeightGrams: 45, calories: 174, protein: 5, carbs: 29, fats: 3)
+        let differentWeight = ServingSizeOption(description: "1 cup", servingWeightGrams: 60, calories: 150, protein: 5, carbs: 28, fats: 2)
+        for options in [[], [changedCup], [differentWeight]] {
+            let logged = FoodSearchRanking.hydratedQuickLogItem(preview: preview, detailBase: different,
+                                                               availableServings: options, preserveDisplayedPortion: true)
+            XCTAssertEqual(logged.diaryPortionSummary, preview.diaryPortionSummary)
+            XCTAssertEqual(logged.servingWeight, 40)
+        }
     }
 
     func testHydratedQuickLogFallsBackToDetailBase() {

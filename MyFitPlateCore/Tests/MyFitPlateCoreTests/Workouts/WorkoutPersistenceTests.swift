@@ -40,6 +40,22 @@ final class WorkoutPersistenceTests: XCTestCase {
         XCTAssertTrue(visible.isEmpty)
     }
 
+    func testHistoryUsesRecordedNameAndPositionAfterProgramAdvances() {
+        var program = WorkoutProgram(id: "phul", userID: "qa", name: "PHUL", routines: [routine()])
+        program.currentProgressIndex = 5
+        var log = WorkoutSessionLog(date: Date(), routineID: "r", completedExercises: [],
+            programContext: .init(programID: "phul", slotIndex: 1), programLinkDecision: .program)
+        log.generatedDiaryExercise = LoggedExercise(name: "Lower Power", durationMinutes: 51, caloriesBurned: 230, date: log.date, source: "routine")
+        XCTAssertEqual(log.displayName(routines: [], programs: [program]), "Lower Power")
+        XCTAssertEqual(log.programPosition(in: [program]), "PHUL · Session 2")
+        log.programContext = nil
+        log.programLinkDecision = nil
+        XCTAssertEqual(log.programPosition(in: [program]), "No recorded program")
+        log.programLinkDecision = .standalone
+        XCTAssertEqual(log.programPosition(in: [program]), "Standalone workout")
+        XCTAssertEqual(program.currentProgressIndex, 5)
+    }
+
     func testQueueCorruptionRejectsNewSaveWithoutDiscardingExistingData() throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appendingPathComponent("queue.json")

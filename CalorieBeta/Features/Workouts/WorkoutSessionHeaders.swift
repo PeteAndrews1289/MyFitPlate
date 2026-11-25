@@ -99,6 +99,7 @@ struct WorkoutSessionControlBar: View {
 
 struct WorkoutSessionHeaderCard: View {
     let routineName: String
+    let sessionOrigin: String?
     let elapsedTime: String
     let restTime: String?
     let completedSets: Int
@@ -122,6 +123,10 @@ struct WorkoutSessionHeaderCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: isCompact ? AppSpacing.compact : AppSpacing.row) {
+            if let sessionOrigin {
+                Text(sessionOrigin).appTextRole(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("workout_session_origin")
+            }
             sessionIdentity
 
             AppProgressTrack(progress: progress, role: .effort, height: isCompact ? 4 : 7)

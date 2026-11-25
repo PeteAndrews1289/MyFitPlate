@@ -111,6 +111,25 @@ final class FirstImpressionUITests: XCTestCase {
         XCTAssertEqual(app.textFields["login_password"].value as? String, "example-pass12")
     }
 
+    @MainActor func testSignupPolicyReaderUsesBundledDocumentsAndReturnsToForm() {
+        let app = launch("create-account")
+        let emailOption = app.buttons["create_account_email"]
+        XCTAssertTrue(emailOption.waitForExistence(timeout: 15))
+        emailOption.tap()
+        let field = app.textFields["create_account_email_field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        for (id, resource, date) in [("signup_terms", "terms_of_service", "July 15, 2026"),
+                                     ("signup_privacy", "privacy_policy", "November 24, 2026")] {
+            let link = app.descendants(matching: .any)[id].firstMatch
+            for _ in 0..<4 where !link.isHittable { app.swipeUp() }
+            link.tap()
+            XCTAssertTrue(app.scrollViews["legal_document_" + resource].waitForExistence(timeout: 8))
+            XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", date)).firstMatch.exists)
+            app.buttons["Done"].firstMatch.tap()
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+        }
+    }
+
     @MainActor func testSignupCanTypeAfterDismissingPasswordSuggestion() throws {
         let app = launch("create-account")
         let emailOption = app.buttons["create_account_email"]

@@ -7,23 +7,124 @@ final class PersonalReportContinuityUITests: XCTestCase {
     func testSleepWindowPreferenceSurvivesRelaunchAndSparseCoverageIsExplicit() {
         let app = launch("sleep-history", reset: true)
         XCTAssertTrue(app.staticTexts["Recorded nights, 1 of 3"].waitForExistence(timeout: 15), app.debugDescription)
+        let save = app.buttons["sleep_history_save_notes"]
+        XCTAssertFalse(save.exists)
+        let recorded = app.buttons["sleep_window_recorded"]
+        XCTAssertTrue(recorded.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "sleep_window_missing").count, 2)
+        let chartImage = XCTAttachment(screenshot: app.screenshot())
+        chartImage.name = "Sleep windows"; chartImage.lifetime = .keepAlways; add(chartImage)
+        recorded.tap()
+        XCTAssertTrue(app.staticTexts["Sources and intervals"].exists || app.buttons["Sources and intervals"].exists)
         let toggle = app.switches["Compare with a preferred sleep window"]
         reveal(toggle, app: app)
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: toggle)
         XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed, app.debugDescription)
-        let save = app.buttons["sleep_history_save_notes"]
-        reveal(save, app: app); save.tap()
-        XCTAssertTrue(app.buttons["Saved on this device"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 5))
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 5))
         app.terminate()
         let restored = launch("sleep-history", reset: false)
         let restoredToggle = restored.switches["Compare with a preferred sleep window"]
         reveal(restoredToggle, app: restored)
         XCTAssertEqual(restoredToggle.value as? String, "1")
+        XCTAssertFalse(restored.buttons["sleep_history_save_notes"].exists)
         let attachment = XCTAttachment(screenshot: restored.screenshot())
         attachment.name = "Sleep history - sparse coverage and saved local routine"
         attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    func testNightNoteCanBeRevertedSavedAndCleared() {
+        let noteText = "Late run"
+        let erase = String(repeating: XCUIKeyboardKey.delete.rawValue, count: noteText.count)
+        func note(in app: XCUIApplication) -> XCUIElement {
+            app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'sleep_night_note_'")).firstMatch
+        }
+        var app = launch("sleep-history", reset: true)
+        var field = note(in: app)
+        var save = app.buttons["sleep_history_save_notes"]
+        reveal(field, app: app)
+        let emptyValue = field.value as? String
+        XCTAssertFalse(save.exists)
+        field.tap()
+        XCTAssertFalse(save.exists)
+        field.typeText(noteText)
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        field.typeText(erase)
+        XCTAssertTrue(save.waitForNonExistence(timeout: 5))
+        field.typeText(noteText)
+        save.tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+
+        app.terminate()
+        app = launch("sleep-history", reset: false)
+        field = note(in: app)
+        save = app.buttons["sleep_history_save_notes"]
+        reveal(field, app: app)
+        XCTAssertEqual(field.value as? String, noteText)
+        XCTAssertFalse(save.exists)
+        field.tap()
+        let clear = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'sleep_night_clear_'")).firstMatch
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        XCTAssertFalse(save.exists)
+        clear.tap()
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 5))
+        app.terminate()
+        app = launch("sleep-history", reset: false)
+        field = note(in: app)
+        reveal(field, app: app)
+        XCTAssertEqual(field.value as? String, emptyValue)
+        XCTAssertFalse(app.buttons["sleep_history_save_notes"].exists)
+    }
+
+    func testBackingOutOfEditedSleepHistoryOffersToKeepOrDiscardChanges() {
+        let app = launch("sleep-history", reset: true)
+        let toggle = app.switches["Compare with a preferred sleep window"]
+        reveal(toggle, app: app)
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let back = app.navigationBars["Sleep history"].buttons["Back"]
+        back.tap()
+        app.buttons["Keep editing"].tap()
+        XCTAssertTrue(app.buttons["sleep_history_save_notes"].exists)
+        XCTAssertEqual(toggle.value as? String, "1")
+        back.tap()
+        app.buttons["Discard changes"].tap()
+        XCTAssertTrue(app.segmentedControls["reports_focus"].waitForExistence(timeout: 8))
+        app.terminate()
+        let restored = launch("sleep-history", reset: false)
+        let original = restored.switches["Compare with a preferred sleep window"]
+        reveal(original, app: restored)
+        XCTAssertEqual(original.value as? String, "0")
+        XCTAssertFalse(restored.buttons["sleep_history_save_notes"].exists)
+    }
+
+    func testSleepWindowsPageAcrossMissingNightsAndOpenOlderDetails() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-screenshot-mode", "-screenshot-screen", "sleep-history", "-ui-testing-long-sleep-history"]
+        app.launch()
+        let earlier = app.buttons["Earlier"]
+        reveal(earlier, app: app)
+        XCTAssertFalse(app.buttons["Later"].isEnabled)
+        earlier.tap()
+        XCTAssertFalse(earlier.isEnabled)
+        XCTAssertTrue(app.buttons["Later"].isEnabled)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "sleep_window_missing").count, 4)
+        let row = app.buttons["sleep_window_recorded"]
+        reveal(row, app: app)
+        row.tap()
+        let oldNight = app.descendants(matching: .any).matching(identifier: "sleep_selected_night")
+            .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "8h", "8h")).firstMatch
+        XCTAssertTrue(oldNight.waitForExistence(timeout: 5))
+        XCTAssertTrue(oldNight.isHittable)
     }
 
     func testProfileCanHideGamificationAndKeepOrdinaryProgress() {

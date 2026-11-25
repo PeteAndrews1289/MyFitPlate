@@ -56,6 +56,8 @@ public struct WorkoutEvidenceSnapshot: Codable {
     public var sessionIDs: [String]
     public var workingSets: Int
     public var durationSeconds: Double
+    /// Earlier exported reports contain the sum but omit its coverage.
+    public var timedSessionCount: Int?
     public var effortSets: Int
     public var completedLinkedSlots: Int
     public var unassignedSessions: Int
@@ -63,6 +65,14 @@ public struct WorkoutEvidenceSnapshot: Codable {
     public var setsByMuscle: [String: Int]
     public var headline: String {
         sessionIDs.isEmpty ? "No saved evidence in this scope" : "\(sessionIDs.count) saved sessions · \(workingSets) working sets"
+    }
+    public var durationSummary: String {
+        guard !sessionIDs.isEmpty, (0...(86_400 * Double(sessionIDs.count))).contains(durationSeconds),
+              timedSessionCount.map({ $0 > 0 }) ?? (durationSeconds > 0) else { return "Duration unavailable" }
+        let time = Duration.seconds(durationSeconds).formattedWorkoutTime + " recorded"
+        guard let timedSessionCount else { return time + " · timing coverage unknown" }
+        if timedSessionCount == sessionIDs.count { return time }
+        return time + " · \(timedSessionCount) of \(sessionIDs.count) sessions timed"
     }
 }
 public enum WorkoutEvidenceReportRules {
@@ -78,7 +88,14 @@ public enum WorkoutEvidenceReportRules {
         WorkoutSetMath.uniqueSessions(logs).filter { scope.contains($0, now: now) }.sorted { $0.date < $1.date }
     }
     public static func snapshot(logs: [WorkoutSessionLog], scope: WorkoutReportScope, now: Date = Date()) throws -> WorkoutEvidenceSnapshot {
-        let selected = filtered(logs, scope: scope, now: now)
+        let selected = filtered(logs, scope: scope, now: now).map { log in
+            // A nonfinite legacy timer cannot be encoded in the report fingerprint.
+            guard log.elapsedSeconds?.isFinite == false else { return log }
+            var copy = log
+            copy.elapsedSeconds = nil
+            return copy
+        }
+        let durations = selected.compactMap(\.recordedDurationSeconds)
         var setups: [String: WorkoutReportSetup] = [:], muscles: [String: Int] = [:]
         var sets = 0, effort = 0
         for log in selected {
@@ -102,10 +119,7 @@ public enum WorkoutEvidenceReportRules {
         struct Basis: Encodable { var scope: WorkoutReportScope; var logs: [WorkoutSessionLog] }
         return WorkoutEvidenceSnapshot(version: 1, fingerprint: try PlanFingerprint.make(Basis(scope: scope, logs: selected)),
             scope: scope, updatedAt: now, sessionIDs: ids, workingSets: sets,
-            durationSeconds: selected.reduce(0) { total, log in
-                guard let value = log.elapsedSeconds, value.isFinite, (0...86_400).contains(value) else { return total }
-                return total + value
-            }, effortSets: effort,
+            durationSeconds: durations.reduce(0, +), timedSessionCount: durations.count, effortSets: effort,
             completedLinkedSlots: Set(selected.compactMap { log -> String? in
                 guard log.programLinkDecision != .standalone, let context = log.programContext else { return nil }
                 return "\(context.programID)|\(context.slotIndex)"
@@ -141,5 +155,65 @@ public enum WorkoutEvidenceReportRules {
                 seriesID: "\(setup)|\(prescription)|\(segment)", context: WorkoutSetMath.contextLabel(first.exercise)))
         }
         return result
+    }
+}
+
+public struct StrengthPeriodComparison {
+    public struct Period {
+        public let dates: ClosedRange<Date>
+        public let trainingDays: Int
+        public let workingSets: Int
+        fileprivate let setups: Set<String>
+        fileprivate let programs: Set<String>
+    }
+
+    public let current: Period
+    public let previous: Period
+    public let includesPartialDay: Bool
+
+    public var programMixChanged: Bool {
+        current.workingSets > 0 && previous.workingSets > 0 && current.programs != previous.programs
+    }
+    public var exerciseMixChanged: Bool {
+        current.workingSets > 0 && previous.workingSets > 0 && current.setups != previous.setups
+    }
+
+    public static func make(logs: [WorkoutSessionLog], scope: WorkoutReportScope, now: Date,
+                            calendar: Calendar = .current) -> Self? {
+        guard let selectedStart = scope.startDate, let selectedEnd = scope.endDate,
+              selectedStart <= min(selectedEnd, now), scope.exerciseType == nil || scope.exerciseType == .strength else { return nil }
+        let start = calendar.startOfDay(for: selectedStart)
+        let end = min(selectedEnd, now)
+        let lastDay = calendar.startOfDay(for: end)
+        let count = (calendar.dateComponents([.day], from: start, to: lastDay).day ?? 0) + 1
+        guard let previousStart = calendar.date(byAdding: .day, value: -count, to: start),
+              let previousEnd = calendar.date(byAdding: .day, value: -count, to: end) else { return nil }
+        func period(_ dates: ClosedRange<Date>) -> Period {
+            var selection = scope
+            selection.startDate = dates.lowerBound
+            selection.endDate = dates.upperBound
+            selection.exerciseType = .strength
+            var days = Set<Date>()
+            var sets = 0
+            var setups = Set<String>(), programs = Set<String>()
+            for log in WorkoutEvidenceReportRules.filtered(logs, scope: selection, now: now) {
+                let matches = log.completedExercises.filter {
+                    $0.exercise.type == .strength && (scope.setupKey == nil || WorkoutEvidenceReportRules.setupKey($0.exercise) == scope.setupKey)
+                }
+                for exercise in matches {
+                    let count = WorkoutSetMath.workingSets(in: exercise).count
+                    guard count > 0 else { continue }
+                    sets += count
+                    days.insert(calendar.startOfDay(for: log.date))
+                    setups.insert(WorkoutEvidenceReportRules.setupKey(exercise.exercise))
+                    if log.programLinkDecision != .standalone, let program = log.programContext?.programID {
+                        programs.insert(program)
+                    }
+                }
+            }
+            return Period(dates: dates, trainingDays: days.count, workingSets: sets, setups: setups, programs: programs)
+        }
+        return Self(current: period(start...end), previous: period(previousStart...previousEnd),
+                    includesPartialDay: calendar.isDate(end, inSameDayAs: now))
     }
 }

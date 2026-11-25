@@ -563,7 +563,7 @@ struct MealPlannerView: View {
                  : "Remove this planned portion. Other allocations will be checked and kept. Meals already logged stay unchanged.")
         }
         .confirmationDialog(
-            "Clear this selected meal week?",
+            "Clear \(selectedWeekRange)?",
             isPresented: $showingDiscardPlanConfirmation,
             titleVisibility: .visible
         ) {
@@ -575,7 +575,7 @@ struct MealPlannerView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
-                "Review the selected week of \(visibleWeekPlans.flatMap(\.meals).count) planned meals before removing it. " +
+                "Review \(visibleWeekPlans.flatMap(\.meals).count) planned meals for \(selectedWeekRange). " +
                 "Pantry items, manual grocery items, and meals already added to your food log stay unchanged."
             )
         }
@@ -687,14 +687,18 @@ struct MealPlannerView: View {
                 }.padding(.horizontal, AppSpacing.screenHorizontal).accessibilityIdentifier("planner_nearest_cooking_timer")
             }
 
-            if let pendingWeekReview, pendingWeekReview.checkpoint != nil {
+            pendingWorkspaceActions
+                .buttonStyle(.plain).appTextRole(.control).foregroundStyle(AppPalette.brandText)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+
+            if workspace == .plan, let pendingWeekReview, pendingWeekReview.checkpoint != nil {
                 Button { showingPendingWeekReview = true } label: {
                     Label("Resume week review", systemImage: "calendar.badge.clock")
                         .appTextRole(.secondary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 }.accessibilityIdentifier("planner_resume_week_review").padding(.horizontal, AppSpacing.screenHorizontal)
             }
 
-            if let pendingLeftoverReview, pendingLeftoverReview.checkpoint != nil || pendingLeftoverReview.errorMessage != nil {
+            if workspace != .shop, let pendingLeftoverReview, pendingLeftoverReview.checkpoint != nil || pendingLeftoverReview.errorMessage != nil {
                 Button { showingPendingLeftoverReview = true } label: {
                     Label(pendingLeftoverReview.checkpoint?.accepted == true ? "Review saved leftovers" : "Resume leftover review",
                           systemImage: "tray.and.arrow.down")
@@ -892,89 +896,91 @@ struct MealPlannerView: View {
         if let date = Calendar.current.date(byAdding: .day, value: 7 * direction, to: selectedDate) { selectedDate = date }
     }
 
-    private var mealPlanHeaderActions: some View {
-        HStack(spacing: AppSpacing.compact) {
+    private var selectedWeekRange: String {
+        guard let first = visibleWeekDates.first, let last = visibleWeekDates.last else {
+            return selectedDate.formatted(date: .abbreviated, time: .omitted)
+        }
+        return (first..<last).formatted(.interval.month(.abbreviated).day().year())
+    }
+
+    @ViewBuilder private var mealPlanHeaderActions: some View {
+        if workspace == .cook {
+            Button { showingCookingTimers = true } label: { Image(systemName: "timer") }
+                .buttonStyle(AppIconButtonStyle(.plain))
+                .accessibilityLabel("Cooking timers").accessibilityIdentifier("planner_cooking_timers")
+        } else {
             Menu {
-                Button("Go to date", systemImage: "calendar") {
-                    if let owner = DIContainer.shared.authService.currentUserID { dateJump = .init(date: selectedDate, userID: owner) }
-                }
-                if let plan = planForSelectedDate, !mealsForDayReview(in: plan).isEmpty {
-                    Button("Review meals to log", systemImage: "checkmark.circle") { logDay(plan: plan) }
-                        .disabled(loggingMealID != nil)
-                        .accessibilityIdentifier("meal_plan_log_day")
-                }
-                Button("Generate week", systemImage: "wand.and.stars") {
-                    showingMealPlanSurvey = true
-                }
-                Button("Reuse previous week", systemImage: "doc.on.doc") { reusePreviousWeek() }
-                Button("Saved meal weeks", systemImage: "calendar.badge.clock") {
-                    savedWeekLibrary = .init(days: visibleWeekPlans, starting: selectedDate)
-                }
-                Button("Clear selected day", systemImage: "calendar.badge.minus") {
-                    preparePlanRemoval(dates: [selectedDate], title: "Clear selected meal day")
-                }
-                if hasPendingMealRemoval {
-                    Button("Resume meal removal", systemImage: "arrow.clockwise") {
-                        let session = MealPlanWeekSaveSession(userID: DIContainer.shared.authService.currentUserID, scope: "meal-plan-removal-review")
-                        resumedMealChange = .init(session: session)
+                if workspace == .shop {
+                    Button("Open pantry", systemImage: "refrigerator") { showingPantrySheet = true }
+                    Button("Scan pantry", systemImage: "camera", action: prepareCamera)
+                } else if showingWeek {
+                    Button("Generate week", systemImage: "wand.and.stars") { showingMealPlanSurvey = true }
+                    Button("Reuse previous week", systemImage: "doc.on.doc", action: reusePreviousWeek)
+                    Button("Saved meal weeks", systemImage: "calendar.badge.clock") {
+                        savedWeekLibrary = .init(days: visibleWeekPlans, starting: selectedDate)
+                    }
+                    Button("Plan change history", systemImage: "clock.arrow.circlepath") { showingPlanHistory = true }
+                    Divider()
+                    Button("Clear this week…", systemImage: "trash", role: .destructive) { showingDiscardPlanConfirmation = true }
+                        .disabled(!hasVisibleMealPlan || isLoadingWeek || weekLoadError != nil)
+                        .accessibilityIdentifier("meal_plan_discard")
+                } else {
+                    Button("Go to date", systemImage: "calendar") {
+                        if let owner = DIContainer.shared.authService.currentUserID { dateJump = .init(date: selectedDate, userID: owner) }
+                    }
+                    if let plan = planForSelectedDate, !plan.meals.isEmpty {
+                        if !mealsForDayReview(in: plan).isEmpty {
+                            Button("Review meals to log", systemImage: "checkmark.circle") { logDay(plan: plan) }
+                                .disabled(loggingMealID != nil).accessibilityIdentifier("meal_plan_log_day")
+                        }
+                        Button("Copy this day", systemImage: "doc.on.doc") {
+                            transferRequest = MealPlanTransferRequest(source: plan, meals: plan.meals, moving: false)
+                        }.disabled(loggingMealID != nil).accessibilityIdentifier("planner_copy_day")
+                        Button("Clear this day…", systemImage: "trash", role: .destructive) {
+                            preparePlanRemoval(dates: [selectedDate], title: "Clear selected meal day")
+                        }
                     }
                 }
-                Button("Plan change history", systemImage: "clock.arrow.circlepath") { showingPlanHistory = true }
-                if hasPendingMealChange {
-                    Button("Resume meal change", systemImage: "arrow.clockwise") {
-                        let session = MealPlanWeekSaveSession(userID: DIContainer.shared.authService.currentUserID, scope: "meal-alternative-review")
-                        resumedMealChange = .init(session: session)
-                    }
-                }
-                Button("Cooking timers", systemImage: "timer") { showingCookingTimers = true }
-                Button("Open pantry", systemImage: "refrigerator.fill") {
-                    showingPantrySheet = true
-                }
-                Button("Scan pantry", systemImage: "camera") { prepareCamera() }
-                if hasPendingPantryObservation {
-                    Button("Resume pantry observation", systemImage: "camera.badge.clock") {
-                        guard let owner = DIContainer.shared.authService.currentUserID else { return }
-                        do {
-                            observation = try EditorDraftStore().load(PantryPhotoObservationDraft.self, userID: owner, scope: "pantry-photo-observation")?.value
-                        } catch { mealActionMessage = "Your pantry observation couldn't be opened. It is still saved on this device." }
-                    }
-                }
-
-                Divider()
-
-                Button(role: .destructive) {
-                    showingDiscardPlanConfirmation = true
-                } label: {
-                    Label("Discard meal plan", systemImage: "trash")
-                }
-                .disabled(!hasVisibleMealPlan || isDiscardingMealPlan)
-                .accessibilityIdentifier("meal_plan_discard")
             } label: {
-                Group {
-                    if isDiscardingMealPlan || isUpdatingPlan {
-                        ProgressView()
-                            .tint(AppPalette.text)
-                    } else {
-                        Image(systemName: "ellipsis")
-                            .appFont(size: 17, weight: .semibold)
-                            .foregroundStyle(AppPalette.text)
-                    }
-                }
-                .frame(width: 44, height: 44)
-                .background(
-                    AppPalette.control,
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                )
+                Image(systemName: "ellipsis").frame(width: 44, height: 44)
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
             }
-            .accessibilityLabel("Meal plan tools")
+            .accessibilityLabel(workspace == .shop ? "Shopping tools" : showingWeek ? "Week actions" : "Day actions")
             .accessibilityIdentifier("meal_plan_tools")
             .featureSpotlight(isActive: isSpotlightActive(for: "toolbarActions"))
             .disabled(isUpdatingPlan || isDiscardingMealPlan)
         }
     }
 
-    @ViewBuilder
-    private func planContentView(for plan: MealPlanDay) -> some View {
+    @ViewBuilder private var pendingWorkspaceActions: some View {
+        if workspace == .plan {
+            if hasPendingMealRemoval {
+                Button("Resume meal removal", systemImage: "arrow.clockwise") {
+                    resumePlanChange(scope: "meal-plan-removal-review")
+                }
+            }
+            if hasPendingMealChange {
+                Button("Resume meal change", systemImage: "arrow.clockwise") {
+                    resumePlanChange(scope: "meal-alternative-review")
+                }
+            }
+        }
+        if workspace == .shop && hasPendingPantryObservation {
+            Button("Resume pantry scan", systemImage: "camera.badge.clock") {
+                guard let owner = DIContainer.shared.authService.currentUserID else { return }
+                do {
+                    observation = try EditorDraftStore().load(PantryPhotoObservationDraft.self, userID: owner, scope: "pantry-photo-observation")?.value
+                } catch { mealActionMessage = "Your pantry scan is saved on this device. Try opening it again." }
+            }
+        }
+    }
+
+    private func resumePlanChange(scope: String) {
+        let session = MealPlanWeekSaveSession(userID: DIContainer.shared.authService.currentUserID, scope: scope)
+        resumedMealChange = .init(session: session)
+    }
+
+    @ViewBuilder private func planContentView(for plan: MealPlanDay) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             if isUpdatingPlan { ProgressView("Saving plan…") }
             ForEach(MealPlanEditingRules.sorted(plan.meals)) { meal in
@@ -1008,18 +1014,12 @@ struct MealPlannerView: View {
         .accessibilityIdentifier("meal_plan_day")
         MealPlanSummaryCard(date: selectedDate, meals: plan.meals, goals: goalSettings)
         let remaining = mealsForDayReview(in: plan)
-        HStack(spacing: AppSpacing.group) {
-            if remaining.count > 1 {
-                Button("Log " + remaining.count.formatted() + " meals…") { logDay(plan: plan) }
-                    .appTextRole(.control)
-                    .disabled(isUpdatingPlan || loggingMealID != nil)
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("planner_log_remaining")
-                Spacer(minLength: 0)
-            }
-            Button("Copy this day", systemImage: "doc.on.doc") {
-                transferRequest = MealPlanTransferRequest(source: plan, meals: plan.meals, moving: false)
-            }.accessibilityIdentifier("planner_copy_day").frame(minHeight: 44)
+        if remaining.count > 1 {
+            Button("Log " + remaining.count.formatted() + " meals…") { logDay(plan: plan) }
+                .appTextRole(.control)
+                .disabled(isUpdatingPlan || loggingMealID != nil)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("planner_log_remaining")
         }
     }
 

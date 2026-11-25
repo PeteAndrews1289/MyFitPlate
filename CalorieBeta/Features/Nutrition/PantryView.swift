@@ -55,7 +55,7 @@ struct PantryView: View {
             addItemBar
         }
         .background(AppPalette.canvas.ignoresSafeArea())
-        .tint(AppPalette.brand)
+        .tint(AppPalette.brandText)
         .onAppear { startListening(); refreshStockReview() }
         .sheet(item: $stockEditor, onDismiss: { refreshStockReview() }) { request in
             StockItemEditorView(item: request.item, name: request.name) { newItemName = ""; refreshStockReview() }
@@ -190,7 +190,7 @@ struct PantryView: View {
         VStack(spacing: AppSpacing.group) {
             ProgressView()
                 .controlSize(.large)
-                .tint(AppPalette.brand)
+                .tint(AppPalette.brandText)
             Text("Loading Pantry")
                 .appTextRole(.control)
             Text("Checking your saved ingredients.")
@@ -208,7 +208,7 @@ struct PantryView: View {
                 .appFont(size: 34, weight: .semibold)
                 .foregroundStyle(AppPalette.brandText)
                 .frame(width: 64, height: 64)
-                .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface))
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface))
                 .accessibilityHidden(true)
 
             Text("Your Pantry Is Empty")
@@ -398,7 +398,7 @@ struct PantryRecipeGenerationView: View {
             content
         }
         .background(AppPalette.canvas.ignoresSafeArea())
-        .tint(AppPalette.brand)
+        .tint(AppPalette.brandText)
         .sheet(item: $ideaReview) { request in
             PantryRecipeIdeaReviewView(recipe: request.recipe, stock: pantryService.pantryItems, date: request.date, meal: request.meal)
         }
@@ -519,7 +519,7 @@ struct PantryRecipeGenerationView: View {
             if showsProgress {
                 ProgressView()
                     .controlSize(.large)
-                    .tint(AppPalette.brand)
+                    .tint(AppPalette.brandText)
             } else {
                 Image(systemName: icon)
                     .appFont(size: 32, weight: .semibold)
@@ -629,6 +629,7 @@ struct ReceiptScannerView: View {
     @State private var receiptDate = Date()
     @State private var receiptAnalysisID: UUID?
     @State private var reviewingReceiptProduct: PantryItem?
+    @State private var expandedReceiptItemID: UUID?
     @State private var confirmingSeparateReceiptImport = false
     @StateObject private var receiptSession: PantryReceiptImportSession
 
@@ -638,6 +639,7 @@ struct ReceiptScannerView: View {
         let session = PantryReceiptImportSession(userID: DIContainer.shared.authService.currentUserID, items: initialItems)
         _receiptSession = StateObject(wrappedValue: session)
         _parsedItems = State(initialValue: session.items)
+        _expandedReceiptItemID = State(initialValue: session.items.first { PantryReceiptReviewRules.reviewedItems(from: [$0]).isEmpty }?.id)
         _receiptStoreName = State(initialValue: session.checkpoint.storeName ?? session.items.compactMap { $0.purchaseEvidence?.storeName }.first ?? "")
         _receiptCurrency = State(initialValue: session.checkpoint.currency ?? session.items.compactMap { $0.purchaseEvidence?.currency }.first ?? "")
         _receiptDate = State(initialValue: session.checkpoint.purchaseDate)
@@ -648,17 +650,22 @@ struct ReceiptScannerView: View {
             title: parsedItems.isEmpty ? "Receipt Scanner" : "Review Receipt",
             subtitle: parsedItems.isEmpty
                 ? "Create a pantry draft from a grocery receipt"
-                : "Confirm every item before adding it to your pantry",
+                : nil,
             dismiss: { if !receiptSession.isSaving { dismiss() } }
         ) {
             content
         }
         .background(AppPalette.canvas.ignoresSafeArea())
-        .tint(AppPalette.brand)
+        .tint(AppPalette.brandText)
         .interactiveDismissDisabled(receiptSession.isSaving)
         .onChange(of: parsedItems) { _, items in
             guard !receiptSession.isSubmitted else { return }
             if !receiptSession.update(items: items, purchaseDate: receiptDate) { parsedItems = receiptSession.items }
+        }
+        .onChange(of: parsedItems.map(\.id)) { _, ids in
+            if expandedReceiptItemID.map(ids.contains) != true {
+                expandedReceiptItemID = parsedItems.first { PantryReceiptReviewRules.reviewedItems(from: [$0]).isEmpty }?.id
+            }
         }
         .onChange(of: receiptDate) { _, date in
             guard !receiptSession.isSubmitted else { return }
@@ -694,7 +701,7 @@ struct ReceiptScannerView: View {
             }
             Button("Keep current review", role: .cancel) {}
         } message: {
-            Text("Confirm only for a distinct purchase or an intentionally reviewed re-import. The original receipt fingerprint is retained. A pending operation is first checked and permanently cancelled if unaccepted; accepted purchases are never replaced.")
+            Text("Confirm a separate purchase only if both receipts should count. A pending operation is first checked and permanently cancelled if unaccepted; accepted purchases are never replaced.")
         }
     }
 
@@ -723,7 +730,7 @@ struct ReceiptScannerView: View {
                     .appFont(size: 38, weight: .semibold)
                     .foregroundStyle(AppPalette.brandText)
                     .frame(width: 72, height: 72)
-                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.hero))
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.hero))
                     .accessibilityHidden(true)
 
                 VStack(spacing: AppSpacing.compact) {
@@ -768,22 +775,13 @@ struct ReceiptScannerView: View {
     private var reviewState: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.group) {
-                AppMetricStrip(items: [
-                    AppMetricItem(
-                        label: "Items Detected",
-                        value: parsedItems.count.formatted(),
-                        accent: AppPalette.brand
-                    ),
-                    AppMetricItem(
-                        label: "Ready To Add",
-                        value: validItems.count.formatted(),
-                        accent: AppPalette.achievement
-                    )
-                ])
-                .appSurface(.emphasized)
-                .accessibilityIdentifier("receipt_review_summary")
+                Text(receiptSession.isSubmitted
+                     ? "\(receiptSession.acceptedCount) of \(receiptSession.checkpoint.rows.count) added to pantry"
+                     : "\(validItems.count) of \(parsedItems.count) ready")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("receipt_review_summary")
 
-                receiptPurchaseDate
                 if !receiptSession.historyAvailable {
                     Text("Previous receipt suggestions on this device are unavailable. The account's source locks still prevent the same imported receipt from replenishing stock twice.")
                         .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
@@ -791,11 +789,13 @@ struct ReceiptScannerView: View {
                 if !receiptSession.duplicateHistory.isEmpty && !receiptSession.hasConfirmedSeparateImport {
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
                         Text("Possible duplicate receipt").appTextRole(.control)
-                        Text("A matching image or same-date item list appears in this device's recent receipt imports. These suggestions are advisory; account source checks still apply.")
+                        Text("Compare this receipt with your earlier purchase.")
                             .appTextRole(.secondary).foregroundStyle(.secondary)
                         ForEach(receiptSession.duplicateHistory) { record in
                             Text("\(record.purchaseDayKey ?? record.purchaseDate.formatted(date: .abbreviated, time: .omitted)) · \(record.items.count) items")
                                 .appTextRole(.secondary)
+                            Text(record.items.prefix(3).map(\.name).joined(separator: ", "))
+                                .appTextRole(.caption).foregroundStyle(.secondary)
                         }
                         if !receiptSession.isSubmitted {
                             Button("Review separate import") { confirmingSeparateReceiptImport = true }.frame(minHeight: 44)
@@ -804,7 +804,7 @@ struct ReceiptScannerView: View {
                     }.appSurface(.quiet).accessibilityIdentifier("receipt_duplicate_warning")
                 }
                 if receiptSession.hasConfirmedSeparateImport {
-                    Text("Separate import confirmed. The original source fingerprint is retained with the new reviewed import.")
+                    Text("This receipt will count as a separate purchase.")
                         .appTextRole(.secondary).foregroundStyle(.secondary)
                 }
 
@@ -816,10 +816,10 @@ struct ReceiptScannerView: View {
                     Text("Restored your receipt review and purchase date from this device.")
                         .appTextRole(.secondary).foregroundStyle(.secondary)
                 }
-                if receiptSession.isSubmitted {
+                if receiptSession.isSubmitted && !receiptSession.isComplete {
                     Text(receiptSession.checkpoint.usesWholeReceiptLedger == true
-                        ? "This receipt is one atomic purchase. Its exact reviewed rows stay together; retry cannot add part of the receipt twice."
-                        : "\(receiptSession.acceptedCount) of \(receiptSession.checkpoint.rows.count) rows acknowledged by your account. Retry saves only unresolved rows.")
+                        ? "These products are added together. Retry uses the same receipt."
+                        : "Retry picks up with the remaining products.")
                         .appTextRole(.secondary).accessibilityIdentifier("receipt_save_status")
                     if receiptSession.checkpoint.ledgerMutation != nil && !receiptSession.isComplete {
                         Button("Check saved receipt status") { Task { await receiptSession.checkStatus(using: DIContainer.shared.nutritionRepository) } }
@@ -846,31 +846,28 @@ struct ReceiptScannerView: View {
                     .appSurface(.quiet)
                 }
 
-                HStack(alignment: .top, spacing: AppSpacing.row) {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(AppPalette.brandText)
-                        .accessibilityHidden(true)
-                    Text("Check names, amounts, units, and categories. Remove anything that does not belong.")
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 0) {
+                    ForEach(Array(parsedItems.enumerated()), id: \.element.id) { index, product in
+                        if receiptSession.isSubmitted {
+                            receiptRowStatus(index: index)
+                        } else {
+                            receiptProductRow(product, index: index)
+                        }
+                        Divider()
+                    }
                 }
-                .accessibilityElement(children: .combine)
-
-                ForEach(Array(parsedItems.indices), id: \.self) { index in
-                    if receiptSession.isSubmitted {
-                        receiptRowStatus(index: index)
-                    } else { receiptItemEditor(index: index) }
-                }
+                receiptPurchaseDate
                 DisclosureGroup {
                     receiptContextCard
+                    if !receiptSession.isSubmitted {
+                        Button("Discard receipt", role: .destructive) { if receiptSession.discard() { dismiss() } }
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
                 } label: {
                     Text("Receipt details").accessibilityIdentifier("receipt_details")
                 }
                 .appTextRole(.control)
-                if !receiptSession.isSubmitted {
-                    Button("Discard receipt", role: .destructive) { if receiptSession.discard() { dismiss() } }
-                }
+                .tint(AppPalette.brandText)
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.vertical, AppSpacing.section)
@@ -883,7 +880,7 @@ struct ReceiptScannerView: View {
                 Button {
                     saveToPantry()
                 } label: {
-                    Label(receiptSession.isComplete ? "Done" : receiptSession.isSaving ? "Saving purchases…" : receiptSession.isSubmitted ? (receiptSession.checkpoint.usesWholeReceiptLedger == true ? "Retry exact receipt" : "Retry unresolved rows") : "Add \(validItems.count.formatted()) To Pantry", systemImage: receiptSession.isComplete ? "checkmark" : "plus")
+                    Label(receiptSession.isComplete ? "Done" : receiptSession.isSaving ? "Saving purchases…" : receiptSession.isSubmitted ? (receiptSession.checkpoint.usesWholeReceiptLedger == true ? "Retry exact receipt" : "Retry unresolved rows") : "Add \(validItems.count.formatted()) to pantry", systemImage: receiptSession.isComplete ? "checkmark" : "plus")
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
                 .disabled(receiptSession.isSaving || validItems.isEmpty || (!receiptSession.isSubmitted && validItems.count != parsedItems.count))
@@ -942,24 +939,41 @@ struct ReceiptScannerView: View {
         .accessibilityIdentifier("receipt_capture_context")
     }
 
-    private func receiptItemEditor(index: Int) -> some View {
-        let item = $parsedItems[index]
-
-        return VStack(alignment: .leading, spacing: AppSpacing.group) {
-            HStack(alignment: .center, spacing: AppSpacing.row) {
-                Text("Item \((index + 1).formatted())")
-                    .appTextRole(.control)
-                Spacer()
-                Button(role: .destructive) {
-                    parsedItems.remove(at: index)
-                } label: {
-                    Image(systemName: "trash")
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+    private func receiptProductRow(_ product: PantryItem, index: Int) -> some View {
+        let reviewed = PantryReceiptReviewRules.reviewedItems(from: [product]).first
+        let expanded = expandedReceiptItemID == product.id
+        let item = Binding(get: { parsedItems.first { $0.id == product.id } ?? product }, set: { edited in
+            guard !receiptSession.isSubmitted, let position = parsedItems.firstIndex(where: { $0.id == product.id }) else { return }
+            parsedItems[position] = edited
+        })
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                expandedReceiptItemID = expanded ? nil : product.id
+            } label: {
+                HStack(spacing: AppSpacing.row) {
+                    Text(product.name.trimmed.isEmpty ? "Unnamed item" : product.name)
+                        .appTextRole(.control).foregroundStyle(AppPalette.text)
+                    Spacer(minLength: AppSpacing.compact)
+                    if let reviewed {
+                        Text("\(reviewed.quantity.formatted()) \(reviewed.unit)").monospacedDigit()
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                    } else {
+                        Label("Review", systemImage: "exclamationmark.circle")
+                            .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                    }
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 }
-                .accessibilityLabel("Remove \(item.wrappedValue.name)")
+                .frame(minHeight: 52).contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("receipt_product_\(index)")
+            if expanded { receiptItemEditor(item, index: index) }
+        }
+    }
 
+    private func receiptItemEditor(_ item: Binding<PantryItem>, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
             labeledField("Name") {
                 TextField("Item name", text: item.name)
                     .textInputAutocapitalization(.words)
@@ -1005,9 +1019,14 @@ struct ReceiptScannerView: View {
             Button(item.wrappedValue.productSnapshot == nil ? "Match this receipt row to a product" : "Review matched product") {
                 reviewingReceiptProduct = item.wrappedValue
             }.frame(minHeight: 44).accessibilityIdentifier("receipt_match_product_\(item.wrappedValue.id)")
+            Button(role: .destructive) {
+                let id = item.wrappedValue.id
+                parsedItems.removeAll { $0.id == id }
+            } label: { Label("Remove item", systemImage: "trash") }
+            .accessibilityLabel("Remove \(item.wrappedValue.name)")
         }
         .textFieldStyle(.roundedBorder)
-        .appSurface(.quiet)
+        .padding(.bottom, AppSpacing.group)
         .accessibilityIdentifier("receipt_review_item_\(index)")
     }
 

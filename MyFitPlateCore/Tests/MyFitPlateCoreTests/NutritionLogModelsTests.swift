@@ -89,6 +89,21 @@ final class NutritionLogModelsTests: XCTestCase {
         }
     }
 
+    func testLoggedPackageReopensInSelectedUnitWithTheSameWeightAndNutrition() throws {
+        let yogurt = ServingSizeOption(description: "100 g", servingWeightGrams: 100, calories: 100, protein: 10, carbs: 10, fats: 2)
+        let grams = try XCTUnwrap(InventoryQuantityRules.convert(5.3, from: "oz", to: "g"))
+        let saved = ServingNutritionCalculator.adjustedNutrition(base: yogurt, quantityValue: grams / 100, displayMassUnit: "oz")
+        let item = FoodItem(name: "Vanilla yogurt", calories: saved.calories, protein: saved.protein, carbs: saved.carbs, fats: saved.fats,
+                            servingSize: saved.servingDescription, servingWeight: saved.servingWeightGrams,
+                            quantityValue: saved.quantityValue, servingUnit: saved.servingUnit)
+        XCTAssertEqual(item.diaryPortionSummary, "5.3 oz · 150 cal")
+        let reopened = ServingNutritionCalculator.adjustedNutrition(base: ServingNutritionCalculator.baseServing(from: item), quantityValue: 5.3)
+        XCTAssertEqual(reopened.calories, saved.calories, accuracy: 0.000001)
+        XCTAssertEqual(reopened.servingWeightGrams, grams, accuracy: 0.000001)
+        let cup = ServingSizeOption(description: "1 cup", servingWeightGrams: 1, calories: 80, protein: 2, carbs: 14, fats: 2)
+        XCTAssertEqual(ServingNutritionCalculator.adjustedNutrition(base: cup, quantityValue: 1, displayMassUnit: "oz").servingUnit, "1 cup")
+    }
+
     func testServingNutritionCalculatorParseQuantity() {
         let parsed1 = ServingNutritionCalculator.parseQuantity(from: "2 x slices")
         XCTAssertEqual(parsed1.quantity, 2.0)

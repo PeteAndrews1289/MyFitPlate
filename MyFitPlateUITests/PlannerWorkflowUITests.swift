@@ -141,8 +141,10 @@ final class PlannerWorkflowUITests: XCTestCase {
     @MainActor
     func testCopyDayAppendsAndCanUndoWithoutLosingExistingMeals() {
         let app = launch()
+        let tools = app.buttons["meal_plan_tools"]
+        XCTAssertTrue(tools.waitForExistence(timeout: 10)); tools.tap()
         let copy = app.buttons["planner_copy_day"]
-        reveal(copy, in: app); copy.tap()
+        XCTAssertTrue(copy.waitForExistence(timeout: 5)); copy.tap()
         let confirm = app.buttons["planner_transfer_confirm"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
         XCTAssertTrue(app.staticTexts["3 added · 3 existing meals kept"].waitForExistence(timeout: 5))
@@ -219,6 +221,7 @@ final class PlannerWorkflowUITests: XCTestCase {
         let range = app.staticTexts["planner_week_range"].label
         next.tap()
         XCTAssertNotEqual(app.staticTexts["planner_week_range"].label, range)
+        if app.buttons["planner_view_mode"].label == "Show week" { app.buttons["planner_view_mode"].tap() }
         app.buttons["meal_plan_tools"].tap()
         app.buttons["Reuse previous week"].tap()
         let use = app.buttons["planner_use_draft"]

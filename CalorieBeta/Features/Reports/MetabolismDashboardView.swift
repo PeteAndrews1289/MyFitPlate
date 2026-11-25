@@ -67,8 +67,15 @@ struct MetabolismDashboardView: View {
     @ViewBuilder
     private var dashboardContent: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("An estimate from 21 days of recorded food and weight.")
-                .appTextRole(.secondary).foregroundStyle(.secondary)
+            if adaptiveGoalService.lastEvidenceRefreshSucceeded, let end = adaptiveGoalService.lastCalculationDate,
+               let start = Calendar.current.date(byAdding: .day, value: -20, to: end) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(start.formatted(date: .abbreviated, time: .omitted)) – \(end.formatted(date: .abbreviated, time: .omitted))")
+                    Text("\(adaptiveGoalService.recentValidLogCount) complete food days · \(adaptiveGoalService.recentWeighInCount) weigh-in days")
+                }.appTextRole(.secondary).foregroundStyle(.secondary)
+            } else {
+                Text("Estimate window · 21 days of food and weight").appTextRole(.secondary).foregroundStyle(.secondary)
+            }
 
             if adaptiveGoalService.dataConfidence == .insufficient {
                 let weighInsLeft = max(0, 7 - adaptiveGoalService.recentWeighInCount)
@@ -180,7 +187,7 @@ struct MetabolismDashboardView: View {
                 HapticManager.instance.feedback(.light)
                 showingWeeklyReview = true
             }) {
-                Text("Review weekly targets")
+                Text("Review calorie and macro targets")
             }
             .buttonStyle(AppActionButtonStyle(.primary))
             .accessibilityIdentifier("adaptive_weekly_review")
@@ -237,7 +244,7 @@ struct MetabolismDashboardView: View {
 
                 DisclosureGroup("Estimate history · this device") {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Each snapshot keeps its input window and reviewed exclusions. Refreshing an estimate does not change your approved targets.")
+                        Text("Each estimate uses the days and weigh-ins shown here. Review your weekly targets to apply a change.")
                             .appTextRole(.secondary).foregroundStyle(.secondary)
                         ForEach(Array(adaptiveGoalService.estimateHistory.prefix(visibleHistoryCount))) { record in
                             VStack(alignment: .leading, spacing: 5) {

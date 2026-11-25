@@ -24,6 +24,8 @@ private struct WorkoutBlockSlotEdit: Identifiable {
 }
 
 struct WorkoutBlockEditorView: View {
+    @FocusState private var editingBlockName: Bool
+    @AppStorage("useMetricBodyUnits") private var useMetric = Locale.current.measurementSystem != .us
     let program: WorkoutProgram
     @ObservedObject var workoutService: WorkoutService
     var onSaveLocalDraft: ((WorkoutProgram) throws -> Void)?
@@ -105,6 +107,7 @@ struct WorkoutBlockEditorView: View {
                 if block != nil {
                     configuration
                     weekOutline
+                    changedTargets
                 }
                 if !isLocalDraft, !submitted, let baseline, proposal != nil,
                    let saved = workoutService.userPrograms.first(where: { $0.id == program.id }), saved.trainingBlock != nil {
@@ -246,9 +249,19 @@ struct WorkoutBlockEditorView: View {
 
     private var configuration: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            TextField("Block name", text: Binding(get: { block?.name ?? "" }, set: { block?.name = $0 }), axis: .vertical)
-                .lineLimit(1...3)
-                .appTextRole(.control).accessibilityIdentifier("block_name")
+            HStack {
+                TextField("Block name", text: Binding(get: { block?.name ?? "" }, set: { block?.name = $0 }), axis: .vertical)
+                    .lineLimit(1...3).focused($editingBlockName)
+                    .appTextRole(.control).accessibilityIdentifier("block_name")
+                if editingBlockName, block?.name.isEmpty == false {
+                    Button {
+                        block?.name = ""
+                        editingBlockName = true
+                    } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear block name").accessibilityIdentifier("block_clear_name")
+                }
+            }
             let minimumWeeks = max(1, ((max(program.currentProgressIndex ?? 0, 0) - 1) / max(block?.sessionsPerWeek ?? 1, 1)) + 1)
             Stepper("\(block?.weeks.count ?? 12) weeks", value: Binding(
                 get: { block?.weeks.count ?? 12 }, set: resizeWeeks), in: min(minimumWeeks, 24)...24)
@@ -371,6 +384,69 @@ struct WorkoutBlockEditorView: View {
         .accessibilityIdentifier("block_session_\(index)")
     }
 
+    @ViewBuilder private var changedTargets: some View {
+        if let baseline, let proposal, let block, block.sessionsPerWeek > 0 {
+            let count = max(baseline.totalSlots, proposal.totalSlots)
+            let firstEditable = min(count, max(0, baseline.currentProgressIndex ?? 0))
+            let changes = (firstEditable..<count).compactMap { slot -> (Int, String, [String])? in
+                guard !protectedSlots.contains(slot) else { return nil }
+                let before = slot < baseline.totalSlots ? baseline.routine(forSlot: slot) : nil
+                let after = slot < proposal.totalSlots ? proposal.routine(forSlot: slot) : nil
+                let differences = targetChanges(before: before, after: after)
+                guard !differences.isEmpty else { return nil }
+                return (slot, after?.name ?? before?.name ?? "Workout", differences)
+            }
+            if let first = changes.first {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Text("Changes to future sessions").appTextRole(.sectionTitle)
+                    Text("Session \(first.0 + 1) · \(first.1)").appTextRole(.control)
+                    Text(first.2[0]).appTextRole(.secondary)
+                    if changes.count > 1 || first.2.count > 1 {
+                        DisclosureGroup("All changes · \(changes.count) sessions") {
+                            ForEach(changes, id: \.0) { change in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Session \(change.0 + 1) · \(change.1)").appTextRole(.control)
+                                    ForEach(Array(change.2.enumerated()), id: \.offset) { _, line in Text(line).appTextRole(.secondary) }
+                                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4)
+                            }
+                        }
+                    }
+                }.appSurface(.quiet).accessibilityIdentifier("block_target_changes")
+            }
+        }
+    }
+
+    private func targetChanges(before: WorkoutRoutine?, after: WorkoutRoutine?) -> [String] {
+        guard let after else { return before == nil ? [] : ["Remove this session"] }
+        guard let before else { return ["Add \(after.exercises.count) exercises"] }
+        var result = [String]()
+        if before.name != after.name { result.append("\(before.name) → \(after.name)") }
+        for next in after.exercises {
+            guard let old = before.exercises.first(where: { $0.id == next.id }) else {
+                result.append("Add \(next.name) · " + targetSummary(next))
+                continue
+            }
+            let previous = targetSummary(old), proposed = targetSummary(next)
+            if previous != proposed { result.append("\(next.name) · \(previous) → \(proposed)") }
+        }
+        for old in before.exercises where !after.exercises.contains(where: { $0.id == old.id }) {
+            result.append("Remove \(old.name)")
+        }
+        if result.isEmpty && before.exercises.map(\.id) != after.exercises.map(\.id) { result.append("Reorder exercises") }
+        return result
+    }
+
+    private func targetSummary(_ exercise: RoutineExercise) -> String {
+        guard !exercise.sets.isEmpty else { return "\(exercise.targetSets) × \(exercise.targetReps)" }
+        let targets = exercise.sets.map { set in
+            let target = set.prescription?.summary ?? set.target ?? (set.reps > 0 ? String(set.reps) : exercise.targetReps)
+            let load = set.weight > 0 ? " at " + BodyUnits.weightString(lbs: set.weight, metric: useMetric) : ""
+            return (set.isWarmup ? "Warm-up " : "") + target + load
+        }
+        let work = targets.dropFirst().allSatisfy { $0 == targets[0] } ? "\(targets.count) × \(targets[0])" : targets.joined(separator: ", ")
+        return work + " · \(exercise.restTimeInSeconds)s rest"
+    }
+
     private func sessionTargetLabel(_ index: Int) -> String {
         if let block, block.weeks.indices.contains(index / block.sessionsPerWeek),
            block.weeks[index / block.sessionsPerWeek].linkedSourceWeekID != nil { return "Linked week targets" }
@@ -384,7 +460,7 @@ struct WorkoutBlockEditorView: View {
                     .accessibilityIdentifier("block_save_error")
             }
             if submitted && !didAccept && !cancellationConfirmed {
-                Text("This submitted proposal is fixed for safe retry. Close keeps it on this device.")
+                Text("These targets are ready to retry. You can return to them from this block.")
                     .appFont(size: 13).foregroundStyle(.secondary)
                 HStack {
                     Button { resolve(cancelPending: false) } label: {
@@ -744,7 +820,7 @@ private struct WorkoutDayReuseView: View {
                         Button("Use reviewed session reuse") {
                             do { try onApply(review); dismiss() } catch { errorMessage = error.localizedDescription }
                         }.frame(minHeight: 44).accessibilityIdentifier("block_day_reuse_apply")
-                        Text("This updates the local block draft. Its Save publishes the complete frozen review.")
+                        Text("Apply this session to your draft, then save the block.")
                             .appTextRole(.caption).foregroundStyle(.secondary)
                     }
                 }

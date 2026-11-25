@@ -35,10 +35,15 @@ struct FoodDetailView: View {
     private let imageModel = MLImageModel()
 
     @State private var foodName: String
+    @State private var providerDetailsResolved = false
+    @State private var fetchedSource: FoodSourceMetadata?
+    @State private var correctedServingSource: FoodSourceMetadata?
+    @State private var correctedServingID: UUID?
     @State private var availableServings: [ServingSizeOption] = []
     @State private var selectedServingID: UUID?
     @State private var quantity: String = "1"
     @State private var portionBasis: Double
+    @State private var prefersPrintedServing = true
     @State private var displayMassUnit: String?
     @State private var massText = ""
     @FocusState private var amountFocused: Bool
@@ -131,8 +136,7 @@ struct FoodDetailView: View {
         self._foodName = State(initialValue: initialFoodItem.name)
         self._pendingCustomFoodID = State(initialValue: MyFoodsLibraryRules.savedCopyID(for: initialFoodItem))
 
-        let previousAmount = isEditingLoggedItem || source == "image_result_edit"
-            ? ServingNutritionCalculator.parseQuantity(from: initialFoodItem.servingSize).quantity : 1
+        let previousAmount = ServingNutritionCalculator.parseQuantity(from: initialFoodItem.servingSize).quantity
         let amount = initialFoodItem.quantityValue ?? previousAmount
         let openingAmount = amount.isFinite && amount > 0 ? amount : 1
         _quantity = State(initialValue: Self.amountText(openingAmount))
@@ -352,8 +356,25 @@ struct FoodDetailView: View {
         let baseNutrients = selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
         return ServingNutritionCalculator.adjustedNutrition(
             base: baseNutrients,
-            quantityText: quantity
+            quantityText: quantity,
+            displayMassUnit: displayMassUnit
         )
+    }
+
+    private var unresolvedLookup: Bool {
+        !isCorrectedServing && !providerDetailsResolved && (initialFoodItem.hasUnresolvedProviderNutrition || initialFoodItem.hasUnspecifiedServing)
+            && !source.starts(with: "log_") && source != "image_result_edit"
+    }
+
+    private var isCorrectedServing: Bool {
+        correctedServingID != nil && selectedServingID == correctedServingID
+    }
+
+    private var reviewedSourceMetadata: FoodSourceMetadata? {
+        if isCorrectedServing { return correctedServingSource }
+        var metadata = initialFoodItem.sourceMetadata ?? fetchedSource
+        if providerDetailsResolved { metadata?.providerReportedCalories = true }
+        return metadata
     }
 
     private var adjustedConsistencyStatus: NutritionCalorieConsistency.Status {
@@ -410,7 +431,8 @@ struct FoodDetailView: View {
                 .buttonStyle(.plain)
                 .accessibilityValue(showNutritionDetails ? "Expanded" : "Collapsed")
                 .accessibilityIdentifier("food_detail_more")
-                if showNutritionDetails {
+                if showNutritionDetails && !unresolvedLookup {
+                    if isPrintedServingSelected { packageBasis }
                     if !trustEvaluation.requiresCorrection { trustSummary }
                     FoodDetailMacroGrid(calories: adjustedNutrients.calories, protein: adjustedNutrients.protein,
                                         carbs: adjustedNutrients.carbs, fats: adjustedNutrients.fats)
@@ -446,10 +468,11 @@ struct FoodDetailView: View {
                 FoodDetailLoadingCard()
             } else {
                 if let error = errorLoading {
-                    FoodDetailNoticeCard(
-                        title: "Serving details could not fully refresh",
-                        message: error
-                    )
+                    FoodDetailNoticeCard(title: "Serving details unavailable", message: error)
+                    if unresolvedLookup && FoodSearchRanking.isFatSecretID(initialFoodItem.id) {
+                        Button("Retry serving lookup", action: fetchAPIServingDetails)
+                            .buttonStyle(AppActionButtonStyle(.secondary))
+                    }
                 }
 
                 if labelScanFailed {
@@ -473,8 +496,7 @@ struct FoodDetailView: View {
                                 onDismiss: saveSession.checkpoint.isSubmitted || saveSession.isSaving ? nil : { _ = saveSession.removeFuelContext() })
                         }
                         FoodDetailHeroCard(
-                            identity: FoodDisplayIdentity(name: foodName, brandName: initialFoodItem.sourceMetadata?.brandName),
-                            servingDescription: displayedServingDescription
+                            identity: FoodDisplayIdentity(name: foodName, brandName: initialFoodItem.sourceMetadata?.brandName)
                         )
 
                         AnyView(servingControlsCard)
@@ -710,43 +732,25 @@ struct FoodDetailView: View {
     @ViewBuilder private var servingControlsCard: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             Rectangle().fill(AppPalette.text).frame(height: 2)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0))))
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
-                Text("cal").appTextRole(.body)
-                Spacer()
-                Text("\(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
-                    .appTextRole(.secondary).foregroundStyle(.secondary)
+            if unresolvedLookup {
+                Label(isLoadingDetails ? "Getting serving details…" : "Serving details needed", systemImage: "scalemass")
+                    .appTextRole(.control).foregroundStyle(.secondary)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0))))
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
+                    Text("cal").appTextRole(.body)
+                    Spacer()
+                    Text("\(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
+                .accessibilityIdentifier("food_detail_portion_total")
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(adjustedNutrients.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(adjustedNutrients.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
-            .accessibilityIdentifier("food_detail_portion_total")
             Divider()
 
-            let basis = ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize)
-            if let label = initialFoodItem.sourceMetadata?.labeledServing, !label.isEmpty, !basis.isEmpty,
-               label.caseInsensitiveCompare(basis) != .orderedSame {
-                HStack(spacing: AppSpacing.compact) {
-                    Text("Package serving \(label) · nutrition per \(basis)")
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("food_portion_package_serving")
-                    if let labeled = labeledMassPortion(label) {
-                        Spacer(minLength: 0)
-                        Button("Use label") {
-                            displayMassUnit = nativeMassUnit(selectedServingOption?.description) == labeled.unit ? nil : labeled.unit
-                            applyQuantity(labeled.quantity)
-                        }
-                        .appTextRole(.control)
-                        .foregroundStyle(AppPalette.brandText)
-                        .fixedSize()
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("food_portion_use_label")
-                    }
-                }
-            }
-
+            if !isPrintedServingSelected { packageBasis }
             servingSelectionControl
             quantityControl
             HStack(spacing: AppSpacing.compact) {
@@ -768,12 +772,15 @@ struct FoodDetailView: View {
         .padding(.bottom, AppSpacing.row)
     }
 
-    private var displayedServingDescription: String {
-        if let unit = displayMassUnit, !massText.isEmpty { return massText + " " + unit }
-        if let amount = Double(quantity), let unit = nativeMassUnit(selectedServingOption?.description) {
-            return Self.displayAmount(amount) + " " + unit
+    @ViewBuilder private var packageBasis: some View {
+        let basis = ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize)
+        if let label = initialFoodItem.sourceMetadata?.labeledServing, !label.isEmpty, !basis.isEmpty,
+           label.caseInsensitiveCompare(basis) != .orderedSame {
+            Text("Printed serving \(label) · nutrition per \(basis)")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("food_portion_package_serving")
         }
-        return ServingNutritionCalculator.displayPortion(adjustedNutrients.servingDescription)
     }
 
     private static func displayAmount(_ amount: Double) -> String {
@@ -792,6 +799,7 @@ struct FoodDetailView: View {
     }
 
     private func chooseServing(_ option: ServingSizeOption) {
+        prefersPrintedServing = false
         displayMassUnit = nil
         guard option.id != selectedServingID else { return }
         if let previousGrams = gramsPerSelectedServing,
@@ -843,10 +851,23 @@ struct FoodDetailView: View {
 
     // A counted item or fluid ounce has no implied mass. Only use an explicit
     // amount and mass unit when applying a package label to the nutrition basis.
+    private var selectablePrintedLabel: String? {
+        guard let label = initialFoodItem.sourceMetadata?.labeledServing?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !label.isEmpty, label.caseInsensitiveCompare(ServingNutritionCalculator.displayPortion(initialFoodItem.servingSize)) != .orderedSame else { return nil }
+        return label
+    }
+
+    private var isPrintedServingSelected: Bool {
+        guard prefersPrintedServing, let label = selectablePrintedLabel, let portion = labeledMassPortion(label),
+              let amount = Double(quantity) else { return false }
+        return (displayMassUnit ?? nativeMassUnit(selectedServingOption?.description)) == portion.unit && abs(amount - portion.quantity) < 0.00001
+    }
+
     private func labeledMassPortion(_ label: String) -> (quantity: Double, unit: String)? {
-        let parts = label.split(whereSeparator: \.isWhitespace)
-        guard parts.count == 2, let amount = Double(parts[0]), amount.isFinite, amount > 0,
-              let unit = nativeMassUnit(String(parts[1])), let basis = gramsPerSelectedServing, basis > 0,
+        let label = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let match = label.wholeMatch(of: #/(\d+(?:\.\d+)?)\s*(g|grams?|oz|ounces?)/#),
+              let amount = Double(match.1), amount.isFinite, amount > 0,
+              let unit = nativeMassUnit(String(match.2)), let basis = gramsPerSelectedServing, basis > 0,
               let grams = InventoryQuantityRules.convert(amount, from: unit, to: "g") else { return nil }
         let quantity = grams / basis
         return quantity.isFinite && quantity > 0 ? (quantity, unit) : nil
@@ -885,15 +906,22 @@ struct FoodDetailView: View {
             Spacer(minLength: AppSpacing.compact)
             HStack(spacing: 0) {
                 stepButton(increasing: false)
-                TextField("Quantity", text: displayedQuantity)
-                    .focused($amountFocused)
-                    .accessibilityLabel("Quantity")
-                    .keyboardType(.decimalPad)
-                    .appTextRole(.sectionTitle).monospacedDigit()
-                    .multilineTextAlignment(.center)
-                    .frame(minWidth: 78, idealWidth: 100, maxWidth: 120, minHeight: 44)
-                    .layoutPriority(1)
-                    .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                HStack(spacing: 3) {
+                    TextField("Quantity", text: displayedQuantity)
+                        .focused($amountFocused)
+                        .accessibilityLabel("Quantity")
+                        .keyboardType(.decimalPad)
+                        .appTextRole(.sectionTitle).monospacedDigit()
+                        .multilineTextAlignment(.center)
+                        .frame(minWidth: 40, idealWidth: 52, maxWidth: 76)
+                    if let unit = displayMassUnit ?? nativeMassUnit(selectedServingOption?.description) {
+                        Text(unit).appTextRole(.control).foregroundStyle(.secondary)
+                            .fixedSize().accessibilityIdentifier("food_detail_amount_unit")
+                    }
+                }
+                .padding(.horizontal, AppSpacing.compact)
+                .frame(minHeight: 44)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control))
                 stepButton(increasing: true)
             }
             .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
@@ -922,16 +950,24 @@ struct FoodDetailView: View {
                 let nativeUnits = options.compactMap { nativeMassUnit($0.description) }
                 ScrollView(.horizontal) {
                     HStack(spacing: AppSpacing.compact) {
+                        if let label = selectablePrintedLabel, let portion = labeledMassPortion(label) {
+                            servingChoice(isPrintedServingSelected ? "Printed serving" : "Label · " + label, selected: isPrintedServingSelected, id: "food_portion_use_label") {
+                                prefersPrintedServing = true
+                                displayMassUnit = nativeMassUnit(current.description) == portion.unit ? nil : portion.unit
+                                applyQuantity(portion.quantity)
+                            }
+                        }
                         ForEach(options) { option in
                             servingChoice(option.description,
-                                          selected: displayMassUnit == nil && selectedServingID == option.id,
+                                          selected: !isPrintedServingSelected && displayMassUnit == nil && selectedServingID == option.id,
                                           id: nativeMassUnit(option.description).map { "food_portion_" + $0 } ?? "food_portion_serving_" + option.id.uuidString) {
                                 chooseServing(option)
                             }
                         }
                         if gramsPerSelectedServing != nil {
                             ForEach(["g", "oz"].filter { !nativeUnits.contains($0) }, id: \.self) { unit in
-                                servingChoice(unit, selected: displayMassUnit == unit, id: "food_portion_" + unit) {
+                                servingChoice(unit, selected: !isPrintedServingSelected && displayMassUnit == unit, id: "food_portion_" + unit) {
+                                    prefersPrintedServing = false
                                     displayMassUnit = unit
                                     if let amount = Double(quantity) { applyQuantity(amount) } else { massText = "" }
                                 }
@@ -976,7 +1012,7 @@ struct FoodDetailView: View {
                 .padding(.top, 8)
             }
         }
-        .tint(AppPalette.brand)
+        .tint(AppPalette.text)
         .appSurface(.quiet)
         .accessibilityIdentifier("food_detail_nutrition_details")
     }
@@ -1071,7 +1107,7 @@ struct FoodDetailView: View {
             fiber: finalNutrients.fiber,
             servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
             timestamp: initialFoodItem.timestamp ?? Date(),
-            sourceMetadata: initialFoodItem.sourceMetadata,
+            sourceMetadata: reviewedSourceMetadata,
             calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium,
             vitaminA: finalNutrients.vitaminA, vitaminC: finalNutrients.vitaminC,
@@ -1080,7 +1116,8 @@ struct FoodDetailView: View {
             magnesium: finalNutrients.magnesium, phosphorus: finalNutrients.phosphorus, zinc: finalNutrients.zinc,
             copper: finalNutrients.copper, manganese: finalNutrients.manganese, selenium: finalNutrients.selenium,
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
-            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
+            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK,
+            quantityValue: finalNutrients.quantityValue, servingUnit: finalNutrients.servingUnit
         )
         let updatedFoodItem = rawUpdatedFoodItem
             .normalizedForEstimatedSource(source)
@@ -1131,7 +1168,7 @@ struct FoodDetailView: View {
         if saveSession.checkpoint.isSubmitted { return true }
         let quantityValue = Double(quantity) ?? 0
         return !foodName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && quantityValue.isFinite && quantityValue > 0 && selectedServingOption != nil
+            && !unresolvedLookup && quantityValue.isFinite && quantityValue > 0 && selectedServingOption != nil
             && (linkedInventory == nil || proposedStockScale != nil)
     }
 
@@ -1175,7 +1212,8 @@ struct FoodDetailView: View {
         }
         let finalNutrients = ServingNutritionCalculator.adjustedNutrition(
             base: serving,
-            quantityValue: quantityValue
+            quantityValue: quantityValue,
+            displayMassUnit: correctionScope == nil ? displayMassUnit : nil
         )
         
         let rawItemToSave = FoodItem(
@@ -1185,7 +1223,7 @@ struct FoodDetailView: View {
             saturatedFat: finalNutrients.saturatedFat, polyunsaturatedFat: finalNutrients.polyunsaturatedFat, monounsaturatedFat: finalNutrients.monounsaturatedFat,
             fiber: finalNutrients.fiber, servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
             timestamp: nil,
-            sourceMetadata: initialFoodItem.sourceMetadata,
+            sourceMetadata: reviewedSourceMetadata,
             calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium, vitaminA: finalNutrients.vitaminA,
             vitaminC: finalNutrients.vitaminC, vitaminD: finalNutrients.vitaminD,
@@ -1193,7 +1231,8 @@ struct FoodDetailView: View {
             magnesium: finalNutrients.magnesium, phosphorus: finalNutrients.phosphorus, zinc: finalNutrients.zinc,
             copper: finalNutrients.copper, manganese: finalNutrients.manganese, selenium: finalNutrients.selenium,
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
-            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
+            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK,
+            quantityValue: finalNutrients.quantityValue, servingUnit: finalNutrients.servingUnit
         )
         let itemToSave = rawItemToSave
             .normalizedForEstimatedSource(source)
@@ -1301,10 +1340,12 @@ struct FoodDetailView: View {
             calibrationContext: calibrationContext
         ) { success, persistedItem in
             self.isSavingTrustCorrection = false
-            guard success, persistedItem != nil else { return }
+            guard success, let persistedItem else { return }
 
             withAnimation(.easeInOut(duration: 0.24)) {
                 self.foodName = correctedName
+                self.correctedServingID = correctedServing.id
+                self.correctedServingSource = persistedItem.sourceMetadata ?? FoodSourceMetadata(sourceType: .custom, confidence: .userVerified, reviewStatus: .userEdited)
                 self.availableServings.removeAll { $0.id == correctedServing.id }
                 self.availableServings.insert(correctedServing, at: 0)
                 self.selectedServingID = correctedServing.id
@@ -1382,6 +1423,8 @@ struct FoodDetailView: View {
             self.selectedServingID = singleUnitNutrients.id
             self.isLoadingDetails = false
             
+        } else if unresolvedLookup && FoodSearchRanking.isFatSecretID(initialFoodItem.id) {
+            fetchAPIServingDetails()
         } else if source == "recent_tap" {
             let singleUnitNutrients = ServingNutritionCalculator.baseServing(from: initialFoodItem)
             self.availableServings = [singleUnitNutrients]
@@ -1403,16 +1446,28 @@ struct FoodDetailView: View {
         let likelyApiId = FoodSearchRanking.isFatSecretID(initialFoodItem.id)
         
         if likelyApiId && availableServings.isEmpty {
-            isLoadingDetails = true; errorLoading = nil
+            errorLoading = nil
+            isLoadingDetails = true
             foodAPIService.fetchFoodDetails(foodId: initialFoodItem.id) { result in
                 DispatchQueue.main.async {
                     self.isLoadingDetails = false
                     switch result {
                     case .success(let (foodInfo, servings)):
+                        guard !foodInfo.hasUnresolvedProviderNutrition || !servings.isEmpty else {
+                            self.errorLoading = "Nutrition is unavailable for this serving."
+                            return
+                        }
+                        self.providerDetailsResolved = true
+                        self.fetchedSource = foodInfo.sourceMetadata ?? .database(.fatSecret, sourceName: "FatSecret", sourceID: self.initialFoodItem.id)
                         self.foodName = foodInfo.name
                         self.availableServings = servings.isEmpty ? [self.createFallbackServing(from: foodInfo)] : servings
-                        if let matchingServing = self.availableServings.first(where: { $0.description == self.initialFoodItem.servingSize && $0.servingWeightGrams == self.initialFoodItem.servingWeight }) {
+                        let preview = ServingNutritionCalculator.baseServing(from: self.initialFoodItem)
+                        if let matchingServing = self.availableServings.first(where: { FoodSearchRanking.matchesPreviewServing($0, preview: preview) }) {
                             self.selectedServingID = matchingServing.id
+                        } else if self.initialFoodItem.loggingPortionNotice(source: self.source) == nil {
+                            self.availableServings.removeAll { $0.description.caseInsensitiveCompare(preview.description) == .orderedSame }
+                            self.availableServings.insert(preview, at: 0)
+                            self.selectedServingID = preview.id
                         } else if let firstServing = self.availableServings.first {
                             self.selectedServingID = firstServing.id
                         } else {
@@ -1421,7 +1476,7 @@ struct FoodDetailView: View {
                         }
                     case .failure(let error):
                         errorLoading = error.localizedDescription
-                        self.availableServings = [self.createFallbackServing(from: self.initialFoodItem)]
+                        self.availableServings = self.unresolvedLookup ? [] : [self.createFallbackServing(from: self.initialFoodItem)]
                         self.selectedServingID = self.availableServings.first?.id
                     }
                 }
@@ -1475,7 +1530,7 @@ struct FoodDetailView: View {
             fiber: finalNutrients.fiber,
             servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
             timestamp: isLoggedItem ? initialFoodItem.timestamp : Date(),
-            sourceMetadata: initialFoodItem.sourceMetadata,
+            sourceMetadata: reviewedSourceMetadata,
             calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium,
             vitaminA: finalNutrients.vitaminA, vitaminC: finalNutrients.vitaminC,
@@ -1484,7 +1539,8 @@ struct FoodDetailView: View {
             magnesium: finalNutrients.magnesium, phosphorus: finalNutrients.phosphorus, zinc: finalNutrients.zinc,
             copper: finalNutrients.copper, manganese: finalNutrients.manganese, selenium: finalNutrients.selenium,
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
-            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
+            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK,
+            quantityValue: finalNutrients.quantityValue, servingUnit: finalNutrients.servingUnit
         )
         let loggedFoodItem = rawLoggedFoodItem
             .normalizedForEstimatedSource(itemSourceToLog)

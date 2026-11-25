@@ -24,18 +24,23 @@ public enum Route: String, Hashable, Identifiable, Sendable {
     case plateCalculator
     case weekRescue
     case mealExperiments
+    case activeWorkout, activeRun, activeFast
     case unavailable
 
     public var id: String { rawValue }
 
+    public var isActiveSession: Bool {
+        self == .activeWorkout || self == .activeRun || self == .activeFast
+    }
+
     public var selectedTab: Int {
         switch self {
-        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder, .trainingFuel, .unavailable,
+        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder, .trainingFuel, .unavailable, .activeFast,
              .tools, .foodPreferences, .recipes, .pantry, .grocery, .buffet:
             return 0
         case .maia, .mealExperiments:
             return 1
-        case .workouts, .runs, .plateCalculator, .weekRescue:
+        case .workouts, .runs, .activeWorkout, .activeRun, .plateCalculator, .weekRescue:
             return 2
         case .nutrition, .cookingTimer:
             return 3

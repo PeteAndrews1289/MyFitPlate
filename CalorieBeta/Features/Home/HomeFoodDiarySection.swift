@@ -22,80 +22,93 @@ struct HomeFoodDiaryGroupedContent: View {
     var onAddFood: (String) -> Void
     var onTransferFood: (FoodItem, DiaryTransferMode) -> Void
     var onCopyMeal: (Meal) -> Void
+
+    var body: some View {
+        DiaryMealGroups(meals: meals, selectedDate: selectedDate, jump: jump, rowID: \.element.id) { meal in
+            Menu {
+                Button("Copy meal", systemImage: "doc.on.doc") { onCopyMeal(meal) }
+            } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+            .accessibilityLabel("Options for \(meal.name)")
+            .accessibilityIdentifier("diary_meal_options_\(meal.name)")
+            Button { onAddFood(meal.name) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add food to \(meal.name)")
+                .accessibilityIdentifier("diary_add_\(meal.name)")
+        } foodRow: { meal, food in
+            HStack(alignment: .top, spacing: 4) {
+                SwipeableFoodItemView(
+                    initialFoodItem: food, dailyLog: $dailyLogService.currentDailyLog,
+                    onDelete: onDeleteFood, onLogUpdated: {}, date: selectedDate, mealName: meal.name, dayContext: dayContext
+                )
+                Menu {
+                    Button("Duplicate serving", systemImage: "plus.square.on.square") { onTransferFood(food, .copy) }
+                    Button("Copy to day or meal…", systemImage: "doc.on.doc") { onTransferFood(food, .copy) }
+                    Button("Move to day or meal…", systemImage: "arrow.right") { onTransferFood(food, .move) }
+                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+                .accessibilityLabel("Copy or move \(food.name)")
+                .accessibilityIdentifier("diary_food_options_\(food.id)")
+            }
+        }
+    }
+}
+
+private struct DiaryMealGroups<RowID: Hashable, Actions: View, FoodRow: View>: View {
+    let meals: [Meal]
+    let selectedDate: Date
+    var jump: DiaryMealJump?
+    let rowID: KeyPath<EnumeratedSequence<[FoodItem]>.Element, RowID>
+    @ViewBuilder let actions: (Meal) -> Actions
+    @ViewBuilder let foodRow: (Meal, FoodItem) -> FoodRow
     @State private var collapsedMeals: Set<UUID> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ForEach(meals) { meal in
-                if !meal.foodItems.isEmpty {
-                    let mealCalories = meal.foodItems.reduce(0) { $0 + $1.calories }
-                    let itemCount = meal.foodItems.count
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .center) {
-                            Button {
-                                if !collapsedMeals.insert(meal.id).inserted { collapsedMeals.remove(meal.id) }
-                            } label: {
-                                HStack(spacing: AppSpacing.row) {
-                                    Image(systemName: collapsedMeals.contains(meal.id) ? "chevron.right" : "chevron.down")
-                                        .appTextRole(.caption).foregroundStyle(.secondary).frame(width: 14)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(meal.name).appTextRole(.sectionTitle)
-                                        Text("\(itemCount.formatted()) \(itemCount == 1 ? "item" : "items") · \(Int(mealCalories.rounded()).formatted()) cal")
-                                            .appTextRole(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer(minLength: 0)
-                                }
-                                .frame(minHeight: 44).contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityValue(collapsedMeals.contains(meal.id) ? "Collapsed" : "Expanded")
-                            .accessibilityIdentifier("diary_toggle_\(meal.name)")
-                            Menu {
-                                Button("Copy meal", systemImage: "doc.on.doc") { onCopyMeal(meal) }
-                            } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
-                            .accessibilityLabel("Options for \(meal.name)")
-                            .accessibilityIdentifier("diary_meal_options_\(meal.name)")
-                            Button { onAddFood(meal.name) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Add food to \(meal.name)")
-                                .accessibilityIdentifier("diary_add_\(meal.name)")
-                        }
-
-                        if !collapsedMeals.contains(meal.id) {
-                            VStack(spacing: 0) {
-                                ForEach(Array(meal.foodItems.enumerated()), id: \.element.id) { index, foodItem in
-                                    HStack(alignment: .top, spacing: 4) {
-                                        SwipeableFoodItemView(
-                                            initialFoodItem: foodItem,
-                                            dailyLog: $dailyLogService.currentDailyLog,
-                                            onDelete: { itemID in onDeleteFood(itemID) },
-                                            onLogUpdated: { }, date: selectedDate, mealName: meal.name, dayContext: dayContext
-                                        )
-                                        Menu {
-                                            Button("Duplicate serving", systemImage: "plus.square.on.square") { onTransferFood(foodItem, .copy) }
-                                            Button("Copy to day or meal…", systemImage: "doc.on.doc") { onTransferFood(foodItem, .copy) }
-                                            Button("Move to day or meal…", systemImage: "arrow.right") { onTransferFood(foodItem, .move) }
-                                        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
-                                        .accessibilityLabel("Copy or move \(foodItem.name)")
-                                        .accessibilityIdentifier("diary_food_options_\(foodItem.id)")
-                                    }
-
-                                    if index < meal.foodItems.count - 1 {
-                                        Divider()
-                                    }
-                                }
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            ForEach(meals.filter { !$0.foodItems.isEmpty }) { meal in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        mealHeading(meal)
+                        actions(meal)
+                    }
+                    if !collapsedMeals.contains(meal.id) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(meal.foodItems.enumerated()), id: rowID) { index, food in
+                                foodRow(meal, food)
+                                if index < meal.foodItems.count - 1 { Divider() }
                             }
                         }
                     }
-                    .id(meal.id)
                 }
+                .id(meal.id)
             }
         }
         .onChange(of: jump) { _, request in
             if let mealID = request?.mealID { collapsedMeals.remove(mealID) }
         }
         .onChange(of: selectedDate) { _, _ in collapsedMeals.removeAll() }
+    }
+
+    private func mealHeading(_ meal: Meal) -> some View {
+        let collapsed = collapsedMeals.contains(meal.id)
+        let count = meal.foodItems.count
+        let calories = meal.foodItems.reduce(0) { $0 + $1.calories }
+        return Button {
+            if !collapsedMeals.insert(meal.id).inserted { collapsedMeals.remove(meal.id) }
+        } label: {
+            HStack(spacing: AppSpacing.row) {
+                Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                    .appTextRole(.caption).foregroundStyle(.secondary).frame(width: 14)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(meal.name).appTextRole(.sectionTitle)
+                    Text("\(count.formatted()) \(count == 1 ? "item" : "items") · \(calories.rounded().formatted()) cal")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+        .accessibilityIdentifier("diary_toggle_\(meal.name)")
     }
 }
 
@@ -463,44 +476,89 @@ struct NutritionDayReviewList: View {
     }
 }
 
-private struct NutritionReviewDayDetail: View {
+struct NutritionReviewDayDetail: View {
     let log: DailyLog
-    let saving: Bool
-    let onReview: (NutritionDayStatus) -> Void
+    var saving = false
+    var onReview: ((NutritionDayStatus) -> Void)?
+
     var body: some View {
-        List {
-            Section {
-                Text(NutritionDayReviewRules.displayDate(log).formatted(date: .complete, time: .omitted)).font(.headline)
-                Text("\(log.totalCalories().formatted(.number.precision(.fractionLength(0)))) calories · \(NutritionDayEvidence.status(of: log).title)")
-                if let review = log.nutritionDayReview {
-                    Text("Reviewed \(review.reviewedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
-                    if !NutritionDayReviewRules.isCurrent(review, in: log) {
-                        Text("Food changed after that review. Inspect the current entries before confirming again.")
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                dayHeader
+                Divider()
+                if log.meals.allSatisfy({ $0.foodItems.isEmpty }) {
+                    Text(NutritionDayEvidence.status(of: log) == .complete ? "No food entries for this day." : "No food entries for this day. Intake is unknown.")
+                        .appTextRole(.body).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("diary_review_empty")
+                } else {
+                    // Preserve each recorded serving even if a legacy snapshot repeats a food ID.
+                    DiaryMealGroups(meals: log.meals, selectedDate: log.date, rowID: \.offset) { _ in
+                        EmptyView()
+                    } foodRow: { _, food in
+                        DiaryFoodRow(food: food)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("diary_food_\(food.id)")
                     }
                 }
+                if let onReview { reviewActions(onReview) }
             }
-            if log.meals.flatMap(\.foodItems).isEmpty {
-                Text("No food is recorded for this day. That does not establish zero intake.")
+            .frame(maxWidth: 520, alignment: .leading)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.group)
+            .frame(maxWidth: .infinity)
+        }
+        .background(AppPalette.canvas)
+        .navigationTitle(onReview == nil ? "Food diary" : "Review this day")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var dayHeader: some View {
+        let date = NutritionDayReviewRules.displayDate(log)
+        let fullDate = date.formatted(date: .complete, time: .omitted)
+        return VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            ViewThatFits(in: .horizontal) {
+                Text(fullDate).fixedSize()
+                Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().year()))
             }
-            ForEach(log.meals) { meal in
-                Section(meal.name) {
-                    ForEach(Array(meal.foodItems.enumerated()), id: \.offset) { _, food in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(food.name)
-                            Text("\(food.calories.formatted(.number.precision(.fractionLength(0)))) cal · \(food.protein.formatted(.number.precision(.fractionLength(0...1)))) g protein")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
+            .appTextRole(.screenTitle)
+            .accessibilityLabel(fullDate)
+            .accessibilityIdentifier("diary_review_full_date")
+            if log.meals.contains(where: { !$0.foodItems.isEmpty }) {
+                Text("\(log.totalCalories().rounded().formatted()) cal · \(log.totalMacros().protein.rounded().formatted()) g protein")
+                    .appTextRole(.body).fontWeight(.semibold).monospacedDigit()
+                    .accessibilityIdentifier("diary_review_totals")
+            }
+            let status = NutritionDayEvidence.status(of: log)
+            Label(status.title, systemImage: status == .complete ? "checkmark.circle" : "circle.dashed")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+            if let review = log.nutritionDayReview {
+                Text("Reviewed \(review.reviewedAt.formatted(date: .abbreviated, time: .shortened))")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+                if !NutritionDayReviewRules.isCurrent(review, in: log) {
+                    Text("Food changed after this review. Check the entries before confirming again.")
+                        .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
                 }
             }
-            Section {
-                ForEach(NutritionDayStatus.allCases, id: \.self) { status in
-                    Button(status == .complete ? "Everything I ate is included" : status.title) { onReview(status) }
-                        .disabled(saving)
+        }
+    }
+
+    private func reviewActions(_ onReview: @escaping (NutritionDayStatus) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Divider()
+            Text("Day review").appTextRole(.sectionTitle)
+            ForEach(NutritionDayStatus.allCases, id: \.self) { status in
+                Button {
+                    onReview(status)
+                } label: {
+                    Text(status == .complete ? "Everything I ate is included" : status.title)
+                        .appTextRole(.control)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
-            } footer: {
-                Text("This declaration concerns the whole day. Unknown nutrients stay unknown. Returning to the list keeps its selected dates.")
+                .disabled(saving)
             }
-        }.appFormStyle().navigationTitle("Review this day").navigationBarTitleDisplayMode(.inline)
+            Text("This review applies to the whole day. Nutrients without a recorded value stay unknown.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+        }
     }
 }

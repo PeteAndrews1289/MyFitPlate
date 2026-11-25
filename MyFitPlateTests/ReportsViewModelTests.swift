@@ -125,6 +125,11 @@ final class ReportsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.summary?.averageCalories, 2_000)
         XCTAssertEqual(viewModel.calorieTrend.count, 2)
         XCTAssertEqual(Set(viewModel.calorieTrend.map(\.date)), Set([targetDay, otherDay]))
+        let diaryDay = try XCTUnwrap(DiaryDayContext(userID: "reports-user", date: targetDay))
+        XCTAssertEqual(viewModel.diaryEntry(for: diaryDay)?.id, canonicalKey)
+        XCTAssertEqual(viewModel.diaryEntry(for: diaryDay)?.totalCalories(), 2_100)
+        let otherOwner = try XCTUnwrap(DiaryDayContext(userID: "other-user", date: targetDay))
+        XCTAssertNil(viewModel.diaryEntry(for: otherOwner))
         XCTAssertEqual(viewModel.calorieTrend.first { $0.date == targetDay }?.value, 2_100)
         XCTAssertEqual(viewModel.calorieTrend.first { $0.date == otherDay }?.value, 1_900)
         for trend in [viewModel.proteinTrend, viewModel.carbTrend, viewModel.fatTrend] {
@@ -138,18 +143,26 @@ final class ReportsViewModelTests: XCTestCase {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!
         var unknown = log(id: "unknown", date: yesterday, calories: 900)
         unknown.nutritionDayStatus = nil
+        unknown.meals[0].name = "After lifting"
         let activityDate = Calendar.current.date(byAdding: .day, value: -1, to: yesterday)!
         let activityOnly = DailyLog(date: activityDate, meals: [], exercises: [
             LoggedExercise(name: "Walk", durationMinutes: 30, caloriesBurned: 100, date: activityDate)
         ])
         repository.mockFetchDailyHistoryResultsByUserID["reports-user"] = .success([unknown, activityOnly])
         let viewModel = makeViewModel()
+        let loaded = expectation(description: "Unreviewed day and activity-only day loaded")
+        let observation = viewModel.$isLoading.dropFirst().first { !$0 }.sink { _ in loaded.fulfill() }
         viewModel.fetchData(for: .week)
-        try await Task.sleep(nanoseconds: 400_000_000)
+        await fulfillment(of: [loaded], timeout: 8)
+        withExtendedLifetime(observation) {}
         XCTAssertNil(viewModel.summary)
         XCTAssertNil(viewModel.reportSpecificInsight)
         XCTAssertEqual(viewModel.calorieTrend.count, 1, "Activity-only days must not appear as zero food intake")
         XCTAssertTrue(viewModel.mealScore == nil || viewModel.mealScore?.grade == "N/A")
+        XCTAssertEqual(viewModel.mealDistributionData.first?.mealName, "After lifting")
+        XCTAssertEqual(viewModel.mealDistributionData.first?.totalCalories, unknown.totalCalories(),
+                       "A day with only a workout must not lower the per-food-day meal average.")
+        XCTAssertEqual(viewModel.weeklyWorkoutReport?.activeDays, 1)
         XCTAssertNil(viewModel.errorMessage)
     }
 

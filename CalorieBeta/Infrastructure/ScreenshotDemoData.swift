@@ -1306,7 +1306,11 @@ enum ScreenshotDemoData {
                 try EditorDraftStore().remove(userID: userID, scope: "week-rescue-review-\(programID)-history")
             } catch { AppLog.app.error("Could not reset isolated rescue review: \(error.localizedDescription, privacy: .public)") }
         }
-        let sessionLogs = workoutLogs(for: program)
+        var sessionLogs = workoutLogs(for: program)
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-partially-timed-workouts"),
+           let index = sessionLogs.firstIndex(where: { $0.date >= day(offset: -6) && $0.date <= Date() }) {
+            sessionLogs[index].elapsedSeconds = 45 * 60
+        }
         workout.onProgramsSnapshotListenerAdded = { [weak workout] _, update in
             update(.success([workout?.committedBlockPrograms.first(where: { $0.id == program.id }) ?? program]))
             if requestedScreen == "week-rescue" {
@@ -1351,6 +1355,25 @@ enum ScreenshotDemoData {
             draft.programLinkDecision = nil
             draft.elapsed = 120
             try? WorkoutDraftStore().save(draft, userID: userID)
+        }
+
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-active-workout-link-fixture"),
+           let slot = program.currentProgressIndex, let routine = program.routine(forSlot: slot)?.deepCopy(),
+           let programID = program.id {
+            var draft = WorkoutSessionDraft(routine: routine, programContext: .init(programID: programID, slotIndex: slot))
+            draft.sessionID = "qa-activity-workout"
+            draft.elapsed = 120
+            try? WorkoutDraftStore().save(draft, userID: userID)
+        }
+
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-active-run-link-fixture"), (try? RunRecordingDraftStore().load(userID: userID)) == nil {
+            let now = Date()
+            let sample = RunSession(metric: true, timeAccounting: .activeElapsed, id: "qa-activity-run")
+            sample.start(at: now.addingTimeInterval(-37))
+            sample.pause(at: now)
+            if let snapshot = sample.snapshot(at: now) {
+                try? RunRecordingDraftStore().save(.init(session: snapshot, updatedAt: now), userID: userID)
+            }
         }
 
         settings.mockFetchUserGoalsResult = goalPayload()

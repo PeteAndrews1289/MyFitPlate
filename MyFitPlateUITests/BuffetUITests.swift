@@ -140,7 +140,9 @@ final class BuffetUITests: XCTestCase {
         settle(app.buttons["ayce_end_button"])
         app.buttons["Clear buffet search"].tap()
         let finish = app.buttons["ayce_finish_round"]
-        reveal(finish, in: app); settle(finish); finish.tap()
+        settle(finish); finish.tap()
+        let options = app.buttons["ayce_session_options"]
+        reveal(options, in: app); options.tap()
         let repeatRound = app.buttons["ayce_repeat_round"]
         settle(repeatRound); repeatRound.tap()
         let confirm = app.buttons["ayce_confirm_repeat"]

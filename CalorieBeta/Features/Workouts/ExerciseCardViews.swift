@@ -435,7 +435,9 @@ struct StrengthExerciseView: View {
                     Text("Set").frame(width: 54)
                     VStack(spacing: 1) {
                         Text("Load (\(exercise.loadEquipment?.unit.rawValue ?? "lb"))")
-                        if exercise.loadEquipment?.loadingMeaning == .perHand { Text("per hand") }
+                        if let meaning = exercise.loadEquipment?.loadingMeaning, meaning != .asLogged, meaning != .total {
+                            Text(meaning == .assistance ? "assistance" : meaning.title)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     Text("Reps").frame(maxWidth: .infinity)

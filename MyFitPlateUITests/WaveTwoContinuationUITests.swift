@@ -184,7 +184,9 @@ final class WaveTwoContinuationUITests: XCTestCase {
     @MainActor
     func testCookingStepsAndRunningThenPausedTimerSurviveRelaunch() {
         let app = launch("meal-prep-steps")
+        let allSteps = app.buttons["cooking_all_steps"]
         let step = app.buttons["meal_prep_step_0"]
+        reveal(allSteps, app: app); allSteps.tap()
         reveal(step, app: app); step.tap()
         XCTAssertEqual(step.value as? String, "Complete")
         let start = app.buttons["meal_prep_start_timer"]
@@ -197,6 +199,7 @@ final class WaveTwoContinuationUITests: XCTestCase {
         app.terminate()
         _ = launch("meal-prep-steps", resets: false, app: app)
         XCTAssertTrue(timer.waitForExistence(timeout: 10))
+        reveal(allSteps, app: app); allSteps.tap()
         reveal(step, app: app)
         XCTAssertEqual(step.value as? String, "Complete")
         XCTAssertGreaterThan(timerSeconds(app), 0)
@@ -208,6 +211,7 @@ final class WaveTwoContinuationUITests: XCTestCase {
         _ = launch("meal-prep-steps", resets: false, app: app)
         XCTAssertTrue(app.buttons["Resume timer"].waitForExistence(timeout: 10))
         XCTAssertEqual(timerSeconds(app), paused, "A paused timer keeps its remaining duration")
+        reveal(allSteps, app: app); allSteps.tap()
         reveal(step, app: app)
         XCTAssertEqual(step.value as? String, "Complete")
         record(app, "Cooking - step and running/paused timer recovery")

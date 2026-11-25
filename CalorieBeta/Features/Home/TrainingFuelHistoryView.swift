@@ -166,11 +166,14 @@ private struct TrainingFuelFeedbackView: View {
     }
     var body: some View {
         Form {
-            Text("Record your experience on a 1–5 scale. This is a personal observation; it does not establish that the food caused a better session.")
+            Section {
+                Text(plan.draft.sessionTitle).appTextRole(.sectionTitle)
+                Text(plan.draft.scheduledAt.formatted(date: .abbreviated, time: .shortened)).appTextRole(.secondary)
+            }
+            Text("Rate how you felt during this session, from 1 to 5.")
             Stepper("Energy · \(energy)", value: $energy, in: 1...5)
             Stepper("Comfort · \(comfort)", value: $comfort, in: 1...5)
             Stepper("Practicality · \(practicality)", value: $practicality, in: 1...5)
-            Text("If you want to compare familiar meals across similar sessions, use Meal Experiments. These ratings never change your macro goals automatically.").font(.caption)
             Button("Save observation") {
                 guard let ownerID, ownerID == DIContainer.shared.authService.currentUserID else { return }
                 do {
@@ -181,7 +184,7 @@ private struct TrainingFuelFeedbackView: View {
             }
             if matchesSavedFeedback, let savedFeedback {
                 Section("Explore what works") {
-                    Text("Observation saved. Compare two familiar meals across similar future sessions; this single rating is not a conclusion about the food.")
+                    Text("Observation saved \(savedFeedback.recordedAt.formatted(date: .abbreviated, time: .shortened)). Compare meals across similar sessions to look for a pattern.")
                     NavigationLink("Compare familiar meals") {
                         MealExperimentsView(fuelContext: .init(planID: plan.id, sessionTitle: plan.draft.sessionTitle,
                             scheduledAt: plan.draft.scheduledAt, feedback: savedFeedback,

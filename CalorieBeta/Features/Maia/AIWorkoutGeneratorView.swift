@@ -138,7 +138,7 @@ struct AIWorkoutGeneratorView: View {
                         Button("Resume reviewed proposal") { editingRequirements = false }.frame(minHeight: 44)
                     }
                     if hasFrozenSubmission {
-                        Text("A save has already frozen this proposal. Return to it and retry the same save before starting another generation.")
+                        Text("Your program is ready to retry. Open the saved proposal to finish.")
                             .appTextRole(.secondary)
                     }
                     Button(action: generatePlan) {
@@ -528,7 +528,7 @@ struct GeneratedProgramPreviewView: View {
                         .disabled(program.trainingBlock != nil)
                 }
                 if program.trainingBlock != nil {
-                    Text("This save is frozen for retry. Its name, sessions, schedule and block identities stay the same until acceptance is confirmed.")
+                    Text("Your reviewed sessions and schedule are ready to retry.")
                         .appTextRole(.secondary).foregroundStyle(.secondary)
                 }
 

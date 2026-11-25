@@ -52,7 +52,10 @@ final class WaveTwoRestaurantDepthUITests: XCTestCase {
         let add = app.buttons["ayce_add_sushi_rainbow_roll"]
         reveal(add, app: app); XCTAssertTrue(add.exists); add.tap()
         app.buttons["Clear buffet search"].tap()
-        let finish = app.buttons["ayce_finish_round"]; reveal(finish, app: app); finish.tap()
+        let finish = app.buttons["ayce_finish_round"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 8))
+        XCTAssertTrue(finish.isHittable)
+        finish.tap()
         let options = app.buttons["ayce_session_options"]; reveal(options, app: app); options.tap()
         let history = app.buttons["ayce_round_history"]
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()

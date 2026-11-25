@@ -83,6 +83,12 @@ struct SettingsView: View {
     @State private var selectedCategory: SettingsCategory?
     @State private var searchQuery = ""
 
+    private var healthSummary: String {
+        if !healthKitViewModel.isHealthDataAvailable { return "Unavailable on this device" }
+        if let synced = healthKitViewModel.lastSyncedAt { return "Last read " + synced.formatted(date: .abbreviated, time: .shortened) }
+        return healthKitViewModel.isAuthorized ? "No Health data read yet" : "Set up Apple Health"
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.section) {
@@ -102,7 +108,7 @@ struct SettingsView: View {
                 }
 
                 SettingsSectionCard(title: "Your experience") {
-                    categoryRow(.health, value: healthKitViewModel.isAuthorized ? "Review access and activity calories" : "Connect workouts, sleep and recovery")
+                    categoryRow(.health, value: healthSummary)
                     Divider().padding(.leading, 64)
                     categoryRow(.notifications, value: "Personal schedules · quiet hours · history")
                     Divider().padding(.leading, 64)
@@ -134,7 +140,7 @@ struct SettingsView: View {
                     .disabled(isDeletingAccount)
             }
         }
-        .tint(AppPalette.brand)
+        .tint(AppPalette.brandText)
         .navigationDestination(item: $selectedCategory) { category in
             categoryPage(category)
         }

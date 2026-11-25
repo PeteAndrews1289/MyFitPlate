@@ -34,6 +34,7 @@ struct MealPrepCookingView: View {
     @State private var cookingClock = Date()
     @State private var stepLayoutReady = false
     @State private var showingRecipeIngredients = false
+    @State private var showsAllSteps = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -144,7 +145,10 @@ struct MealPrepCookingView: View {
                 if selectedTab == 0 { prepSummary }
                 prepSelection
                 modePicker
-                if let timer = featuredNamedTimer { featuredTimerControls(timer) }
+                if let timer = featuredNamedTimer,
+                   selectedTab != 1 || currentStepIndex.map({ mealPrepService.structuredSteps[$0].id }) != timer.stepID {
+                    featuredTimerControls(timer)
+                }
                 if selectedTab == 1 { guidedStep }
                 if selectedTab == 0 { ingredientsContent } else { stepsContent }
                 Divider()
@@ -257,6 +261,7 @@ struct MealPrepCookingView: View {
                     VStack(alignment: .leading) { guidedControls(index: index) }
                 }
                 Divider()
+                if let timer = featuredNamedTimer, timer.stepID == step.id { featuredTimerControls(timer) }
                 guidedReference(step, ingredients: source?.ingredients ?? [])
             }.appSurface(.emphasized).accessibilityElement(children: .contain).accessibilityIdentifier("cooking_current_step")
         }
@@ -282,7 +287,7 @@ struct MealPrepCookingView: View {
                     .frame(minHeight: 44)
             }
             .accessibilityLabel("Read this step")
-            stepTimerButton(step)
+            if featuredNamedTimer?.stepID != step.id { stepTimerButton(step) }
         }
         .buttonStyle(.borderless)
         .appTextRole(.secondary)
@@ -656,29 +661,33 @@ struct MealPrepCookingView: View {
                 message: "Add instructions to planned meals before opening meal prep."
             )
         } else {
-            VStack(alignment: .leading, spacing: AppSpacing.group) {
-                AppSectionHeader(
-                    title: "Prep Steps",
-                    subtitle: "\(completedStepIndexes.intersection(visibleStepIndexes).count) of \(visibleStepIndexes.count) complete"
-                )
-
-                VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                if let index = currentStepIndex, let position = visibleStepIndexes.firstIndex(of: index),
+                   position + 1 < visibleStepIndexes.count {
+                    let next = mealPrepService.structuredSteps[visibleStepIndexes[position + 1]]
+                    Text("Up next").appTextRole(.caption).foregroundStyle(.secondary)
+                    Text(next.text).appTextRole(.body).lineLimit(2)
+                }
+                Button {
+                    showsAllSteps.toggle()
+                } label: {
+                    HStack {
+                        Text("All steps").appTextRole(.control)
+                        Spacer()
+                        Text("\(completedStepIndexes.intersection(visibleStepIndexes).count) of \(visibleStepIndexes.count) complete")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                        Image(systemName: showsAllSteps ? "chevron.up" : "chevron.down")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                    }.frame(minHeight: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(showsAllSteps ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("cooking_all_steps")
+                if showsAllSteps {
                     ForEach(visibleStepIndexes, id: \.self) { index in
                         prepStepRow(index: index)
-
-                        if index != visibleStepIndexes.last {
-                            Divider()
-                                .padding(.leading, 52)
-                        }
+                        if index != visibleStepIndexes.last { Divider() }
                     }
-                }
-                .background(
-                    AppPalette.control,
-                    in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                        .stroke(AppPalette.separator, lineWidth: 1)
                 }
             }
             .accessibilityElement(children: .contain)

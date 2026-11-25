@@ -151,6 +151,7 @@ import MyFitPlateCore
     @ObservedObject var engine: RunCloudSyncEngine
     let conflict: RunCloudConflict
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("useMetricBodyUnits") private var useMetric = Locale.current.measurementSystem != .us
     @State private var choice: RunCloudRevision?
     @State private var saving = false
     @State private var error: String?
@@ -162,7 +163,7 @@ import MyFitPlateCore
                         .font(.subheadline)
                 }
                 ForEach(Array(conflict.versions.enumerated()), id: \.element.id) { index, version in
-                    Section("Version \(index + 1)") {
+                    Section("Saved option \(index + 1)") {
                         Text(summary(version)).textSelection(.enabled)
                         let issue = engine.resolutionIssue(conflict, choosing: version)
                         if let issue { Text(issue).font(.caption).foregroundStyle(AppPalette.caution) }
@@ -196,11 +197,11 @@ import MyFitPlateCore
     private func summary(_ revision: RunCloudRevision) -> String {
         guard let data = revision.payload else { return "Removed from the active library. Earlier saved versions remain in history." }
         if conflict.key.hasPrefix("plan/"), let record = try? RunCloudCodec.decode(RunCloudWorkoutRecord.self, data) {
-            return "\(record.plan.name)\n\(record.plan.subtitle)\n\(record.plan.steps.count) steps · \(record.isFavorite ? "Favorite" : "Not a favorite")"
+            return "\(record.plan.name)\n\(record.plan.subtitle)\n" + record.plan.steps.map { step in [step.title, step.goalText(metric: useMetric), step.targetText(metric: useMetric)].compactMap { $0 }.joined(separator: " · ") }.joined(separator: "\n") + "\n\(record.plan.steps.count) steps · \(record.isFavorite ? "Favorite" : "Not a favorite")"
         }
         if conflict.key.hasPrefix("block/"), let block = try? RunCloudCodec.decode(RunTrainingBlock.self, data) {
             let completed = block.slots.filter { $0.outcome?.state == .recorded }.count
-            return "\(block.slots.count) sessions · \(completed) recorded\n\(block.archived ? "Archived" : "Active")\n" + block.slots.map { "\($0.day.date()?.formatted(date: .abbreviated, time: .omitted) ?? "Date unavailable"): \($0.plan.name)" }.joined(separator: "\n")
+            return "Created \(block.createdAt.formatted(date: .abbreviated, time: .omitted))\n\(block.slots.count) sessions · \(completed) recorded\n\(block.archived ? "Archived" : "Active")\n" + block.slots.map { "\($0.day.date()?.formatted(date: .abbreviated, time: .omitted) ?? "Date unavailable"): \($0.plan.name)" }.joined(separator: "\n")
         }
         if conflict.key.hasPrefix("head/"), let id = try? RunCloudCodec.decode(String.self, data),
            let receiptData = engine.knownPayload(for: "receipt/" + id),
@@ -211,7 +212,7 @@ import MyFitPlateCore
             case .hide: return "Hidden from MyFitPlate history · \(date)"
             case .restoreOriginal: return "Original run restored · \(date)"
             case .excludeImportPermanently: return "Permanently excluded from MyFitPlate imports · \(date)"
-            case .correctManual(let distance, let seconds, let reason): return "Manual correction · \(date)\n\(distance.formatted()) m · \(seconds.formatted()) active seconds\n" + reason
+            case .correctManual(let distance, let seconds, let reason): return "Manual correction · \(date)\n\(RunFormat.distanceText(meters: distance, metric: useMetric)) · \(RunFormat.durationText(seconds: seconds)) active\n" + reason
             case .correctPauses(_, let reason): return "Pause correction · \(date)\n" + reason
             }
         }

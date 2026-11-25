@@ -285,6 +285,19 @@ class FoodSearchViewModel: ObservableObject {
             searchCoverageMessage = nil
             return
         }
+        if arguments.contains("-ui-testing-food-energy-coverage") {
+            let samples = [(id: "qa-water-confirmed", name: "Sparkling Water", reported: true),
+                           (id: "qa-water-unresolved", name: "Mineral Water", reported: false)]
+            let foods = samples.map { item in
+                var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: item.id)
+                metadata.providerReportedCalories = item.reported
+                return FoodItem(id: item.id, name: item.name, calories: 0, servingSize: "1 bottle", sourceMetadata: metadata)
+            }
+            searchResults = foods.filter { $0.name.localizedCaseInsensitiveContains(query) }
+            isLoading = false
+            hasCompletedPrimarySearch = true
+            return
+        }
         if arguments.contains("-ui-testing-branded-food-search") {
             searchBrandedFixture(query: query)
             return
@@ -405,7 +418,7 @@ class FoodSearchViewModel: ObservableObject {
                         ("ui-strawberry-small", "Strawberry", "5.3 oz")].map { id, flavor, size in
             var metadata = FoodSourceMetadata.database(.usda, sourceName: "USDA", sourceID: id, brandName: "Chobani")
             metadata.labeledServing = size
-            return FoodItem(id: id, name: "Greek Yogurt, " + flavor, calories: 100,
+            return FoodItem(id: id, name: "Greek Yogurt, " + flavor, calories: 100, protein: 10, carbs: 8, fats: 3,
                             servingSize: "100 g", servingWeight: 100, sourceMetadata: metadata)
         }
         let usda = ProcessInfo.processInfo.arguments.contains("-ui-testing-product-sizes") ? [generic] + variants : [generic]
@@ -586,7 +599,7 @@ class FoodSearchViewModel: ObservableObject {
               !loggingFoodIDs.contains(food.id), !quickLoggedFoodIDs.contains(food.id) else { return }
         let day = service.diaryDayContext(for: userID, date: service.activelyViewedDate)
         guard let pending = queue.begin(food: food, date: service.activelyViewedDate, mealName: selectedMeal, source: source,
-                                        needsHydration: true, dayContext: day) else {
+                                        needsHydration: FoodSearchRanking.needsNutritionHydration(food), dayContext: day) else {
             lastLogSucceeded = false
             lastUndoID = nil
             lastLogMessage = queue.errorMessage
@@ -632,8 +645,9 @@ class FoodSearchViewModel: ObservableObject {
             let finished = accepted && queue.finish(id: pending.id)
             self.loggingFoodIDs.remove(pending.sourceFoodID)
             self.canRetryLog = !queue.operations.isEmpty
-            let day = Calendar.current.isDateInToday(pending.draft.date) ? "today" : pending.draft.date.formatted(date: .abbreviated, time: .omitted)
-            self.showLogResult(finished, message: "Added to \(pending.draft.mealName) · \(day)")
+            let day = self.receiptDay(pending.draft.dayContext, fallback: pending.draft.date)
+            let portion = pending.draft.entries.first?.food.diaryPortionSummary ?? ""
+            self.showLogResult(finished, message: ["Added to " + pending.draft.mealName, day, portion].filter { !$0.isEmpty }.joined(separator: " · "))
             if finished {
                 self.lastUndoID = self.newAdditionUndo(for: Set(pending.draft.entries.map(\.id)), owner: queue.userID, previous: previousUndoID)
                 self.rememberSearch(self.activeSearchQuery)
@@ -651,6 +665,13 @@ class FoodSearchViewModel: ObservableObject {
         }
     }
 
+    private func receiptDay(_ context: DiaryDayContext?, fallback: Date) -> String {
+        let calendar = context?.calendar ?? Calendar.current
+        let date = context?.displayDate ?? fallback
+        if calendar.isDateInToday(date) { return "today" }
+        return date.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, calendar: calendar, timeZone: calendar.timeZone))
+    }
+
     private func showLogResult(_ success: Bool, message: String) {
         lastLogSucceeded = success
         lastUndoID = success ? dailyLogService?.undoChangeID : nil
@@ -666,7 +687,7 @@ class FoodSearchViewModel: ObservableObject {
     func acceptedPortion(_ checkpoint: FoodDetailSaveCheckpoint, previousUndoID: UUID?) {
         guard let owner = loadedUserID, owner == DIContainer.shared.authService.currentUserID else { return }
         lastLogSucceeded = true
-        lastLogMessage = "Added to " + checkpoint.mealName + " · " + checkpoint.date.formatted(date: .abbreviated, time: .omitted)
+        lastLogMessage = ["Added to " + checkpoint.mealName, receiptDay(checkpoint.dayContext, fallback: checkpoint.date), checkpoint.food.diaryPortionSummary].filter { !$0.isEmpty }.joined(separator: " · ")
         lastUndoID = newAdditionUndo(for: [checkpoint.entryID], owner: owner, previous: previousUndoID)
         rememberSearch(activeSearchQuery)
     }
@@ -1018,7 +1039,8 @@ class FoodSearchViewModel: ObservableObject {
                     completion(FoodSearchRanking.hydratedQuickLogItem(
                         preview: food,
                         detailBase: details.foodInfo,
-                        availableServings: details.availableServings
+                        availableServings: details.availableServings,
+                        preserveDisplayedPortion: true
                     ))
                 case .failure:
                     completion(food)

@@ -65,6 +65,7 @@ struct RunActivityWidget: Widget {
             .padding()
             .activityBackgroundTint(Color.black.opacity(0.6))
 
+            .widgetURL(MyFitPlateLinks.ActivityDestination.run.url(sessionID: context.attributes.recordingID))
         } dynamicIsland: { context in
             let stale = context.isStale || !RunActivityTimerRules.isFresh(reportedAt: context.state.reportedAt)
             return DynamicIsland {
@@ -124,6 +125,7 @@ struct RunActivityWidget: Widget {
                 Image(systemName: "figure.run")
                     .foregroundColor(brandGreen)
             }
+            .widgetURL(MyFitPlateLinks.ActivityDestination.run.url(sessionID: context.attributes.recordingID))
         }
     }
 

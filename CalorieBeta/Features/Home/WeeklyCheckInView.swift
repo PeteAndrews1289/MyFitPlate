@@ -312,7 +312,7 @@ struct WeeklyCheckInView: View {
             VStack(alignment: .leading, spacing: AppSpacing.compact) {
                 VStack(alignment: .leading, spacing: 2) {
                     if let before = checkpoint?.proposal.before {
-                        Text("Current: \(Int(before.calories.rounded()).formatted()) cal/day")
+                        Text("Current target · \(Int(before.calories.rounded()).formatted()) cal/day")
                             .appTextRole(.secondary).foregroundStyle(.secondary)
                             .accessibilityIdentifier("weekly_current_calories")
                     }
@@ -333,16 +333,20 @@ struct WeeklyCheckInView: View {
                     .background(AppPalette.control, in: Capsule())
             }
 
+            if let frozen = checkpoint?.proposal {
+                let date = checkpoint?.submittedDecision?.decidedAt ?? Date()
+                Text("Starts " + date.formatted(date: .abbreviated, time: .omitted) + (checkpoint?.submittedDecision == nil ? " if accepted" : ""))
+                    .appTextRole(.control)
+                Text("Based on " + frozen.evidenceStart.formatted(date: .abbreviated, time: .omitted) + " – " + frozen.evidenceEnd.formatted(date: .abbreviated, time: .omitted))
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
             AppMetricStrip(items: [
                 .init(label: "Protein", value: "\(Int(macros.protein.rounded())) g", accent: .accentProtein),
                 .init(label: "Carbs", value: "\(Int(macros.carbs.rounded())) g", accent: .accentCarbs),
                 .init(label: "Fat", value: "\(Int(macros.fats.rounded())) g", accent: .accentFats)
             ])
 
-            if let frozen = checkpoint?.proposal {
-                Text("Effective today · Evidence \(frozen.evidenceStart.formatted(date: .abbreviated, time: .omitted))–\(frozen.evidenceEnd.formatted(date: .abbreviated, time: .omitted))")
-                    .appTextRole(.caption).foregroundStyle(.secondary)
-            }
+
         }
     }
 

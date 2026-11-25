@@ -45,9 +45,11 @@ public struct AppLinkRequest: Equatable, Identifiable, Sendable {
     public let ownerID: String?
     public let objectID: String?
     public let dayKey: String?
+    public let opensToday: Bool
 
-    public init(route: Route, ownerID: String? = nil, objectID: String? = nil, dayKey: String? = nil) {
+    public init(route: Route, ownerID: String? = nil, objectID: String? = nil, dayKey: String? = nil, opensToday: Bool = false) {
         id = UUID(); self.route = route; self.ownerID = ownerID; self.objectID = objectID; self.dayKey = dayKey
+        self.opensToday = opensToday
     }
 
     public func resolvedRoute(currentUserID: String?, availableRecipeIDs: Set<String>) -> Route {
@@ -60,8 +62,10 @@ public struct AppLinkRequest: Equatable, Identifiable, Sendable {
         ownerID == nil || ownerID == currentUserID ? route : .unavailable
     }
 
-    public func diaryDayContext(for userID: String, timeZone: TimeZone = .current) -> DiaryDayContext? {
-        guard resolvedRoute(currentUserID: userID) != .unavailable, let dayKey,
+    public func diaryDayContext(for userID: String, timeZone: TimeZone = .current, now: Date = Date()) -> DiaryDayContext? {
+        guard resolvedRoute(currentUserID: userID) != .unavailable else { return nil }
+        if opensToday, route == .home { return DiaryDayContext(userID: userID, date: now, timeZone: timeZone) }
+        guard let dayKey,
               let validated = DiaryDayContext(userID: userID, date: Date(timeIntervalSince1970: 0), timeZone: timeZone, dayKey: dayKey) else { return nil }
         return DiaryDayContext(userID: userID, date: validated.calendar.startOfDay(for: validated.displayDate), timeZone: timeZone, dayKey: dayKey)
     }

@@ -79,11 +79,19 @@ struct CreateAccountView: View {
                     AuthErrorBanner(message: errorMessage)
                 }
 
-                Text("By continuing, you agree to our [Terms of service](https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/terms_of_service.md) and [Privacy policy](https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/privacy_policy.md).")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
+                VStack(spacing: AppSpacing.compact) {
+                    Text("By creating an account, you agree to our").foregroundStyle(.secondary)
+                    HStack(spacing: AppSpacing.compact) {
+                        Link("Terms of service", destination: MyFitPlateLinks.termsOfServiceURL)
+                            .accessibilityIdentifier("signup_terms")
+                        Text("and").foregroundStyle(.secondary)
+                        Link("Privacy policy", destination: MyFitPlateLinks.privacyPolicyURL)
+                            .accessibilityIdentifier("signup_privacy")
+                    }
+                    .tint(.brandForeground)
+                }
+                .appTextRole(.caption)
+                .frame(maxWidth: .infinity)
 
                 Button("Already have an account? Sign in") {
                     showingSignIn = true
@@ -95,6 +103,7 @@ struct CreateAccountView: View {
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.vertical, AppSpacing.section)
         }
+        .legalDocumentLinks()
         .scrollDismissesKeyboard(.interactively)
         .background(AppPalette.canvas.ignoresSafeArea())
         .interactiveDismissDisabled(isWorking)

@@ -118,7 +118,7 @@ struct ProgramCreatorView: View {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
                 if let submittedEditCommand {
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        Text("Submitted changes are frozen").appTextRole(.sectionTitle)
+                        Text("Program changes are ready to retry").appTextRole(.sectionTitle)
                         Text("Check the permanent receipt, retry the same review or cancel it safely. Later saved changes and completed workouts stay intact.").appTextRole(.secondary)
                         Button("Check save status") { resolveEdit(submittedEditCommand, cancel: false) }.frame(minHeight: 44)
                         Button("Cancel pending save") { resolveEdit(submittedEditCommand, cancel: true) }.frame(minHeight: 44)

@@ -45,6 +45,11 @@ class ReportsViewModel: ObservableObject {
     private var workoutAnalyticsTask: Task<Void, Never>?
     private var mealScoreHistoryTask: Task<Void, Never>?
     private var activeReportRequestID: UUID?
+    private var diaryDays: [String: DailyLog] = [:]
+    func diaryEntry(for day: DiaryDayContext) -> DailyLog? {
+        guard day.isOwned(by: currentUserID), activeReportUserID == currentUserID, !isLoading, errorMessage == nil else { return nil }
+        return diaryDays[day.dayKey]
+    }
     private var activeReportUserID: String?
     private var mealScoreHistoryRequestID: UUID?
     private var sleepRange: (start: Date, end: Date)?
@@ -155,7 +160,8 @@ class ReportsViewModel: ObservableObject {
             averageTimeAsleep: avgAsleep, averageTimeInCore: avgCore, averageTimeInDeep: avgDeep,
             averageTimeInREM: avgREM, averageTimeAwake: avgAwake, sleepConsistencyScore: consistencyScore,
             sleepConsistencyMessage: consistencyMessage, dailySleepData: validDays, nightEvidence: scoped,
-            requestedDayCount: sleepRange.map { (calendar.dateComponents([.day], from: $0.start, to: $0.end).day ?? 0) + 1 }, evidenceNotice: notice
+            requestedDayCount: sleepRange.map { (calendar.dateComponents([.day], from: $0.start, to: $0.end).day ?? 0) + 1 }, evidenceNotice: notice,
+            requestedNights: sleepRange.map { $0.start...$0.end }
         )
 
         if errorMessage == "No data available for the selected timeframe." {
@@ -267,6 +273,7 @@ class ReportsViewModel: ObservableObject {
 
     func invalidateAccountProjection() {
         reportTask?.cancel(); wellnessTask?.cancel(); workoutAnalyticsTask?.cancel(); mealScoreHistoryTask?.cancel()
+        diaryDays.removeAll()
         activeReportRequestID = nil; activeReportUserID = nil; mealScoreHistoryRequestID = nil
         summary = nil; mealScore = nil; mealScoreHistory = []
         calorieTrend = []; proteinTrend = []; carbTrend = []; fatTrend = []
@@ -466,6 +473,10 @@ class ReportsViewModel: ObservableObject {
         let now = Date()
         let earliestDay = logs.compactMap { NutritionDayEvidence.civilDate(for: $0) }.min() ?? now
         let days = NutritionDayEvidence.days(logs, from: earliestDay, through: now, now: now)
+        diaryDays.removeAll(keepingCapacity: true)
+        for day in days {
+            if let key = NutritionDayReviewRules.key(day) { diaryDays[key] = day }
+        }
         let completeLogs = days.filter { NutritionDayEvidence.isComplete($0, now: now) }
         // Recorded trends retain partial days; intake averages and scores require a reviewed day.
         let validLogs = days.filter { !$0.meals.flatMap(\.foodItems).isEmpty || !($0.exercises?.isEmpty ?? true) || NutritionDayEvidence.isComplete($0, now: now) }
@@ -489,14 +500,15 @@ class ReportsViewModel: ObservableObject {
 
         // Process workouts first (if any). Dedupe per-day so a routine also recorded on
         // Apple Health isn't counted twice in the workout count or calories burned.
-        let allExercises = validLogs.flatMap { ($0.exercises ?? []).dedupedAgainstHealthKit() }
+        let activeDays = validLogs.map { ($0.exercises ?? []).dedupedAgainstHealthKit() }.filter { !$0.isEmpty }
+        let allExercises = activeDays.flatMap { $0 }
         if !allExercises.isEmpty {
             let totalWorkouts = allExercises.count; let totalCaloriesBurned = allExercises.reduce(0) {$0 + $1.caloriesBurned}
             // Find most frequent workout type
-            let frequency = Dictionary(grouping: allExercises, by: {$0.name}).mapValues {$0.count}
-            let mostFrequent = frequency.max {$0.value < $1.value}?.key ?? "N/A"
+            let frequency = Dictionary(grouping: allExercises, by: \.name).mapValues(\.count)
+            let mostFrequent = frequency.keys.sorted().max { frequency[$0, default: 0] < frequency[$1, default: 0] } ?? "N/A"
             // Create the workout report summary
-            self.weeklyWorkoutReport = WorkoutReport(totalWorkouts: totalWorkouts, totalCaloriesBurned: totalCaloriesBurned, mostFrequentWorkout: mostFrequent)
+            self.weeklyWorkoutReport = WorkoutReport(totalWorkouts: totalWorkouts, activeDays: activeDays.count, totalCaloriesBurned: totalCaloriesBurned, mostFrequentWorkout: mostFrequent)
         }
 
         // Calculate detailed workout analytics without allowing an older timeframe to repaint the view.
@@ -566,7 +578,12 @@ class ReportsViewModel: ObservableObject {
                  )
              }
              // Calculate meal distribution if total calories > 0
-             if !mealCals.isEmpty { var tmpMealDist: [MealDistributionDataPoint] = []; for (n, c) in mealCals { tmpMealDist.append(MealDistributionDataPoint(mealName: n, totalCalories: c / Double(daysWithActualLogEntries))) }; self.mealDistributionData = tmpMealDist.sorted { $0.mealName < $1.mealName } } else { self.mealDistributionData = [] }
+             let foodDayCount = validLogs.filter { $0.meals.contains { !$0.foodItems.isEmpty } }.count
+             if foodDayCount > 0 {
+                 self.mealDistributionData = mealCals.map { name, calories in
+                     MealDistributionDataPoint(mealName: name, totalCalories: calories / Double(foodDayCount))
+                 }.sorted { $0.mealName < $1.mealName }
+             }
              // Generate a simple insight based on the logs
              self.reportSpecificInsight = generateReportInsight(from: completeLogs)
          }

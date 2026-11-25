@@ -34,9 +34,10 @@ final class WorkoutNextSessionUITests: XCTestCase {
         XCTAssertEqual(saveBlock.label, "Save block")
         app.buttons["block_close"].tap()
         XCTAssertTrue(staged.waitForExistence(timeout: 5), "Closing the final review keeps manually staged values.")
-        saveReview.tap()
         let existing = app.buttons["next_session_existing_draft"]
-        reveal(existing, in: app.scrollViews["next_session_review"], app: app); existing.tap()
+        XCTAssertTrue(existing.waitForExistence(timeout: 5))
+        XCTAssertTrue(existing.isHittable)
+        existing.tap()
         XCTAssertTrue(saveBlock.waitForExistence(timeout: 10))
         // Recovery is a persistent state receipt, separate from the latest local checkpoint status.
         let restoredReceipt = any(app, "block_restored_draft")

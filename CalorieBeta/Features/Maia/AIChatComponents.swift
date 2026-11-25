@@ -51,7 +51,12 @@ struct MaiaActionBoardView: View {
     }
 
     private var secondaryActions: [ActionKind] {
-        ActionKind.allCases.filter { $0 != recommendedAction }
+        let meal: ActionKind = hasWorkoutToday && remainingProtein >= 10 ? .proteinOrRecovery : .fillMacros
+        return [meal, .trustOrToday, .hydrate].filter { $0 != recommendedAction }
+    }
+
+    private var otherMealAction: ActionKind {
+        hasWorkoutToday && remainingProtein >= 10 ? .fillMacros : .proteinOrRecovery
     }
 
     var body: some View {
@@ -104,6 +109,12 @@ struct MaiaActionBoardView: View {
                 }
             }
             .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+
+            Menu("More meal options") {
+                Button(title(for: otherMealAction)) { perform(otherMealAction) }.disabled(isDisabled(otherMealAction))
+            }
+            .appTextRole(.secondary).foregroundStyle(.secondary)
+            .accessibilityIdentifier("maia_meal_options")
 
             MaiaDataBoundaryStrip(healthKitEnabled: healthKitEnabled, pantryCount: pantryCount)
 

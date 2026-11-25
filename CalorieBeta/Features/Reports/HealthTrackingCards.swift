@@ -51,140 +51,42 @@ struct CycleTrackingCard: View {
 }
 
 struct ComprehensiveHealthCard: View {
-    let weeklySteps: [Double]
-    let weeklyActiveEnergy: [Double]
-    let weeklyRestingHeartRate: [Double]
-    let weeklyHRV: [Double]
+    let weeklySteps: [Double?]
+    let weeklyActiveEnergy: [Double?]
+    let weeklyRestingHeartRate: [Double?]
+    let weeklyHRV: [Double?]
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            AppSectionHeader(title: "Health trends", subtitle: "Last 7 days")
-            
-            VStack(spacing: 12) {
-                healthRow(
-                    icon: "shoeprints.fill",
-                    color: AppPalette.effort,
-                    title: "Steps",
-                    value: formattedWholeNumber(weeklySteps.last ?? 0),
-                    unit: "steps",
-                    trend: calculateTrend(weeklySteps)
-                )
-                
-                Divider()
-                
-                healthRow(
-                    icon: "flame.fill",
-                    color: AppPalette.achievement,
-                    title: "Active energy",
-                    value: formattedWholeNumber(weeklyActiveEnergy.last ?? 0),
-                    unit: "cal",
-                    trend: calculateTrend(weeklyActiveEnergy)
-                )
-                
-                Divider()
-                
-                healthRow(
-                    icon: "heart.fill",
-                    color: AppPalette.recovery,
-                    title: "Resting heart rate",
-                    value: formattedWholeNumber(weeklyRestingHeartRate.last ?? 0),
-                    unit: "bpm",
-                    trend: calculateTrend(weeklyRestingHeartRate, lowerIsBetter: true)
-                )
-                
-                Divider()
-                
-                healthRow(
-                    icon: "waveform.path.ecg",
-                    color: AppPalette.positive,
-                    title: "Heart rate variability",
-                    value: formattedWholeNumber(weeklyHRV.last ?? 0),
-                    unit: "ms",
-                    trend: calculateTrend(weeklyHRV)
-                )
-            }
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text("Daily averages · includes today").appTextRole(.secondary).foregroundStyle(.secondary)
+            healthRow("Steps", unit: "steps", readings: weeklySteps)
+            Divider()
+            healthRow("Active energy", unit: "cal", readings: weeklyActiveEnergy)
+            Divider()
+            healthRow("Resting heart rate", unit: "bpm", readings: weeklyRestingHeartRate)
+            Divider()
+            healthRow("Heart rate variability", unit: "ms", readings: weeklyHRV)
         }
         .appSurface(.quiet)
     }
-    
-    private func healthRow(icon: String, color: Color, title: String, value: String, unit: String, trend: Trend) -> some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                    healthLabel(icon: icon, color: color, title: title)
-                    healthValue(value: value, unit: unit, trend: trend)
-                }
-            } else {
-                HStack(spacing: AppSpacing.row) {
-                    healthLabel(icon: icon, color: color, title: title)
-                    Spacer()
-                    healthValue(value: value, unit: unit, trend: trend)
+
+    private func healthRow(_ title: String, unit: String, readings: [Double?]) -> some View {
+        let values = readings.compactMap { $0 }.filter { $0.isFinite && $0 >= 0 }
+        let display = values.isEmpty ? "No readings" :
+            (values.reduce(0, +) / Double(values.count)).formatted(.number.precision(.fractionLength(0))) + " " + unit
+        return HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).appTextRole(.body)
+                if !values.isEmpty {
+                    Text(values.count.formatted() + (values.count == 1 ? " recorded day" : " recorded days"))
+                        .appTextRole(.caption).foregroundStyle(.secondary)
                 }
             }
+            Spacer()
+            Text(display).appTextRole(.control).monospacedDigit()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(value) \(unit)")
-    }
-
-    private func healthLabel(icon: String, color: Color, title: String) -> some View {
-        HStack(spacing: AppSpacing.row) {
-            Image(systemName: icon)
-                .appFont(size: 16, weight: .bold)
-                .foregroundStyle(color)
-                .frame(width: 32, height: 32)
-                .background(color.opacity(0.12), in: Circle())
-
-            Text(title)
-                .appTextRole(.body)
-                .foregroundStyle(AppPalette.text)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func healthValue(value: String, unit: String, trend: Trend) -> some View {
-        HStack(spacing: 6) {
-            if trend != .neutral {
-                Image(systemName: trend == .up ? "arrow.up.right" : "arrow.down.right")
-                    .appFont(size: 10, weight: .bold)
-                    .foregroundStyle(trend.color)
-            }
-
-            Text("\(value) \(unit)")
-                .appTextRole(.control)
-                .foregroundStyle(AppPalette.text)
-                .monospacedDigit()
-        }
-    }
-    
-    enum Trend {
-        case up, down, neutral
-        
-        var color: Color {
-            switch self {
-            case .up: return .accentPositive
-            case .down: return AppPalette.caution
-            case .neutral: return .secondary
-            }
-        }
-    }
-    
-    private func calculateTrend(_ data: [Double], lowerIsBetter: Bool = false) -> Trend {
-        let validData = data.filter { $0 > 0 }
-        guard validData.count >= 2, let current = validData.last else { return .neutral }
-        let previous = validData.dropLast().reduce(0, +) / Double(validData.count - 1)
-        
-        if current > previous * 1.05 {
-            return lowerIsBetter ? .down : .up
-        } else if current < previous * 0.95 {
-            return lowerIsBetter ? .up : .down
-        } else {
-            return .neutral
-        }
-    }
-
-    private func formattedWholeNumber(_ value: Double) -> String {
-        Int(value.rounded()).formatted()
+        .accessibilityLabel(title + ", " + display)
+        .accessibilityValue(values.isEmpty ? "" : values.count.formatted() + " recorded days")
     }
 }

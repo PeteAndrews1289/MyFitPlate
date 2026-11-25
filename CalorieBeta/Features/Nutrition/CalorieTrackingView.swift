@@ -7,7 +7,10 @@ struct CalorieTrackingView: View {
     @EnvironmentObject private var goalSettings: GoalSettings
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(viewModel: ReportsViewModel) {
+    private let reportDates: ClosedRange<Date>?
+
+    init(viewModel: ReportsViewModel, reportDates: ClosedRange<Date>? = nil) {
+        self.reportDates = reportDates
         _viewModel = StateObject(wrappedValue: viewModel)
     }
 
@@ -53,6 +56,10 @@ struct CalorieTrackingView: View {
                     subtitle: "Daily calories, macros, and the nutrients your food sources actually report."
                 )
 
+                if let dates = reportDates {
+                    Text(dates.lowerBound.formatted(date: .abbreviated, time: .omitted) + " – " + dates.upperBound.formatted(date: .abbreviated, time: .omitted))
+                        .appTextRole(.secondary).foregroundStyle(.secondary).accessibilityIdentifier("nutrition_trends_dates")
+                }
                 summarySection
                 calorieTrendSection
                 macroTrendSection
@@ -66,7 +73,7 @@ struct CalorieTrackingView: View {
         .background(AppPalette.canvas.ignoresSafeArea())
         .navigationTitle("Nutrition Trends")
         .navigationBarTitleDisplayMode(.inline)
-        .tint(AppPalette.brand)
+        .tint(AppPalette.brandText)
     }
 
     private var summarySection: some View {

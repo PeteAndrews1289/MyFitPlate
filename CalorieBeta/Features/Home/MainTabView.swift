@@ -51,6 +51,9 @@ struct MainTabView: View {
     @State private var isLivingDayHomeEnabled: Bool
     @State private var didRefreshLivingDayFlag = false
     @StateObject private var weeklyRecapLoader = WeeklyRecapLoader()
+    #if DEBUG
+    @State private var showsSleepPreview = true
+    #endif
 
     private let forcesLivingDayHome: Bool
     private let forcesLegacyHome: Bool
@@ -245,7 +248,12 @@ struct MainTabView: View {
         case "weight-detail", "weight-target", "weight-entry":
             NavigationStack { WeightTrackingView() }
         case "sleep-history":
-            NavigationStack { SleepHistoryDetailView(report: Wave3SleepPreview.report) }
+            NavigationStack {
+                ReportsView(dailyLogService: dailyLogService, weeklyRecapLoader: weeklyRecapLoader)
+                    .navigationDestination(isPresented: $showsSleepPreview) {
+                        SleepHistoryDetailView(report: Wave3SleepPreview.report)
+                    }
+            }
         case "wellness-detail":
             WellnessScoreDetailView(
                 wellnessScore: ScreenshotDemoData.wellnessDemoScore,
@@ -543,15 +551,23 @@ private enum Wave3SleepPreview {
         let start = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: day)!
         let end = start.addingTimeInterval(7 * 3600)
         let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
-        let samples = [HKCategorySample(type: type, value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: start, end: end),
+        let longWindow = ProcessInfo.processInfo.arguments.contains("-ui-testing-long-sleep-history")
+        let windowStart = longWindow ? calendar.date(byAdding: .day, value: -9, to: day)! : day
+        var samples = [HKCategorySample(type: type, value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: start, end: end),
                        HKCategorySample(type: type, value: HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue, start: start, end: end)]
+        if longWindow {
+            let earlier = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: windowStart)!
+            samples.append(HKCategorySample(type: type, value: HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+                                            start: earlier, end: earlier.addingTimeInterval(8 * 3600)))
+        }
         let nights = SleepNightEvidence.normalize(samples)
         let days = nights.map { EnhancedSleepReport.DailySleepStageData(date: $0.night, timeInBed: $0.timeInBed,
             timeAsleep: $0.timeAsleep, timeCore: $0.timeCore, timeDeep: $0.timeDeep, timeREM: $0.timeREM, timeAwake: $0.timeAwake) }
-        return EnhancedSleepReport(dateRange: "Three-day QA window", averageSleepScore: 0, averageTimeInBed: 0,
+        return EnhancedSleepReport(dateRange: longWindow ? "Twelve-day QA window" : "Three-day QA window", averageSleepScore: 0, averageTimeInBed: 0,
             averageTimeAsleep: 7 * 3600, averageTimeInCore: 7 * 3600, averageTimeInDeep: 0, averageTimeInREM: 0,
             averageTimeAwake: 0, sleepConsistencyScore: 0, sleepConsistencyMessage: "One recorded night; no consistency estimate.",
-            dailySleepData: days, nightEvidence: nights, requestedDayCount: 3)
+            dailySleepData: days, nightEvidence: nights, requestedDayCount: longWindow ? 12 : 3,
+            requestedNights: windowStart...calendar.startOfDay(for: Date()))
     }
 }
 #endif

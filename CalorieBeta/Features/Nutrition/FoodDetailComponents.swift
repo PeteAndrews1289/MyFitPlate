@@ -4,7 +4,6 @@ import MyFitPlateDesign
 
 struct FoodDetailHeroCard: View {
     let identity: FoodDisplayIdentity
-    let servingDescription: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
@@ -17,12 +16,6 @@ struct FoodDetailHeroCard: View {
                 .font(.system(.largeTitle, design: .serif, weight: .semibold))
                 .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 6) {
-                PlateIcon.scales.frame(width: 18, height: 18)
-                Text(servingDescription).appTextRole(.secondary)
-            }
-            .foregroundStyle(.secondary)
-            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, AppSpacing.row)

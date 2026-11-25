@@ -50,6 +50,18 @@ struct RepeatMealReview: View {
         }
     }
 
+    private var unresolvedFoods: [FoodItem] {
+        selectedFoods.filter { $0.hasUnresolvedProviderNutrition || $0.hasUnspecifiedServing }
+    }
+
+    private var totalDescription: String {
+        let count = selectedFoods.count
+        let label = "\(count) \(count == 1 ? "food" : "foods")"
+        guard unresolvedFoods.isEmpty else { return label + " · Serving review needed" }
+        let energy = selectedFoods.reduce(0) { $0 + $1.calories }
+        return label + " · " + energy.formatted(.number.precision(.fractionLength(0))) + " cal"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -62,7 +74,9 @@ struct RepeatMealReview: View {
                     ForEach(draft.foods.indices, id: \.self) { index in
                         VStack(alignment: .leading, spacing: AppSpacing.compact) {
                             Text(draft.foods[index].name).fontWeight(.semibold)
-                            Text(draft.foods[index].servingSize).foregroundStyle(.secondary)
+                            if let portion = FoodRepeatRules.adjusting(draft.foods[index], by: multipliers[index]) {
+                                Text(portion.diaryPortionSummary).foregroundStyle(.secondary)
+                            }
                             Stepper(value: $multipliers[index], in: 0...5, step: 0.5) {
                                 Text(multipliers[index] == 0 ? "Leave out" : "\(multipliers[index].formatted(.number.precision(.fractionLength(0...1)))) × original amount")
                                     .fixedSize(horizontal: false, vertical: true)
@@ -73,9 +87,13 @@ struct RepeatMealReview: View {
                     }
                 }
                 Section {
-                    Text("\(selectedFoods.count) \(selectedFoods.count == 1 ? "food" : "foods") · \(Int(selectedFoods.reduce(0) { $0 + $1.calories }.rounded()).formatted()) cal")
+                    Text(totalDescription)
                         .monospacedDigit()
                         .accessibilityIdentifier("repeat_meal_total")
+                    if !unresolvedFoods.isEmpty {
+                        Text("Leave out \(unresolvedFoods.map(\.name).joined(separator: ", ")) to log the rest. Open the food in Search to review its serving.")
+                            .foregroundStyle(.secondary)
+                    }
                     if saveFailed {
                         Text("Could not save this meal. Your changes are still here; try again.")
                             .foregroundStyle(AppPalette.caution)
@@ -92,7 +110,7 @@ struct RepeatMealReview: View {
                         Text(isSaving ? "Saving meal…" : "Log meal")
                     }
                     .buttonStyle(AppActionButtonStyle(.primary))
-                    .disabled(isSaving || selectedFoods.isEmpty)
+                    .disabled(isSaving || selectedFoods.isEmpty || !unresolvedFoods.isEmpty)
                     .accessibilityIdentifier("repeat_meal_confirm")
                 }
             }.appFormStyle()

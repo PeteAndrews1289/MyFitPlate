@@ -604,7 +604,7 @@ struct WeeklyRecapView: View {
             if let csvURL {
                 ShareLink(
                     item: csvURL,
-                    subject: Text("My weekly Training & Fuel data"),
+                    subject: Text("Training & Fuel · " + weekRangeText),
                     message: Text("Aggregate weekly data from MyFitPlate. Routes, food names, account details, and raw heart-rate samples are not included.")
                 ) {
                     Label("Share data as CSV", systemImage: "tablecells")
@@ -654,7 +654,7 @@ struct WeeklyRecapView: View {
         let formatter = DateFormatter()
         formatter.calendar = reportCalendar; formatter.timeZone = reportCalendar.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
-        let filename = "MyFitPlate-Training-Fuel-\(formatter.string(from: displayEndingDay(recap))).csv"
+        let filename = "MyFitPlate-Training-Fuel-\(formatter.string(from: recap.weekStart))-to-\(formatter.string(from: displayEndingDay(recap))).csv"
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("MyFitPlateWeeklyExport-\(UUID().uuidString)", isDirectory: true)
         let url = directory.appendingPathComponent(filename)
@@ -1104,9 +1104,9 @@ struct WeeklyRecapShareOptionsView: View {
     @ViewBuilder
     private var shareAction: some View {
         if let shareImage {
-            ShareLink(item: shareImage, subject: Text("My week"),
-                message: Text(MyFitPlateLinks.shareMessage("My training, food, and recovery from this week.")),
-                preview: SharePreview("My week", image: shareImage)) {
+            ShareLink(item: shareImage, subject: Text("My week · " + weekRangeText),
+                message: Text(MyFitPlateLinks.shareMessage("My week · " + weekRangeText)),
+                preview: SharePreview(Text(weekRangeText), image: shareImage)) {
                 Label("Share my week", systemImage: "square.and.arrow.up")
             }
             .buttonStyle(AppActionButtonStyle(.primary))

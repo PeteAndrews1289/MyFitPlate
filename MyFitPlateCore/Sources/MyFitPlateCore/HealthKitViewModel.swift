@@ -40,10 +40,10 @@ public class HealthKitViewModel: ObservableObject {
     @Published public var todayActiveEnergy: Double = 0
     
     // Comprehensive Weekly Trends
-    @Published public var weeklySteps: [Double] = Array(repeating: 0, count: 7)
-    @Published public var weeklyActiveEnergy: [Double] = Array(repeating: 0, count: 7)
-    @Published public var weeklyRestingHeartRate: [Double] = Array(repeating: 0, count: 7)
-    @Published public var weeklyHRV: [Double] = Array(repeating: 0, count: 7)
+    @Published public var weeklySteps: [Double?] = []
+    @Published public var weeklyActiveEnergy: [Double?] = []
+    @Published public var weeklyRestingHeartRate: [Double?] = []
+    @Published public var weeklyHRV: [Double?] = []
     
     @Published public var authError: String? = nil
     @Published public var isSyncing = false
@@ -155,19 +155,19 @@ public class HealthKitViewModel: ObservableObject {
     public func fetchComprehensiveWeeklyData() {
         guard isAuthorized else { return }
         
-        manager.fetch7DayTrend(for: .stepCount, options: .cumulativeSum, unit: .count()) { [weak self] data in
+        manager.fetch7DayReadings(for: .stepCount, options: .cumulativeSum, unit: .count()) { [weak self] data in
             DispatchQueue.main.async { self?.weeklySteps = data }
         }
         
-        manager.fetch7DayTrend(for: .activeEnergyBurned, options: .cumulativeSum, unit: .kilocalorie()) { [weak self] data in
+        manager.fetch7DayReadings(for: .activeEnergyBurned, options: .cumulativeSum, unit: .kilocalorie()) { [weak self] data in
             DispatchQueue.main.async { self?.weeklyActiveEnergy = data }
         }
         
-        manager.fetch7DayTrend(for: .restingHeartRate, options: .discreteAverage, unit: HKUnit.count().unitDivided(by: .minute())) { [weak self] data in
+        manager.fetch7DayReadings(for: .restingHeartRate, options: .discreteAverage, unit: HKUnit.count().unitDivided(by: .minute())) { [weak self] data in
             DispatchQueue.main.async { self?.weeklyRestingHeartRate = data }
         }
         
-        manager.fetch7DayTrend(for: .heartRateVariabilitySDNN, options: .discreteAverage, unit: .secondUnit(with: .milli)) { [weak self] data in
+        manager.fetch7DayReadings(for: .heartRateVariabilitySDNN, options: .discreteAverage, unit: .secondUnit(with: .milli)) { [weak self] data in
             DispatchQueue.main.async { self?.weeklyHRV = data }
         }
     }
