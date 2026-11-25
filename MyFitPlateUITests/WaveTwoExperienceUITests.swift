@@ -207,7 +207,7 @@ final class WaveTwoExperienceUITests: XCTestCase {
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         openBlock(app)
         let name = app.textFields["block_name"]
-        revealProgramControl(name, in: app.scrollViews["workout_block_editor_scroll"])
+        revealProgramControl(name, in: app.scrollViews["workout_block_editor_scroll"], above: app.buttons["block_save"])
         name.tap()
         let clear = app.buttons["block_clear_name"]
         XCTAssertTrue(clear.waitForExistence(timeout: 5))
@@ -226,7 +226,7 @@ final class WaveTwoExperienceUITests: XCTestCase {
         openBlock(app)
         XCTAssertEqual(app.textFields["block_name"].value as? String, "PHUL working block")
         let current = app.buttons["block_session_39"]
-        revealProgramControl(current, in: app.scrollViews["workout_block_editor_scroll"])
+        revealProgramControl(current, in: app.scrollViews["workout_block_editor_scroll"], above: app.buttons["block_save"])
         XCTAssertTrue(current.isEnabled)
         record(app, "PHUL - progress intact after authored block")
     }
@@ -329,21 +329,30 @@ final class WaveTwoExperienceUITests: XCTestCase {
         reveal(title, app: app)
         XCTAssertTrue(title.exists)
     }
-    @MainActor private func revealProgramControl(_ element: XCUIElement, in scroll: XCUIElement) {
-        let top = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.035, dy: 0.24))
-        let bottom = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.035, dy: 0.78))
+    @MainActor private func revealProgramControl(_ element: XCUIElement, in scroll: XCUIElement, above footer: XCUIElement) {
         for _ in 0..<16 {
-            if element.isHittable { return }
-            let above = element.exists && element.frame.maxY < scroll.frame.midY
-            let start = above ? top : bottom
-            start.press(forDuration: 0.05, thenDragTo: above ? bottom : top, withVelocity: .slow, thenHoldForDuration: 0.15)
+            let viewport = scroll.frame
+            let top = viewport.minY + 6
+            let bottom = min(viewport.maxY, footer.exists && footer.isHittable ? footer.frame.minY : viewport.maxY) - 8
+            guard bottom - top > 50 else { break }
+            let frame = element.exists ? element.frame : .zero
+            if element.isHittable, frame.height > 0, frame.minY >= top, frame.maxY <= bottom { return }
+
+            let moveDown = frame.height > 0 && frame.minY < top
+            let span = bottom - top
+            let start = scroll.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: viewport.width * 0.035, dy: top - viewport.minY + span * (moveDown ? 0.24 : 0.78)))
+            let distance = min(240, span * 0.54)
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: moveDown ? distance : -distance)),
+                        withVelocity: .slow, thenHoldForDuration: 0.15)
         }
-        XCTAssertTrue(element.isHittable, scroll.debugDescription)
+        XCTFail("Could not reveal the full program control. \(scroll.debugDescription)")
     }
     @MainActor private func openBlock(_ app: XCUIApplication) {
         let open = app.buttons["program_edit_block"]
         XCTAssertTrue(open.waitForExistence(timeout: 10))
-        revealProgramControl(open, in: app.scrollViews.firstMatch)
+        let overview = app.scrollViews.containing(.button, identifier: "program_edit_block").firstMatch
+        revealProgramControl(open, in: overview, above: app.buttons["tab_train"])
         open.tap()
         XCTAssertTrue(app.buttons["block_save"].waitForExistence(timeout: 10))
     }

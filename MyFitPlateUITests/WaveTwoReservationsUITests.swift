@@ -17,9 +17,9 @@ final class WaveTwoReservationsUITests: XCTestCase {
         let row = any(app, "inventory_reservation_lot_00000000-0000-0000-0000-000000000201")
         reveal(row, app: app)
         let text = row.label.replacingOccurrences(of: ",", with: "")
-        XCTAssertTrue(text.contains("Physical 1000 g"), text)
-        XCTAssertTrue(text.contains("Planned 1000 g"), text)
-        XCTAssertTrue(text.contains("Unallocated physical 0 g"), text)
+        for quantity in ["1000 g in pantry", "1000 g for planned meals", "0 g available"] {
+            XCTAssertNotNil(text.range(of: "\\b\(quantity)\\b", options: .regularExpression), text)
+        }
         let future = any(app, "inventory_reservation_requirement_batch-reservation-later-batch")
         reveal(future, app: app); future.tap()
         let shortage = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Missing 200 g'")).firstMatch
@@ -65,16 +65,16 @@ final class WaveTwoReservationsUITests: XCTestCase {
             let navigationBottom = app.navigationBars.allElementsBoundByIndex.last(where: \.isHittable)?.frame.maxY ?? app.frame.minY
             let top = max(scroll?.frame.minY ?? app.frame.minY, navigationBottom) + 4
             var bottom = min(scroll?.frame.maxY ?? app.frame.maxY, app.frame.maxY) - 4
-            // ScrollView AX bounds include safe-area insets. Its vertical indicator
-            // describes the actual scrollable viewport above the pinned cooking timer.
-            let indicators = scroll?.descendants(matching: .other).matching(NSPredicate(format: "label BEGINSWITH 'Vertical scroll bar'"))
-                .allElementsBoundByIndex.filter { $0.frame.height > 30 && $0.frame.width <= 35 && $0.frame.minY >= top - 5 } ?? []
-            if let indicatorBottom = indicators.map(\.frame.maxY).min() { bottom = min(bottom, indicatorBottom - 3) }
             for id in ["inventory_review_footer", "inventory_cook_footer", "meal_prep_active_timer"] {
                 let footer = any(app, id)
                 if footer.exists, footer.isHittable, footer.frame.minY > top { bottom = min(bottom, footer.frame.minY - 4) }
             }
-            if scroll?.identifier == "meal_prep_scroll" {
+            if let scroll, ["meal_prep_scroll", "meal_prep_screen"].contains(scroll.identifier) {
+                // The cooking timer sits over this scroll view. Modal lists above it have their own bounds.
+                let indicators = scroll.descendants(matching: .other)
+                    .matching(NSPredicate(format: "label BEGINSWITH 'Vertical scroll bar'")).allElementsBoundByIndex
+                    .map(\.frame).filter { $0.height > 30 && $0.width <= 35 && $0.minY >= top - 5 }
+                if let edge = indicators.map(\.maxY).min() { bottom = min(bottom, edge - 3) }
                 let timer = app.buttons["meal_prep_start_timer"]
                 if timer.exists, timer.isHittable { bottom = min(bottom, timer.frame.minY - 12) }
             }

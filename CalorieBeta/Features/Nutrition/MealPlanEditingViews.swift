@@ -524,99 +524,107 @@ struct MealPlanLeftoverSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    if review.restored {
-                        Text(review.checkpoint?.accepted == true ? "These leftovers were already saved." : "Restored your exact leftover review. Later plan edits do not change this submitted meal.")
-                            .appTextRole(.secondary).foregroundStyle(.secondary)
-                            .accessibilityIdentifier("planner_leftover_restored")
-                    }
-                    Text(meal.foodItem?.name ?? "Planned meal").appTextRole(.sectionTitle)
-                    if let batch = meal.cookingBatch {
-                        Text("Batch planned for \(batch.cookingDate.formatted(date: .abbreviated, time: .omitted)): \(batch.totalPortions.formatted(.number.precision(.fractionLength(0...2)))) original portions.")
-                        Text("\(batch.unallocatedPortions.formatted(.number.precision(.fractionLength(0...2)))) original portions unallocated")
-                            .accessibilityIdentifier("planner_leftover_available")
-                    }
-                    Text("This plans food from the same batch. It does not buy ingredients again, mark cooking complete, or log anything as eaten.")
-                        .appTextRole(.secondary).foregroundStyle(.secondary)
-                }
-                if let prepared {
-                    Section("Review leftovers") {
-                        if review.checkpoint?.cancelled == true {
-                            Text("This reviewed save was cancelled. No new leftovers will be added by this operation.")
-                                .accessibilityIdentifier("planner_leftover_cancelled")
-                        }
-                        Text(destinationDate.formatted(date: .complete, time: .omitted))
-                        Text("\(mealType) · \(portions.formatted(.number.precision(.fractionLength(0...2)))) × original portion")
-                        if let food = meal.foodItem.flatMap({ FoodRepeatRules.adjusting($0, by: portions) }) {
-                            Text("\(Int(food.calories.rounded())) cal · \(Int(food.protein.rounded())) g protein")
-                                .accessibilityIdentifier("planner_leftover_nutrition")
-                        }
-                        Text("Existing meals stay in place. Ingredients are counted once for the whole cooking batch.")
-                        Text("\(prepared.before.count) day\(prepared.before.count == 1 ? "" : "s") checked together")
-                        if review.checkpoint?.submitted == false {
-                            Button("Change leftovers") { _ = review.changeUnsubmittedReview(); error = nil }
-                        }
-                    }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("planner_leftover_review")
-                    if review.checkpoint?.submitted == true,
-                       review.checkpoint?.accepted == false, review.checkpoint?.cancelled == false {
-                        Section("Save recovery") {
-                            Button {
-                                Task { @MainActor in
-                                    await review.checkStatus(using: DIContainer.shared.nutritionRepository)
-                                }
-                            } label: {
-                                Text("Check saved status").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
-                            }.accessibilityIdentifier("planner_leftover_check_status")
-                            Button {
-                                Task { @MainActor in
-                                    await review.checkStatus(using: DIContainer.shared.nutritionRepository, cancelPending: true)
-                                }
-                            } label: {
-                                Text("Cancel pending save").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
-                            }.accessibilityIdentifier("planner_leftover_cancel_pending")
-                            Text("Cancellation checks the server first. An already saved allocation stays saved; later edits remain in place.")
-                                .appTextRole(.secondary).foregroundStyle(.secondary)
-                        }
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("planner_leftover_recovery")
-                    }
-                } else {
-                    Section("Plan your portion") {
-                        DatePicker("Leftover date", selection: $destinationDate, displayedComponents: .date)
-                            .accessibilityIdentifier("planner_leftover_destination")
-                        Picker("Meal", selection: $mealType) {
-                            ForEach(MealPlanEditingRules.mealTypes, id: \.self) { Text($0).tag($0) }
-                        }.accessibilityIdentifier("planner_leftover_slot")
-                        Stepper(value: $portions, in: 0.25...8, step: 0.25) {
-                            Text("\(portions.formatted(.number.precision(.fractionLength(0...2)))) × original portion")
-                        }.accessibilityIdentifier("planner_leftover_portions")
-                        Text("Choose a date within seven days of the planned cooking date.")
-                            .appTextRole(.secondary).foregroundStyle(.secondary)
-                    }
-                }
-            }.appFormStyle()
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("planner_leftover_form")
-            .disabled(isWorking || review.isSaving)
+            VStack(spacing: 0) {
+                leftoverForm
+                reviewFooter
+            }
             .navigationTitle("Plan leftovers").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(isWorking) } }
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: AppSpacing.compact) {
-                    if let message = error ?? review.errorMessage { Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.caution).accessibilityIdentifier("planner_leftover_error") }
-                    Button(actionTitle) { perform() }
-                        .buttonStyle(AppActionButtonStyle(.primary)).disabled(isWorking || review.isSaving)
-                        .accessibilityIdentifier("planner_leftover_confirm")
-                }
-                .padding().background(AppPalette.canvas)
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("planner_leftover_footer")
-            }
         }
         .interactiveDismissDisabled(isWorking)
         .onAppear { if owner == nil { owner = DIContainer.shared.authService.currentUserID } }
+    }
+
+    private var leftoverForm: some View {
+        Form {
+            Section {
+                if review.restored {
+                    Text(review.checkpoint?.accepted == true ? "These leftovers were already saved." : "Restored your exact leftover review. Later plan edits do not change this submitted meal.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("planner_leftover_restored")
+                }
+                Text(meal.foodItem?.name ?? "Planned meal").appTextRole(.sectionTitle)
+                if let batch = meal.cookingBatch {
+                    Text("Batch planned for \(batch.cookingDate.formatted(date: .abbreviated, time: .omitted)): \(batch.totalPortions.formatted(.number.precision(.fractionLength(0...2)))) original portions.")
+                    Text("\(batch.unallocatedPortions.formatted(.number.precision(.fractionLength(0...2)))) original portions unallocated")
+                        .accessibilityIdentifier("planner_leftover_available")
+                }
+                Text("This plans food from the same batch. It does not buy ingredients again, mark cooking complete, or log anything as eaten.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+            }
+            if let prepared {
+                Section("Review leftovers") {
+                    if review.checkpoint?.cancelled == true {
+                        Text("This reviewed save was cancelled. No new leftovers will be added by this operation.")
+                            .accessibilityIdentifier("planner_leftover_cancelled")
+                    }
+                    Text(destinationDate.formatted(date: .complete, time: .omitted))
+                    Text("\(mealType) · \(portions.formatted(.number.precision(.fractionLength(0...2)))) × original portion")
+                    if let food = meal.foodItem.flatMap({ FoodRepeatRules.adjusting($0, by: portions) }) {
+                        Text("\(Int(food.calories.rounded())) cal · \(Int(food.protein.rounded())) g protein")
+                            .accessibilityIdentifier("planner_leftover_nutrition")
+                    }
+                    Text("Existing meals stay in place. Ingredients are counted once for the whole cooking batch.")
+                    Text("\(prepared.before.count) day\(prepared.before.count == 1 ? "" : "s") checked together")
+                    if review.checkpoint?.submitted == false {
+                        Button("Change leftovers") { _ = review.changeUnsubmittedReview(); error = nil }
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("planner_leftover_review")
+                if review.checkpoint?.submitted == true,
+                   review.checkpoint?.accepted == false, review.checkpoint?.cancelled == false {
+                    Section("Save recovery") {
+                        Button {
+                            Task { @MainActor in
+                                await review.checkStatus(using: DIContainer.shared.nutritionRepository)
+                            }
+                        } label: {
+                            Text("Check saved status").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+                        }.accessibilityIdentifier("planner_leftover_check_status")
+                        Button {
+                            Task { @MainActor in
+                                await review.checkStatus(using: DIContainer.shared.nutritionRepository, cancelPending: true)
+                            }
+                        } label: {
+                            Text("Cancel pending save").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+                        }.accessibilityIdentifier("planner_leftover_cancel_pending")
+                        Text("Cancellation checks the server first. An already saved allocation stays saved; later edits remain in place.")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("planner_leftover_recovery")
+                }
+            } else {
+                Section("Plan your portion") {
+                    DatePicker("Leftover date", selection: $destinationDate, displayedComponents: .date)
+                        .accessibilityIdentifier("planner_leftover_destination")
+                    Picker("Meal", selection: $mealType) {
+                        ForEach(MealPlanEditingRules.mealTypes, id: \.self) { Text($0).tag($0) }
+                    }.accessibilityIdentifier("planner_leftover_slot")
+                    Stepper(value: $portions, in: 0.25...8, step: 0.25) {
+                        Text("\(portions.formatted(.number.precision(.fractionLength(0...2)))) × original portion")
+                    }.accessibilityIdentifier("planner_leftover_portions")
+                    Text("Choose a date within seven days of the planned cooking date.")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                }
+            }
+        }.appFormStyle()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("planner_leftover_form")
+        .disabled(isWorking || review.isSaving)
+    }
+
+    private var reviewFooter: some View {
+        VStack(spacing: AppSpacing.compact) {
+            if let message = error ?? review.errorMessage { Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.caution).accessibilityIdentifier("planner_leftover_error") }
+            Button(actionTitle) { perform() }
+                .buttonStyle(AppActionButtonStyle(.primary)).disabled(isWorking || review.isSaving)
+                .accessibilityIdentifier("planner_leftover_confirm")
+        }
+        .padding().background(AppPalette.canvas)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("planner_leftover_footer")
     }
 
     private func perform() {

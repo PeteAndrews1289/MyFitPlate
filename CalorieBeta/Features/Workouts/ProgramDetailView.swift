@@ -498,11 +498,11 @@ struct ProgramDetailView: View {
                     .appFont(size: 13).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .appSurface(.quiet)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppPalette.text)
-        .appSurface(.quiet)
         .accessibilityIdentifier("program_edit_block")
     }
 
