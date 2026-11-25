@@ -75,8 +75,8 @@ final class WaveTwoReservationsUITests: XCTestCase {
                     .matching(NSPredicate(format: "label BEGINSWITH 'Vertical scroll bar'")).allElementsBoundByIndex
                     .map(\.frame).filter { $0.height > 30 && $0.width <= 35 && $0.minY >= top - 5 }
                 if let edge = indicators.map(\.maxY).min() { bottom = min(bottom, edge - 3) }
-                let timer = app.buttons["meal_prep_start_timer"]
-                if timer.exists, timer.isHittable { bottom = min(bottom, timer.frame.minY - 12) }
+                let finishedTimer = app.staticTexts["meal_prep_timer_finished"]
+                if finishedTimer.exists, finishedTimer.isHittable { bottom = min(bottom, finishedTimer.frame.minY - 4) }
             }
             if app.keyboards.firstMatch.exists { bottom = min(bottom, app.keyboards.firstMatch.frame.minY - 4) }
             if element.exists, element.isHittable, element.frame.minY >= top, element.frame.maxY <= bottom { return }
