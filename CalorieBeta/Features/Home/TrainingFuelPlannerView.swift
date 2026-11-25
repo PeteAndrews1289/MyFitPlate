@@ -57,7 +57,7 @@ struct TrainingFuelPlannerCard: View {
                                         phase.isComplete ? .accentPositive : Color(UIColor.secondaryLabel)
                                     )
 
-                                Text(phase.allocation.phase == .beforeTraining ? "Before" : "After")
+                                Text(phase.allocation.phase.shortTitle)
                                     .appFont(size: 12, weight: .bold)
                                     .foregroundColor(.textPrimary)
 
@@ -88,6 +88,7 @@ struct TrainingFuelPlannerCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens today's training fuel planner.")
+        .accessibilityIdentifier("training_fuel_open")
     }
 
     private var title: String {
@@ -142,10 +143,12 @@ struct TrainingFuelPlannerCard: View {
         default: break
         }
         if phase.isComplete { return "Logged" }
+        if phase.allocation.phase == .duringTraining && status == .upcoming { return "Available during session" }
         if phase.allocation.phase == .afterTraining && status == .upcoming {
             return "Available after session"
         }
         if status == .inSession {
+            if phase.allocation.phase == .duringTraining { return phase.hasActionableTarget ? "During training" : "Budget used elsewhere" }
             return phase.allocation.phase == .beforeTraining ? "Window passed" : "Available after session"
         }
         if phase.allocation.phase == .beforeTraining && status != .upcoming { return "Window passed" }
@@ -176,6 +179,7 @@ struct TrainingFuelPlannerCard: View {
     }
 }
 
+@MainActor
 struct TrainingFuelPlannerSheet: View {
     let candidates: [TrainingFuelSessionCandidate]
     let savedPlan: TrainingFuelConfirmedPlan?
@@ -183,6 +187,11 @@ struct TrainingFuelPlannerSheet: View {
     let today: DailyLog?
     let goals: TodayFuelPlanGoals
     let now: Date
+    let saveError: String?
+    let weightHistory: [(id: String, date: Date, weight: Double)]
+    let foodAvailability: (TrainingFuelTarget) -> TrainingFuelFoodAvailability
+    private let ownerID: String?
+    @State private var ownershipError: String?
     let onConfirm: (TrainingFuelPlanDraft, TrainingFuelPlannerPlan) -> Void
     let onUseTarget: (
         TrainingFuelPlanDraft,
@@ -195,6 +204,9 @@ struct TrainingFuelPlannerSheet: View {
     let onSkip: () -> Void
     let onRemove: () -> Void
 
+    @EnvironmentObject private var fuelStore: TrainingFuelPlanStore
+    @State private var showingHistory = false
+    @State private var restoredCandidate: TrainingFuelSessionCandidate?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -208,6 +220,7 @@ struct TrainingFuelPlannerSheet: View {
     @State private var wantsBefore: Bool
     @State private var wantsAfter: Bool
     @State private var showingSkipConfirmation = false
+    @State private var personalInputs: TrainingFuelPersonalInputs?
 
     init(
         candidates: [TrainingFuelSessionCandidate],
@@ -216,6 +229,9 @@ struct TrainingFuelPlannerSheet: View {
         today: DailyLog?,
         goals: TodayFuelPlanGoals,
         now: Date = Date(),
+        saveError: String? = nil,
+        weightHistory: [(id: String, date: Date, weight: Double)] = [],
+        foodAvailability: @escaping (TrainingFuelTarget) -> TrainingFuelFoodAvailability = { _ in .init() },
         onConfirm: @escaping (TrainingFuelPlanDraft, TrainingFuelPlannerPlan) -> Void,
         onUseTarget: @escaping (
             TrainingFuelPlanDraft,
@@ -234,6 +250,10 @@ struct TrainingFuelPlannerSheet: View {
         self.today = today
         self.goals = goals
         self.now = now
+        self.saveError = saveError
+        self.weightHistory = weightHistory
+        self.foodAvailability = foodAvailability
+        self.ownerID = DIContainer.shared.authService.currentUserID
         self.onConfirm = onConfirm
         self.onUseTarget = onUseTarget
         self.onUseSavedTarget = onUseSavedTarget
@@ -249,7 +269,11 @@ struct TrainingFuelPlannerSheet: View {
         _draftID = State(initialValue: savedDraft?.id ?? UUID().uuidString)
         _sessionKind = State(initialValue: initialKind)
         _selectedCandidateID = State(initialValue: initialCandidate.id)
-        _scheduledAt = State(initialValue: savedDraft?.scheduledAt ?? Self.defaultStartTime(now: now))
+        let scheduledDay = initialCandidate.scheduledDay.flatMap { day -> Date? in
+            guard day >= Calendar.current.startOfDay(for: now) else { return nil }
+            return Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: day)
+        }
+        _scheduledAt = State(initialValue: savedDraft?.scheduledAt ?? scheduledDay ?? Self.defaultStartTime(now: now))
         _durationMinutes = State(
             initialValue: savedDraft?.durationMinutes ?? initialCandidate.suggestedDurationMinutes ?? 45
         )
@@ -259,12 +283,18 @@ struct TrainingFuelPlannerSheet: View {
         )
         _wantsBefore = State(initialValue: savedDraft?.preference.wantsPreSessionFuel ?? true)
         _wantsAfter = State(initialValue: savedDraft?.preference.wantsPostSessionFuel ?? true)
+        _personalInputs = State(initialValue: savedDraft?.preference.personalInputs)
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    if let message = fuelStore.syncMessage { Text(message).appTextRole(.caption).foregroundStyle(.secondary) }
+                    if let saveError = ownershipError ?? saveError {
+                        Text(saveError).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                            .accessibilityIdentifier("training_fuel_save_error")
+                    }
                     if let savedPlan, let savedProgress {
                         savedPlanSection(plan: savedPlan, progress: savedProgress)
                     }
@@ -273,12 +303,13 @@ struct TrainingFuelPlannerSheet: View {
                         sessionSection
                         timingSection
                         preferenceSection
+                        TrainingFuelIndividualInputsView(inputs: $personalInputs, session: draft.session, weightHistory: weightHistory, now: now)
                         previewSection
                     } else {
                         closedPlanActions
                     }
 
-                    Text("Targets stay inside today's calorie, protein, and carbohydrate goals. Fat is not prescribed, and Maia ideas remain optional suggestions.")
+                    Text("Confirmed targets share your daily budget with other saved sessions. Only explicitly linked foods count toward a phase. These are bounded planning estimates; Maia ideas remain optional.")
                         .appFont(size: 11, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
@@ -286,24 +317,57 @@ struct TrainingFuelPlannerSheet: View {
                 .padding(16)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle(savedPlan == nil ? "Plan Training Fuel" : "Review Training Fuel")
+            .navigationTitle(savedPlan == nil ? "Training fuel" : "Review training fuel")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button("Sessions and history", systemImage: "clock.arrow.circlepath") { showingHistory = true }
+                            .labelStyle(.iconOnly)
+                            .accessibilityIdentifier("fuel_history")
+                        if savedPlan != nil {
+                            Button("New session", systemImage: "plus") {
+                                performOwned {
+                                    guard let ownerID else { return }
+                                    do { try fuelStore.beginNewPlan(for: ownerID); startNewDraft() } catch { ownershipError = error.localizedDescription }
+                                }
+                            }.labelStyle(.iconOnly).accessibilityIdentifier("fuel_new_session")
+                        }
+                }
+            }
+            .sheet(isPresented: $showingHistory) { TrainingFuelHistoryView() }
+            .task {
+                seedFuelReviewFixtureIfRequested()
+                if let saved = fuelStore.savedDraft, savedPlan == nil || savedPlan?.id == saved.id { restore(saved) }
+            }
+            .onChange(of: savedPlan?.id) { _, _ in
+                if let savedPlan { restore(savedPlan.draft) }
+            }
+            .onChange(of: draft) { _, value in
+                guard let ownerID, ownerID == DIContainer.shared.authService.currentUserID else { return }
+                do { try fuelStore.saveDraft(value, for: ownerID) } catch { ownershipError = error.localizedDescription }
             }
             .confirmationDialog(
                 "Skip this session?",
                 isPresented: $showingSkipConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Skip Session", role: .destructive) { onSkip() }
+                Button("Skip Session", role: .destructive) { performOwned { onSkip() } }
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("The saved fuel targets will be closed without changing your food log.")
             }
         }
+    }
+
+    private func performOwned(_ action: () -> Void) {
+        guard let ownerID, ownerID == DIContainer.shared.authService.currentUserID else {
+            ownershipError = "Your account changed. Reopen the fuel planner from the correct account."
+            return
+        }
+        action()
     }
 
     private var currentCandidate: TrainingFuelSessionCandidate {
@@ -313,11 +377,11 @@ struct TrainingFuelPlannerSheet: View {
     }
 
     private var availableCandidates: [TrainingFuelSessionCandidate] {
-        guard let savedDraft = savedPlan?.draft else { return candidates }
+        guard let savedDraft = savedPlan?.draft else { return restoredCandidate.map { [$0] + candidates } ?? candidates }
         let saved = Self.savedCandidate(from: savedDraft)
         return [saved] + candidates.filter {
             !($0.source == saved.source &&
-                $0.sourceID == saved.sourceID &&
+                $0.sourceID == saved.sourceID && $0.identity == saved.identity &&
                 $0.title == saved.title)
         }
     }
@@ -332,16 +396,21 @@ struct TrainingFuelPlannerSheet: View {
             strengthFocus: strengthFocus,
             preference: TrainingFuelPreference(
                 wantsPreSessionFuel: wantsBefore,
-                wantsPostSessionFuel: wantsAfter
+                wantsPostSessionFuel: wantsAfter,
+                personalInputs: personalInputs
             )
         )
+    }
+
+    private var individualEstimate: TrainingFuelDemandPreview? {
+        personalInputs.map { TrainingFuelIndividualEstimateRules.preview(session: draft.session, inputs: $0, now: now) }
     }
 
     private var preview: TrainingFuelPlannerPlan {
         TrainingFuelPlannerRules.makePlan(
             session: draft.session,
             today: today,
-            goals: goals,
+            goals: fuelStore.availableGoals(for: draft, today: today, goals: goals, now: now),
             preference: draft.preference,
             now: now
         )
@@ -387,7 +456,7 @@ struct TrainingFuelPlannerSheet: View {
     }
 
     private var timingSection: some View {
-        plannerSection(title: "Timing and Effort") {
+        plannerSection(title: "Timing & effort") {
             if usesAccessibilityLayout {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Start Time")
@@ -441,15 +510,15 @@ struct TrainingFuelPlannerSheet: View {
     }
 
     private var preferenceSection: some View {
-        plannerSection(title: "Fuel Windows") {
+        plannerSection(title: "Fuel windows") {
             Toggle(isOn: $wantsBefore) {
                 Label("Before Training", systemImage: "bolt.fill")
             }
-            .tint(.accentProtein)
+            .tint(AppPalette.brand)
             Toggle(isOn: $wantsAfter) {
                 Label("After Training", systemImage: "arrow.clockwise.heart.fill")
             }
-            .tint(.accentProtein)
+            .tint(AppPalette.brand)
 
             if !wantsBefore && !wantsAfter {
                 Text("Choose at least one window to create a fuel target.")
@@ -462,9 +531,9 @@ struct TrainingFuelPlannerSheet: View {
     private var closedPlanActions: some View {
         plannerSection(title: "Plan Options") {
             Button(role: .destructive) {
-                onRemove()
+                performOwned { onRemove() }
             } label: {
-                Label("Remove Plan", systemImage: "trash")
+                Label("Close plan · keep history", systemImage: "archivebox")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -509,8 +578,8 @@ struct TrainingFuelPlannerSheet: View {
         DatePicker(
             "Start Time",
             selection: $scheduledAt,
-            in: dayStart...dayEnd,
-            displayedComponents: .hourAndMinute
+            in: dayStart...,
+            displayedComponents: [.date, .hourAndMinute]
         )
         .dynamicTypeSize(.small ... .accessibility1)
     }
@@ -554,7 +623,29 @@ struct TrainingFuelPlannerSheet: View {
 
     @ViewBuilder
     private var previewSection: some View {
-        plannerSection(title: "Today's Allocation") {
+        plannerSection(title: "Your session targets") {
+            if let individualEstimate {
+                Text("One chosen protein amount is split across this plan. Daily intake and your previous meal matter; these are planning estimates, not requirements.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let requested = individualEstimate.requestedSessionProteinGrams {
+                    Text("Chosen protein: \(requested.formatted(.number.precision(.fractionLength(0...1)))) g · allocated \(preview.allocatedProteinGrams) g")
+                        .accessibilityIdentifier("fuel_protein_demand_comparison")
+                }
+                if let requested = individualEstimate.requestedDuringCarbGrams {
+                    Text("During choice: \(requested.formatted(.number.precision(.fractionLength(0...1)))) g carbs · allocated \(preview.allocation(for: .duringTraining)?.carbGrams ?? 0) g")
+                        .accessibilityIdentifier("fuel_during_demand_comparison")
+                }
+                if individualEstimate.requiresReview {
+                    Text("Review the personal inputs above or turn them off to keep the general plan. Your saved targets have not changed.")
+                        .font(.caption).foregroundStyle(AppPalette.caution)
+                }
+                if preview.notes.contains(.calorieBudgetLimited) || preview.notes.contains(.carbBudgetLimited) || preview.notes.contains(.proteinBudgetLimited) {
+                    Text("Your remaining daily budget limits this allocation. A capped number does not establish adequate fueling. Review today's goals or redistribute planned food before accepting.")
+                        .font(.caption).foregroundStyle(AppPalette.caution)
+                }
+                Text("The carb amount is a bounded app estimate. During carbs are reserved within that session amount, not added twice. Whole-gram allocation may round down.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if preview.status == .ready || preview.status == .deferredRecovery {
                 if preview.allocations.isEmpty,
                    preview.notes.contains(.postSessionFallsNextDay) {
@@ -577,15 +668,17 @@ struct TrainingFuelPlannerSheet: View {
                             proteinGrams: allocation.proteinGrams,
                             carbGrams: allocation.carbGrams
                         ),
-                        isAvailable: previewActionIsAvailable(for: allocation.phase)
+                        isAvailable: individualEstimate?.requiresReview != true && previewActionIsAvailable(for: allocation.phase),
+                        availabilityMessage: individualEstimate?.requiresReview == true ? "Review personal inputs" : nil
                     ) { target, destination in
-                        onUseTarget(draft, preview, target, destination)
+                        performOwned { onUseTarget(draft, preview, target, destination) }
                     }
                 }
 
                 if savedPlan == nil {
                     Button {
-                        onConfirm(draft, preview)
+                        guard individualEstimate?.requiresReview != true else { return }
+                        performOwned { onConfirm(draft, preview) }
                     } label: {
                         Label("Save plan", systemImage: "checkmark.circle.fill")
                             .appFont(size: 15, weight: .bold)
@@ -594,26 +687,37 @@ struct TrainingFuelPlannerSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.brandPrimary)
+                    .disabled(individualEstimate?.requiresReview == true)
+                    .accessibilityIdentifier("fuel_confirm_plan")
                 } else {
                     Button {
-                        onConfirm(draft, preview)
+                        guard individualEstimate?.requiresReview != true else { return }
+                        performOwned { onConfirm(draft, preview) }
                     } label: {
-                        Label("Update plan", systemImage: "arrow.triangle.2.circlepath")
+                        Label(personalInputs == nil ? "Update plan" : "Save reviewed recalculation", systemImage: "arrow.triangle.2.circlepath")
                             .appFont(size: 15, weight: .bold)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                     .tint(.brandPrimary)
+                    .disabled(individualEstimate?.requiresReview == true)
+                    .accessibilityIdentifier("fuel_confirm_plan")
                 }
+            } else if preview.status == .outsideToday, scheduledAt > now {
+                Text("Keep this future session provisionally. Review its live diary and goals on the day before choosing food.")
+                    .appTextRole(.secondary)
+                Button("Save future session") { if individualEstimate?.requiresReview != true { performOwned { onConfirm(draft, preview) } } }
+                    .disabled(individualEstimate?.requiresReview == true)
+                    .buttonStyle(.borderedProminent).accessibilityIdentifier("fuel_save_future")
             } else {
                 plannerStatusView(preview.status)
             }
 
             if savedPlan != nil {
                 Button(role: .destructive) {
-                    onRemove()
+                    performOwned { onRemove() }
                 } label: {
-                    Label("Remove Plan", systemImage: "trash")
+                    Label("Close plan · keep history", systemImage: "archivebox")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -638,17 +742,19 @@ struct TrainingFuelPlannerSheet: View {
                 Spacer()
             }
 
+            FuelReminderPlanControls(plan: plan, ownerID: ownerID)
+
             if progress.status != .awaitingOutcome {
                 ForEach(progress.phases) { phase in
                     if isActionable(progress.status, phase: phase.allocation.phase),
                        let target = progress.target(for: phase.allocation.phase, plan: plan) {
                         allocationRow(allocation: phase.allocation, target: target) { target, destination in
-                            onUseSavedTarget(target, destination)
+                            performOwned { onUseSavedTarget(target, destination) }
                         }
                     } else {
                         HStack {
                             Label(
-                                phase.allocation.phase == .beforeTraining ? "Before Training" : "After Training",
+                                phase.allocation.phase.title,
                                 systemImage: phase.isComplete ? "checkmark.circle.fill" : "pause.circle.fill"
                             )
                             .appFont(size: 13, weight: .bold)
@@ -679,7 +785,7 @@ struct TrainingFuelPlannerSheet: View {
             }
 
             if canRecordOutcome(for: plan, status: progress.status) {
-                Button(action: onMarkComplete) {
+                Button(action: { performOwned(onMarkComplete) }) {
                     Label("Mark complete", systemImage: "checkmark.circle.fill")
                         .appFont(size: 14, weight: .bold)
                         .frame(maxWidth: .infinity)
@@ -739,12 +845,13 @@ struct TrainingFuelPlannerSheet: View {
         allocation: TrainingFuelAllocation,
         target: TrainingFuelTarget,
         isAvailable: Bool = true,
+        availabilityMessage: String? = nil,
         action: @escaping (TrainingFuelTarget, TrainingFuelDestination) -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(allocation.phase == .beforeTraining ? "Before Training" : "After Training")
+                    Text(allocation.phase.title)
                         .appFont(size: 14, weight: .bold)
                         .foregroundColor(.textPrimary)
                     Text(timingTitle(allocation.timing))
@@ -763,6 +870,12 @@ struct TrainingFuelPlannerSheet: View {
             }
 
             if isAvailable {
+                let recommended = recommendedFoodRoute(for: target)
+                Button { action(target, recommended.destination) } label: {
+                    Label(recommended.title, systemImage: recommended.icon)
+                        .frame(maxWidth: .infinity)
+                }.buttonStyle(AppActionButtonStyle(.primary))
+                    .accessibilityIdentifier("fuel_recommended_food_" + allocation.phase.rawValue)
                 Menu {
                     Button { action(target, .foodSearch) } label: {
                         Label("Search and Recent Foods", systemImage: "magnifyingglass")
@@ -777,7 +890,7 @@ struct TrainingFuelPlannerSheet: View {
                         Label("Open Meal Plan", systemImage: "calendar")
                     }
                 } label: {
-                    Label("Choose Food", systemImage: "fork.knife")
+                    Label("Other food options", systemImage: "ellipsis.circle")
                         .appFont(size: 13, weight: .bold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -786,7 +899,7 @@ struct TrainingFuelPlannerSheet: View {
                 .foregroundColor(.textPrimary)
             } else {
                 Label(
-                    allocation.phase == .afterTraining ? "Available After Training" : "Window Passed",
+                    availabilityMessage ?? (allocation.phase == .duringTraining ? "Available During Training" : allocation.phase == .afterTraining ? "Available After Training" : "Window Passed"),
                     systemImage: "clock"
                 )
                     .appFont(size: 13, weight: .bold)
@@ -801,6 +914,15 @@ struct TrainingFuelPlannerSheet: View {
             Color(UIColor.secondarySystemBackground),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
+    }
+
+    private func recommendedFoodRoute(for target: TrainingFuelTarget) -> (title: String, icon: String, destination: TrainingFuelDestination) {
+        switch foodAvailability(target).recommended {
+        case .plannedMeal: return ("Use a planned meal", "calendar", .mealPlan)
+        case .recentFood: return ("Reuse a recent food", "clock.arrow.circlepath", .foodSearch)
+        case .pantryIdea: return ("Build from pantry items", "sparkles", .maiaIdea)
+        case .search: return ("Find a food", "magnifyingglass", .foodSearch)
+        }
     }
 
     private func targetMetric(_ title: String, value: String, color: Color) -> some View {
@@ -871,7 +993,8 @@ struct TrainingFuelPlannerSheet: View {
             suggestedDurationMinutes: draft.durationMinutes,
             suggestedIntensity: draft.intensity,
             suggestedStrengthFocus: draft.strengthFocus,
-            assumptions: []
+            assumptions: draft.assumptions ?? [],
+            identity: draft.identity
         )
     }
 
@@ -894,15 +1017,60 @@ struct TrainingFuelPlannerSheet: View {
     }
 
     private func apply(_ candidate: TrainingFuelSessionCandidate) {
+        if candidate.kind == .strength { personalInputs?.duringCarbsPerHour = nil }
         if let savedPlan, candidate.id == "saved:\(savedPlan.id)" {
             draftID = savedPlan.id
         } else if candidate.id != selectedCandidateID {
             draftID = UUID().uuidString
         }
         selectedCandidateID = candidate.id
+        if let date = candidate.scheduledDay {
+            scheduledAt = Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date
+        }
         durationMinutes = candidate.suggestedDurationMinutes ?? 45
         intensity = candidate.suggestedIntensity
         strengthFocus = candidate.suggestedStrengthFocus
+    }
+
+    private func seedFuelReviewFixtureIfRequested() {
+        #if DEBUG
+        guard ScreenshotDemoMode.isEnabled, ownerID == "mock_user",
+              ProcessInfo.processInfo.arguments.contains("-ui-testing-fuel-library"), fuelStore.history.isEmpty else { return }
+        let date = Date()
+        let inputs: [(String, String, Date)] = [
+            ("qa-fuel-morning", "QA morning session", date.addingTimeInterval(-7_200)),
+            ("qa-fuel-evening", "QA evening session", date.addingTimeInterval(3_600))
+        ]
+        for (id, title, start) in inputs {
+            let candidate = TrainingFuelSessionCandidate(id: id, source: .manualStrength, sourceID: nil,
+                title: title, detail: "Simulator-only test session", kind: .strength, scheduledDay: start,
+                suggestedDurationMinutes: 45, suggestedIntensity: .moderate, suggestedStrengthFocus: .fullBody, assumptions: [])
+            let draft = TrainingFuelPlanDraft(id: id, candidate: candidate, scheduledAt: start)
+            let anchor = start.addingTimeInterval(-1_800)
+            let diary = DailyLog(date: Calendar.current.startOfDay(for: start), meals: [])
+            let preview = TrainingFuelPlannerRules.makePlan(session: draft.session, today: diary, goals: goals, preference: draft.preference, now: anchor)
+            _ = fuelStore.confirm(TrainingFuelConfirmedPlan(draft: draft, plannerPlan: preview, goals: goals, today: diary, confirmedAt: anchor), for: ownerID)
+            if id == "qa-fuel-morning" {
+                _ = fuelStore.markCurrentPlanCompleted(at: date.addingTimeInterval(-1_800), today: diary, goals: goals, for: ownerID)
+            }
+        }
+        #endif
+    }
+
+    private func restore(_ value: TrainingFuelPlanDraft) {
+        restoredCandidate = Self.savedCandidate(from: value)
+        draftID = value.id; sessionKind = value.kind; selectedCandidateID = "saved:" + value.id
+        scheduledAt = value.scheduledAt; durationMinutes = value.durationMinutes; intensity = value.intensity
+        strengthFocus = value.strengthFocus; wantsBefore = value.preference.wantsPreSessionFuel; wantsAfter = value.preference.wantsPostSessionFuel
+        personalInputs = value.preference.personalInputs
+    }
+    private func startNewDraft() {
+        personalInputs = nil
+        restoredCandidate = nil; draftID = UUID().uuidString
+        let candidate = candidates.first ?? TrainingFuelSessionAdapter.manualCandidate(kind: .strength)
+        selectedCandidateID = candidate.id; sessionKind = candidate.kind; scheduledAt = Self.defaultStartTime(now: Date())
+        durationMinutes = candidate.suggestedDurationMinutes ?? 45; intensity = candidate.suggestedIntensity
+        strengthFocus = candidate.suggestedStrengthFocus; wantsBefore = true; wantsAfter = true
     }
 
     private func timingTitle(_ timing: TrainingFuelAllocation.Timing) -> String {
@@ -911,6 +1079,7 @@ struct TrainingFuelPlannerSheet: View {
         case .thirtyTo120Minutes: return "30 to 120 minutes before"
         case .overTwoHours: return "More than 2 hours before"
         case .afterSession: return "After the session"
+        case .duringSession: return "During the session"
         }
     }
 
@@ -939,7 +1108,7 @@ struct TrainingFuelPlannerSheet: View {
         case .upcoming:
             return phase == .beforeTraining
         case .inSession:
-            return false
+            return phase == .duringTraining
         case .recovery:
             return phase == .afterTraining
         default:
@@ -968,8 +1137,10 @@ struct TrainingFuelPlannerSheet: View {
         if phase.isComplete { return "Logged" }
         switch status {
         case .upcoming:
+            if phase.allocation.phase == .duringTraining { return "Available During" }
             return phase.allocation.phase == .afterTraining ? "Available Later" : "No Further Action"
         case .inSession:
+            if phase.allocation.phase == .duringTraining { return phase.hasActionableTarget ? "Review during target" : "Budget used elsewhere" }
             return phase.allocation.phase == .afterTraining ? "Available After" : "Window Passed"
         case .awaitingOutcome:
             return "Confirm Session"
@@ -1015,6 +1186,8 @@ struct TrainingFuelPlannerSheet: View {
         switch phase {
         case .beforeTraining:
             return now < scheduledAt
+        case .duringTraining:
+            return now >= scheduledAt && now < scheduledAt.addingTimeInterval(Double(durationMinutes * 60))
         case .afterTraining:
             let end = scheduledAt.addingTimeInterval(Double(durationMinutes * 60))
             return now >= end

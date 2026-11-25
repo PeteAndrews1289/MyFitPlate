@@ -59,6 +59,20 @@ final class HealthKitManagerTests: XCTestCase {
         waitForExpectations(timeout: 1.0)
     }
 
+    func testWaterAuthorizationRequestsWriteOnlyUntilWaterImportExists() throws {
+        let water = try XCTUnwrap(HKObjectType.quantityType(forIdentifier: .dietaryWater))
+        let completed = expectation(description: "permission request completes")
+        manager.requestAuthorization { success, _ in
+            XCTAssertTrue(success)
+            completed.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+        XCTAssertTrue(mockStore.requestedShareTypes.contains(water), "Existing logged-water export remains supported")
+        XCTAssertFalse(mockStore.requestedReadTypes.contains(water), "Do not request an unsupported water-import scope")
+        manager.saveWater(ounces: 8, date: Date())
+        XCTAssertTrue(mockStore.savedObjects.contains { ($0 as? HKQuantitySample)?.quantityType == water })
+    }
+
     func testFetchWorkouts() {
         let dummyWorkout = HKWorkout(activityType: .running, start: Date().addingTimeInterval(-3600), end: Date())
         mockStore.workoutQueryResult = [dummyWorkout]
@@ -148,6 +162,15 @@ final class HealthKitManagerTests: XCTestCase {
         }
         waitForExpectations(timeout: 1.0)
         XCTAssertEqual(mockStore.executedQueries.count, 1)
+    }
+
+    func testReportReadingsKeepDaysWithoutHealthSamplesMissing() {
+        let finished = expectation(description: "Empty Apple Health report")
+        manager.fetch7DayReadings(for: .restingHeartRate, options: .discreteAverage, unit: .count()) { values in
+            XCTAssertEqual(values, Array<Double?>(repeating: nil, count: 7))
+            finished.fulfill()
+        }
+        waitForExpectations(timeout: 1)
     }
 
     func testFetchBiologicalSex() {

@@ -1,15 +1,16 @@
 import Foundation
 
-public struct UserInsight: Identifiable, Decodable, Equatable {
-    public let id = UUID()
+public struct UserInsight: Identifiable, Codable, Equatable {
+    public let id: UUID
     public var title: String
     public var message: String
     public var category: InsightCategory
     public var priority: Int = 0
     public var sourceData: String?
+    public var evidence: InsightEvidenceSnapshot?
 
     private enum CodingKeys: String, CodingKey {
-        case title, message, category, priority, sourceData
+        case id, title, message, category, priority, sourceData, evidence
     }
 
     public enum InsightCategory: String, Codable, Equatable, CaseIterable {
@@ -18,6 +19,8 @@ public struct UserInsight: Identifiable, Decodable, Equatable {
 
     public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+            evidence = try container.decodeIfPresent(InsightEvidenceSnapshot.self, forKey: .evidence)
             title = try container.decode(String.self, forKey: .title)
             message = try container.decode(String.self, forKey: .message)
             category = (try? container.decode(InsightCategory.self, forKey: .category)) ?? .nutritionGeneral
@@ -25,13 +28,19 @@ public struct UserInsight: Identifiable, Decodable, Equatable {
             sourceData = try container.decodeIfPresent(String.self, forKey: .sourceData)
         }
 
-        public init(title: String, message: String, category: InsightCategory, priority: Int = 0, sourceData: String? = nil) {
+        public init(title: String, message: String, category: InsightCategory, priority: Int = 0, sourceData: String? = nil, id: UUID = UUID(), evidence: InsightEvidenceSnapshot? = nil) {
+            self.id = id
+            self.evidence = evidence
             self.title = title
             self.message = message
             self.category = category
             self.priority = priority
             self.sourceData = sourceData
         }
+    public func attaching(_ evidence: InsightEvidenceSnapshot) -> UserInsight {
+        UserInsight(title: title, message: message, category: category, priority: priority,
+            sourceData: sourceData, id: evidence.stableInsightID(title: title, category: category.rawValue, message: message), evidence: evidence)
+    }
 }
 
 public struct JournalEntry: Codable, Identifiable, Hashable {

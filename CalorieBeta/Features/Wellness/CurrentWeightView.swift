@@ -1,17 +1,27 @@
 import SwiftUI
 
+@MainActor
 struct CurrentWeightView: View {
     @EnvironmentObject private var goalSettings: GoalSettings
     @Environment(\.dismiss) private var dismiss
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var weight = ""
-    @State private var entryDate = Date()
+    @State private var entryDate: Date
+    @StateObject private var saveSession = WeightSaveSession(userID: DIContainer.shared.authService.currentUserID)
+    @State private var seeded = false
+    private var isSaving: Bool { saveSession.isSaving }
+    @State private var saveError: String?
     @FocusState private var weightFieldFocused: Bool
 
-    private var unit: String { BodyUnits.weightUnit(metric: useMetric) }
+    init(initialDate: Date = Date()) { _entryDate = State(initialValue: min(initialDate, Date())) }
+
+    private var unit: String { saveSession.draft?.unit ?? BodyUnits.weightUnit(metric: useMetric) }
+    private var entryUsesMetric: Bool { saveSession.draft.map { $0.unit == "kg" } ?? useMetric }
 
     private var enteredValue: Double? {
-        guard let value = Double(weight), value > 0 else { return nil }
+        let normalized = weight.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: Locale.current.decimalSeparator ?? ".", with: ".")
+        guard let value = Double(normalized), value.isFinite, value > 0 else { return nil }
         return value
     }
 
@@ -22,24 +32,18 @@ struct CurrentWeightView: View {
 
     private var changeFromLastEntry: Double? {
         guard let entered = enteredValue, let last = lastEntry else { return nil }
-        return BodyUnits.weightToLbs(entered, metric: useMetric) - last.weight
+        return BodyUnits.weightToLbs(entered, metric: entryUsesMetric) - last.weight
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    AppScreenHeader(
-                        eyebrow: "Body Trend",
-                        title: "Log Weight",
-                        subtitle: "Use the same conditions when possible so the long-term trend stays meaningful."
-                    )
-
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        AppSectionHeader(
-                            title: "Measurement",
-                            subtitle: lastEntryDescription
-                        )
+                        Text(lastEntryDescription)
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
                             TextField("0.0", text: $weight)
@@ -49,6 +53,7 @@ struct CurrentWeightView: View {
                                 .foregroundStyle(AppPalette.text)
                                 .monospacedDigit()
                                 .accessibilityLabel("Weight in \(unit)")
+                                .accessibilityIdentifier("weight_entry_value")
 
                             Text(unit)
                                 .appTextRole(.control)
@@ -65,15 +70,7 @@ struct CurrentWeightView: View {
                         }
 
                         changeContext
-                    }
-                    .appSurface(.emphasized)
-
-                    VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        AppSectionHeader(
-                            title: "Entry Date",
-                            subtitle: "Backdate the measurement when you are adding it later."
-                        )
-
+                        Divider()
                         DatePicker(
                             "Measurement date",
                             selection: $entryDate,
@@ -81,23 +78,27 @@ struct CurrentWeightView: View {
                             displayedComponents: .date
                         )
                         .appTextRole(.control)
-                        .padding(AppSpacing.group)
-                        .background(
-                            AppPalette.control,
-                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                        )
+                        .accessibilityIdentifier("weight_entry_date")
                     }
+                    .appSurface(.quiet)
+
+                    Text("Similar conditions make your trend easier to compare. Daily fluctuations are normal.")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.vertical, AppSpacing.group)
             }
             .scrollDismissesKeyboard(.interactively)
+            .disabled(isSaving || saveSession.draft != nil)
             .background(AppPalette.canvas.ignoresSafeArea())
-            .navigationTitle("Log Weight")
+            .navigationTitle("Log weight")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -105,12 +106,18 @@ struct CurrentWeightView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button("Save Weight") {
-                    saveWeight()
-                    dismiss()
+                VStack(spacing: AppSpacing.compact) {
+                    if let error = saveSession.errorMessage {
+                        Text(error).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                            .accessibilityIdentifier("weight_entry_error")
+                    }
+                    Button(isSaving ? "Saving…" : saveSession.draft == nil ? "Save weight" : "Retry saving") {
+                        saveWeight()
+                    }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .disabled(enteredValue == nil || isSaving)
+                    .accessibilityIdentifier("weight_entry_save")
                 }
-                .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(enteredValue == nil)
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.row)
                 .padding(.bottom, AppSpacing.compact)
@@ -118,23 +125,34 @@ struct CurrentWeightView: View {
                 .overlay(alignment: .top) {
                     Rectangle().fill(AppPalette.separator).frame(height: 1)
                 }
-                .accessibilityIdentifier("weight_entry_save")
             }
             .onAppear {
-                weight = String(
+                guard !seeded else { return }
+                seeded = true
+                if let draft = saveSession.draft {
+                    weight = String(format: "%.1f", draft.enteredValue)
+                    entryDate = draft.date
+                } else { weight = String(
                     format: "%.1f",
-                    BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: useMetric)
-                )
+                    BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: entryUsesMetric)
+                ) }
                 weightFieldFocused = true
             }
         }
-        .tint(AppPalette.brand)
+        .interactiveDismissDisabled(isSaving)
+        .alert("Couldn't save weight", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
+        }
+        .tint(AppPalette.brandText)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("weight_entry_screen")
     }
 
     private var lastEntryDescription: String {
         guard let lastEntry else { return "Your first entry becomes the start of the trend." }
-        let value = BodyUnits.weightDisplayValue(lbs: lastEntry.weight, metric: useMetric)
+        let value = BodyUnits.weightDisplayValue(lbs: lastEntry.weight, metric: entryUsesMetric)
         return "Last logged \(String(format: "%.1f", value)) \(unit) on \(lastEntry.date.formatted(.dateTime.month(.abbreviated).day()))."
     }
 
@@ -143,13 +161,13 @@ struct CurrentWeightView: View {
         if let change = changeFromLastEntry, abs(change) >= 0.05 {
             let isDown = change < 0
             Label(
-                "\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: change, metric: useMetric)))) \(unit) since the last entry",
+                "\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: change, metric: entryUsesMetric)))) \(unit) since the last entry",
                 systemImage: isDown ? "arrow.down.right" : "arrow.up.right"
             )
             .appTextRole(.secondary)
-            .foregroundStyle(isDown ? Color.accentPositive : AppPalette.caution)
+            .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
-        } else if enteredValue != nil {
+        } else if enteredValue != nil, lastEntry != nil {
             Label("In line with your last entry", systemImage: "equal")
                 .appTextRole(.secondary)
                 .foregroundStyle(.secondary)
@@ -157,10 +175,10 @@ struct CurrentWeightView: View {
     }
 
     private func saveWeight() {
-        guard let value = enteredValue else { return }
-        goalSettings.updateUserWeight(
-            BodyUnits.weightToLbs(value, metric: useMetric),
-            date: entryDate
-        )
+        guard !isSaving, let value = enteredValue else { return }
+        saveSession.save(weightLbs: BodyUnits.weightToLbs(value, metric: entryUsesMetric), enteredValue: value,
+                         unit: unit, date: entryDate, using: goalSettings) { accepted in
+            if accepted { dismiss() }
+        }
     }
 }

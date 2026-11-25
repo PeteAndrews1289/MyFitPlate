@@ -137,25 +137,28 @@ public enum InsightsRules {
     public static func localInsights(
         from logs: [DailyLog],
         sleepHours: [Double],
-        goals: GoalSnapshot
+        goals: GoalSnapshot,
+        now: Date = Date(), calendar: Calendar = .current
     ) -> [UserInsight] {
-        let loggedDays = logs.filter { !$0.meals.isEmpty || ($0.exercises?.isEmpty == false) || $0.waterTracker != nil }.count
+        let days = NutritionDayEvidence.days(logs, from: logs.compactMap { NutritionDayEvidence.civilDate(for: $0, calendar: calendar) }.min() ?? now, through: now, now: now, calendar: calendar)
+        let complete = days.filter { NutritionDayEvidence.isComplete($0, now: now, calendar: calendar) }
+        let loggedDays = days.filter { !$0.meals.isEmpty || ($0.exercises?.isEmpty == false) || $0.waterTracker != nil }.count
         let proteinGoal = max(goals.protein, 1)
         let calorieGoal = max(goals.calories, 1)
-        let averageCalories = logs.isEmpty ? 0 : logs.reduce(0) { $0 + $1.totalCalories() } / Double(logs.count)
-        let averageProtein = logs.isEmpty ? 0 : logs.reduce(0) { $0 + $1.totalMacros().protein } / Double(logs.count)
-        let workoutCount = logs.reduce(0) { $0 + ($1.exercises?.count ?? 0) }
-        let hydrationLogs = logs.compactMap(\.waterTracker)
+        let averageCalories = complete.isEmpty ? 0 : complete.reduce(0) { $0 + $1.totalCalories() } / Double(complete.count)
+        let averageProtein = complete.isEmpty ? 0 : complete.reduce(0) { $0 + $1.totalMacros().protein } / Double(complete.count)
+        let workoutCount = days.reduce(0) { $0 + ($1.exercises?.count ?? 0) }
+        let hydrationLogs = days.compactMap(\.waterTracker)
         let averageHydration = hydrationLogs.isEmpty ? 0 : hydrationLogs.reduce(0) { $0 + $1.totalOunces } / Double(hydrationLogs.count)
         let averageSleep = sleepHours.isEmpty ? 0 : sleepHours.reduce(0, +) / Double(sleepHours.count)
 
         var insights: [UserInsight] = [
             UserInsight(
                 title: "Your Logging Base Is Building",
-                message: "You logged useful data on \(loggedDays) day\(loggedDays == 1 ? "" : "s") in this window. That gives Maia enough signal to start spotting patterns instead of guessing.",
+                message: "You have entries on \(loggedDays) days and \(complete.count) confirmed food-log days. Nutrition averages use only fully logged days; review partial or unreviewed days before drawing intake conclusions.",
                 category: .positiveReinforcement,
                 priority: 100,
-                sourceData: "\(loggedDays) logged days across \(logs.count) days analyzed"
+                sourceData: "\(loggedDays) logged days across \(days.count) days analyzed; \(complete.count) fully logged food days"
             )
         ]
 
@@ -169,7 +172,7 @@ public enum InsightsRules {
                         : "You are averaging about \(Int(max(proteinGap, 0)))g under your protein target. A repeatable protein add-on at breakfast or post-workout would close most of that gap.",
                     category: .macroBalance,
                     priority: 90,
-                    sourceData: "Average protein: \(Int(averageProtein))g, target: \(Int(proteinGoal))g"
+                    sourceData: "Fully logged days · Average protein: \(Int(averageProtein))g, target: \(Int(proteinGoal))g"
                 )
             )
         }
@@ -196,7 +199,7 @@ public enum InsightsRules {
                         : "Your average calories are \(Int(abs(calorieDifference))) kcal \(calorieDifference > 0 ? "above" : "below") target. Adjust one recurring meal first instead of changing the whole day.",
                     category: .nutritionGeneral,
                     priority: 75,
-                    sourceData: "Average calories: \(Int(averageCalories)), target: \(Int(calorieGoal))"
+                    sourceData: "Fully logged days · Average calories: \(Int(averageCalories)), target: \(Int(calorieGoal))"
                 )
             )
         }
@@ -279,7 +282,7 @@ public enum InsightsRules {
         2. **Balance the plate**: aim to close whichever macro has the biggest remaining gap, not protein by default — if carbs or fats are the largest remaining number, center the meal on those.
         3. **Prioritize Variety**: Do NOT suggest common items like 'quinoa' or 'chicken breast' unless they are explicitly listed in the user's preferences. Use a diverse range of ingredients.
         4. Your response MUST be a valid JSON object. Do not include any other text.
-        5. The JSON object must have these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (an array of strings), "instructions" (a single string with newlines).
+        5. The JSON object must have these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (an array of strings with explicit quantities for one serving), "instructions" (a single string with newlines), "prepMinutes" (integer estimate of total preparation and cooking time).
         """
     }
 
@@ -291,7 +294,10 @@ public enum InsightsRules {
         carbPrefs: String,
         pantryItems: [String] = []
     ) -> String {
-        let phase = target.phase == .beforeTraining ? "before training" : "after training"
+        let phase = target.phase.title.lowercased()
+        let tolerance = target.context?.foodTolerance == .lighterFoods
+            ? "The user prefers lighter foods. Suggest familiar, easy-to-eat choices without claiming digestive safety."
+            : target.phase == .duringTraining ? "The user confirmed a practiced carbohydrate intake rate, not a particular product. Offer an optional portable carbohydrate food for review; do not claim it is their practiced food or add fluid, sodium, supplements or a higher intake rate." : "No individual tolerance preference was confirmed."
         let safeRemainingCalories = dailyRemainingCalories.isFinite
             ? min(1_000_000, max(0, dailyRemainingCalories))
             : 0
@@ -308,6 +314,7 @@ public enum InsightsRules {
 
         return """
         You are Maia, a helpful nutrition coach. Suggest one practical food or meal for \(phase).
+        \(tolerance)
 
         A deterministic planner already reserved this portion of the user's existing daily budget:
         - Calorie ceiling: \(calorieCeiling) cal
@@ -326,7 +333,7 @@ public enum InsightsRules {
         1. Return one simple idea that is reasonably close to the protein and carbohydrate guides.
         2. Do not describe the target as medical advice or a required anabolic window.
         3. Your response MUST be one valid JSON object with no other text.
-        4. Use these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (array of strings), "instructions" (string).
+        4. Use these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (array of strings with explicit quantities for one serving), "instructions" (string), "prepMinutes" (integer estimate of total preparation and cooking time).
         """
     }
 
@@ -456,6 +463,7 @@ public enum InsightsRules {
         \(userGoals)
 
         Daily Nutrition Summary (with Food Quality metrics):
+        Only fully logged nutrition days can support intake averages or adherence claims. Partial, unreviewed, and missing days are unknown intake, never evidence of eating too little. Food-source accuracy is separate from whole-day completeness. State the number of confirmed days and keep conclusions provisional when coverage is sparse.
         \(dailyNutritionSummary)
 
         Daily Workout Summary:

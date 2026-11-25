@@ -29,11 +29,11 @@ final class WellnessScoreTests: XCTestCase {
 
         XCTAssertEqual(score.overallScore, 93)
         XCTAssertTrue(score.isNutritionOnly)
-        XCTAssertEqual(score.displayTitle, "Nutrition Score")
+        XCTAssertEqual(score.displayTitle, "Nutrition summary")
         XCTAssertNil(score.recoveryScore)
     }
 
-    func testOneRecoverySignalIsScoredWithoutInventingTheOther() {
+    func testRawHeartRateDoesNotInventARecoveryScore() {
         let score = service.calculateWellnessScore(
             mealScore: nil,
             lastNightSleepScore: nil,
@@ -41,9 +41,10 @@ final class WellnessScoreTests: XCTestCase {
             hrv: nil
         )
 
-        XCTAssertEqual(score.recoveryScore, 70)
-        XCTAssertEqual(score.overallScore, 70)
-        XCTAssertEqual(score.availableComponentCount, 1)
+        XCTAssertNil(score.recoveryScore)
+        XCTAssertEqual(score.overallScore, 0)
+        XCTAssertTrue(score.hasRecoveryReadings)
+        XCTAssertEqual(score.recoveryLabel, "Recorded")
     }
 
     func testAvailableComponentsKeepDocumentedWeights() {
@@ -54,9 +55,32 @@ final class WellnessScoreTests: XCTestCase {
             hrv: 55
         )
 
-        XCTAssertEqual(score.recoveryScore, 75)
-        XCTAssertEqual(score.overallScore, 83)
-        XCTAssertEqual(score.availableComponentCount, 3)
+        XCTAssertNil(score.recoveryScore)
+        XCTAssertEqual(score.overallScore, 86)
+        XCTAssertEqual(score.availableComponentCount, 2)
+    }
+
+    func testHighAndLowAbsoluteHRVDoNotChangeTheScoreOrPrescribeTraining() {
+        for hrv in [15.0, 55, 110] {
+            let score = service.calculateWellnessScore(mealScore: mealScore(overall: 90),
+                                                      lastNightSleepScore: 80, restingHeartRate: 62, hrv: hrv)
+            XCTAssertEqual(score.overallScore, 86)
+            XCTAssertNil(score.recoveryScore)
+            XCTAssertFalse(score.summary.contains("ready"))
+        }
+    }
+
+    func testValidZeroRemainsAvailableAndMissingPlaceholderIsExcluded() {
+        let zero = service.calculateWellnessScore(mealScore: mealScore(overall: 0), lastNightSleepScore: 0,
+            restingHeartRate: nil, hrv: nil)
+        XCTAssertEqual(zero.availableComponentCount, 2)
+        XCTAssertEqual(zero.sleepScore, 0)
+        XCTAssertTrue(zero.hasNutrition)
+        let missing = service.calculateWellnessScore(mealScore: .noScore, lastNightSleepScore: -1,
+            restingHeartRate: 60, hrv: 40)
+        XCTAssertEqual(missing.availableComponentCount, 0)
+        XCTAssertFalse(missing.hasNutrition)
+        XCTAssertTrue(missing.hasRecoveryReadings)
     }
 
     private func mealScore(overall: Int) -> MealScore {

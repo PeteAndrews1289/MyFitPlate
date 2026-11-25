@@ -51,6 +51,25 @@ public struct CustomCorners: Shape {
 }
 #endif
 
+/// A decorative food illustration with a size independent of the adjacent food name.
+public struct FoodGlyph: View {
+    private let foodName: String
+    private let pointSize: CGFloat
+
+    public init(_ foodName: String, pointSize: CGFloat) {
+        self.foodName = foodName
+        self.pointSize = pointSize
+    }
+
+    public var body: some View {
+        Canvas { context, size in
+            let glyph = Text(FoodEmojiMapper.getEmoji(for: foodName)).font(.system(size: pointSize))
+            context.draw(glyph, at: CGPoint(x: size.width / 2, y: size.height / 2))
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 public struct FoodEmojiMapper {
     static let foodEmojiMap: [String: String] = [
         "hotdog":"🌭","hot dog":"🌭","burger":"🍔","hamburger":"🍔","cheeseburger":"🍔","pizza":"🍕","taco":"🌮","burrito":"🌯","fries":"🍟","sandwich":"🥪","wrap":"🌯","nachos":"🌮",

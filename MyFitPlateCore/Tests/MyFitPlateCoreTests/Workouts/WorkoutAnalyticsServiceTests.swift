@@ -237,24 +237,158 @@ final class WorkoutAnalyticsServiceTests: XCTestCase {
     }
 
     func testFetchTrends() async {
-        let log1 = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 200)])])
-        let log2 = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 210)])])
+        var log1 = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 200)])])
+        var log2 = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 210)])])
         
+        log1.id = "earlier-session"; log1.date = Date(timeIntervalSince1970: 1_700_000_000)
+        log2.id = "later-session"; log2.date = Date(timeIntervalSince1970: 1_700_086_400)
         mockRepo.mockFetchHistoryResult = [log1, log2]
 
         let trends = await service.fetchTrends(for: "Squat", userID: "user_123")
         XCTAssertEqual(trends.count, 2)
-        XCTAssertEqual(trends.last?.value, 200) // Reversed because mock fetch result is not ordered
+        XCTAssertEqual(trends.first?.value, 200)
+        XCTAssertEqual(trends.last?.value, 210) // Trends follow the actual session chronology.
     }
 
     func testCompareAgainstPrevious() async {
         let currentLog = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 200)])])
-        let prevLog = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 180)])])
+        var prevLog = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 180)])])
+        prevLog.id = "previous-session"
+        prevLog.date = currentLog.date.addingTimeInterval(-86_400)
         
         mockRepo.mockFetchHistoryResult = [currentLog, prevLog]
 
         let comparison = await service.compareAgainstPrevious(currentLog: currentLog, userID: "user_123")
         XCTAssertNotNil(comparison)
         XCTAssertEqual(comparison?.volumeDiffPercent ?? 0.0, (1000.0 - 900.0) / 900.0, accuracy: 0.001)
+        XCTAssertEqual(comparison?.durationIsMeasured, false)
+    }
+
+    func testDurationComparisonRequiresAUsablePreviousTimer() async {
+        var current = makeSessionLog(exercises: [completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 200)])])
+        current.elapsedSeconds = 0
+        var previous = current
+        previous.id = "previous"
+        previous.date = current.date.addingTimeInterval(-86_400)
+        for seconds in [60.0, 0.0, 90_000.0] {
+            previous.elapsedSeconds = seconds
+            mockRepo.mockFetchHistoryResult = [previous]
+            let comparison = await service.compareAgainstPrevious(currentLog: current, userID: "user_123")
+            XCTAssertEqual(comparison?.durationIsMeasured, seconds == 60)
+            if seconds == 60 { XCTAssertEqual(comparison?.durationDiffPercent, -1) }
+        }
+    }
+
+    func testConfirmedRecordsDoNotCrossLoadingMeaningsOrNamedMachines() async {
+        let currentSetup = StrengthEquipment(loadingMeaning: .total, name: "Bench rack", availableWeights: [60, 100, 110])
+        let current = equipmentLog(id: "current", date: Date(), setup: currentSetup, weight: 110)
+        let oldSetups: [StrengthEquipment?] = [nil,
+            StrengthEquipment(loadingMeaning: .perHand, name: "Bench rack", availableWeights: [60, 100]),
+            StrengthEquipment(loadingMeaning: .added, name: "Bench rack", availableWeights: [60, 100]),
+            StrengthEquipment(loadingMeaning: .total, name: "Different machine", availableWeights: [60, 100])]
+        mockAI.mockResult = .success("{\"insights\":[]}")
+        for (index, setup) in oldSetups.enumerated() {
+            let previous = equipmentLog(id: "previous-\(index)", date: current.date.addingTimeInterval(-86_400), setup: setup, weight: 60)
+            mockRepo.mockFetchHistoryResult = [current, previous]
+            let result = await service.generateAnalytics(for: current, userID: "user_123")
+            XCTAssertTrue(result.personalRecords.isEmpty, "A new load convention or machine starts a new comparison baseline")
+            XCTAssertFalse(result.aiInsights.contains { $0.title == "Confirmed Progress" })
+            XCTAssertEqual(result.totalVolume, 1100, "Keep the recorded canonical numbers unchanged")
+        }
+    }
+
+    func testUnitOnlyChangeCanConfirmComparableProgressButFirstExposureCannot() async {
+        let currentSetup = StrengthEquipment(unit: .kg, loadingMeaning: .total, name: "Bench rack", availableWeights: [100, 110])
+        var oldSetup = currentSetup
+        oldSetup.unit = .lb
+        let current = equipmentLog(id: "current", date: Date(), setup: currentSetup, weight: 110)
+        let previous = equipmentLog(id: "previous", date: current.date.addingTimeInterval(-86_400), setup: oldSetup, weight: 100)
+        mockAI.mockResult = .success("{\"insights\":[]}")
+        mockRepo.mockFetchHistoryResult = [current, previous]
+        let confirmed = await service.generateAnalytics(for: current, userID: "user_123")
+        XCTAssertNotNil(confirmed.personalRecords["Bench press"])
+        let comparison = await service.compareAgainstPrevious(currentLog: current, userID: "user_123")
+        XCTAssertEqual(comparison?.volumeDiffPercent ?? -1, 0.1, accuracy: 0.0001)
+        XCTAssertEqual(confirmed.totalVolume, 1100)
+        mockRepo.mockFetchHistoryResult = [current]
+        let firstExposure = await service.generateAnalytics(for: current, userID: "user_123")
+        XCTAssertTrue(firstExposure.personalRecords.isEmpty)
+    }
+
+    func testSessionVolumeComparisonIsOmittedAcrossChangedMeaningOrMachine() async {
+        let currentSetup = StrengthEquipment(loadingMeaning: .total, name: "Bench rack", availableWeights: [100, 110])
+        let current = equipmentLog(id: "current", date: Date(), setup: currentSetup, weight: 110)
+        let incompatible = [StrengthEquipment(loadingMeaning: .perHand, name: "Bench rack", availableWeights: [100, 110]),
+                            StrengthEquipment(loadingMeaning: .total, name: "Other machine", availableWeights: [100, 110])]
+        for setup in incompatible {
+            let previous = equipmentLog(id: "previous", date: current.date.addingTimeInterval(-86_400), setup: setup, weight: 100)
+            mockRepo.mockFetchHistoryResult = [current, previous]
+            let comparison = await service.compareAgainstPrevious(currentLog: current, userID: "user_123")
+            XCTAssertNil(comparison, "Incompatible load meanings cannot trigger a session-volume PR celebration")
+            XCTAssertEqual(service.generateImmediateSessionAnalytics(for: current).totalVolume, 1100)
+        }
+    }
+
+    func testAggregateRecordsOmitAmbiguousNamesWhileKeepingVolumeAndOtherRecords() async {
+        let perHand = StrengthEquipment(loadingMeaning: .perHand, name: "Bench rack", availableWeights: [60, 110])
+        let total = StrengthEquipment(loadingMeaning: .total, name: "Bench rack", availableWeights: [60, 110])
+        var first = completedExercise(name: "Bench press", type: .strength, sets: [CompletedSet(reps: 10, weight: 60)])
+        first.exercise.loadEquipment = perHand
+        var second = completedExercise(name: " bench PRESS ", type: .strength, sets: [CompletedSet(reps: 10, weight: 110)])
+        second.exercise.loadEquipment = total
+        let squat = completedExercise(name: "Squat", type: .strength, sets: [CompletedSet(reps: 5, weight: 200)])
+        let session = makeSessionLog(exercises: [first, second, squat])
+        mockRepo.mockFetchSessionLogResult = .success(session)
+        mockAI.mockResult = .success("{\"insights\":[]}")
+        let result = await service.calculateAnalytics(for: [dailyLog(for: session)], program: nil)
+        XCTAssertEqual(result.totalVolume, 2700)
+        XCTAssertEqual(Set(result.personalRecords.keys), ["Squat"])
+        XCTAssertEqual(result.personalRecords["Squat"], "200.0 lbs x 5 reps")
+    }
+
+    func testAggregateRecordStillCombinesCompatibleUnitPresentations() async {
+        let firstSetup = StrengthEquipment(loadingMeaning: .total, name: "Bench rack", availableWeights: [100, 110])
+        var secondSetup = firstSetup
+        secondSetup.unit = .kg
+        var first = completedExercise(name: "Bench press", type: .strength, sets: [CompletedSet(reps: 10, weight: 100)])
+        first.exercise.loadEquipment = firstSetup
+        var second = completedExercise(name: "Bench press", type: .strength, sets: [CompletedSet(reps: 10, weight: 110)])
+        second.exercise.loadEquipment = secondSetup
+        let session = makeSessionLog(exercises: [first, second])
+        mockRepo.mockFetchSessionLogResult = .success(session)
+        mockAI.mockResult = .success("{\"insights\":[]}")
+        let result = await service.calculateAnalytics(for: [dailyLog(for: session)], program: nil)
+        XCTAssertEqual(result.totalVolume, 2100)
+        XCTAssertEqual(result.personalRecords["Bench press"], "110.0 lbs x 10 reps")
+    }
+
+    func testSameNameExercisesWithDifferentCurrentMeaningsCannotClaimOneConfirmedRecord() async {
+        let total = StrengthEquipment(loadingMeaning: .total, availableWeights: [50, 60, 100, 110])
+        var perHand = total
+        perHand.loadingMeaning = .perHand
+        let now = Date()
+        let totalCurrent = equipmentLog(id: "current", date: now, setup: total, weight: 110)
+        let handCurrent = equipmentLog(id: "current", date: now, setup: perHand, weight: 60)
+        var current = totalCurrent
+        current.completedExercises += handCurrent.completedExercises
+        let previous = equipmentLog(id: "previous", date: now.addingTimeInterval(-86_400), setup: total, weight: 100)
+        mockRepo.mockFetchHistoryResult = [current, previous]
+        mockAI.mockResult = .success("{\"insights\":[]}")
+        let result = await service.generateAnalytics(for: current, userID: "user_123")
+        XCTAssertTrue(result.personalRecords.isEmpty)
+        XCTAssertEqual(result.totalVolume, 1700)
+    }
+
+    private func equipmentLog(id: String, date: Date, setup: StrengthEquipment?, weight: Double) -> WorkoutSessionLog {
+        var exercise = completedExercise(name: "Bench press", type: .strength, sets: [CompletedSet(reps: 10, weight: weight)])
+        exercise.exercise.loadEquipment = setup
+        return WorkoutSessionLog(id: id, date: date, routineID: "routine-1", completedExercises: [exercise])
+    }
+
+    private func dailyLog(for session: WorkoutSessionLog) -> DailyLog {
+        DailyLog(id: "aggregate-day", date: session.date, meals: [], exercises: [
+            LoggedExercise(id: "workout", name: "Workout", durationMinutes: 10, caloriesBurned: 100,
+                           date: session.date, source: "routine", workoutID: session.routineID, sessionID: session.id)
+        ])
     }
 }

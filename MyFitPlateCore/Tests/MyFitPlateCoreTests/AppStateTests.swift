@@ -104,6 +104,30 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.isUserLoggedIn)
     }
 
+    func testMealShortcutKeepsItsDayAndIsConsumedOnce() async {
+        auth.currentUserID = "user-1"
+        let state = AppState()
+        await waitForAppStateTasks()
+        let now = Date()
+        let day = now.addingTimeInterval(-7 * 86_400)
+        let request = MealPlannerDestination(userID: "user-1", date: day, now: now)
+        XCTAssertTrue(state.openMealPlanner(request, now: now))
+        XCTAssertEqual(state.selectedTab, 3)
+        XCTAssertEqual(state.takeMealPlannerDestination(now: now)?.date, day)
+        XCTAssertNil(state.takeMealPlannerDestination(now: now))
+    }
+
+    func testAccountSwitchClearsPendingMealAndFuelNavigation() async {
+        auth.currentUserID = "user-1"
+        let state = AppState()
+        await waitForAppStateTasks()
+        XCTAssertTrue(state.openMealPlanner(.init(userID: "user-1", date: Date())))
+        auth.sendAuthState("user-2")
+        await waitForAppStateTasks()
+        XCTAssertNil(state.pendingMealPlannerDestination)
+        XCTAssertFalse(state.openMealPlanner(.init(userID: "user-1", date: Date())))
+    }
+
     func testChangingDarkModeSavesPreferenceForCurrentUser() async {
         auth.currentUserID = "user-1"
         let state = AppState()

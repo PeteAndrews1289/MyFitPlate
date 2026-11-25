@@ -9,14 +9,13 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   unit-tests:
     name: Unit tests
     runs-on: macos-15
+    concurrency:
+      group: ci-unit-${{ github.ref }}
+      cancel-in-progress: ${{ !startsWith(github.head_ref, 'codex/release-') }}
 
     steps:
       - name: Checkout
@@ -64,25 +63,46 @@ jobs:
           CORE_COVERAGE_MINIMUM: "80.0"
         run: ./scripts/check_core_coverage.sh
 
+      - name: Set up Node for native persistence tests
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set up Java for native persistence tests
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Run unit tests
         run: |
           gem install xcpretty
           set -o pipefail
-          xcodebuild test \
+          npx -y firebase-tools emulators:exec \
+            --project myfitplate-test-project \
+            --only firestore,auth \
+            'xcodebuild test \
             -project MyFitPlate.xcodeproj \
             -scheme MyFitPlate \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
             -only-testing:MyFitPlateTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO \
-            OTHER_SWIFT_FLAGS="-D UI_TESTING" | xcpretty
+            MYFITPLATE_EMULATOR_TESTS=YES \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            OTHER_SWIFT_FLAGS="-D UI_TESTING"' | xcpretty
+
+      - name: Show native test failures
+        if: failure() && hashFiles('TestResults.xcresult/Info.plist') != ''
+        run: |
+          xcrun xcresulttool get test-results summary --path TestResults.xcresult \
+            | jq '{result, passedTests, failedTests, testFailures}'
 
       - name: Check coverage floor
         env:
-          # Most logic now lives in the MyFitPlateCore package, which has its own coverage gate
-          # above. This floor only guards the thin app target against regressing to zero.
-          COVERAGE_MINIMUM: "1.0"
+          # Native persistence and app rendering tests establish 12.29% locally. Keep
+          # headroom for SDK differences while catching a meaningful regression.
+          COVERAGE_MINIMUM: "10.0"
         run: python3 scripts/check_xcode_coverage.py TestResults.xcresult --target MyFitPlate.app
 
       - name: Build Release configuration
@@ -103,8 +123,19 @@ jobs:
           if-no-files-found: ignore
 
   ui-tests:
-    name: UI smoke tests
+    name: UI tests · ${{ matrix.shard }}/4
     runs-on: macos-15
+    concurrency:
+      # Finish each running release shard so failures near its end remain visible.
+      # Other checks, and shards that are already free, can test the new revision.
+      group: ci-ui-${{ github.ref }}-${{ matrix.shard }}
+      cancel-in-progress: ${{ !startsWith(github.head_ref, 'codex/release-') }}
+    strategy:
+      fail-fast: false
+      # Leave a hosted Mac for the native build. Queue the shorter first group last.
+      max-parallel: 3
+      matrix:
+        shard: [3, 4, 2, 1]
 
     steps:
       - name: Checkout
@@ -123,32 +154,99 @@ jobs:
           USDA_API_KEY =
           EOF
 
-      - name: Run UI tests sequentially
+      - name: Build and run the assigned UI suites sequentially
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           set -o pipefail
-          xcodebuild test \
-            -project MyFitPlate.xcodeproj \
-            -scheme MyFitPlate \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -only-testing:MyFitPlateUITests \
-            -parallel-testing-enabled NO \
-            -maximum-concurrent-test-simulator-destinations 1 \
-            -resultBundlePath UITestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO | tee UITestResults.log
+          python3 -m unittest discover -s scripts -p test_ui_launch_retries.py
+          device=$(xcrun simctl list devices available --json | jq -er '
+            [.devices | to_entries[] | select(.key | test("[.]iOS-[0-9-]+$"))
+             | (.key | split(".iOS-")[1] | split("-") | map(tonumber)) as $version
+             | .value[] | select(.name == "iPhone 16") | {version: $version, udid}]
+            | sort_by(.version) | last.udid')
+          xcrun simctl bootstatus "$device" -b
+          common=(-project MyFitPlate.xcodeproj -scheme MyFitPlate
+                  -destination "platform=iOS Simulator,id=$device"
+                  -derivedDataPath "$RUNNER_TEMP/MyFitPlateUI" -parallel-testing-enabled NO)
+          xcodebuild build-for-testing "${common[@]}" CODE_SIGN_IDENTITY=-
+          # Simulator discovery can succeed with an empty inventory. Read the XCTest entry
+          # points from the built bundle, then verify that the runner executed every assigned case.
+          products="$RUNNER_TEMP/MyFitPlateUI/Build/Products/Debug-iphonesimulator"
+          bundle="$products/MyFitPlateUITests-Runner.app/PlugIns/MyFitPlateUITests.xctest"
+          xcrun nm -arch arm64 -U -j "$bundle/MyFitPlateUITests" | xcrun swift-demangle --compact > "$RUNNER_TEMP/ui-symbols.txt"
+          python3 scripts/ui_test_partition.py "$RUNNER_TEMP/ui-symbols.txt" "$SHARD" 4 \
+            --xcodebuild-arguments --expected UIExpectedTests.txt > "$RUNNER_TEMP/ui-suites.txt"
+          suites=()
+          while IFS= read -r argument; do suites+=("$argument"); done < "$RUNNER_TEMP/ui-suites.txt"
+          test_status=0
+          xcodebuild test-without-building "${common[@]}" "${suites[@]}" \
+            -collect-test-diagnostics on-failure -resultBundlePath UITestResults.xcresult | tee UITestResults.log || test_status=$?
+          xcrun xcresulttool get test-results tests --path UITestResults.xcresult \
+            | jq -r '.. | objects | select(.nodeType == "Test Case") | .nodeIdentifier' | LC_ALL=C sort -u > UIExecutedTests.txt
+          LC_ALL=C comm -23 UIExpectedTests.txt UIExecutedTests.txt > "$RUNNER_TEMP/missing-ui-tests.txt"
+          if [[ -s "$RUNNER_TEMP/missing-ui-tests.txt" ]]; then
+            cat "$RUNNER_TEMP/missing-ui-tests.txt"
+            exit 1
+          fi
+          if [[ "$test_status" != 0 ]]; then
+            xcrun xcresulttool get test-results summary --path UITestResults.xcresult > UIInitialSummary.json
+            python3 scripts/ui_launch_retries.py UIInitialSummary.json --blocking-report UIBlockingFailures.txt > UIRetryTests.txt
+            cat UIBlockingFailures.txt
+            if [[ -s UIRetryTests.txt ]]; then
+              # XCTest never acquired the launch assertion. Keep that result, reboot the same
+              # simulator, and require actual passing receipts for each affected method.
+              retry_tests=()
+              while IFS= read -r method; do retry_tests+=("-only-testing:MyFitPlateUITests/${method%()}"); done < UIRetryTests.txt
+              xcrun simctl shutdown "$device"
+              xcrun simctl bootstatus "$device" -b
+              xcodebuild test-without-building "${common[@]}" "${retry_tests[@]}" \
+                -collect-test-diagnostics on-failure -resultBundlePath UIRetryResults.xcresult
+              xcrun xcresulttool get test-results tests --path UIRetryResults.xcresult \
+                | jq -r '.. | objects | select(.nodeType == "Test Case" and .result == "Passed") | .nodeIdentifier' \
+                | LC_ALL=C sort -u > UIRetryPassedTests.txt
+              diff -u UIRetryTests.txt UIRetryPassedTests.txt
+              if [[ ! -s UIBlockingFailures.txt ]]; then test_status=0; fi
+            fi
+          fi
+          exit "$test_status"
 
       - name: Upload UI test evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ui-test-results
+          name: ui-test-results-${{ matrix.shard }}
           path: |
             UITestResults.xcresult
             UITestResults.log
+            UIExpectedTests.txt
+            UIExecutedTests.txt
+            UIInitialSummary.json
+            UIBlockingFailures.txt
+            UIRetryTests.txt
+            UIRetryPassedTests.txt
+            UIRetryResults.xcresult
           if-no-files-found: ignore
+
+  ui-status:
+    name: UI smoke tests
+    needs: ui-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report all simulator shards to branch protection
+        env:
+          UI_RESULT: ${{ needs.ui-tests.result }}
+        run: |
+          echo "Simulator UI tests finished with $UI_RESULT."
+          test "$UI_RESULT" = success
 
   functions:
     name: Firebase Functions
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-functions-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
@@ -171,6 +269,9 @@ jobs:
   firebase-rules:
     name: Firebase rules
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-rules-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
@@ -179,7 +280,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: tests/firebase-rules/package-lock.json
 
@@ -193,16 +294,23 @@ jobs:
         working-directory: tests/firebase-rules
         run: npm ci
 
-      - name: Run Firestore rule tests
+      - name: Build callable handlers for compatibility tests
+        working-directory: functions
+        run: npm ci && npm run build
+
+      - name: Run Firestore rules and account compatibility tests
         run: |
           npx -y firebase-tools emulators:exec \
             --project myfitplate-test-project \
-            --only firestore \
-            "npm test --prefix tests/firebase-rules"
+            --only firestore,auth \
+            "npm test --prefix tests/firebase-rules && node --test functions/integration/accountDeletionCompatibility.test.js"
 
   data-migrations:
     name: Data migrations
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-migrations-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout

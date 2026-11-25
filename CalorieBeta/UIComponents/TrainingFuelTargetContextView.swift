@@ -25,7 +25,7 @@ struct TrainingFuelTargetContextView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: target.phase == .beforeTraining ? "bolt.fill" : "arrow.clockwise.heart.fill")
+                Image(systemName: target.phase.symbol)
                     .appFont(size: 15, weight: .bold)
                     .foregroundColor(.brandForeground)
                     .frame(width: 34, height: 34)
@@ -57,21 +57,16 @@ struct TrainingFuelTargetContextView: View {
 
             HStack(spacing: 8) {
                 metric(title: "Calories", value: "\(target.calories) cal", current: currentCalories)
-                metric(title: "Protein", value: "\(target.proteinGrams)g", current: currentProtein)
-                metric(title: "Carbs", value: "\(target.carbGrams)g", current: currentCarbs)
+                metric(title: "Protein", value: "\(target.proteinGrams) g", current: currentProtein)
+                metric(title: "Carbs", value: "\(target.carbGrams) g", current: currentCarbs)
             }
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.brandPrimary.opacity(0.18), lineWidth: 1)
-        )
+        .appSurface(.quiet, padding: AppSpacing.row)
     }
 
     private var phaseTitle: String {
-        target.phase == .beforeTraining ? "Before Training Target" : "After Training Target"
+        target.phase.title + " target"
     }
 
     private func metric(
@@ -81,16 +76,15 @@ struct TrainingFuelTargetContextView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .appFont(size: 10, weight: .semibold)
+                .appTextRole(.caption)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
             Text(current.map { "\(Int($0.rounded())) / \(value)" } ?? value)
-                .appFont(size: 12, weight: .bold)
+                .appFont(size: 14, weight: .semibold)
                 .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

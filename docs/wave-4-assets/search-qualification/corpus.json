@@ -1,0 +1,2342 @@
+{
+  "version": 1,
+  "prepared": "2026-11-04",
+  "scope": "200 distinct authored intents, predeclared before the paired live run. Catalog existence is not presumed; response-window absence is separate from zero provider hits. No personal logs. Not representative population prevalence.",
+  "categories": {
+    "ambiguous": 3,
+    "branded": 120,
+    "generic": 50,
+    "negative": 2,
+    "portion": 10,
+    "prefix": 10,
+    "typo": 5
+  },
+  "matching_note": "Brand and food-word constraints are conservative labels. Raw/cooked, concentration and other preparation qualifiers must not be silently dropped. ExactGTIN/serving identity is not established by text search.",
+  "queries": [
+    {
+      "query": "Chobani plain greek yogurt",
+      "category": "branded",
+      "target_brand": "Chobani",
+      "target_words": [
+        "plain",
+        "greek",
+        "yogurt"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q001"
+    },
+    {
+      "query": "Fage total 2% greek yogurt",
+      "category": "branded",
+      "target_brand": "Fage",
+      "target_words": [
+        "total",
+        "2%",
+        "greek",
+        "yogurt"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q002"
+    },
+    {
+      "query": "Oikos triple zero vanilla yogurt",
+      "category": "branded",
+      "target_brand": "Oikos",
+      "target_words": [
+        "triple",
+        "zero",
+        "vanilla",
+        "yogurt"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q003"
+    },
+    {
+      "query": "Siggi's plain skyr yogurt",
+      "category": "branded",
+      "target_brand": "Siggi's",
+      "target_words": [
+        "plain",
+        "skyr",
+        "yogurt"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q004"
+    },
+    {
+      "query": "Fairlife 2% milk",
+      "category": "branded",
+      "target_brand": "Fairlife",
+      "target_words": [
+        "2%",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q005"
+    },
+    {
+      "query": "Fairlife chocolate milk",
+      "category": "branded",
+      "target_brand": "Fairlife",
+      "target_words": [
+        "chocolate",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q006"
+    },
+    {
+      "query": "Horizon organic whole milk",
+      "category": "branded",
+      "target_brand": "Horizon",
+      "target_words": [
+        "organic",
+        "whole",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q007"
+    },
+    {
+      "query": "Oatly original oat milk",
+      "category": "branded",
+      "target_brand": "Oatly",
+      "target_words": [
+        "original",
+        "oat",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q008"
+    },
+    {
+      "query": "Silk unsweetened almond milk",
+      "category": "branded",
+      "target_brand": "Silk",
+      "target_words": [
+        "unsweetened",
+        "almond",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q009"
+    },
+    {
+      "query": "Almond Breeze unsweetened almond milk",
+      "category": "branded",
+      "target_brand": "Almond Breeze",
+      "target_words": [
+        "unsweetened",
+        "almond",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q010"
+    },
+    {
+      "query": "Califia unsweetened almond milk",
+      "category": "branded",
+      "target_brand": "Califia",
+      "target_words": [
+        "unsweetened",
+        "almond",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q011"
+    },
+    {
+      "query": "Lactaid 2% milk",
+      "category": "branded",
+      "target_brand": "Lactaid",
+      "target_words": [
+        "2%",
+        "milk"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q012"
+    },
+    {
+      "query": "Daisy 2% cottage cheese",
+      "category": "branded",
+      "target_brand": "Daisy",
+      "target_words": [
+        "2%",
+        "cottage",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q013"
+    },
+    {
+      "query": "Good Culture cottage cheese",
+      "category": "branded",
+      "target_brand": "Good Culture",
+      "target_words": [
+        "cottage",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q014"
+    },
+    {
+      "query": "Breakstone's cottage cheese",
+      "category": "branded",
+      "target_brand": "Breakstone's",
+      "target_words": [
+        "cottage",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q015"
+    },
+    {
+      "query": "Philadelphia original cream cheese",
+      "category": "branded",
+      "target_brand": "Philadelphia",
+      "target_words": [
+        "original",
+        "cream",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q016"
+    },
+    {
+      "query": "Babybel original cheese",
+      "category": "branded",
+      "target_brand": "Babybel",
+      "target_words": [
+        "original",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q017"
+    },
+    {
+      "query": "Sargento mozzarella cheese",
+      "category": "branded",
+      "target_brand": "Sargento",
+      "target_words": [
+        "mozzarella",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q018"
+    },
+    {
+      "query": "Tillamook sharp cheddar cheese",
+      "category": "branded",
+      "target_brand": "Tillamook",
+      "target_words": [
+        "sharp",
+        "cheddar",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q019"
+    },
+    {
+      "query": "Kerrygold salted butter",
+      "category": "branded",
+      "target_brand": "Kerrygold",
+      "target_words": [
+        "salted",
+        "butter"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q020"
+    },
+    {
+      "query": "Quaker old fashioned oats",
+      "category": "branded",
+      "target_brand": "Quaker",
+      "target_words": [
+        "old",
+        "fashioned",
+        "oats"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q021"
+    },
+    {
+      "query": "Cheerios original cereal",
+      "category": "branded",
+      "target_brand": "Cheerios",
+      "target_words": [
+        "original",
+        "cereal"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q022"
+    },
+    {
+      "query": "Cheerios honey nut cereal",
+      "category": "branded",
+      "target_brand": "Cheerios",
+      "target_words": [
+        "honey",
+        "nut",
+        "cereal"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q023"
+    },
+    {
+      "query": "Kashi go crunch cereal",
+      "category": "branded",
+      "target_brand": "Kashi",
+      "target_words": [
+        "go",
+        "crunch",
+        "cereal"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q024"
+    },
+    {
+      "query": "Kellogg's frosted flakes cereal",
+      "category": "branded",
+      "target_brand": "Kellogg's",
+      "target_words": [
+        "frosted",
+        "flakes",
+        "cereal"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q025"
+    },
+    {
+      "query": "Cinnamon Toast Crunch cereal",
+      "category": "branded",
+      "target_brand": "Cinnamon Toast Crunch",
+      "target_words": [
+        "cereal"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q026"
+    },
+    {
+      "query": "Nature Valley oats honey granola bar",
+      "category": "branded",
+      "target_brand": "Nature Valley",
+      "target_words": [
+        "oats",
+        "honey",
+        "granola",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q027"
+    },
+    {
+      "query": "Kodiak buttermilk power cakes",
+      "category": "branded",
+      "target_brand": "Kodiak",
+      "target_words": [
+        "buttermilk",
+        "power",
+        "cakes"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q028"
+    },
+    {
+      "query": "Eggo buttermilk waffles",
+      "category": "branded",
+      "target_brand": "Eggo",
+      "target_words": [
+        "buttermilk",
+        "waffles"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q029"
+    },
+    {
+      "query": "Dave's Killer Bread 21 whole grains",
+      "category": "branded",
+      "target_brand": "Dave's Killer Bread",
+      "target_words": [
+        "21",
+        "whole",
+        "grains"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q030"
+    },
+    {
+      "query": "Ezekiel sprouted whole grain bread",
+      "category": "branded",
+      "target_brand": "Ezekiel",
+      "target_words": [
+        "sprouted",
+        "whole",
+        "grain",
+        "bread"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q031"
+    },
+    {
+      "query": "Mission carb balance tortilla",
+      "category": "branded",
+      "target_brand": "Mission",
+      "target_words": [
+        "carb",
+        "balance",
+        "tortilla"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q032"
+    },
+    {
+      "query": "Thomas' original english muffin",
+      "category": "branded",
+      "target_brand": "Thomas'",
+      "target_words": [
+        "original",
+        "english",
+        "muffin"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q033"
+    },
+    {
+      "query": "Pepperidge Farm whole wheat bread",
+      "category": "branded",
+      "target_brand": "Pepperidge Farm",
+      "target_words": [
+        "whole",
+        "wheat",
+        "bread"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q034"
+    },
+    {
+      "query": "Sara Lee honey wheat bread",
+      "category": "branded",
+      "target_brand": "Sara Lee",
+      "target_words": [
+        "honey",
+        "wheat",
+        "bread"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q035"
+    },
+    {
+      "query": "Nature's Own whole wheat bread",
+      "category": "branded",
+      "target_brand": "Nature's Own",
+      "target_words": [
+        "whole",
+        "wheat",
+        "bread"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q036"
+    },
+    {
+      "query": "Smucker's strawberry jam",
+      "category": "branded",
+      "target_brand": "Smucker's",
+      "target_words": [
+        "strawberry",
+        "jam"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q037"
+    },
+    {
+      "query": "Jif creamy peanut butter",
+      "category": "branded",
+      "target_brand": "Jif",
+      "target_words": [
+        "creamy",
+        "peanut",
+        "butter"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q038"
+    },
+    {
+      "query": "Skippy natural peanut butter",
+      "category": "branded",
+      "target_brand": "Skippy",
+      "target_words": [
+        "natural",
+        "peanut",
+        "butter"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q039"
+    },
+    {
+      "query": "Justin's almond butter",
+      "category": "branded",
+      "target_brand": "Justin's",
+      "target_words": [
+        "almond",
+        "butter"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q040"
+    },
+    {
+      "query": "Quest chocolate brownie protein bar",
+      "category": "branded",
+      "target_brand": "Quest",
+      "target_words": [
+        "chocolate",
+        "brownie",
+        "protein",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q041"
+    },
+    {
+      "query": "RXBAR chocolate sea salt protein bar",
+      "category": "branded",
+      "target_brand": "RXBAR",
+      "target_words": [
+        "chocolate",
+        "sea",
+        "salt",
+        "protein",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q042"
+    },
+    {
+      "query": "KIND dark chocolate nuts sea salt bar",
+      "category": "branded",
+      "target_brand": "KIND",
+      "target_words": [
+        "dark",
+        "chocolate",
+        "nuts",
+        "sea",
+        "salt",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q043"
+    },
+    {
+      "query": "Clif crunchy peanut butter bar",
+      "category": "branded",
+      "target_brand": "Clif",
+      "target_words": [
+        "crunchy",
+        "peanut",
+        "butter",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q044"
+    },
+    {
+      "query": "Premier Protein chocolate shake",
+      "category": "branded",
+      "target_brand": "Premier Protein",
+      "target_words": [
+        "chocolate",
+        "shake"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q045"
+    },
+    {
+      "query": "Muscle Milk vanilla protein shake",
+      "category": "branded",
+      "target_brand": "Muscle Milk",
+      "target_words": [
+        "vanilla",
+        "protein",
+        "shake"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q046"
+    },
+    {
+      "query": "Ensure max protein chocolate shake",
+      "category": "branded",
+      "target_brand": "Ensure",
+      "target_words": [
+        "max",
+        "protein",
+        "chocolate",
+        "shake"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q047"
+    },
+    {
+      "query": "Boost high protein chocolate shake",
+      "category": "branded",
+      "target_brand": "Boost",
+      "target_words": [
+        "high",
+        "protein",
+        "chocolate",
+        "shake"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q048"
+    },
+    {
+      "query": "Optimum Nutrition gold standard whey chocolate",
+      "category": "branded",
+      "target_brand": "Optimum Nutrition",
+      "target_words": [
+        "gold",
+        "standard",
+        "whey",
+        "chocolate"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q049"
+    },
+    {
+      "query": "Orgain organic plant protein vanilla",
+      "category": "branded",
+      "target_brand": "Orgain",
+      "target_words": [
+        "organic",
+        "plant",
+        "protein",
+        "vanilla"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q050"
+    },
+    {
+      "query": "Isopure zero carb protein",
+      "category": "branded",
+      "target_brand": "Isopure",
+      "target_words": [
+        "zero",
+        "carb",
+        "protein"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q051"
+    },
+    {
+      "query": "BSN syntha chocolate protein",
+      "category": "branded",
+      "target_brand": "BSN",
+      "target_words": [
+        "syntha",
+        "chocolate",
+        "protein"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q052"
+    },
+    {
+      "query": "Alani Nu chocolate protein bar",
+      "category": "branded",
+      "target_brand": "Alani Nu",
+      "target_words": [
+        "chocolate",
+        "protein",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q053"
+    },
+    {
+      "query": "Barebells cookies cream protein bar",
+      "category": "branded",
+      "target_brand": "Barebells",
+      "target_words": [
+        "cookies",
+        "cream",
+        "protein",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q054"
+    },
+    {
+      "query": "ONE birthday cake protein bar",
+      "category": "branded",
+      "target_brand": "ONE",
+      "target_words": [
+        "birthday",
+        "cake",
+        "protein",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q055"
+    },
+    {
+      "query": "Think creamy peanut butter protein bar",
+      "category": "branded",
+      "target_brand": "Think",
+      "target_words": [
+        "creamy",
+        "peanut",
+        "butter",
+        "protein",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q056"
+    },
+    {
+      "query": "Pure Protein chocolate deluxe bar",
+      "category": "branded",
+      "target_brand": "Pure Protein",
+      "target_words": [
+        "chocolate",
+        "deluxe",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q057"
+    },
+    {
+      "query": "Power Crunch french vanilla bar",
+      "category": "branded",
+      "target_brand": "Power Crunch",
+      "target_words": [
+        "french",
+        "vanilla",
+        "bar"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q058"
+    },
+    {
+      "query": "Jack Link's original beef jerky",
+      "category": "branded",
+      "target_brand": "Jack Link's",
+      "target_words": [
+        "original",
+        "beef",
+        "jerky"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q059"
+    },
+    {
+      "query": "Chomps original beef stick",
+      "category": "branded",
+      "target_brand": "Chomps",
+      "target_words": [
+        "original",
+        "beef",
+        "stick"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q060"
+    },
+    {
+      "query": "Tyson grilled chicken breast",
+      "category": "branded",
+      "target_brand": "Tyson",
+      "target_words": [
+        "grilled",
+        "chicken",
+        "breast"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q061"
+    },
+    {
+      "query": "Applegate oven roasted turkey breast",
+      "category": "branded",
+      "target_brand": "Applegate",
+      "target_words": [
+        "oven",
+        "roasted",
+        "turkey",
+        "breast"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q062"
+    },
+    {
+      "query": "Oscar Mayer oven roasted turkey",
+      "category": "branded",
+      "target_brand": "Oscar Mayer",
+      "target_words": [
+        "oven",
+        "roasted",
+        "turkey"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q063"
+    },
+    {
+      "query": "Boar's Head ovengold turkey",
+      "category": "branded",
+      "target_brand": "Boar's Head",
+      "target_words": [
+        "ovengold",
+        "turkey"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q064"
+    },
+    {
+      "query": "Hormel natural choice ham",
+      "category": "branded",
+      "target_brand": "Hormel",
+      "target_words": [
+        "natural",
+        "choice",
+        "ham"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q065"
+    },
+    {
+      "query": "StarKist chunk light tuna water",
+      "category": "branded",
+      "target_brand": "StarKist",
+      "target_words": [
+        "chunk",
+        "light",
+        "tuna",
+        "water"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q066"
+    },
+    {
+      "query": "Bumble Bee solid white albacore tuna",
+      "category": "branded",
+      "target_brand": "Bumble Bee",
+      "target_words": [
+        "solid",
+        "white",
+        "albacore",
+        "tuna"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q067"
+    },
+    {
+      "query": "Chicken of the Sea pink salmon",
+      "category": "branded",
+      "target_brand": "Chicken of the Sea",
+      "target_words": [
+        "pink",
+        "salmon"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q068"
+    },
+    {
+      "query": "Wild Planet sardines",
+      "category": "branded",
+      "target_brand": "Wild Planet",
+      "target_words": [
+        "sardines"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q069"
+    },
+    {
+      "query": "Perdue chicken breast",
+      "category": "branded",
+      "target_brand": "Perdue",
+      "target_words": [
+        "chicken",
+        "breast"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q070"
+    },
+    {
+      "query": "Amy's black bean burrito",
+      "category": "branded",
+      "target_brand": "Amy's",
+      "target_words": [
+        "black",
+        "bean",
+        "burrito"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q071"
+    },
+    {
+      "query": "Healthy Choice chicken broccoli alfredo",
+      "category": "branded",
+      "target_brand": "Healthy Choice",
+      "target_words": [
+        "chicken",
+        "broccoli",
+        "alfredo"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q072"
+    },
+    {
+      "query": "Lean Cuisine chicken fettuccini",
+      "category": "branded",
+      "target_brand": "Lean Cuisine",
+      "target_words": [
+        "chicken",
+        "fettuccini"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q073"
+    },
+    {
+      "query": "Stouffer's lasagna",
+      "category": "branded",
+      "target_brand": "Stouffer's",
+      "target_words": [
+        "lasagna"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q074"
+    },
+    {
+      "query": "Marie Callender's chicken pot pie",
+      "category": "branded",
+      "target_brand": "Marie Callender's",
+      "target_words": [
+        "chicken",
+        "pot",
+        "pie"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q075"
+    },
+    {
+      "query": "Birds Eye steamfresh broccoli",
+      "category": "branded",
+      "target_brand": "Birds Eye",
+      "target_words": [
+        "steamfresh",
+        "broccoli"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q076"
+    },
+    {
+      "query": "Green Giant riced cauliflower",
+      "category": "branded",
+      "target_brand": "Green Giant",
+      "target_words": [
+        "riced",
+        "cauliflower"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q077"
+    },
+    {
+      "query": "Gardein meatless meatballs",
+      "category": "branded",
+      "target_brand": "Gardein",
+      "target_words": [
+        "meatless",
+        "meatballs"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q078"
+    },
+    {
+      "query": "Beyond Meat beyond burger",
+      "category": "branded",
+      "target_brand": "Beyond Meat",
+      "target_words": [
+        "beyond",
+        "burger"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q079"
+    },
+    {
+      "query": "Impossible burger",
+      "category": "branded",
+      "target_brand": "Impossible",
+      "target_words": [
+        "burger"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q080"
+    },
+    {
+      "query": "Ben's Original ready rice jasmine",
+      "category": "branded",
+      "target_brand": "Ben's Original",
+      "target_words": [
+        "ready",
+        "rice",
+        "jasmine"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q081"
+    },
+    {
+      "query": "Minute brown rice",
+      "category": "branded",
+      "target_brand": "Minute",
+      "target_words": [
+        "brown",
+        "rice"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q082"
+    },
+    {
+      "query": "Barilla penne pasta",
+      "category": "branded",
+      "target_brand": "Barilla",
+      "target_words": [
+        "penne",
+        "pasta"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q083"
+    },
+    {
+      "query": "Banza chickpea pasta",
+      "category": "branded",
+      "target_brand": "Banza",
+      "target_words": [
+        "chickpea",
+        "pasta"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q084"
+    },
+    {
+      "query": "Annie's macaroni cheese",
+      "category": "branded",
+      "target_brand": "Annie's",
+      "target_words": [
+        "macaroni",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q085"
+    },
+    {
+      "query": "Kraft macaroni cheese",
+      "category": "branded",
+      "target_brand": "Kraft",
+      "target_words": [
+        "macaroni",
+        "cheese"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q086"
+    },
+    {
+      "query": "Rao's marinara sauce",
+      "category": "branded",
+      "target_brand": "Rao's",
+      "target_words": [
+        "marinara",
+        "sauce"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q087"
+    },
+    {
+      "query": "Prego traditional pasta sauce",
+      "category": "branded",
+      "target_brand": "Prego",
+      "target_words": [
+        "traditional",
+        "pasta",
+        "sauce"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q088"
+    },
+    {
+      "query": "Ragu old world traditional sauce",
+      "category": "branded",
+      "target_brand": "Ragu",
+      "target_words": [
+        "old",
+        "world",
+        "traditional",
+        "sauce"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q089"
+    },
+    {
+      "query": "Hunt's diced tomatoes",
+      "category": "branded",
+      "target_brand": "Hunt's",
+      "target_words": [
+        "diced",
+        "tomatoes"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q090"
+    },
+    {
+      "query": "Goya black beans",
+      "category": "branded",
+      "target_brand": "Goya",
+      "target_words": [
+        "black",
+        "beans"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q091"
+    },
+    {
+      "query": "Bush's black beans",
+      "category": "branded",
+      "target_brand": "Bush's",
+      "target_words": [
+        "black",
+        "beans"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q092"
+    },
+    {
+      "query": "Eden organic black beans",
+      "category": "branded",
+      "target_brand": "Eden",
+      "target_words": [
+        "organic",
+        "black",
+        "beans"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q093"
+    },
+    {
+      "query": "Hellmann's real mayonnaise",
+      "category": "branded",
+      "target_brand": "Hellmann's",
+      "target_words": [
+        "real",
+        "mayonnaise"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q094"
+    },
+    {
+      "query": "Heinz tomato ketchup",
+      "category": "branded",
+      "target_brand": "Heinz",
+      "target_words": [
+        "tomato",
+        "ketchup"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q095"
+    },
+    {
+      "query": "French's yellow mustard",
+      "category": "branded",
+      "target_brand": "French's",
+      "target_words": [
+        "yellow",
+        "mustard"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q096"
+    },
+    {
+      "query": "Sweet Baby Ray's original barbecue sauce",
+      "category": "branded",
+      "target_brand": "Sweet Baby Ray's",
+      "target_words": [
+        "original",
+        "barbecue",
+        "sauce"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q097"
+    },
+    {
+      "query": "Frank's redhot original sauce",
+      "category": "branded",
+      "target_brand": "Frank's",
+      "target_words": [
+        "redhot",
+        "original",
+        "sauce"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q098"
+    },
+    {
+      "query": "Kikkoman less sodium soy sauce",
+      "category": "branded",
+      "target_brand": "Kikkoman",
+      "target_words": [
+        "less",
+        "sodium",
+        "soy",
+        "sauce"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q099"
+    },
+    {
+      "query": "San J tamari soy sauce",
+      "category": "branded",
+      "target_brand": "San J",
+      "target_words": [
+        "tamari",
+        "soy",
+        "sauce"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q100"
+    },
+    {
+      "query": "Coca Cola zero sugar cola",
+      "category": "branded",
+      "target_brand": "Coca Cola",
+      "target_words": [
+        "zero",
+        "sugar",
+        "cola"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q101"
+    },
+    {
+      "query": "Pepsi zero sugar cola",
+      "category": "branded",
+      "target_brand": "Pepsi",
+      "target_words": [
+        "zero",
+        "sugar",
+        "cola"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q102"
+    },
+    {
+      "query": "Dr Pepper zero sugar soda",
+      "category": "branded",
+      "target_brand": "Dr Pepper",
+      "target_words": [
+        "zero",
+        "sugar",
+        "soda"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q103"
+    },
+    {
+      "query": "Sprite zero sugar soda",
+      "category": "branded",
+      "target_brand": "Sprite",
+      "target_words": [
+        "zero",
+        "sugar",
+        "soda"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q104"
+    },
+    {
+      "query": "Gatorade fruit punch",
+      "category": "branded",
+      "target_brand": "Gatorade",
+      "target_words": [
+        "fruit",
+        "punch"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q105"
+    },
+    {
+      "query": "Powerade mountain berry blast",
+      "category": "branded",
+      "target_brand": "Powerade",
+      "target_words": [
+        "mountain",
+        "berry",
+        "blast"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q106"
+    },
+    {
+      "query": "Bodyarmor fruit punch",
+      "category": "branded",
+      "target_brand": "Bodyarmor",
+      "target_words": [
+        "fruit",
+        "punch"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q107"
+    },
+    {
+      "query": "Liquid IV lemon lime",
+      "category": "branded",
+      "target_brand": "Liquid IV",
+      "target_words": [
+        "lemon",
+        "lime"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q108"
+    },
+    {
+      "query": "Spindrift lemon sparkling water",
+      "category": "branded",
+      "target_brand": "Spindrift",
+      "target_words": [
+        "lemon",
+        "sparkling",
+        "water"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q109"
+    },
+    {
+      "query": "La Croix lime sparkling water",
+      "category": "branded",
+      "target_brand": "La Croix",
+      "target_words": [
+        "lime",
+        "sparkling",
+        "water"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q110"
+    },
+    {
+      "query": "Welch's grape juice",
+      "category": "branded",
+      "target_brand": "Welch's",
+      "target_words": [
+        "grape",
+        "juice"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q111"
+    },
+    {
+      "query": "Tropicana orange juice",
+      "category": "branded",
+      "target_brand": "Tropicana",
+      "target_words": [
+        "orange",
+        "juice"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q112"
+    },
+    {
+      "query": "Ocean Spray cranberry juice",
+      "category": "branded",
+      "target_brand": "Ocean Spray",
+      "target_words": [
+        "cranberry",
+        "juice"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q113"
+    },
+    {
+      "query": "Lay's classic potato chips",
+      "category": "branded",
+      "target_brand": "Lay's",
+      "target_words": [
+        "classic",
+        "potato",
+        "chips"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q114"
+    },
+    {
+      "query": "Doritos nacho cheese chips",
+      "category": "branded",
+      "target_brand": "Doritos",
+      "target_words": [
+        "nacho",
+        "cheese",
+        "chips"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q115"
+    },
+    {
+      "query": "Tostitos scoops tortilla chips",
+      "category": "branded",
+      "target_brand": "Tostitos",
+      "target_words": [
+        "scoops",
+        "tortilla",
+        "chips"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q116"
+    },
+    {
+      "query": "Smartfood white cheddar popcorn",
+      "category": "branded",
+      "target_brand": "Smartfood",
+      "target_words": [
+        "white",
+        "cheddar",
+        "popcorn"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q117"
+    },
+    {
+      "query": "Angie's boomchickapop sea salt popcorn",
+      "category": "branded",
+      "target_brand": "Angie's",
+      "target_words": [
+        "boomchickapop",
+        "sea",
+        "salt",
+        "popcorn"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q118"
+    },
+    {
+      "query": "Oreo original cookies",
+      "category": "branded",
+      "target_brand": "Oreo",
+      "target_words": [
+        "original",
+        "cookies"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q119"
+    },
+    {
+      "query": "Goldfish cheddar crackers",
+      "category": "branded",
+      "target_brand": "Goldfish",
+      "target_words": [
+        "cheddar",
+        "crackers"
+      ],
+      "intent": "named product family; serving and exact GTIN require review",
+      "id": "q120"
+    },
+    {
+      "query": "banana raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "banana",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q121"
+    },
+    {
+      "query": "apple raw with skin",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "apple",
+        "raw",
+        "with",
+        "skin"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q122"
+    },
+    {
+      "query": "blueberries raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "blueberries",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q123"
+    },
+    {
+      "query": "strawberries raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "strawberries",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q124"
+    },
+    {
+      "query": "mango raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "mango",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q125"
+    },
+    {
+      "query": "pineapple raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "pineapple",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q126"
+    },
+    {
+      "query": "avocado raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "avocado",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q127"
+    },
+    {
+      "query": "potato baked skin",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "potato",
+        "baked",
+        "skin"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q128"
+    },
+    {
+      "query": "sweet potato baked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "sweet",
+        "potato",
+        "baked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q129"
+    },
+    {
+      "query": "broccoli boiled",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "broccoli",
+        "boiled"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q130"
+    },
+    {
+      "query": "spinach raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "spinach",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q131"
+    },
+    {
+      "query": "carrot raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "carrot",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q132"
+    },
+    {
+      "query": "rice white cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "rice",
+        "white",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q133"
+    },
+    {
+      "query": "rice brown cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "rice",
+        "brown",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q134"
+    },
+    {
+      "query": "quinoa cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "quinoa",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q135"
+    },
+    {
+      "query": "oats cooked water",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "oats",
+        "cooked",
+        "water"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q136"
+    },
+    {
+      "query": "lentils boiled",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "lentils",
+        "boiled"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q137"
+    },
+    {
+      "query": "chickpeas boiled",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "chickpeas",
+        "boiled"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q138"
+    },
+    {
+      "query": "black beans boiled",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "black",
+        "beans",
+        "boiled"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q139"
+    },
+    {
+      "query": "chicken breast roasted skinless",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "chicken",
+        "breast",
+        "roasted",
+        "skinless"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q140"
+    },
+    {
+      "query": "chicken thigh roasted",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "chicken",
+        "thigh",
+        "roasted"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q141"
+    },
+    {
+      "query": "beef ground 90% lean cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "beef",
+        "ground",
+        "90%",
+        "lean",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q142"
+    },
+    {
+      "query": "sirloin steak grilled",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "sirloin",
+        "steak",
+        "grilled"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q143"
+    },
+    {
+      "query": "pork loin roasted",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "pork",
+        "loin",
+        "roasted"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q144"
+    },
+    {
+      "query": "salmon Atlantic cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "salmon",
+        "Atlantic",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q145"
+    },
+    {
+      "query": "cod cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "cod",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q146"
+    },
+    {
+      "query": "shrimp cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "shrimp",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q147"
+    },
+    {
+      "query": "tuna raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "tuna",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q148"
+    },
+    {
+      "query": "egg whole raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "egg",
+        "whole",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q149"
+    },
+    {
+      "query": "egg white raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "egg",
+        "white",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q150"
+    },
+    {
+      "query": "tofu firm",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "tofu",
+        "firm"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q151"
+    },
+    {
+      "query": "tempeh cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "tempeh",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q152"
+    },
+    {
+      "query": "edamame cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "edamame",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q153"
+    },
+    {
+      "query": "milk whole",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "milk",
+        "whole"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q154"
+    },
+    {
+      "query": "yogurt greek plain nonfat",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "yogurt",
+        "greek",
+        "plain",
+        "nonfat"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q155"
+    },
+    {
+      "query": "cottage cheese 2%",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "cottage",
+        "cheese",
+        "2%"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q156"
+    },
+    {
+      "query": "cheddar cheese",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "cheddar",
+        "cheese"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q157"
+    },
+    {
+      "query": "almonds raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "almonds",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q158"
+    },
+    {
+      "query": "walnuts raw",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "walnuts",
+        "raw"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q159"
+    },
+    {
+      "query": "peanut butter smooth",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "peanut",
+        "butter",
+        "smooth"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q160"
+    },
+    {
+      "query": "olive oil",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "olive",
+        "oil"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q161"
+    },
+    {
+      "query": "butter salted",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "butter",
+        "salted"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q162"
+    },
+    {
+      "query": "honey",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "honey"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q163"
+    },
+    {
+      "query": "sugar granulated",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "sugar",
+        "granulated"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q164"
+    },
+    {
+      "query": "pasta cooked",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "pasta",
+        "cooked"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q165"
+    },
+    {
+      "query": "bread whole wheat",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "bread",
+        "whole",
+        "wheat"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q166"
+    },
+    {
+      "query": "salmon nigiri sushi",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "salmon",
+        "nigiri",
+        "sushi"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q167"
+    },
+    {
+      "query": "tuna sashimi",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "tuna",
+        "sashimi"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q168"
+    },
+    {
+      "query": "beef bulgogi",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "beef",
+        "bulgogi"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q169"
+    },
+    {
+      "query": "kimchi",
+      "category": "generic",
+      "target_brand": null,
+      "target_words": [
+        "kimchi"
+      ],
+      "intent": "food/preparation class; serving requires review",
+      "id": "q170"
+    },
+    {
+      "query": "Chobani plain greek yogu",
+      "category": "prefix",
+      "target_brand": "Chobani",
+      "target_words": [
+        "plain",
+        "greek",
+        "yogurt"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q171"
+    },
+    {
+      "query": "Fairlife 2% mi",
+      "category": "prefix",
+      "target_brand": "Fairlife",
+      "target_words": [
+        "2%",
+        "milk"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q172"
+    },
+    {
+      "query": "Quaker old fashioned oa",
+      "category": "prefix",
+      "target_brand": "Quaker",
+      "target_words": [
+        "old",
+        "fashioned",
+        "oats"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q173"
+    },
+    {
+      "query": "Nature Valley oats honey granola b",
+      "category": "prefix",
+      "target_brand": "Nature Valley",
+      "target_words": [
+        "oats",
+        "honey",
+        "granola",
+        "bar"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q174"
+    },
+    {
+      "query": "Quest chocolate brownie protein b",
+      "category": "prefix",
+      "target_brand": "Quest",
+      "target_words": [
+        "chocolate",
+        "brownie",
+        "protein",
+        "bar"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q175"
+    },
+    {
+      "query": "Premier Protein chocolate sha",
+      "category": "prefix",
+      "target_brand": "Premier Protein",
+      "target_words": [
+        "chocolate",
+        "shake"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q176"
+    },
+    {
+      "query": "Tyson grilled chicken brea",
+      "category": "prefix",
+      "target_brand": "Tyson",
+      "target_words": [
+        "grilled",
+        "chicken",
+        "breast"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q177"
+    },
+    {
+      "query": "Ben's Original ready rice jasmi",
+      "category": "prefix",
+      "target_brand": "Ben's Original",
+      "target_words": [
+        "ready",
+        "rice",
+        "jasmine"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q178"
+    },
+    {
+      "query": "Bush's black bea",
+      "category": "prefix",
+      "target_brand": "Bush's",
+      "target_words": [
+        "black",
+        "beans"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q179"
+    },
+    {
+      "query": "Doritos nacho cheese chi",
+      "category": "prefix",
+      "target_brand": "Doritos",
+      "target_words": [
+        "nacho",
+        "cheese",
+        "chips"
+      ],
+      "intent": "unfinished final word; target inherited from declared food",
+      "id": "q180"
+    },
+    {
+      "query": "1 cup Chobani plain greek yogurt",
+      "category": "portion",
+      "target_brand": "Chobani",
+      "target_words": [
+        "plain",
+        "greek",
+        "yogurt"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q181"
+    },
+    {
+      "query": "240 ml Fairlife 2% milk",
+      "category": "portion",
+      "target_brand": "Fairlife",
+      "target_words": [
+        "2%",
+        "milk"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q182"
+    },
+    {
+      "query": "40 g Quaker old fashioned oats",
+      "category": "portion",
+      "target_brand": "Quaker",
+      "target_words": [
+        "old",
+        "fashioned",
+        "oats"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q183"
+    },
+    {
+      "query": "1 bar Quest chocolate brownie protein bar",
+      "category": "portion",
+      "target_brand": "Quest",
+      "target_words": [
+        "chocolate",
+        "brownie",
+        "protein",
+        "bar"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q184"
+    },
+    {
+      "query": "1 bottle Premier Protein chocolate shake",
+      "category": "portion",
+      "target_brand": "Premier Protein",
+      "target_words": [
+        "chocolate",
+        "shake"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q185"
+    },
+    {
+      "query": "150 g Tyson grilled chicken breast",
+      "category": "portion",
+      "target_brand": "Tyson",
+      "target_words": [
+        "grilled",
+        "chicken",
+        "breast"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q186"
+    },
+    {
+      "query": "1 cup Minute brown rice",
+      "category": "portion",
+      "target_brand": "Minute",
+      "target_words": [
+        "brown",
+        "rice"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q187"
+    },
+    {
+      "query": "2 tbsp Jif creamy peanut butter",
+      "category": "portion",
+      "target_brand": "Jif",
+      "target_words": [
+        "creamy",
+        "peanut",
+        "butter"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q188"
+    },
+    {
+      "query": "28 g Lay's classic potato chips",
+      "category": "portion",
+      "target_brand": "Lay's",
+      "target_words": [
+        "classic",
+        "potato",
+        "chips"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q189"
+    },
+    {
+      "query": "100 g banana raw",
+      "category": "portion",
+      "target_brand": null,
+      "target_words": [
+        "banana",
+        "raw"
+      ],
+      "intent": "portion embedded in search; support is measured, not assumed",
+      "id": "q190"
+    },
+    {
+      "query": "Chobnai plain greek yogurt",
+      "category": "typo",
+      "target_brand": "Chobani",
+      "target_words": [
+        "plain",
+        "greek",
+        "yogurt"
+      ],
+      "intent": "deliberate one-word typo; support is measured, not assumed",
+      "id": "q191"
+    },
+    {
+      "query": "Fairlfie 2% milk",
+      "category": "typo",
+      "target_brand": "Fairlife",
+      "target_words": [
+        "2%",
+        "milk"
+      ],
+      "intent": "deliberate one-word typo; support is measured, not assumed",
+      "id": "q192"
+    },
+    {
+      "query": "Quakr old fashioned oats",
+      "category": "typo",
+      "target_brand": "Quaker",
+      "target_words": [
+        "old",
+        "fashioned",
+        "oats"
+      ],
+      "intent": "deliberate one-word typo; support is measured, not assumed",
+      "id": "q193"
+    },
+    {
+      "query": "Qest chocolate brownie protein bar",
+      "category": "typo",
+      "target_brand": "Quest",
+      "target_words": [
+        "chocolate",
+        "brownie",
+        "protein",
+        "bar"
+      ],
+      "intent": "deliberate one-word typo; support is measured, not assumed",
+      "id": "q194"
+    },
+    {
+      "query": "Tysson grilled chicken breast",
+      "category": "typo",
+      "target_brand": "Tyson",
+      "target_words": [
+        "grilled",
+        "chicken",
+        "breast"
+      ],
+      "intent": "deliberate one-word typo; support is measured, not assumed",
+      "id": "q195"
+    },
+    {
+      "query": "qxv987 fabricated proteinmeal",
+      "category": "negative",
+      "target_brand": null,
+      "target_words": [],
+      "intent": "no exact product identity declared; excluded from intended-product hit denominator",
+      "id": "q196"
+    },
+    {
+      "query": "zzqv813 nonexistent yogurt",
+      "category": "negative",
+      "target_brand": null,
+      "target_words": [],
+      "intent": "no exact product identity declared; excluded from intended-product hit denominator",
+      "id": "q197"
+    },
+    {
+      "query": "Chobani",
+      "category": "ambiguous",
+      "target_brand": null,
+      "target_words": [],
+      "intent": "no exact product identity declared; excluded from intended-product hit denominator",
+      "id": "q198"
+    },
+    {
+      "query": "rice",
+      "category": "ambiguous",
+      "target_brand": null,
+      "target_words": [],
+      "intent": "no exact product identity declared; excluded from intended-product hit denominator",
+      "id": "q199"
+    },
+    {
+      "query": "protein bar",
+      "category": "ambiguous",
+      "target_brand": null,
+      "target_words": [],
+      "intent": "no exact product identity declared; excluded from intended-product hit denominator",
+      "id": "q200"
+    }
+  ]
+}

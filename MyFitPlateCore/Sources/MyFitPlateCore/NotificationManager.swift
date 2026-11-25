@@ -112,29 +112,25 @@ public class NotificationManager {
         }
     }
 
-    public func requestDailyLogReminderAuthorization() {
-        requestAuthorization { granted in
-            guard granted else { return }
-            let hour = self.defaults.object(forKey: "notificationHour") as? Int ?? 20
-            let minute = self.defaults.object(forKey: "notificationMinute") as? Int ?? 0
-            self.scheduleCalendarNotification(.dailyLogReminder(hour: hour, minute: minute))
+    /// Reports the current permission on the main queue, without prompting.
+    public func authorizationStatus(completion: @escaping (UNAuthorizationStatus) -> Void) {
+        center.authorizationStatus { status in
+            DispatchQueue.main.async { completion(status) }
         }
     }
 
+    /// The daily log reminder time, defaulting to 8 PM.
+    public func dailyLogReminderTime() -> (hour: Int, minute: Int) {
+        (
+            defaults.object(forKey: "notificationHour") as? Int ?? 20,
+            defaults.object(forKey: "notificationMinute") as? Int ?? 0
+        )
+    }
+
     public func scheduleDailyLogReminderIfAuthorized() {
+        // Logging refreshes existing opted-in account policies. It must never turn on a new reminder.
         if isSystemCenter && NSClassFromString("XCTest") != nil { return }
-        center.authorizationStatus { status in
-            switch status {
-            case .authorized, .provisional, .ephemeral:
-                let hour = self.defaults.object(forKey: "notificationHour") as? Int ?? 20
-                let minute = self.defaults.object(forKey: "notificationMinute") as? Int ?? 0
-                self.scheduleCalendarNotification(.dailyLogReminder(hour: hour, minute: minute))
-            case .denied, .notDetermined:
-                break
-            @unknown default:
-                break
-            }
-        }
+        NotificationCenter.default.post(name: .reminderEvidenceChanged, object: nil)
     }
 
     private let hydrationHours = [10, 13, 16, 19]
@@ -335,7 +331,8 @@ public class NotificationManager {
         cancelTrainingFuelNotifications()
         center.removePendingRequests(withIdentifiers: [
             NotificationType.dailyLogReminder(hour: 0, minute: 0).id,
-            NotificationType.dailyBriefing.id
+            NotificationType.dailyBriefing.id, NotificationType.weighInReminder.id,
+            "hydration_0", "hydration_1", "hydration_2", "hydration_3"
         ])
     }
 

@@ -2,6 +2,55 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class MyFoodsLibraryTests: XCTestCase {
+    func testSavedCopyNeverUsesSameDisplayNameAsProductIdentity() {
+        let original = FoodItem(id: "provider-a", name: "Greek yogurt", calories: 100)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "provider-a")
+        let unrelated = FoodItem(id: "provider-b", name: "Greek yogurt", calories: 250)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "provider-b")
+        var saved = original.savedAsCustomFood(originalItem: original)
+        saved.id = "personal-a"
+        saved.sourceMetadata?.sourceID = saved.id
+        XCTAssertNil(MyFoodsLibraryRules.savedCopy(of: unrelated, in: [saved]))
+        XCTAssertEqual(MyFoodsLibraryRules.savedCopy(of: original, in: [saved])?.id, saved.id)
+        var newVersion = original
+        newVersion.sourceMetadata?.sourceUpdatedAt = Date(timeIntervalSince1970: 100)
+        XCTAssertNil(MyFoodsLibraryRules.savedCopy(of: newVersion, in: [saved]))
+        XCTAssertNotEqual(MyFoodsLibraryRules.savedCopyID(for: original), MyFoodsLibraryRules.savedCopyID(for: newVersion))
+        XCTAssertNil(MyFoodsLibraryRules.savedCopy(of: FoodItem(id: "unknown", name: "Greek yogurt"), in: [saved]))
+        var missingLineage = unrelated
+        missingLineage.sourceMetadata?.sourceID = ""
+        missingLineage.sourceMetadata?.matchedFoodID = ""
+        saved.sourceMetadata?.matchedFoodID = ""
+        XCTAssertNil(MyFoodsLibraryRules.savedCopy(of: missingLineage, in: [saved]), "Empty lineage is not shared product identity")
+        let otherProvider = unrelated.withDatabaseSource(.usda, sourceName: "USDA", sourceID: unrelated.id)
+        saved.id = otherProvider.id
+        XCTAssertNil(MyFoodsLibraryRules.savedCopy(of: otherProvider, in: [saved]), "Different provider namespaces cannot share a personal star by raw ID")
+        saved.sourceMetadata?.matchedFoodID = "different-source-record"
+        XCTAssertNil(MyFoodsLibraryRules.savedCopy(of: unrelated, in: [saved]), "A raw personal document ID cannot contradict explicit original product lineage")
+    }
+
+    func testPersonalCopyIdentitySurvivesProviderConsumptionCopiesAndKeepsSourcesSeparate() {
+        let original = FoodItem(id: "provider-a", name: "Greek yogurt", calories: 100)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "provider-a")
+        var logged = original
+        logged.id = "consumption-copy"
+        XCTAssertEqual(MyFoodsLibraryRules.savedCopyID(for: original), MyFoodsLibraryRules.savedCopyID(for: logged))
+        let otherProvider = original.withDatabaseSource(.openFoodFacts, sourceName: "OFF", sourceID: "provider-a")
+        XCTAssertNotEqual(MyFoodsLibraryRules.savedCopyID(for: original), MyFoodsLibraryRules.savedCopyID(for: otherProvider))
+    }
+
+    func testExistingPersonalCopyKeepsOriginalLibraryIDWhenOpenedFromDiary() {
+        var original = FoodItem(id: "personal-a", name: "Greek yogurt").savedAsCustomFood()
+        XCTAssertEqual(MyFoodsLibraryRules.savedCopyID(for: original), "personal-a")
+        XCTAssertTrue(MyFoodsLibraryRules.isValidSavedSnapshot(original))
+        original.sodium = .nan
+        XCTAssertFalse(MyFoodsLibraryRules.isValidSavedSnapshot(original))
+        original.sodium = -1
+        XCTAssertFalse(MyFoodsLibraryRules.isValidSavedSnapshot(original))
+        original.id = "diary-consumption-a"
+        XCTAssertEqual(MyFoodsLibraryRules.savedCopyID(for: original), "personal-a")
+    }
+
     func testEntriesAttachLastUseOnlyThroughSavedFoodIdentity() throws {
         let saved = food(id: "saved", name: "Greek Yogurt")
         let usedAt = Date(timeIntervalSince1970: 2_000)
@@ -184,7 +233,7 @@ final class MyFoodsLibraryTests: XCTestCase {
     }
 
     func testLegacyMetadataWithoutOriginSourceTypeStillDecodes() throws {
-        let data = try XCTUnwrap(
+        let data = Data(
             """
             {
               "sourceType": "custom",
@@ -192,7 +241,7 @@ final class MyFoodsLibraryTests: XCTestCase {
               "reviewStatus": "userConfirmed",
               "sourceName": "My Foods"
             }
-            """.data(using: .utf8)
+            """.utf8
         )
 
         let metadata = try JSONDecoder().decode(FoodSourceMetadata.self, from: data)

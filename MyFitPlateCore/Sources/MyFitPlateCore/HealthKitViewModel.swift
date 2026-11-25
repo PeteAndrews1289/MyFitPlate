@@ -34,15 +34,16 @@ public class HealthKitViewModel: ObservableObject {
     @Published public var sleepSamples: [HKCategorySample] = []
     @Published public var sleepSummary: SleepHealthSummary = .empty
     @Published public var hrvSamples: [HKQuantitySample] = []
+    @Published public private(set) var hrvHistorySamples: [HKQuantitySample] = []
     @Published public var hrvAverage: Double? = nil
     @Published public var todaySteps: Double = 0
     @Published public var todayActiveEnergy: Double = 0
     
     // Comprehensive Weekly Trends
-    @Published public var weeklySteps: [Double] = Array(repeating: 0, count: 7)
-    @Published public var weeklyActiveEnergy: [Double] = Array(repeating: 0, count: 7)
-    @Published public var weeklyRestingHeartRate: [Double] = Array(repeating: 0, count: 7)
-    @Published public var weeklyHRV: [Double] = Array(repeating: 0, count: 7)
+    @Published public var weeklySteps: [Double?] = []
+    @Published public var weeklyActiveEnergy: [Double?] = []
+    @Published public var weeklyRestingHeartRate: [Double?] = []
+    @Published public var weeklyHRV: [Double?] = []
     
     @Published public var authError: String? = nil
     @Published public var isSyncing = false
@@ -57,6 +58,11 @@ public class HealthKitViewModel: ObservableObject {
     /// only state the UI should describe as connected.
     public var hasSyncedHealthData: Bool {
         lastSyncedAt != nil
+    }
+
+    /// False on devices without Apple Health, such as some iPads.
+    public var isHealthDataAvailable: Bool {
+        manager.isHealthDataAvailable()
     }
 
     private weak var dailyLogService: DailyLogService?
@@ -149,19 +155,19 @@ public class HealthKitViewModel: ObservableObject {
     public func fetchComprehensiveWeeklyData() {
         guard isAuthorized else { return }
         
-        manager.fetch7DayTrend(for: .stepCount, options: .cumulativeSum, unit: .count()) { [weak self] data in
+        manager.fetch7DayReadings(for: .stepCount, options: .cumulativeSum, unit: .count()) { [weak self] data in
             DispatchQueue.main.async { self?.weeklySteps = data }
         }
         
-        manager.fetch7DayTrend(for: .activeEnergyBurned, options: .cumulativeSum, unit: .kilocalorie()) { [weak self] data in
+        manager.fetch7DayReadings(for: .activeEnergyBurned, options: .cumulativeSum, unit: .kilocalorie()) { [weak self] data in
             DispatchQueue.main.async { self?.weeklyActiveEnergy = data }
         }
         
-        manager.fetch7DayTrend(for: .restingHeartRate, options: .discreteAverage, unit: HKUnit.count().unitDivided(by: .minute())) { [weak self] data in
+        manager.fetch7DayReadings(for: .restingHeartRate, options: .discreteAverage, unit: HKUnit.count().unitDivided(by: .minute())) { [weak self] data in
             DispatchQueue.main.async { self?.weeklyRestingHeartRate = data }
         }
         
-        manager.fetch7DayTrend(for: .heartRateVariabilitySDNN, options: .discreteAverage, unit: .secondUnit(with: .milli)) { [weak self] data in
+        manager.fetch7DayReadings(for: .heartRateVariabilitySDNN, options: .discreteAverage, unit: .secondUnit(with: .milli)) { [weak self] data in
             DispatchQueue.main.async { self?.weeklyHRV = data }
         }
     }
@@ -234,7 +240,9 @@ public class HealthKitViewModel: ObservableObject {
     public func fetchLastSevenDaysHRV() {
         guard isAuthorized else { return }
         let endDate = Date()
-        guard let startDate = Calendar.current.date(byAdding: .day, value: -7, to: endDate) else { return }
+        // Keep the existing seven-day display, while loading a separate personal comparison window.
+        guard let startDate = Calendar.current.date(byAdding: .day, value: -35, to: endDate),
+              let recentStart = Calendar.current.date(byAdding: .day, value: -7, to: endDate) else { return }
 
         manager.fetchHRVSamples(startDate: startDate, endDate: endDate) { [weak self] (samples, error) in
             guard let self = self else { return }
@@ -244,16 +252,36 @@ public class HealthKitViewModel: ObservableObject {
             }
             guard let samples = samples, !samples.isEmpty else {
                 self.hrvSamples = []
+                self.hrvHistorySamples = []
                 self.hrvAverage = nil
                 return
             }
-            self.hrvSamples = samples
             let unit = HKUnit.secondUnit(with: .milli)
-            let values = samples.map { $0.quantity.doubleValue(for: unit) }
-            self.hrvAverage = values.reduce(0, +) / Double(values.count)
+            self.hrvHistorySamples = samples.filter {
+                let value = $0.quantity.doubleValue(for: unit)
+                return value.isFinite && value > 0 && $0.endDate <= endDate
+            }
+            self.hrvSamples = self.hrvHistorySamples.filter { $0.endDate >= recentStart }
+            let values = self.hrvSamples.map { $0.quantity.doubleValue(for: unit) }
+            self.hrvAverage = values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
             self.lastSyncedAt = Date()
             AppLog.health.info("Fetched \(samples.count, privacy: .private) HealthKit HRV samples with avg \(self.hrvAverage ?? 0, privacy: .private) ms.")
         }
+    }
+
+    public func coachingRecoveryEvidence(now: Date = Date(), calendar: Calendar = .current) -> RecoveryEvidence {
+        let start = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        let samples = sleepSamples.filter { $0.endDate >= start && $0.endDate <= now }
+        let nights = SleepEvidenceRules.hoursByNight(from: samples, now: now, calendar: calendar)
+        let average = nights.isEmpty ? nil : nights.values.reduce(0, +) / Double(nights.count)
+        let latestSleep = samples.filter(SleepEvidenceRules.isAsleep).map(\.endDate).max()
+        let readings = hrvHistorySamples.map {
+            RecoveryEvidence.HRVReading(date: $0.endDate, milliseconds: $0.quantity.doubleValue(for: .secondUnit(with: .milli)))
+        }
+        return RecoveryEvidence(
+            sleepAverageHours: average, sleepNightCount: nights.count, sleepUpdatedAt: latestSleep,
+            hrvReadings: readings, now: now, calendar: calendar
+        )
     }
 
     private struct SleepNight {
@@ -265,23 +293,8 @@ public class HealthKitViewModel: ObservableObject {
 
     private func makeSleepSummary(from samples: [HKCategorySample]) -> SleepHealthSummary {
         let calendar = Calendar.current
-        let sleepByNight = Dictionary(grouping: samples) { sleepNightKey(for: $0, calendar: calendar) }
-        var validNights: [SleepNight] = []
-
-        for (nightKey, relevantSamples) in sleepByNight {
-            let asleepSamples = relevantSamples.filter {
-                guard let value = HKCategoryValueSleepAnalysis(rawValue: $0.value) else { return false }
-                return value == .asleepCore || value == .asleepDeep || value == .asleepREM || value == .asleepUnspecified
-            }
-            let awakeSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .awake }
-
-            let timeAsleep = calculateTotalDuration(from: asleepSamples)
-            let timeAwake = calculateTotalDuration(from: awakeSamples)
-            
-            if timeAsleep > 0 {
-                let bedtime = asleepSamples.map { $0.startDate }.min()
-                validNights.append(SleepNight(date: nightKey, asleep: timeAsleep, awake: timeAwake, bedtime: bedtime))
-            }
+        var validNights = SleepNightEvidence.normalize(samples, calendar: calendar).map { night in
+            SleepNight(date: night.night, asleep: night.timeAsleep, awake: night.timeAwake, bedtime: night.firstSleep)
         }
 
         validNights.sort { $0.date < $1.date }
@@ -317,28 +330,11 @@ public class HealthKitViewModel: ObservableObject {
     }
 
     private func sleepNightKey(for sample: HKCategorySample, calendar: Calendar) -> Date {
-        let hour = calendar.component(.hour, from: sample.startDate)
-        let normalizedDate = hour < 18 ? calendar.date(byAdding: .day, value: -1, to: sample.startDate) ?? sample.startDate : sample.startDate
-        return calendar.startOfDay(for: normalizedDate)
+        SleepEvidenceRules.nightKey(for: sample.startDate, calendar: calendar)
     }
 
     private func calculateTotalDuration(from samples: [HKCategorySample]) -> TimeInterval {
-        let intervals = samples.map { DateInterval(start: $0.startDate, end: $0.endDate) }
-        guard !intervals.isEmpty else { return 0 }
-        let sorted = intervals.sorted { $0.start < $1.start }
-        var merged: [DateInterval] = [sorted[0]]
-        for interval in sorted.dropFirst() {
-            let lastIndex = merged.count - 1
-            let last = merged[lastIndex]
-            if interval.start <= last.end {
-                if interval.end > last.end {
-                    merged[lastIndex] = DateInterval(start: last.start, end: interval.end)
-                }
-            } else {
-                merged.append(interval)
-            }
-        }
-        return merged.reduce(0) { $0 + $1.duration }
+        SleepEvidenceRules.mergedDuration(samples)
     }
 
     private func averageBedtimeMinutes(from bedtimes: [Date]) -> Double? {

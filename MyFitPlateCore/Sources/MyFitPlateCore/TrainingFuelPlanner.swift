@@ -44,10 +44,12 @@ public struct TrainingFuelSession: Codable, Equatable, Sendable {
 public struct TrainingFuelPreference: Codable, Equatable, Sendable {
     public let wantsPreSessionFuel: Bool
     public let wantsPostSessionFuel: Bool
+    public let personalInputs: TrainingFuelPersonalInputs?
 
-    public init(wantsPreSessionFuel: Bool = true, wantsPostSessionFuel: Bool = true) {
+    public init(wantsPreSessionFuel: Bool = true, wantsPostSessionFuel: Bool = true, personalInputs: TrainingFuelPersonalInputs? = nil) {
         self.wantsPreSessionFuel = wantsPreSessionFuel
         self.wantsPostSessionFuel = wantsPostSessionFuel
+        self.personalInputs = personalInputs
     }
 }
 
@@ -57,6 +59,22 @@ public struct TrainingFuelAllocation: Codable, Equatable, Sendable {
     public enum Phase: String, Codable, Equatable, Sendable {
         case beforeTraining = "before_training"
         case afterTraining = "after_training"
+        case duringTraining = "during_training"
+        public var shortTitle: String {
+            switch self {
+            case .beforeTraining: return "Before"
+            case .duringTraining: return "During"
+            case .afterTraining: return "After"
+            }
+        }
+        public var title: String { shortTitle + " Training" }
+        public var symbol: String {
+            switch self {
+            case .beforeTraining: return "bolt.fill"
+            case .duringTraining: return "figure.run"
+            case .afterTraining: return "arrow.clockwise.heart.fill"
+            }
+        }
     }
 
     public enum Timing: String, Codable, Equatable, Sendable {
@@ -64,20 +82,25 @@ public struct TrainingFuelAllocation: Codable, Equatable, Sendable {
         case thirtyTo120Minutes = "30_to_120_minutes"
         case overTwoHours = "over_two_hours"
         case afterSession = "after_session"
+        case duringSession = "during_session"
     }
 
     public let phase: Phase
     public let timing: Timing
     public let proteinGrams: Int
     public let carbGrams: Int
+    /// Nil preserves the original v1 action threshold. v2 retains nonzero reviewed allocations.
+    public let minimumActionCalories: Int?
 
-    public init(phase: Phase, timing: Timing, proteinGrams: Int, carbGrams: Int) {
+    public init(phase: Phase, timing: Timing, proteinGrams: Int, carbGrams: Int, minimumActionCalories: Int? = nil) {
         self.phase = phase
         self.timing = timing
         self.proteinGrams = min(Self.maximumSupportedMacroGrams, max(0, proteinGrams))
         self.carbGrams = min(Self.maximumSupportedMacroGrams, max(0, carbGrams))
+        self.minimumActionCalories = minimumActionCalories.map { min(60, max(1, $0)) }
     }
 
+    public var effectiveMinimumActionCalories: Int { min(60, max(1, minimumActionCalories ?? 60)) }
     public var calories: Int {
         (proteinGrams + carbGrams) * 4
     }
@@ -184,11 +207,13 @@ public enum TrainingFuelPlannerRules {
         goals: TodayFuelPlanGoals,
         preference: TrainingFuelPreference = TrainingFuelPreference(),
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        recoveryLimits: TrainingFuelRecoveryLimits? = nil
     ) -> TrainingFuelPlannerPlan {
         var notes: [TrainingFuelPlannerPlan.Note] = []
         let duration = normalizedDuration(session.expectedDurationMinutes, notes: &notes)
         let intensity = normalizedIntensity(session.intensity, notes: &notes)
+        let individual = preference.personalInputs.map { TrainingFuelIndividualEstimateRules.preview(session: session, inputs: $0, now: now, calendar: calendar) }
 
         guard goals.calories.isFinite,
               goals.calories > 0,
@@ -269,7 +294,7 @@ public enum TrainingFuelPlannerRules {
             )
         }
 
-        guard preference.wantsPreSessionFuel || preference.wantsPostSessionFuel else {
+        guard preference.wantsPreSessionFuel || preference.wantsPostSessionFuel || individual?.requestedDuringCarbGrams != nil else {
             return plan(
                 status: .noFuelRequested,
                 duration: duration,
@@ -337,7 +362,7 @@ public enum TrainingFuelPlannerRules {
             appendUnique(.postSessionFallsNextDay, to: &notes)
         }
 
-        if !includePreSession && !includePostSession {
+        if !includePreSession && !includePostSession && individual?.requestedDuringCarbGrams == nil {
             if deferredPostSession {
                 return plan(
                     status: .deferredRecovery,
@@ -387,17 +412,27 @@ public enum TrainingFuelPlannerRules {
             )
         }
 
-        let demand = desiredDemand(
+        let legacyDemand = desiredDemand(
             for: session,
             duration: duration,
             intensity: intensity
         )
+        let recovery = preference.personalInputs == nil ? nil : recoveryLimits
+        let demand = Demand(
+            proteinGrams: recovery.map { $0.protein.isFinite ? min(100_000, max(0, $0.protein)) : 0 }
+                ?? individual?.appEstimatedProteinTotal ?? legacyDemand.proteinGrams,
+            carbGrams: recovery.map { $0.carbs.isFinite ? min(100_000, max(0, $0.carbs)) : 0 }
+                ?? max(0, (individual?.appEstimatedCarbTotal ?? legacyDemand.carbGrams) - (individual?.requestedDuringCarbGrams ?? 0)))
         var slots = desiredSlots(
             demand: demand,
             includePreSession: includePreSession,
-            includePostSession: includePostSession,
+            includePostSession: includePostSession || (individual != nil && deferredPostSession),
             minutesUntilSession: minutesUntilSession
         )
+        if individual != nil && deferredPostSession { slots.removeAll { $0.phase == .afterTraining } }
+        if let carbs = individual?.requestedDuringCarbGrams {
+            slots.append(DesiredSlot(phase: .duringTraining, timing: .duringSession, proteinGrams: 0, carbGrams: carbs))
+        }
         constrain(
             slots: &slots,
             remainingCalories: Double(remainingCalories),
@@ -409,14 +444,16 @@ public enum TrainingFuelPlannerRules {
         let allocations = slots.compactMap { slot -> TrainingFuelAllocation? in
             var protein = Int(floor(slot.proteinGrams))
             var carbs = Int(floor(slot.carbGrams))
-            if protein < minimumMacroGrams { protein = 0 }
-            if carbs < minimumMacroGrams { carbs = 0 }
-            guard (protein + carbs) * 4 >= minimumActionCalories else { return nil }
+            let minimum = individual == nil ? minimumMacroGrams : 1
+            if protein < minimum { protein = 0 }
+            if carbs < minimum { carbs = 0 }
+            guard (protein + carbs) * 4 >= (individual == nil ? minimumActionCalories : 1) else { return nil }
             return TrainingFuelAllocation(
                 phase: slot.phase,
                 timing: slot.timing,
                 proteinGrams: protein,
-                carbGrams: carbs
+                carbGrams: carbs,
+                minimumActionCalories: individual == nil ? nil : 1
             )
         }
 
@@ -456,6 +493,14 @@ public enum TrainingFuelPlannerRules {
             allocations: allocations,
             notes: notes
         )
+    }
+
+    static func legacyDemandValues(for session: TrainingFuelSession) -> (protein: Double, carbs: Double) {
+        var notes: [TrainingFuelPlannerPlan.Note] = []
+        let duration = normalizedDuration(session.expectedDurationMinutes, notes: &notes)
+        let intensity = normalizedIntensity(session.intensity, notes: &notes)
+        let value = desiredDemand(for: session, duration: duration, intensity: intensity)
+        return (value.proteinGrams, value.carbGrams)
     }
 
     private struct Demand {

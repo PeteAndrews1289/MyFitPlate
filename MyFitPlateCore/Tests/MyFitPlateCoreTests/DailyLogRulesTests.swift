@@ -94,6 +94,22 @@ final class DailyLogRulesTests: XCTestCase {
         XCTAssertEqual(log.meals[0].foodItems[0].name, "Banana")
     }
 
+    func testDeletingLastBuffetFoodRemovesOnlyTheEmptiedMeal() {
+        let lunch = Meal(name: "Lunch", foodItems: [FoodItem(id: "lunch", name: "Rice", calories: 420)])
+        let placeholder = Meal(name: "Dinner", foodItems: [])
+        let buffet = Meal(name: "All-you-can-eat Sushi", foodItems: [FoodItem(id: "uni", name: "Uni", calories: 55)])
+        var log = DailyLog(date: Date(), meals: [lunch, buffet, placeholder])
+
+        let result = DailyLogRules.deleteFoodFromLog(log: &log, foodItemID: "uni")
+
+        XCTAssertTrue(result.deleted)
+        XCTAssertEqual(result.removedFoodItem?.id, "uni")
+        XCTAssertEqual(log.meals.map(\.id), [lunch.id, placeholder.id])
+        XCTAssertEqual(log.totalCalories(), 420)
+        XCTAssertFalse(DailyLogRules.deleteFoodFromLog(log: &log, foodItemID: "missing").deleted)
+        XCTAssertEqual(log.meals.map(\.id), [lunch.id, placeholder.id])
+    }
+
     func testAddWaterToLog() {
         var log = DailyLog(date: Date(), meals: [])
         

@@ -26,7 +26,7 @@ struct WeekInMotionLoadingView: View {
             }
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Building Week in Motion")
+            .accessibilityLabel("Building your week")
             .accessibilityHint("Joining the last seven days of training, fuel, recovery, and Trust.")
             .accessibilityIdentifier("week_in_motion_loading")
     }
@@ -47,15 +47,13 @@ struct WeekInMotionView: View {
             header
             rhythm
 
-            Divider()
-
             VStack(alignment: .leading, spacing: 0) {
                 evidenceRow(
                     title: "Training rhythm",
                     summary: motion.trainingSummary,
                     progress: nil,
                     icon: "figure.mixed.cardio",
-                    color: .brandPrimary,
+                    color: AppPalette.effort,
                     isLast: false
                 )
                 evidenceRow(
@@ -68,14 +66,16 @@ struct WeekInMotionView: View {
                     color: .accentProtein,
                     isLast: false
                 )
-                evidenceRow(
-                    title: "Recovery timing",
-                    summary: motion.recoverySummary,
-                    progress: motion.recoveryProgress,
-                    icon: "bolt.heart.fill",
-                    color: .accentCarbs,
-                    isLast: false
-                )
+                if motion.observation.kind != .recovery {
+                    evidenceRow(
+                        title: "Recovery timing",
+                        summary: motion.recoverySummary,
+                        progress: motion.recoveryProgress,
+                        icon: "bolt.heart.fill",
+                        color: AppPalette.recovery,
+                        isLast: false
+                    )
+                }
                 evidenceRow(
                     title: "Trust coverage",
                     summary: motion.trustSummary,
@@ -113,12 +113,11 @@ struct WeekInMotionView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Week in Motion")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandForeground)
-                    .textCase(.uppercase)
+                Text("Your week")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
                 Spacer(minLength: 12)
-                Text("Last 7 days · \(weekRangeText)")
+                Text("7 days · \(weekRangeText)")
                     .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .monospacedDigit()
@@ -126,7 +125,7 @@ struct WeekInMotionView: View {
             }
 
             Text(dynamicTypeSize.isAccessibilitySize ? accessibilityHeadline : motion.headline)
-                .appTextRole(dynamicTypeSize.isAccessibilitySize ? .sectionTitle : .screenTitle)
+                .appTextRole(.sectionTitle)
                 .foregroundColor(.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel(motion.headline)
@@ -326,6 +325,19 @@ struct WeekInMotionView: View {
                     .appFont(size: 16, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                if motion.observation.kind == .recovery {
+                    if recap.recoveryFuelPendingRuns > 0 {
+                        Text("\(recap.recoveryFuelPendingRuns) recovery windows still open").appTextRole(.secondary)
+                    }
+                    let days = motion.days.filter { $0.runCount > 0 }
+                    if !days.isEmpty {
+                        Menu("View running days") {
+                            ForEach(days, id: \.date) { day in
+                                Button(day.date.formatted(date: .abbreviated, time: .omitted)) { selectedDay = WeekInMotionDaySelection(day: day) }
+                            }
+                        }.foregroundStyle(AppPalette.brandText)
+                    }
+                }
                 Text(motion.observation.basis)
                     .appFont(size: 11, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
@@ -335,13 +347,13 @@ struct WeekInMotionView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("week_in_motion_observation")
     }
 
     private var weekRangeText: String {
         let start = motion.weekStart.formatted(.dateTime.month(.abbreviated).day())
-        let end = motion.weekEnd.formatted(.dateTime.month(.abbreviated).day())
+        let end = (motion.days.last?.date ?? motion.weekStart).formatted(.dateTime.month(.abbreviated).day())
         return "\(start) - \(end)"
     }
 
@@ -454,23 +466,22 @@ private struct WeekInMotionDayDetailView: View {
 
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("How to read the week")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
+                    DisclosureGroup("How to read the week") {
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
                         legendRow(icon: "dumbbell.fill", text: "Rounded square: strength training")
                         legendRow(icon: "figure.run", text: "Circle: a recorded run")
                         legendRow(icon: "figure.cross.training", text: "Capsule: strength and running on the same day")
                         legendRow(icon: "fork.knife.circle.fill", text: "Blue utensil: food was logged")
                         legendRow(icon: "circle.dashed", text: "Dashed ring: no food was logged")
+                        }.padding(.top, AppSpacing.row)
                     }
+                    .appTextRole(.control)
                 }
-                .padding(22)
+                .padding(AppSpacing.screenHorizontal)
                 .frame(maxWidth: 560, alignment: .leading)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Day Details")
+            .navigationTitle("Day details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

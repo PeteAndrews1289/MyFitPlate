@@ -5,6 +5,8 @@ struct MealSuggestionDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsMacroDetails = false
+    @State private var isLogging = false
+    @State private var saveError: String?
 
     let suggestion: MealSuggestion
     var pantryItemNames: [String] = []
@@ -12,9 +14,13 @@ struct MealSuggestionDetailView: View {
     var remainingProtein: Double?
     var remainingCarbs: Double?
     var remainingFats: Double?
-    var onLog: (MealSuggestion) -> Void
+    var onLog: (MealSuggestion, @escaping (Bool) -> Void) -> Void
     var onRegenerate: (() -> Void)?
     var isRegenerating = false
+    var destinationSummary: String?
+    var savedError: String?
+    var reviewControls: AnyView?
+    var isLogEnabled = true
 
     private var macroRows: [MealSuggestionMacroFitRow.Model] {
         [
@@ -87,13 +93,15 @@ struct MealSuggestionDetailView: View {
     var body: some View {
         AppSheetScaffold(
             title: "Meal Suggestion",
-            subtitle: "Review Maia's estimate against today's remaining targets.",
-            dismiss: { dismiss() }
+            subtitle: destinationSummary ?? "Review Maia's estimate against today's remaining targets.",
+            dismiss: { if !isLogging { dismiss() } }
         ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     suggestionHeader
                     nutritionSummary
+                    if let reviewControls { reviewControls }
+                    feasibilitySection
                     macroFitSection
                     pantrySection
                     substitutionSection
@@ -108,33 +116,14 @@ struct MealSuggestionDetailView: View {
             }
         }
         .background(AppPalette.canvas.ignoresSafeArea())
-        .interactiveDismissDisabled(isRegenerating)
+        .interactiveDismissDisabled(isRegenerating || isLogging)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meal_suggestion_detail_screen")
     }
 
     private var suggestionHeader: some View {
-        AppScreenHeader(
-            eyebrow: "Maia Estimate",
-            title: suggestion.mealName,
-            subtitle: fitSummary
-        ) {
-            HStack(spacing: 5) {
-                Image(systemName: "wand.and.stars")
-                    .accessibilityHidden(true)
-                Text("AI Estimate")
-            }
-            .appTextRole(.caption)
-            .foregroundStyle(AppPalette.caution)
-            .padding(.horizontal, AppSpacing.row)
-            .padding(.vertical, AppSpacing.compact)
-            .background(
-                AppPalette.caution.opacity(0.10),
-                in: Capsule()
-            )
-            .fixedSize(horizontal: true, vertical: false)
-            .accessibilityElement(children: .combine)
-        }
-        .accessibilityIdentifier("meal_suggestion_header")
+        AppScreenHeader(eyebrow: "Maia estimate", title: suggestion.mealName, subtitle: fitSummary)
+            .accessibilityIdentifier("meal_suggestion_header")
     }
 
     private var nutritionSummary: some View {
@@ -146,6 +135,26 @@ struct MealSuggestionDetailView: View {
         ])
         .appSurface(.interpreted)
         .accessibilityIdentifier("meal_suggestion_nutrition_summary")
+    }
+
+    private var feasibilitySection: some View {
+        let evidence = suggestion.feasibility ?? MealSuggestionFeasibilityRules.generatedEvidence(for: suggestion)
+        return VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            if let minutes = evidence.prepMinutes {
+                Label("About \(minutes) min · Maia prep estimate", systemImage: "clock").appTextRole(.secondary)
+            } else { Text("Preparation time has not been estimated.").appTextRole(.secondary) }
+            Text("One proposed serving. Ingredient amounts and nutrition remain estimates until matched to actual products or your recipe.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("Ingredient quantities and sources") {
+                ForEach(evidence.ingredients) { ingredient in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(ingredient.description).appTextRole(.secondary)
+                        Text(ingredient.isResolved ? "Linked food: \(ingredient.source)" : "Maia estimate · \(ingredient.quantityText == nil ? "quantity not specified" : "proposed amount, not a verified conversion")")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                    }.padding(.vertical, 4)
+                }
+            }.appTextRole(.secondary)
+        }.appSurface(.quiet).accessibilityIdentifier("meal_suggestion_feasibility")
     }
 
     private var macroFitSection: some View {
@@ -328,7 +337,14 @@ struct MealSuggestionDetailView: View {
     }
 
     private var bottomActionBar: some View {
-        Group {
+        VStack(spacing: AppSpacing.compact) {
+            if let visibleError = savedError ?? saveError {
+                Text(visibleError)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.caution)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("meal_suggestion_save_error")
+            }
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: AppSpacing.compact) {
                     logButton
@@ -358,13 +374,22 @@ struct MealSuggestionDetailView: View {
 
     private var logButton: some View {
         Button {
-            onLog(suggestion)
-            dismiss()
+            guard !isLogging else { return }
+            isLogging = true
+            saveError = nil
+            onLog(suggestion) { accepted in
+                isLogging = false
+                if accepted {
+                    dismiss()
+                } else {
+                    saveError = "Couldn't save this meal. Your suggestion is still here; try again."
+                }
+            }
         } label: {
-            Label("Log Estimate", systemImage: "plus.circle.fill")
+            Label(isLogging ? "Saving…" : "Log estimate", systemImage: "plus.circle.fill")
         }
         .buttonStyle(AppActionButtonStyle(.primary))
-        .disabled(isRegenerating)
+        .disabled(isRegenerating || isLogging || !isLogEnabled)
         .accessibilityIdentifier("meal_suggestion_log")
     }
 
@@ -383,7 +408,7 @@ struct MealSuggestionDetailView: View {
             }
         }
         .buttonStyle(AppActionButtonStyle(.secondary))
-        .disabled(isRegenerating)
+        .disabled(isRegenerating || isLogging)
         .accessibilityIdentifier("meal_suggestion_regenerate")
     }
 
@@ -535,5 +560,133 @@ private struct MealSuggestionIngredientRow: View {
         .accessibilityValue(
             hasPantryContext ? (isPantryMatch ? "Pantry match" : "Optional item") : "No pantry context"
         )
+    }
+}
+
+/// The review owns the destination, full suggestion and retry identity before a log starts.
+/// Every entry point uses the existing diary save session; this view never writes food itself.
+struct SavedMealSuggestionDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @ObservedObject var review: MealReviewSaveSession
+    var pantryItemNames: [String] = []
+    var remainingCalories: Double?
+    var remainingProtein: Double?
+    var remainingCarbs: Double?
+    var remainingFats: Double?
+    var onRegenerate: (() -> Void)?
+    var isRegenerating = false
+    var onAccepted: (() -> Void)?
+    var onDiscarded: (() -> Void)?
+    @State private var confirmsDiscard = false
+    @State private var showingFoodPreferences = false
+    @State private var recipeDraft: Recipe?
+
+    var body: some View {
+        if let suggestion = review.checkpoint.mealSuggestion {
+            MealSuggestionDetailView(
+                suggestion: suggestion, pantryItemNames: pantryItemNames,
+                remainingCalories: review.checkpoint.trainingFuelTarget.map { Double($0.calories) } ?? remainingCalories,
+                remainingProtein: review.checkpoint.trainingFuelTarget.map { Double($0.proteinGrams) } ?? remainingProtein,
+                remainingCarbs: review.checkpoint.trainingFuelTarget.map { Double($0.carbGrams) } ?? remainingCarbs,
+                remainingFats: review.checkpoint.trainingFuelTarget == nil ? remainingFats : nil,
+                onLog: { _, completion in
+                    review.save(using: dailyLogService) { accepted in
+                        completion(accepted)
+                        if accepted { onAccepted?() }
+                    }
+                },
+                onRegenerate: review.isLocked ? nil : onRegenerate,
+                isRegenerating: isRegenerating,
+                destinationSummary: "\(review.mealName) · \(review.checkpoint.draft.dayContext?.dayKey ?? review.date.formatted(date: .abbreviated, time: .omitted))",
+                savedError: review.errorMessage,
+                reviewControls: AnyView(reviewControls),
+                isLogEnabled: review.isSubmitted || ingredientAssessment?.canAccept != false
+            )
+            .sheet(item: $recipeDraft) { recipe in CreateRecipeView(initialDraft: recipe) }
+            .sheet(isPresented: $showingFoodPreferences) { SuggestionPreferencesView(goalSettings: goalSettings) }
+            .confirmationDialog("Discard this meal suggestion?", isPresented: $confirmsDiscard, titleVisibility: .visible) {
+                Button("Discard suggestion", role: .destructive) {
+                    if review.discard() { onDiscarded?(); dismiss() }
+                }
+            } message: { Text("Only this unsubmitted suggestion is removed. Your saved food logs stay intact.") }
+        } else {
+            Text("This saved review could not be opened. Its checkpoint is kept on this device.").padding()
+        }
+    }
+
+    private var ingredientAssessment: MealConstraintAssessment? {
+        review.ingredientAssessment(profile: goalSettings.effectiveMealConstraintProfile)
+    }
+
+    private var reviewControls: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            if review.isSubmitted {
+                Label("Save awaiting confirmation", systemImage: "arrow.clockwise")
+                    .appTextRole(.control)
+                Text("Retry uses these exact foods and this destination, even if you browse another day.")
+                    .appTextRole(.secondary)
+            } else {
+                if let budget = review.pendingBudgetReview {
+                    Text("Remaining on \(budget.day.dayKey): \(Int(budget.remaining.calories)) cal · \(Int(budget.remaining.protein))g protein · \(Int(budget.remaining.carbs))g carbs · \(Int(budget.remaining.fats))g fat")
+                        .appTextRole(.secondary).accessibilityIdentifier("meal_suggestion_changed_budget")
+                    if review.checkpoint.suggestionBudget?.acceptsAboveBudget != true || review.checkpoint.suggestionBudget?.sameEvidence(as: budget) != true {
+                        Button("I reviewed this; log above the remaining targets") { _ = review.acceptChangedSuggestionBudget() }
+                            .accessibilityIdentifier("meal_suggestion_accept_changed_budget")
+                    } else { Text("Reviewed. Log estimate checks this day again before saving.").appTextRole(.caption) }
+                }
+                Menu("Suggestion options", systemImage: "ellipsis") {
+                if onRegenerate != nil {
+                    Menu("Change this idea") {
+                        ForEach(MealSuggestionAlternativeReason.allCases, id: \.rawValue) { reason in
+                            Button(reason.title) { if review.requestAlternative(reason) { onRegenerate?() } }
+                        }
+                    }.accessibilityIdentifier("meal_suggestion_alternatives")
+                }
+                if review.checkpoint.alternativeHistory?.isEmpty == false {
+                    Button("Return to the previous idea") { _ = review.restorePreviousSuggestion() }
+                        .accessibilityIdentifier("meal_suggestion_previous")
+                }
+                if ingredientAssessment?.canAccept != false {
+                    Button("Review as a reusable recipe") {
+                        guard review.userID == DIContainer.shared.authService.currentUserID else { return }
+                        recipeDraft = review.checkpoint.mealSuggestion?.recipeDraft
+                    }
+                        .accessibilityIdentifier("meal_suggestion_recipe")
+                }
+                Button("Change food preferences") { showingFoodPreferences = true }
+                    .accessibilityIdentifier("meal_suggestion_preferences")
+                    Button("Discard suggestion", role: .destructive) { confirmsDiscard = true }
+                        .accessibilityIdentifier("meal_suggestion_discard")
+                }.appTextRole(.secondary).tint(AppPalette.text).frame(minHeight: 44)
+                    .accessibilityIdentifier("meal_suggestion_options")
+                if let assessment = ingredientAssessment, !assessment.canAccept {
+                    Text("Ingredient review").appTextRole(.control)
+                    ForEach(assessment.issues) { issue in
+                        Text(issue.message).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                    }
+                    if assessment.needsPersonalReview {
+                        Button("I reviewed the ingredients and product labels") {
+                            _ = review.confirmIngredientReview(profile: goalSettings.effectiveMealConstraintProfile)
+                        }.accessibilityIdentifier("meal_suggestion_confirm_ingredients")
+                    }
+                } else if review.checkpoint.ingredientReview != nil {
+                    Label("Personal ingredient review saved", systemImage: "checkmark.circle")
+                        .appTextRole(.secondary).accessibilityIdentifier("meal_suggestion_ingredients_reviewed")
+                }
+                if review.restoredReview {
+                    Text("Resumed saved suggestion").appTextRole(.secondary)
+                }
+                if review.checkpoint.trainingFuelTarget != nil {
+                    Button("Log without the fuel link") { _ = review.removeFuelContext() }
+                        .accessibilityIdentifier("meal_suggestion_detach_fuel")
+                }
+
+            }
+        }
+        .disabled(review.isSaving || isRegenerating)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("meal_suggestion_saved_review")
     }
 }

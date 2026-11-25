@@ -1,59 +1,26 @@
 import SwiftUI
 
-struct FoodDetailHeroCard: View {
-    let foodName: String
-    let servingDescription: String
+import MyFitPlateDesign
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+struct FoodDetailHeroCard: View {
+    let identity: FoodDisplayIdentity
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.row) {
-                    foodEmoji
-                    foodIdentity
-                }
-            } else {
-                HStack(alignment: .top, spacing: AppSpacing.group) {
-                    foodEmoji
-                    foodIdentity
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface(.quiet, radius: AppRadius.hero)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("food_detail_identity")
-    }
-
-    private var foodEmoji: some View {
-        Text(FoodEmojiMapper.getEmoji(for: foodName))
-            .font(.system(size: 30))
-            .frame(width: 54, height: 54)
-            .background(
-                AppPalette.control,
-                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                    .stroke(AppPalette.separator.opacity(0.55), lineWidth: 0.5)
-            }
-            .accessibilityHidden(true)
-    }
-
-    private var foodIdentity: some View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            Text(foodName)
-                .appTextRole(.sectionTitle)
+            if let brand = identity.brand {
+                Text(brand)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppPalette.brandText)
+            }
+            Text(identity.product)
+                .font(.system(.largeTitle, design: .serif, weight: .semibold))
                 .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Label(servingDescription, systemImage: "scalemass.fill")
-                .appTextRole(.secondary)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("food_detail_identity")
     }
 }
 
@@ -155,7 +122,7 @@ struct FoodTrustSummaryCard: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("food_trust_summary")
             .accessibilityLabel("Food Trust, \(evaluation.label)")
-            .accessibilityHint("Opens the complete evidence receipt")
+            .accessibilityHint("Opens the full source details")
 
             if let resolution {
                 Label(resolution.title, systemImage: "checkmark.circle.fill")
@@ -282,7 +249,7 @@ struct FoodNutrientProfileCard: View {
                 .buttonStyle(AppActionButtonStyle(.secondary))
                 .accessibilityIdentifier("food_nutrient_profile_open")
 
-                Text("Missing values are unknown, not zero. % Daily Value is a general label reference, not a personal target.")
+                Text("Missing values are unknown. % Daily Value uses a general label reference.")
                     .appTextRole(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -608,7 +575,7 @@ struct FoodDetailLoadingCard: View {
                 .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
 
-            Text("Pulling the most accurate nutrition details for this food.")
+            Text("Checking this food’s reported serving and nutrition.")
                 .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
@@ -697,7 +664,7 @@ struct FoodDetailLabelScanCard: View {
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Take a label photo to replace these numbers.")
+                    Text("Scan the label, then review any changes.")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -803,6 +770,7 @@ struct FoodDetailCorrectionSheet: View {
     private let originalName: String
 
     @ObservedObject private var draft: FoodDetailCorrectionDraft
+    @FocusState private var focusedField: String?
 
     init(
         draft: FoodDetailCorrectionDraft,
@@ -891,11 +859,7 @@ struct FoodDetailCorrectionSheet: View {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done") {
-                        UIApplication.shared.connectedScenes
-                            .compactMap { $0 as? UIWindowScene }
-                            .flatMap(\.windows)
-                            .first(where: \.isKeyWindow)?
-                            .endEditing(true)
+                        focusedField = nil
                     }
                     .accessibilityLabel("Hide keyboard")
                     .accessibilityIdentifier("food_correction_keyboard_done")
@@ -1249,6 +1213,7 @@ struct FoodDetailCorrectionSheet: View {
             HStack(spacing: 6) {
                 TextField(title, text: text)
                     .keyboardType(keyboard)
+                    .focused($focusedField, equals: identifier)
                     .appTextRole(.body)
                     .foregroundStyle(AppPalette.text)
                     .accessibilityIdentifier(identifier)
@@ -1267,7 +1232,10 @@ struct FoodDetailCorrectionSheet: View {
             .overlay {
                 RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                     .stroke(AppPalette.separator.opacity(0.65), lineWidth: 0.5)
+                    .allowsHitTesting(false)
             }
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { focusedField = identifier })
         }
     }
 

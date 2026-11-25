@@ -5,6 +5,7 @@ import SwiftUI
 struct AIChatbotView: View {
     @Binding var selectedTab: Int
     var chatContext: String?
+    @Binding var isComposing: Bool
 
     @StateObject private var viewModel = AIChatbotViewModel()
 
@@ -16,27 +17,22 @@ struct AIChatbotView: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var pantryService: PantryService
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @StateObject private var ttsManager = TTSManager.shared
+    @State private var mealSuggestionReview: MealReviewSaveSession?
     @State private var mealSuggestion: MealSuggestion?
     @State private var showingSuggestionDetail = false
     @State private var isRegeneratingSuggestion = false
+    @State private var showingFoodPreferences = false
     @FocusState private var isInputFocused: Bool
-
-    private var bottomSafeAreaInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first { $0.isKeyWindow }?
-            .safeAreaInsets.bottom ?? 0
-    }
 
     private var hasNutritionMismatch: Bool {
         dailyLogService.currentDailyLog?.calorieConsistencyStatus().hasMeaningfulMismatch == true
     }
 
     private var canSendMessage: Bool {
-        !viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isLoading
+        !viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.canStartNewRequest
     }
 
     private var canIncludeHealthContext: Bool {
@@ -69,49 +65,83 @@ struct AIChatbotView: View {
                           text: "Type a question about food, workouts, or your goals. She already knows today's numbers.")
     ]
 
+    private var conversationTitle: some View {
+        Text(viewModel.currentConversation?.title ?? "Your daily coach")
+            .appTextRole(.caption).foregroundStyle(.secondary)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     var body: some View {
         SpotlightTourScaffold(steps: AIChatbotView.maiaTourSteps) { isActive in
         VStack(spacing: 0) {
-            AppScreenHeader(
-                title: "Maia",
-                subtitle: "A practical next step, grounded in today."
-            ) {
-                HStack(spacing: AppSpacing.compact) {
-                    Image("maia_avatar")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 44, height: 44)
-                        .clipShape(Circle())
-                        .background(AppPalette.control, in: Circle())
-                        .accessibilityHidden(true)
-
-                    if viewModel.chatMessages.count > 1 {
-                        Button {
-                            viewModel.showingClearChatConfirmation = true
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .buttonStyle(AppIconButtonStyle(.neutral))
-                        .accessibilityLabel("Clear Maia chat")
-                    }
+            HStack(spacing: AppSpacing.compact) {
+                Image("maia_avatar")
+                    .resizable().scaledToFit().frame(width: 36, height: 36)
+                    .clipShape(Circle()).background(AppPalette.control, in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Maia").appTextRole(.sectionTitle)
+                        .accessibilityIdentifier("maia_screen_header")
+                    if !dynamicTypeSize.isAccessibilitySize { conversationTitle }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Button { viewModel.showingConversations = true } label: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Conversations").accessibilityIdentifier("maia_conversations")
+                Button { viewModel.showingContextControls = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Context and style").accessibilityIdentifier("maia_context_controls")
+                Menu {
+                    NavigationLink {
+                        ToolDirectoryView()
+                    } label: { Label("Tools", systemImage: "square.grid.2x2") }
+                    .accessibilityIdentifier("maia_personal_tools")
+                    Button { showingFoodPreferences = true } label: {
+                        Label("Food preferences", systemImage: "fork.knife")
+                    }
+                    .accessibilityIdentifier("maia_food_preferences")
+                    if viewModel.chatMessages.count > 1 || !viewModel.retainedMaiaActions.isEmpty {
+                        Button("Clear chat", systemImage: "trash", role: .destructive) { viewModel.reviewClearChat() }
+                    }
+                } label: { Image(systemName: "ellipsis") }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("More Maia options").accessibilityIdentifier("maia_more_options")
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
-            .padding(.top, AppSpacing.group)
-            .padding(.bottom, AppSpacing.compact)
-            .accessibilityIdentifier("maia_screen_header")
+            .padding(.vertical, AppSpacing.compact)
+            if dynamicTypeSize.isAccessibilitySize {
+                conversationTitle.frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+            }
 
             ChatHistoryListView(
                 chatMessages: $viewModel.chatMessages,
-                onLogRecipe: { viewModel.logRecipe(recipeText: $0) },
+                onLogRecipe: { viewModel.logRecipe(recipeText: $0, actionID: $1, completion: $2) },
                 onSpeak: ttsManager.speak,
                 onStopSpeaking: ttsManager.stopSpeaking,
                 currentSpokenText: ttsManager.currentSpokenText,
-                onAction: { viewModel.handleMaiaAction($0) },
+                onAction: { viewModel.handleMaiaAction($0, actionID: $1, completion: $2) },
                 showAlert: $viewModel.showAlert,
                 alertMessage: $viewModel.alertMessage,
                 topContent: {
                     VStack(spacing: 0) {
+                        if let error = viewModel.storageError {
+                            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                                Text(error).appTextRole(.secondary)
+                                Button(viewModel.hasConversationConflict ? "Keep both versions" : "Retry saving", action: viewModel.retryConversationStorage)
+                            }.padding(AppSpacing.row).accessibilityIdentifier("maia_conversation_storage_error")
+                        }
+                        if !viewModel.retainedMaiaActions.isEmpty {
+                            MaiaRetainedActionsView(receipts: viewModel.retainedMaiaActions, isSaving: viewModel.isSavingAction,
+                                                    onRetry: viewModel.retryRetainedMaiaAction)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
+                                .padding(.top, AppSpacing.compact)
+                        }
                         if viewModel.chatMessages.count <= 1 {
                             MaiaBriefingCard(
                                 calories: viewModel.remainingCalories,
@@ -121,7 +151,9 @@ struct AIChatbotView: View {
                                 water: viewModel.waterOunces,
                                 waterGoal: viewModel.waterGoal,
                                 mealCount: viewModel.mealCount,
-                                workoutCount: viewModel.workoutCount
+                                workoutCount: viewModel.workoutCount,
+                                waterUnit: goalSettings.hydrationPreferences.unit,
+                                waterTrackingOnly: goalSettings.isWaterTrackingOnly
                             )
                             .padding(.horizontal, AppSpacing.screenHorizontal)
                             .padding(.top, AppSpacing.group)
@@ -163,6 +195,8 @@ struct AIChatbotView: View {
                                 healthKitEnabled: canIncludeHealthContext,
                                 pantryCount: pantryService.pantryItems.count,
                                 isGeneratingMeal: insightsService.isGeneratingSuggestion,
+                                waterUnit: goalSettings.hydrationPreferences.unit,
+                                waterTrackingOnly: goalSettings.isWaterTrackingOnly,
                                 onFillMacros: generateMealSuggestionFromActionBoard,
                                 onProteinOrRecovery: {
                                     let contract = viewModel.workoutCount > 0
@@ -194,9 +228,17 @@ struct AIChatbotView: View {
                                     .clipShape(Circle())
                                     .background(Color.backgroundSecondary, in: Circle())
 
-                                MaiaTypingIndicator(label: viewModel.requestStage)
-
+                                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                                    MaiaTypingIndicator(label: viewModel.requestStage)
+                                    if !viewModel.partialResponse.isEmpty {
+                                        Text(MaiaSpeechFormatter.spokenText(from: String(viewModel.partialResponse.components(separatedBy: "```").first ?? "")))
+                                            .appTextRole(.secondary).accessibilityIdentifier("maia_partial_response")
+                                        Text("Draft response · actions appear after it finishes")
+                                            .appTextRole(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
                                 Spacer()
+
                             }
                             .padding(.horizontal, AppSpacing.screenHorizontal)
                             .padding(.vertical, AppSpacing.compact)
@@ -205,36 +247,52 @@ struct AIChatbotView: View {
                     }
                 }
             )
-            .onTapGesture { hideKeyboard() }
+            .onTapGesture { isInputFocused = false; hideKeyboard() }
+
+            if ttsManager.playbackState != .idle { MaiaPlaybackControls(speech: ttsManager) }
 
             HStack(spacing: 10) {
+                if isInputFocused {
+                    Button {
+                        isInputFocused = false
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .buttonStyle(AppIconButtonStyle(.plain))
+                    .accessibilityLabel("Dismiss keyboard")
+                    .accessibilityIdentifier("maia_close_keyboard")
+                }
                 TextField("Ask Maia anything", text: $viewModel.userMessage, axis: .vertical)
                     .focused($isInputFocused)
                     .textFieldStyle(PlainTextFieldStyle())
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(
-                        AppPalette.control,
-                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                            .stroke(AppPalette.separator, lineWidth: 0.5)
-                    }
+                    .padding(.leading, isInputFocused ? 0 : AppSpacing.row)
+                    .padding(.vertical, AppSpacing.row)
                     .lineLimit(1...4)
                     .onSubmit { viewModel.sendMessage() }
+                    .accessibilityIdentifier("maia_message_input")
 
-                Button(action: { viewModel.sendMessage() }) {
-                    Image(systemName: "arrow.up")
+                if viewModel.isLoading {
+                    Button(action: viewModel.cancelRequest) { Image(systemName: "stop.fill") }
+                        .buttonStyle(AppIconButtonStyle(.neutral))
+                        .accessibilityLabel("Cancel response").accessibilityIdentifier("maia_cancel_request")
+                } else {
+                    Button(action: { viewModel.sendMessage() }) { Image(systemName: "arrow.up") }
+                        .buttonStyle(AppIconButtonStyle(.brand))
+                        .disabled(!canSendMessage)
+                        .opacity(canSendMessage ? 1 : 0.45)
+                        .accessibilityLabel("Send message")
                 }
-                .buttonStyle(AppIconButtonStyle(.brand))
-                .disabled(!canSendMessage)
-                .opacity(canSendMessage ? 1 : 0.45)
-                .accessibilityLabel("Send message")
+            }
+            .padding(4)
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.hero))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.hero)
+                    .strokeBorder(isInputFocused ? AppPalette.brandText : AppPalette.separator, lineWidth: isInputFocused ? 1 : 0.5)
+                    .allowsHitTesting(false)
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.compact)
-            .padding(.bottom, bottomSafeAreaInset)
+            .padding(.bottom, AppSpacing.compact)
             .background(
                 Rectangle()
                     .fill(AppPalette.surface)
@@ -248,20 +306,7 @@ struct AIChatbotView: View {
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button {
-                    isInputFocused = false
-                    hideKeyboard()
-                } label: {
-                    Image(systemName: "keyboard.chevron.compact.down")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.brandForeground)
-                }
-                .accessibilityLabel("Dismiss keyboard")
-            }
-        }
+        .onChange(of: isInputFocused) { _, focused in isComposing = focused }
         .onAppear {
             viewModel.chatContext = self.chatContext
             viewModel.dailyLogService = self.dailyLogService
@@ -270,9 +315,28 @@ struct AIChatbotView: View {
             viewModel.mealPlannerService = self.mealPlannerService
             viewModel.healthKitViewModel = self.healthKitViewModel
             viewModel.setupView()
+            #if DEBUG
+            if ScreenshotDemoMode.isEnabled {
+                viewModel.showingContextControls = ScreenshotDemoData.requestedScreen == "design-maia-context"
+                viewModel.showingConversations = ScreenshotDemoData.requestedScreen == "design-maia-topics"
+            }
+            if ScreenshotDemoMode.isEnabled, DIContainer.shared.authService.currentUserID == "mock_user",
+               ProcessInfo.processInfo.arguments.contains("-ui-testing-maia-playback") {
+                let bookmark = MaiaSpeechBookmark(plan: .init(source: "Use 42.5 lb for nine controlled reps. Keep two reps in reserve. Record how the set felt."),
+                    sentenceIndex: 1, voiceIdentifier: TTSManager.onlineVoiceIdentifier, rate: 1)
+                try? EditorDraftStore().save(bookmark, userID: "mock_user", scope: "maia-speech-bookmark-v1")
+            }
+            #endif
+            ttsManager.restorePlayback()
         }
+        .onReceive(appState.$isUserLoggedIn.dropFirst()) { _ in
+            viewModel.setupView()
+            ttsManager.restorePlayback()
+        }
+        .onChange(of: viewModel.userMessage) { _, _ in viewModel.saveMessages() }
         .onDisappear {
-            ttsManager.stopSpeaking()
+            isComposing = false
+            ttsManager.pauseSpeaking()
             viewModel.saveMessages()
         }
         .onReceive(appState.$pendingChatPrompt) { prompt in
@@ -285,26 +349,34 @@ struct AIChatbotView: View {
         .alert(isPresented: $viewModel.showAlert) {
             Alert(title: Text("Maia"), message: Text(viewModel.alertMessage), dismissButton: .default(Text("OK")))
         }
+        .sheet(isPresented: $viewModel.showingConversations) { MaiaConversationBrowser(model: viewModel) }
+        .sheet(isPresented: $viewModel.showingContextControls) { MaiaContextControls(model: viewModel) }
+        .sheet(isPresented: $viewModel.showingMealPlanBuilder) {
+            MealPlanSurveyView(startingDate: Date())
+        }
+        .sheet(isPresented: $showingFoodPreferences) {
+            SuggestionPreferencesView(goalSettings: goalSettings)
+        }
         .sheet(isPresented: $showingSuggestionDetail) {
-            if let mealSuggestion {
-                MealSuggestionDetailView(
-                    suggestion: mealSuggestion,
-                    pantryItemNames: pantryService.pantryItems.map(\.name),
-                    remainingCalories: viewModel.remainingCalories,
-                    remainingProtein: viewModel.remainingProtein,
-                    remainingCarbs: viewModel.remainingCarbs,
-                    remainingFats: viewModel.remainingFats,
-                    onLog: logMealSuggestion,
-                    onRegenerate: regenerateMealSuggestion,
-                    isRegenerating: isRegeneratingSuggestion
+            if let review = mealSuggestionReview {
+                SavedMealSuggestionDetailView(
+                    review: review, pantryItemNames: pantryService.pantryItems.map(\.name),
+                    remainingCalories: viewModel.remainingCalories, remainingProtein: viewModel.remainingProtein,
+                    remainingCarbs: viewModel.remainingCarbs, remainingFats: viewModel.remainingFats,
+                    onRegenerate: regenerateMealSuggestion, isRegenerating: isRegeneratingSuggestion,
+                    onAccepted: { mealSuggestionReview = nil; mealSuggestion = nil },
+                    onDiscarded: { mealSuggestionReview = nil; mealSuggestion = nil }
                 )
             }
         }
         .confirmationDialog("Clear Maia chat?", isPresented: $viewModel.showingClearChatConfirmation, titleVisibility: .visible) {
-            Button("Clear Chat", role: .destructive) { viewModel.clearChat() }
+            Button("Clear Chat, Keep Pending Actions", role: .destructive) { viewModel.clearChat() }
+            if !viewModel.conversationClearReview.unsubmittedActions.isEmpty {
+                Button("Clear Chat & Discard Unsubmitted Actions", role: .destructive) { viewModel.clearChat(discardUnsubmitted: true) }
+            }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This removes the saved conversation history on this device. Food, water, workouts, weight, and other actions already logged will remain.")
+            Text("Removes this device's conversation. \(viewModel.conversationClearReview.unsubmittedActions.count) actions have never been submitted and can be discarded. \(viewModel.conversationClearReview.submittedActions.count) submitted or unconfirmed actions stay available for safe retry; clearing chat cannot cancel them. Saved logs remain. Saved action receipts keep only their outcome and replay identity. \(viewModel.conversationClearReview.unreadableActionCount) unreadable action records will be kept unchanged.")
         }
         }
     }
@@ -328,29 +400,24 @@ struct AIChatbotView: View {
     }
 
     private func generateMealSuggestionFromActionBoard() {
-        guard !insightsService.isGeneratingSuggestion else { return }
+        guard !insightsService.isGeneratingSuggestion,
+              let owner = DIContainer.shared.authService.currentUserID,
+              let day = dailyLogService.activelyViewedDayContext ?? DiaryDayContext(userID: owner, date: dailyLogService.activelyViewedDate),
+              day.isOwned(by: owner) else { return }
+        if let saved = MealReviewSaveSession.resumeMealSuggestion(source: "maia_action_card", userID: owner) {
+            mealSuggestionReview = saved
+            showingSuggestionDetail = true
+            return
+        }
         HapticManager.instance.feedback(.light)
         Task {
             let pantryNames = pantryService.pantryItems.map(\.name)
-            let contract = MaiaContextContract.fillMacros
-            DIContainer.shared.analyticsManager?.logEvent("maia_action_card_tapped", parameters: [
-                "action": contract.action,
-                "context_scopes": contract.telemetryScopeList,
-                "remaining_calories": Int(viewModel.remainingCalories.rounded()),
-                "remaining_protein": Int(viewModel.remainingProtein.rounded()),
-                "pantry_count": pantryNames.count
-            ])
-
-            if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
-                mealSuggestion = suggestion
+            if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames, day: day) {
+                guard DIContainer.shared.authService.currentUserID == owner else { return }
+                mealSuggestionReview = suggestion.makeReview(userID: owner, day: day, source: "maia_action_card")
                 showingSuggestionDetail = true
-                DIContainer.shared.analyticsManager?.logEvent("maia_action_card_generated", parameters: [
-                    "action": contract.action,
-                    "context_scopes": contract.telemetryScopeList,
-                    "calories": Int(suggestion.calories.rounded()),
-                    "protein": Int(suggestion.protein.rounded())
-                ])
             } else {
+                guard DIContainer.shared.authService.currentUserID == owner else { return }
                 viewModel.alertMessage = "Maia couldn't build a meal right now. Check your connection and try again."
                 viewModel.showAlert = true
             }
@@ -358,17 +425,20 @@ struct AIChatbotView: View {
     }
 
     private func regenerateMealSuggestion() {
-        guard !insightsService.isGeneratingSuggestion, let current = mealSuggestion else { return }
+        guard !insightsService.isGeneratingSuggestion, let review = mealSuggestionReview, !review.isLocked,
+              let owner = review.userID, owner == DIContainer.shared.authService.currentUserID,
+              let current = review.checkpoint.mealSuggestion else { return }
         HapticManager.instance.feedback(.light)
         isRegeneratingSuggestion = true
         Task {
-            let pantryNames = pantryService.pantryItems.map(\.name)
-            let next = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames, avoiding: [current.mealName])
+            let next = await insightsService.generateSingleMealSuggestion(
+                pantryItems: pantryService.pantryItems.map(\.name), avoiding: [current.mealName], alternative: review.checkpoint.requestedAlternative, day: review.checkpoint.draft.dayContext)
             isRegeneratingSuggestion = false
+            guard DIContainer.shared.authService.currentUserID == owner else { return }
             if let next {
-                mealSuggestion = next
+                _ = review.replaceMealSuggestion(next)
             } else {
-                viewModel.alertMessage = "Maia couldn't build another meal right now. Try again in a moment."
+                viewModel.alertMessage = "Maia couldn't build another meal right now. Your current suggestion is kept."
                 viewModel.showAlert = true
             }
         }
@@ -384,31 +454,6 @@ struct AIChatbotView: View {
         viewModel.handleMaiaAction(.logWater(amountOunces: 16))
     }
 
-    private func logMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
-
-        let foodItem = FoodItem(
-            id: UUID().uuidString,
-            name: suggestion.mealName,
-            calories: suggestion.calories,
-            protein: suggestion.protein,
-            carbs: suggestion.carbs,
-            fats: suggestion.fats,
-            servingSize: "1 serving (Maia Estimate)",
-            servingWeight: 0,
-            timestamp: Date()
-        )
-        .withAIEstimateSource(.aiChat, sourceName: "Maia Action")
-
-        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "maia_action_card")
-        DIContainer.shared.analyticsManager?.logEvent("maia_action_card_logged", parameters: [
-            "action": MaiaContextContract.fillMacros.action,
-            "context_scopes": MaiaContextContract.fillMacros.telemetryScopeList,
-            "calories": Int(suggestion.calories.rounded()),
-            "protein": Int(suggestion.protein.rounded())
-        ])
-        mealSuggestion = nil
-    }
 }
 
 private struct MaiaInlineFailureView: View {

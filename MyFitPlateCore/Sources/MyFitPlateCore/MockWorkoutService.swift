@@ -20,6 +20,22 @@ public class MockWorkoutService: WorkoutServicing {
         return []
     }
     
+    public private(set) var reconcileProgramProgressCallCount = 0
+    public func reconcileProgramProgress(in program: WorkoutProgram, knownLogs: [WorkoutSessionLog]) async -> WorkoutProgram? {
+        reconcileProgramProgressCallCount += 1
+        let latest = userPrograms.first { $0.id == program.id } ?? (activeProgram?.id == program.id ? activeProgram : nil) ?? program
+        let linked = WorkoutRules.sessionLogsBySlot(in: latest, sessionLogs: knownLogs)
+        guard let sessionID = linked[max(latest.currentProgressIndex ?? 0, 0)]?.id else { return latest }
+        do {
+            let command = try WorkoutProgramProgressCommand(program: latest, kind: .completion, sessionID: sessionID,
+                proofSessionIDs: linked.values.compactMap(\.id))
+            let result = try command.applying(to: latest, verifiedLogs: Array(linked.values))
+            if activeProgram?.id == result.id { activeProgram = result }
+            if let index = userPrograms.firstIndex(where: { $0.id == result.id }) { userPrograms[index] = result }
+            return result
+        } catch { return nil }
+    }
+
     public func fetchRoutinesAndPrograms() {
         // Mock implementation
     }
@@ -62,7 +78,9 @@ public class MockWorkoutService: WorkoutServicing {
         // Mock implementation
     }
     
-    public func saveWorkoutSessionLog(_ log: WorkoutSessionLog) async {
+    @discardableResult
+    public func saveWorkoutSessionLog(_ log: WorkoutSessionLog) async -> Bool {
+        return true
         // Mock implementation
     }
     

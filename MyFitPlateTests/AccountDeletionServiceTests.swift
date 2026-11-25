@@ -94,6 +94,7 @@ private enum AccountDeletionTestError: LocalizedError {
 
 private final class MockAccountDeletionAuthService: AuthServiceProtocol, @unchecked Sendable {
     var currentUserID: String?
+    var currentSignInMethod: AccountSignInMethod? = .email
     var reauthenticatedPassword: String?
     var didDeleteCurrentUser = false
     var reauthenticationError: Error?
@@ -118,6 +119,14 @@ private final class MockAccountDeletionAuthService: AuthServiceProtocol, @unchec
     }
 
     func sendPasswordReset(email: String) async throws {}
+
+    func signInWithApple(_ credential: AppleIDCredential) async throws -> AuthUserSession {
+        AuthUserSession(userID: currentUserID ?? "user-123", email: credential.email)
+    }
+
+    func reauthenticateWithApple(_ credential: AppleIDCredential) async throws {}
+
+    func revokeAppleToken(authorizationCode: String) async throws {}
 
     func reauthenticateCurrentUser(password: String) async throws {
         reauthenticatedPassword = password

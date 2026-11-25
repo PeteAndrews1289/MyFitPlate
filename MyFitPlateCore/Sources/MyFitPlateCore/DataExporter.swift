@@ -70,7 +70,7 @@ public enum DataExporter {
             ? "'\(field)"
             : field
 
-        guard protectedField.contains(",") || protectedField.contains("\"") || protectedField.contains("\n") else {
+        guard protectedField.contains(",") || protectedField.contains("\"") || protectedField.contains("\n") || protectedField.contains("\r") else {
             return protectedField
         }
         return "\"\(protectedField.replacingOccurrences(of: "\"", with: "\"\""))\""
@@ -78,6 +78,6 @@ public enum DataExporter {
 
     private static func format(_ value: Double) -> String {
         guard value.isFinite else { return "" }
-        return value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+        return String(format: value == value.rounded() ? "%.0f" : "%.1f", locale: Locale(identifier: "en_US_POSIX"), value)
     }
 }

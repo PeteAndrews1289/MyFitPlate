@@ -102,12 +102,18 @@ public struct UserAchievementStatus: Identifiable, Codable, Equatable {
     public var unlockedDate: Date? = nil
     public var currentProgress: Double = 0.0
     public var lastProgressUpdate: Date? = nil
+    public var awardEvidence: AchievementAwardEvidence?
+    public var awardRulesVersion: String?
+    public var awardedPoints: Int?
+    public var legacyAwardPreserved: Bool?
 
     public static func == (lhs: UserAchievementStatus, rhs: UserAchievementStatus) -> Bool {
         lhs.achievementID == rhs.achievementID &&
         lhs.isUnlocked == rhs.isUnlocked &&
         lhs.unlockedDate == rhs.unlockedDate &&
         lhs.currentProgress == rhs.currentProgress &&
-        lhs.lastProgressUpdate == rhs.lastProgressUpdate
+        lhs.lastProgressUpdate == rhs.lastProgressUpdate &&
+        lhs.awardEvidence == rhs.awardEvidence && lhs.awardRulesVersion == rhs.awardRulesVersion &&
+        lhs.awardedPoints == rhs.awardedPoints && lhs.legacyAwardPreserved == rhs.legacyAwardPreserved
     }
 }

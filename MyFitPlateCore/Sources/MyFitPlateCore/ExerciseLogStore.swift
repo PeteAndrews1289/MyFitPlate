@@ -7,95 +7,28 @@ public class ExerciseLogStore {
         self.dailyLogService = dailyLogService
     }
 
-    public func addExerciseToLog(for userID: String, exercise: LoggedExercise) {
-        guard let service = dailyLogService, service.isActiveAccount(userID) else { return }
-        let dateToLog = service.activelyViewedDate
-        
-        service.fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self,
-                  let service = self.dailyLogService,
-                  service.isActiveAccount(userID) else { return }
-            switch result {
-            case .success(var log):
-                if log.exercises == nil { log.exercises = [] }
-                var exerciseToLog = exercise
-                exerciseToLog.date = dateToLog
-                log.exercises?.append(exerciseToLog)
-
-                DispatchQueue.main.async {
-                    service.publishCurrentDailyLog(log, for: userID)
-                }
-
-                service.updateDailyLog(for: userID, updatedLog: log) { success in
-                     Task { @MainActor in
-                        guard service.isActiveAccount(userID) else { return }
-                        if success {
-                            DIContainer.shared.analyticsManager?.logEvent("exercise_logged", parameters: [
-                                "source": exercise.source,
-                                "duration": exercise.durationMinutes ?? 0,
-                                "calories": exercise.caloriesBurned
-                            ])
-
-                            service.bannerService?.showBanner(title: "Success", message: "\(exercise.name) logged!")
-                            service.achievementService?.updateChallengeProgress(for: userID, type: .workoutLogged, amount: 1)
-                            NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
-                        } else {
-                             service.bannerService?.showBanner(title: "Error", message: "Failed to log \(exercise.name).", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
-                        }
-                    }
-                }
-            case .failure(let error):
-                AppLog.data.error("Failed to fetch log for adding exercise: \(error.localizedDescription, privacy: .public)")
-                Task { @MainActor in
-                    guard service.isActiveAccount(userID) else { return }
-                    service.bannerService?.showBanner(title: "Error", message: "Could not fetch log to add exercise.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
-                }
-            }
-        }
+    public func addExerciseToLog(
+        for userID: String, exercise: LoggedExercise, completion: ((Bool) -> Void)? = nil
+    ) {
+        guard let service = dailyLogService else { completion?(false); return }
+        service.saveActivityExercise(for: userID, exercise: exercise) { completion?($0) }
     }
 
-    public func deleteExerciseFromLog(for userID: String, exerciseID: String) {
-        guard let service = dailyLogService, service.isActiveAccount(userID) else { return }
-        let dateToLog = service.activelyViewedDate
-        
-        service.fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self,
-                  let service = self.dailyLogService,
-                  service.isActiveAccount(userID) else { return }
-            switch result {
-            case .success(var log):
-                let initialCount = log.exercises?.count ?? 0
-                var exerciseName: String?
-                 if let exToRemove = log.exercises?.first(where: { $0.id == exerciseID }) {
-                     exerciseName = exToRemove.name
-                 }
-                log.exercises?.removeAll { $0.id == exerciseID }
-                if (log.exercises?.count ?? 0) < initialCount {
+    public func updateExerciseInLog(
+        for userID: String, original: LoggedExercise, updated: LoggedExercise,
+        completion: @escaping (Bool) -> Void
+    ) {
+        guard let service = dailyLogService else { completion(false); return }
+        service.saveActivityExercise(for: userID, exercise: updated, replacing: original, completion: completion)
+    }
 
-                    DispatchQueue.main.async {
-                        service.publishCurrentDailyLog(log, for: userID)
-                    }
-
-                    service.updateDailyLog(for: userID, updatedLog: log) { success in
-                         Task { @MainActor in
-                            guard service.isActiveAccount(userID) else { return }
-                            if success {
-                                 service.bannerService?.showBanner(title: "Deleted", message: "\(exerciseName ?? "Exercise") removed.")
-                                NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
-                             } else {
-                                service.bannerService?.showBanner(title: "Error", message: "Failed to delete exercise.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
-                            }
-                        }
-                    }
-                }
-            case .failure(let error):
-                AppLog.data.error("Failed to fetch log for deleting exercise: \(error.localizedDescription, privacy: .public)")
-             Task { @MainActor in
-                 guard service.isActiveAccount(userID) else { return }
-                 service.bannerService?.showBanner(title: "Error", message: "Could not fetch log to delete exercise.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
-             }
-            }
-        }
+    public func deleteExerciseFromLog(
+        for userID: String, exerciseID: String, date: Date? = nil,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        guard let service = dailyLogService else { completion?(false); return }
+        let capturedDate = date ?? service.activelyViewedDate
+        service.deleteActivityExercise(for: userID, exerciseID: exerciseID, date: capturedDate, completion: completion)
     }
 
     public func addOrUpdateHealthKitWorkouts(for userID: String, exercises: [LoggedExercise], date: Date, completion: (() -> Void)? = nil) {
@@ -103,49 +36,6 @@ public class ExerciseLogStore {
             completion?()
             return
         }
-        let dateToLog = Calendar.current.startOfDay(for: date)
-
-        service.fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self,
-                  let service = self.dailyLogService,
-                  service.isActiveAccount(userID) else {
-                completion?()
-                return
-            }
-            switch result {
-            case .success(var log):
-                if log.exercises == nil {
-                    log.exercises = []
-                }
-
-                log.exercises?.removeAll { $0.source == "HealthKit" }
-                log.exercises?.append(contentsOf: exercises)
-
-                DispatchQueue.main.async {
-                    if Calendar.current.isDate(log.date, inSameDayAs: service.activelyViewedDate) {
-                        service.publishCurrentDailyLog(log, for: userID)
-                    }
-                }
-
-                service.updateDailyLog(for: userID, updatedLog: log) { success in
-                    DispatchQueue.main.async {
-                         guard service.isActiveAccount(userID) else {
-                             completion?()
-                             return
-                         }
-                         if success {
-                            DIContainer.shared.analyticsManager?.logEvent("healthkit_sync_workouts", parameters: [
-                                "count": exercises.count
-                            ])
-                            NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
-                         }
-                         completion?()
-                    }
-                }
-            case .failure(let error):
-                AppLog.health.error("Failed to fetch log for HealthKit workout sync: \(error.localizedDescription, privacy: .public)")
-                completion?()
-            }
-        }
+        service.syncHealthKitExercises(for: userID, exercises: exercises, date: date) { _ in completion?() }
     }
 }

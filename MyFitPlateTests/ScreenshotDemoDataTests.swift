@@ -67,6 +67,32 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertTrue(items.contains { $0.category == "Pantry & Oils" })
     }
 
+    func testGroceryDesignPlanRegenerationPreservesTheMeasuredShoppingFixture() throws {
+        let nutrition = MockNutritionRepository()
+        ScreenshotDemoData.configureRepositories(nutrition: nutrition, workout: MockWorkoutRepository(), settings: MockSettingsRepository())
+        let original = nutrition.mockFetchGroceryListResult
+        let start = try XCTUnwrap(original.first?.sourcePlanStart)
+        let plan = try ScreenshotDemoData.groceryDesignPlan(items: original, starting: start)
+        let generated = GroceryListBuilder.makeGroceryList(from: [plan], starting: start, unitSystem: .imperial)
+        let refreshed = GroceryListBuilder.mergeGroceryItems(generatedItems: generated, existingItems: original)
+
+        XCTAssertEqual(refreshed.count, 8)
+        XCTAssertEqual(Set(refreshed.map(\.id)), Set(original.map(\.id)))
+        XCTAssertEqual(refreshed.filter(\.isCompleted).count, 2)
+        for expected in original {
+            let actual = try XCTUnwrap(refreshed.first { $0.id == expected.id })
+            XCTAssertEqual(actual.name, expected.name)
+            XCTAssertEqual(actual.quantity, expected.quantity, accuracy: 0.000_001)
+            XCTAssertEqual(actual.unit, expected.unit)
+            XCTAssertEqual(actual.source, expected.source)
+            XCTAssertEqual(actual.isCompleted, expected.isCompleted)
+        }
+        let chicken = try XCTUnwrap(refreshed.first { $0.id.uuidString.hasSuffix("000000000103") })
+        XCTAssertEqual(chicken.quantity, 3)
+        XCTAssertEqual(chicken.unit, "lb")
+        XCTAssertFalse(chicken.isCompleted)
+    }
+
     func testAITextFixtureSupportsEditableReview() {
         let items = ScreenshotDemoData.aiTextDemoFoods
 

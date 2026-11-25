@@ -9,6 +9,7 @@ struct WellnessScoreCardView: View {
     
     @State private var showDetail: Bool
     @State private var animatedScore: Double = 0
+    @State private var preferences = PersonalReportPreferences()
 
     init(
         wellnessScore: WellnessScore,
@@ -29,7 +30,7 @@ struct WellnessScoreCardView: View {
                     title: wellnessScore.displayTitle,
                     subtitle: wellnessScore.scopeDescription
                 ) {
-                    ZStack {
+                    if preferences.showsWellnessComposite { ZStack {
                         Circle()
                             .stroke(wellnessScore.color.opacity(0.16), lineWidth: 10)
                         Circle()
@@ -49,6 +50,7 @@ struct WellnessScoreCardView: View {
                     .frame(width: 78, height: 78)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Score \(wellnessScore.overallScore) out of 100")
+                    }
                 }
 
                 Text(wellnessScore.summary)
@@ -59,7 +61,7 @@ struct WellnessScoreCardView: View {
                 AppMetricStrip(items: [
                     AppMetricItem(
                         label: "Nutrition",
-                        value: wellnessScore.nutritionScore.formatted(),
+                        value: wellnessScore.hasNutrition ? wellnessScore.nutritionScore.formatted() : "--",
                         accent: AppPalette.brand
                     ),
                     AppMetricItem(
@@ -68,9 +70,9 @@ struct WellnessScoreCardView: View {
                         accent: AppPalette.recovery
                     ),
                     AppMetricItem(
-                        label: "Recovery",
-                        value: wellnessScore.recoveryScore.map(String.init) ?? "--",
-                        accent: AppPalette.positive
+                        label: "Recovery data",
+                        value: wellnessScore.recoveryLabel,
+                        accent: AppPalette.recovery
                     )
                 ])
             }
@@ -78,7 +80,7 @@ struct WellnessScoreCardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("wellness_score_card")
-        .sheet(isPresented: $showDetail) {
+        .sheet(isPresented: $showDetail, onDismiss: loadPreferences) {
             WellnessScoreDetailView(
                 wellnessScore: wellnessScore,
                 mealScore: mealScore,
@@ -86,6 +88,7 @@ struct WellnessScoreCardView: View {
             )
         }
         .onAppear {
+            loadPreferences()
             withAnimation(AppMotion.standard.delay(0.2)) {
                 animatedScore = Double(wellnessScore.overallScore)
             }
@@ -95,5 +98,9 @@ struct WellnessScoreCardView: View {
                 animatedScore = Double(newValue)
             }
         }
+    }
+    private func loadPreferences() {
+        guard let owner = DIContainer.shared.authService.currentUserID else { preferences = .init(); return }
+        preferences = (try? PersonalReportPreferenceStore.load(userID: owner)) ?? .init()
     }
 }

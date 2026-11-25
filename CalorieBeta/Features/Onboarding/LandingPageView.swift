@@ -1,8 +1,16 @@
 import SwiftUI
 
 struct LandingPageView: View {
+    /// Set when account setup failed after sign-in; the screen then offers a retry and a way out.
+    var setupFailureMessage: String?
+    var onRetrySetup: (() -> Void)?
+
     @EnvironmentObject private var appState: AppState
     @State private var errorMessage: String?
+
+    private var displayedError: String? {
+        setupFailureMessage ?? errorMessage
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
@@ -16,12 +24,12 @@ struct LandingPageView: View {
                     .appTextRole(.caption)
                     .foregroundStyle(AppPalette.launchForeground.opacity(0.82))
 
-                Text(errorMessage == nil ? "Preparing your day" : "We couldn't load your account")
+                Text(title)
                     .appTextRole(.display)
                     .foregroundStyle(.white)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(errorMessage ?? "Loading your goals, recent meals, and training context.")
+                Text(displayedError ?? "Loading your goals, recent meals, and training context.")
                     .appTextRole(.body)
                     .foregroundStyle(.white.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
@@ -29,10 +37,19 @@ struct LandingPageView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
 
-            if errorMessage == nil {
+            if displayedError == nil {
                 ProgressView()
                     .tint(AppPalette.launchForeground)
                     .accessibilityLabel("Loading account")
+            } else if let onRetrySetup, setupFailureMessage != nil {
+                VStack(spacing: AppSpacing.compact) {
+                    Button("Try again", action: onRetrySetup)
+                        .buttonStyle(AppActionButtonStyle(.primary))
+                        .accessibilityIdentifier("account_setup_retry")
+                    Button("Sign out", action: appState.signOut)
+                        .buttonStyle(AppActionButtonStyle(.secondary))
+                        .accessibilityIdentifier("account_setup_sign_out")
+                }
             } else {
                 Button("Try again", action: loadData)
                     .buttonStyle(AppActionButtonStyle(.primary))
@@ -46,6 +63,11 @@ struct LandingPageView: View {
         .background(AppPalette.launchBackground.ignoresSafeArea())
         .accessibilityIdentifier("account_loading_screen")
         .onAppear(perform: loadData)
+    }
+
+    private var title: String {
+        if setupFailureMessage != nil { return "We couldn't finish setting up" }
+        return errorMessage == nil ? "Preparing your day" : "We couldn't load your account"
     }
 
     private func loadData() {
@@ -65,16 +87,18 @@ struct MyFitPlateLaunchMark: View {
     }
 
     let treatment: Treatment
+    let compact: Bool
 
-    init(treatment: Treatment = .standard) {
+    init(treatment: Treatment = .standard, compact: Bool = false) {
         self.treatment = treatment
+        self.compact = compact
     }
 
     var body: some View {
         Text("MFP")
-            .font(.system(size: 25, weight: .bold, design: .rounded))
+            .font(.system(size: compact ? 15 : 25, weight: .bold, design: .rounded))
             .foregroundStyle(foregroundColor)
-            .frame(width: 76, height: 76)
+            .frame(width: compact ? 40 : 76, height: compact ? 40 : 76)
             .background(
                 backgroundColor,
                 in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)

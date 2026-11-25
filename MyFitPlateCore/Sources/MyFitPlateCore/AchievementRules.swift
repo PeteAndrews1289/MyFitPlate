@@ -151,6 +151,9 @@ public enum AchievementRules {
             ($0.id, UserAchievementStatus(achievementID: $0.id))
         })
         for status in fetchedStatuses {
+            // Legacy aliases can coexist with a canonical progress document.
+            // Once unlocked, a stale locked alias must never hide that milestone.
+            if statuses[status.achievementID]?.isUnlocked == true, !status.isUnlocked { continue }
             statuses[status.achievementID] = status
         }
         return statuses

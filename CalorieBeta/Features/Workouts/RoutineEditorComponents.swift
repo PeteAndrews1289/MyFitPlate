@@ -48,32 +48,39 @@ struct RoutineEditorHeaderCard: View {
 }
 
 struct RoutineBasicsCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var routineName: String
     @Binding var routineNotes: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(
-                title: "Routine Details",
-                subtitle: "Name the workout and leave cues you will want during training."
-            )
-
             VStack(alignment: .leading, spacing: AppSpacing.group) {
                 RoutineEditorFieldLabel(title: "Routine Name") {
-                    TextField("Push Day, Lower A, Conditioning...", text: $routineName)
+                    TextField("Routine name", text: $routineName, axis: dynamicTypeSize.isAccessibilitySize ? .vertical : .horizontal)
+                        .accessibilityIdentifier("routine_builder_name")
                         .appTextRole(.control)
+                        .submitLabel(.done)
                         .textInputAutocapitalization(.words)
                         .routineInputStyle()
                 }
 
-                RoutineEditorFieldLabel(title: "Coach Notes") {
+                DisclosureGroup {
                     TextEditor(text: $routineNotes)
                         .appTextRole(.body)
                         .frame(minHeight: 88)
                         .padding(AppSpacing.compact)
                         .scrollContentBackground(.hidden)
                         .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Notes").appTextRole(.secondary)
+                        if !routineNotes.trimmed.isEmpty {
+                            Text(routineNotes).appTextRole(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                    }
+                    .accessibilityIdentifier("routine_builder_notes")
                 }
+                .tint(AppPalette.text)
             }
             .appSurface(.quiet)
         }
@@ -89,7 +96,7 @@ struct RoutineTemplateStrip: View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
                 title: "Fast Starts",
-                subtitle: "Append a proven block, then customize any movement."
+                subtitle: "Choose a starter, review append or replace, then customize."
             )
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -134,7 +141,7 @@ struct RoutineTemplateStrip: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Adds \(template.exercises.count) exercises to this routine")
+                        .accessibilityHint("Reviews \(template.exercises.count) movements before changing a nonempty routine")
                     }
                 }
                 .padding(.horizontal, 1)
@@ -150,12 +157,13 @@ struct RoutineExerciseBuilderCard: View {
     let onDuplicate: (RoutineExercise) -> Void
     let onDelete: (RoutineExercise) -> Void
     let onMove: (RoutineExercise, RoutineMoveDirection) -> Void
+    let onReorder: (String, String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
-                title: "Exercise Plan",
-                subtitle: exercises.isEmpty ? "Add the first movement to begin." : "Tap a movement to edit its sets, target, rest, and substitutions."
+                title: "Exercises",
+                subtitle: exercises.isEmpty ? "Add the first movement to begin." : "Tap to edit. Drag to reorder."
             ) {
                 Button(action: onAddExercise) {
                     Image(systemName: "plus")
@@ -180,6 +188,13 @@ struct RoutineExerciseBuilderCard: View {
                             onMoveUp: { onMove(exercise, .up) },
                             onMoveDown: { onMove(exercise, .down) }
                         )
+                        .draggable(exercise.id)
+                        .dropDestination(for: String.self) { identifiers, _ in
+                            guard identifiers.count == 1, let source = identifiers.first, source != exercise.id,
+                                  exercises.contains(where: { $0.id == source }) else { return false }
+                            onReorder(source, exercise.id)
+                            return true
+                        }
                     }
                 }
             }
@@ -331,6 +346,7 @@ struct ExerciseEditorHero: View {
 
 struct ExercisePickerRow: View {
     let entry: ExercisePickerEntry
+    var isSelected = false
     let onSelect: () -> Void
 
     private var type: ExerciseType {
@@ -356,6 +372,7 @@ struct ExercisePickerRow: View {
                         .appTextRole(.control)
                         .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
+                    if isSelected { Label("Selected", systemImage: "checkmark.circle.fill").appTextRole(.caption).foregroundStyle(AppPalette.brandText) }
                     Text("\(entry.category) • \(equipment.rawValue) • \(type.shortTitle)")
                         .appTextRole(.secondary)
                         .foregroundStyle(.secondary)
@@ -467,6 +484,8 @@ private extension View {
 struct ExerciseSetEditorView: View {
     @State private var editableExercise: RoutineExercise
     @State private var alternativesText: String
+    @State private var prescriptionSet: ExerciseSet?
+    @State private var showingTemplateEquipment = false
     var onSave: (RoutineExercise) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -495,8 +514,6 @@ struct ExerciseSetEditorView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    ExerciseEditorHero(exercise: editableExercise)
-
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
                         SectionLabel(title: "Movement", icon: "slider.horizontal.3")
 
@@ -554,6 +571,24 @@ struct ExerciseSetEditorView: View {
                             }
                             .accessibilityLabel("\(editableExercise.type.targetLabel) presets")
 
+                            if editableExercise.type == .strength {
+                                Button("Equipment & loading convention") { showingTemplateEquipment = true }.frame(minHeight: 44)
+                                Picker("Progression policy", selection: Binding(get: { editableExercise.progressionPolicy?.kind ?? .conservativeDouble }, set: {
+                                    editableExercise.progressionPolicy = WorkoutProgressionPolicy(kind: $0, incrementPounds: editableExercise.progressionIncrement ?? 5)
+                                })) {
+                                    ForEach(WorkoutProgressionPolicy.Kind.allCases) { Text($0.title).tag($0) }
+                                }.accessibilityIdentifier("exercise_progression_policy")
+                                if editableExercise.progressionPolicy != nil {
+                                    Stepper("Load step: \((editableExercise.progressionPolicy?.incrementPounds ?? 5).formatted()) lb", value: Binding(get: {
+                                        editableExercise.progressionPolicy?.incrementPounds ?? 5
+                                    }, set: { editableExercise.progressionPolicy?.incrementPounds = $0 }), in: 0.25...100, step: 0.25)
+                                }
+                                if let policy = editableExercise.progressionPolicy {
+                                    Text("Policy v\(policy.version) · \(policy.validationMessage(for: editableExercise) ?? "Applies to reviewed future-session suggestions; performed sets stay intact.")")
+                                        .appTextRole(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+
                             Picker("Rest Between Sets", selection: $editableExercise.restTimeInSeconds) {
                                 ForEach(editableExercise.type.restPresets, id: \.self) { seconds in
                                     Text(RoutineEditorDefaults.restLabel(seconds)).tag(seconds)
@@ -588,11 +623,20 @@ struct ExerciseSetEditorView: View {
 
                                     TextField("Target", text: Binding(
                                         get: { editableExercise.sets[index].target ?? "" },
-                                        set: { editableExercise.sets[index].target = $0.trimmed.isEmpty ? nil : $0 }
+                                        set: {
+                                            editableExercise.sets[index].target = $0.trimmed.isEmpty ? nil : $0
+                                            editableExercise.sets[index].prescription = nil
+                                        }
                                     ))
                                     .appTextRole(.body)
                                     .routineInputStyle()
                                     .accessibilityLabel("Set \(index + 1) target")
+                                    Button { prescriptionSet = editableExercise.sets[index] } label: {
+                                        Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Structure target for set \(index + 1)")
+                                    .accessibilityIdentifier("edit_prescription_\(index)")
                                 }
                             }
                         }
@@ -634,8 +678,21 @@ struct ExerciseSetEditorView: View {
                 .padding(.bottom, AppSpacing.section)
             }
             .background(AppPalette.canvas.ignoresSafeArea())
+            .accessibilityIdentifier("exercise_editor_scroll")
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Edit Exercise")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingTemplateEquipment) {
+                StrengthEquipmentSetupView(exerciseName: editableExercise.name, equipment: editableExercise.loadEquipment) { setup in
+                    editableExercise.loadEquipment = setup
+                }
+            }
+            .sheet(item: $prescriptionSet) { set in
+                WorkoutPrescriptionEditorView(exerciseType: editableExercise.type, set: set) { updated in
+                    guard let index = editableExercise.sets.firstIndex(where: { $0.id == updated.id }) else { return }
+                    editableExercise.sets[index] = updated
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -651,6 +708,8 @@ struct ExerciseSetEditorView: View {
                     Label("Save Exercise", systemImage: "checkmark")
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(editableExercise.progressionPolicy?.validationMessage(for: editableExercise) != nil)
+                .accessibilityIdentifier("exercise_editor_save")
                 .disabled(editableExercise.name.trimmed.isEmpty)
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.vertical, AppSpacing.compact)
@@ -677,6 +736,7 @@ struct ExerciseSetEditorView: View {
         let target = setTarget
         for index in editableExercise.sets.indices {
             editableExercise.sets[index].target = target
+            editableExercise.sets[index].prescription = nil
         }
     }
 
@@ -697,7 +757,6 @@ struct ExerciseSetEditorView: View {
             .filter { !$0.isEmpty }
             .nilIfEmpty
         updateSetCount()
-        applyTargetToAllSets()
     }
 
     private func saveAndDismiss() {
@@ -714,8 +773,25 @@ struct ExercisePickerView: View {
     @State private var selectedEquipment: ExerciseList.EquipmentFamily?
     @State private var customExerciseName = ""
     @State private var customExerciseType: ExerciseType = .strength
+    @State private var customMovements: [WorkoutCustomMovement] = []
+    @State private var editingCustomID: String?
+    @State private var customCue = ""
+    @State private var customError: String?
+    private let customOwnerID = DIContainer.shared.authService.currentUserID
 
     var onSelect: (ExercisePickerDraft) -> Void
+    var onSelectMultiple: (([ExercisePickerDraft]) -> Void)?
+    private let isReplacing: Bool
+    @State private var selectsMultiple = false
+    @State private var selectedMovements: [ExercisePickerDraft] = []
+    @State private var favoriteKeys: [String] = []
+    @State private var recentKeys: [String] = []
+    @State private var expandingCustom = false
+
+    init(isReplacing: Bool = false, onSelectMultiple: (([ExercisePickerDraft]) -> Void)? = nil, onSelect: @escaping (ExercisePickerDraft) -> Void) {
+        self.isReplacing = isReplacing
+        self.onSelectMultiple = onSelectMultiple; self.onSelect = onSelect
+    }
 
     private let categorizedExercises = ExerciseList.categorizedExercises
 
@@ -732,11 +808,13 @@ struct ExercisePickerView: View {
             categoryFiltered.filter { ExerciseList.equipment(for: $0.name) == selected }
         } ?? categoryFiltered
         guard !searchText.trimmed.isEmpty else {
-            return equipmentFiltered.sorted()
+            return sortedForDiscovery(equipmentFiltered)
         }
-        return equipmentFiltered
-            .filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.category.localizedCaseInsensitiveContains(searchText) }
-            .sorted()
+        return sortedForDiscovery(equipmentFiltered.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) || $0.category.localizedCaseInsensitiveContains(searchText)
+                || WorkoutMovementCatalog.canonicalName(searchText) == $0.name
+                || ExerciseList.equipment(for: $0.name).rawValue.localizedCaseInsensitiveContains(searchText)
+        })
     }
 
     private var hasActiveFilters: Bool {
@@ -747,44 +825,52 @@ struct ExercisePickerView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    AppScreenHeader(
-                        eyebrow: "Routine Builder",
-                        title: "Add a Movement",
-                        subtitle: "Search the exercise library or create one that is specific to your training."
-                    )
-
-                    VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        AppSectionHeader(
-                            title: "Custom Movement",
-                            subtitle: "Name it, choose how it is measured, and add it directly."
+                    if !isReplacing {
+                        AppScreenHeader(
+                            eyebrow: "Routine Builder",
+                            title: "Add a Movement",
+                            subtitle: "Search the exercise library or create one that is specific to your training."
                         )
+                    }
 
-                        VStack(alignment: .leading, spacing: AppSpacing.group) {
-                            TextField("Add your own exercise", text: $customExerciseName)
-                                .appTextRole(.control)
-                                .textInputAutocapitalization(.words)
-                                .routineInputStyle()
-
-                            Picker("Measurement Type", selection: $customExerciseType) {
-                                ForEach(ExerciseType.allCases, id: \.self) { type in
-                                    Text(type.shortTitle).tag(type)
+                    if onSelectMultiple != nil {
+                        Toggle("Select several movements", isOn: $selectsMultiple)
+                            .accessibilityIdentifier("exercise_picker_multiple")
+                        if selectsMultiple { Text("\(selectedMovements.count) selected in tap order. Nothing is added until Add selected.").appTextRole(.caption).foregroundStyle(.secondary) }
+                    }
+                    if !customMovements.filter({ !$0.archived }).isEmpty {
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            Text("Saved custom movements").appTextRole(.sectionTitle)
+                            ForEach(customMovements.filter { !$0.archived && (searchText.trimmed.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText)) }) { movement in
+                                HStack {
+                                    Button(movement.name) {
+                                        guard let customOwnerID else { return }
+                                        choose(ExercisePickerDraft(name: movement.name, category: "Custom", type: movement.type, movementIdentity: movement.identity(ownerID: customOwnerID)))
+                                    }.frame(minHeight: 44)
+                                    Spacer()
+                                    Menu {
+                                        Button(favoriteKeys.contains(selectionKey(name: movement.name, identity: movement.identity(ownerID: customOwnerID ?? ""))) ? "Remove favorite" : "Favorite movement") {
+                                            toggleFavorite(selectionKey(name: movement.name, identity: movement.identity(ownerID: customOwnerID ?? "")))
+                                        }
+                                        Button("Rename or edit cue") { expandingCustom = true; editingCustomID = movement.id; customExerciseName = movement.name; customExerciseType = movement.type; customCue = movement.cue }
+                                        Button("Archive from selection") {
+                                            do {
+                                                guard let customOwnerID else { throw WorkoutBlockError.accountChanged }
+                                                var archived = movement; archived.archived = true
+                                                try WorkoutCustomMovementStore().save(archived, userID: customOwnerID)
+                                                customMovements = try WorkoutCustomMovementStore().entries(userID: customOwnerID)
+                                            } catch { customError = error.localizedDescription }
+                                        }
+                                    } label: { Image(systemName: "ellipsis") }.buttonStyle(AppIconButtonStyle(.plain))
                                 }
                             }
-                            .pickerStyle(.segmented)
-
-                            Button(action: selectCustomExercise) {
-                                Label("Add Custom Movement", systemImage: "plus")
-                            }
-                            .buttonStyle(AppActionButtonStyle(.secondary))
-                            .disabled(customExerciseName.trimmed.isEmpty)
-                        }
-                        .appSurface(.quiet)
+                        }.appSurface(.quiet)
                     }
 
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
                         AppSectionHeader(
                             title: "Exercise Library",
-                            subtitle: "\(visibleEntries.count) movements match"
+                            subtitle: "\(visibleEntries.count) matches · favorites and recent first"
                         ) {
                             if hasActiveFilters {
                                 Button("Clear") {
@@ -855,26 +941,81 @@ struct ExercisePickerView: View {
                         } else {
                             LazyVStack(spacing: AppSpacing.compact) {
                                 ForEach(visibleEntries) { entry in
-                                    ExercisePickerRow(entry: entry) {
-                                        onSelect(ExercisePickerDraft(
-                                            name: entry.name,
-                                            category: entry.category,
-                                            type: RoutineEditorDefaults.inferredType(name: entry.name, category: entry.category)
-                                        ))
-                                        dismiss()
+                                    ExercisePickerRow(entry: entry, isSelected: selectedMovements.contains(where: { $0.name == entry.name })) {
+                                        choose(ExercisePickerDraft(name: entry.name, category: entry.category,
+                                            type: RoutineEditorDefaults.inferredType(name: entry.name, category: entry.category),
+                                            movementIdentity: WorkoutMovementCatalog.identity(for: entry.name)))
+                                    }
+                                    .contextMenu {
+                                        let key = selectionKey(name: entry.name, identity: WorkoutMovementCatalog.identity(for: entry.name))
+                                        Button(favoriteKeys.contains(key) ? "Remove favorite" : "Favorite movement") { toggleFavorite(key) }
+                                    }
+                                    .accessibilityHint(favoriteKeys.contains(selectionKey(name: entry.name, identity: WorkoutMovementCatalog.identity(for: entry.name))) ? "Favorite movement. Actions include Remove favorite." : "Actions include Favorite movement.")
+                                    .accessibilityAction(named: Text(favoriteKeys.contains(selectionKey(name: entry.name, identity: WorkoutMovementCatalog.identity(for: entry.name))) ? "Remove favorite" : "Favorite movement")) {
+                                        toggleFavorite(selectionKey(name: entry.name, identity: WorkoutMovementCatalog.identity(for: entry.name)))
                                     }
                                 }
                             }
                         }
                     }
+                    DisclosureGroup("Create or edit a custom movement", isExpanded: $expandingCustom) {
+                        AppSectionHeader(
+                            title: "Custom Movement",
+                            subtitle: "Name it, choose how it is measured, and add it directly."
+                        )
+
+                        VStack(alignment: .leading, spacing: AppSpacing.group) {
+                            TextField("Add your own exercise", text: $customExerciseName)
+                                .appTextRole(.control)
+                                .textInputAutocapitalization(.words)
+                                .routineInputStyle()
+
+                            Picker("Measurement Type", selection: $customExerciseType) {
+                                ForEach(ExerciseType.allCases, id: \.self) { type in
+                                    Text(type.shortTitle).tag(type)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            TextField("Optional setup cue", text: $customCue, axis: .vertical).routineInputStyle()
+                            if let duplicate = customMovements.first(where: { !$0.archived && $0.name.caseInsensitiveCompare(customExerciseName.trimmed) == .orderedSame && $0.id != editingCustomID }) {
+                                Text("A saved movement already uses this name: \(duplicate.name). Add it from Saved custom movements below.").appTextRole(.caption).foregroundStyle(AppPalette.caution)
+                            }
+                            if let customError { Text(customError).appTextRole(.secondary).foregroundStyle(AppPalette.caution) }
+                            Button(action: selectCustomExercise) {
+                                Label("Add Custom Movement", systemImage: "plus")
+                            }
+                            .buttonStyle(AppActionButtonStyle(.secondary))
+                            .disabled(customExerciseName.trimmed.isEmpty)
+                        }
+                        .appSurface(.quiet)
+                    }
+
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.group)
                 .padding(.bottom, AppSpacing.section)
             }
             .background(AppPalette.canvas.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom) {
+                if selectsMultiple {
+                    Button("Add selected \(selectedMovements.count) movements") { recordSelections(selectedMovements); onSelectMultiple?(selectedMovements); dismiss() }
+                        .buttonStyle(AppActionButtonStyle(.primary)).disabled(selectedMovements.isEmpty)
+                        .padding(AppSpacing.screenHorizontal).background(AppPalette.canvas)
+                        .accessibilityIdentifier("exercise_picker_add_selected")
+                }
+            }
             .searchable(text: $searchText, prompt: "Search exercises")
-            .navigationTitle("Add Exercise")
+            .onAppear {
+                do {
+                    if let customOwnerID {
+                        customMovements = try WorkoutCustomMovementStore().entries(userID: customOwnerID)
+                        let preferences = try WorkoutMovementSelectionStore().load(userID: customOwnerID)
+                        favoriteKeys = preferences.favorites; recentKeys = preferences.recent
+                    }
+                } catch { customError = error.localizedDescription }
+            }
+            .navigationTitle(isReplacing ? "Choose replacement" : "Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -889,12 +1030,42 @@ struct ExercisePickerView: View {
         }
     }
 
+    private func choose(_ movement: ExercisePickerDraft) {
+        if selectsMultiple {
+            if let index = selectedMovements.firstIndex(where: { $0.movementIdentity == movement.movementIdentity && $0.name == movement.name }) { selectedMovements.remove(at: index) } else { selectedMovements.append(movement) }
+        } else { recordSelections([movement]); onSelect(movement); dismiss() }
+    }
+    private func selectionKey(name: String, identity: WorkoutMovementIdentity?) -> String { WorkoutMovementSelectionStore.key(name: name, identity: identity) }
+    private func sortedForDiscovery(_ entries: [ExercisePickerEntry]) -> [ExercisePickerEntry] {
+        func rank(_ entry: ExercisePickerEntry) -> Int {
+            let key = selectionKey(name: entry.name, identity: WorkoutMovementCatalog.identity(for: entry.name))
+            if favoriteKeys.contains(key) { return -1 }
+            return recentKeys.firstIndex(of: key) ?? 1_000
+        }
+        return entries.sorted { rank($0) == rank($1) ? $0 < $1 : rank($0) < rank($1) }
+    }
+    private func recordSelections(_ movements: [ExercisePickerDraft]) {
+        guard let customOwnerID else { return }
+        do { try WorkoutMovementSelectionStore().record(movements.map { selectionKey(name: $0.name, identity: $0.movementIdentity) }, userID: customOwnerID) } catch { customError = "The movements were selected, but recent choices could not be saved on this device." }
+    }
+    private func toggleFavorite(_ key: String) {
+        guard let customOwnerID else { return }
+        do {
+            let store = WorkoutMovementSelectionStore()
+            try store.setFavorite(key, enabled: !favoriteKeys.contains(key), userID: customOwnerID)
+            favoriteKeys = try store.load(userID: customOwnerID).favorites
+        } catch { customError = error.localizedDescription }
+    }
     private func selectCustomExercise() {
-        onSelect(ExercisePickerDraft(
-            name: customExerciseName.trimmed,
-            category: "Custom",
-            type: customExerciseType
-        ))
-        dismiss()
+        do {
+            guard let customOwnerID else { throw WorkoutBlockError.accountChanged }
+            let movement = WorkoutCustomMovement(id: editingCustomID ?? UUID().uuidString, name: customExerciseName.trimmed,
+                type: customExerciseType, cue: customCue)
+            try WorkoutCustomMovementStore().save(movement, userID: customOwnerID)
+            let selected = ExercisePickerDraft(name: movement.name, category: "Custom", type: movement.type,
+                movementIdentity: movement.identity(ownerID: customOwnerID))
+            if selectsMultiple, let index = selectedMovements.firstIndex(where: { $0.movementIdentity == selected.movementIdentity }) { selectedMovements[index] = selected } else { choose(selected) }
+            if selectsMultiple { customExerciseName = ""; customCue = ""; editingCustomID = nil; customMovements = try WorkoutCustomMovementStore().entries(userID: customOwnerID) }
+        } catch { customError = error.localizedDescription }
     }
 }

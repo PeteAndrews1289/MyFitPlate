@@ -164,8 +164,13 @@ final class RunStatsTests: XCTestCase {
             RunSplit(index: 4, distanceMeters: 100, seconds: 373)
         ]
 
-        XCTAssertGreaterThan(RunStats.negativeSplitDeltaSecondsPerKm(splits: stopHeavySplits) ?? 0, 0)
+        XCTAssertLessThan(RunStats.negativeSplitDeltaSecondsPerKm(splits: stopHeavySplits) ?? 0, 0,
+                          "A slow partial tail belongs in the equal-distance second half")
         XCTAssertFalse(RunStats.isNegativeSplit(splits: stopHeavySplits))
+        var fullSplits = Array(stopHeavySplits.prefix(3))
+        fullSplits.append(RunSplit(index: 4, distanceMeters: 1_000, seconds: 373))
+        XCTAssertGreaterThan(RunStats.negativeSplitDeltaSecondsPerKm(splits: fullSplits) ?? 0, 0)
+        XCTAssertFalse(RunStats.isNegativeSplit(splits: fullSplits), "Stop-heavy variation still suppresses the badge even with a genuine faster half")
     }
 
     func testFastestSplit() {
@@ -207,5 +212,28 @@ final class RouteSimplifyTests: XCTestCase {
     func testDegenerateCapReturnsInput() {
         let input = trace(10)
         XCTAssertEqual(RouteSimplify.decimate(input, maxPoints: 1), input)
+    }
+}
+
+extension RunStatsTests {
+    func testSimilarRunsExcludeOwnHealthAliasAndIndoorContextWithoutDistanceHeuristicMerging() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let current = Run(id: "local", source: .recorded, startDate: start, endDate: start.addingTimeInterval(1500), distanceMeters: 5000, movingSeconds: 1500, recordingID: "original")
+        let alias = current.reidentified(as: "health")
+        var indoor = current.reidentified(as: "indoor")
+        indoor.recordingID = "indoor"
+        indoor.isIndoor = true
+        indoor.movingSeconds = 1000
+        var previous = current.reidentified(as: "previous")
+        previous.recordingID = "previous"
+        previous.startDate = start.addingTimeInterval(-86_400)
+        previous.endDate = previous.startDate.addingTimeInterval(1600)
+        previous.movingSeconds = 1600
+        let comparison = RunStats.ghostPaceComparison(for: current, against: [alias, indoor, previous, previous.reidentified(as: "previous-health")])
+        XCTAssertEqual(comparison?.matchingRunsCount, 1)
+        XCTAssertEqual(comparison?.averagePaceSecondsPerKm, 320)
+        var invalid = previous
+        invalid.distanceMeters = .infinity
+        XCTAssertNil(RunStats.personalRecords(from: [invalid]).longestRun)
     }
 }

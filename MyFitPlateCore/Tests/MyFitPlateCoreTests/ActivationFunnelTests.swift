@@ -6,18 +6,46 @@ final class ActivationFunnelTests: XCTestCase {
     private let suiteName = "activation-funnel-tests"
     private var defaults: UserDefaults!
     private var mockAnalytics: MockAnalyticsManager!
+    private var mockAuth: MockAuthService!
+    private var previousAnalytics: AnalyticsManagerProtocol?
+    private var previousAuth: AuthServiceProtocol?
 
     override func setUp() {
         super.setUp()
+        previousAnalytics = DIContainer.shared.analyticsManager
+        previousAuth = DIContainer.shared.authService
         defaults = UserDefaults(suiteName: suiteName)
         defaults.removePersistentDomain(forName: suiteName)
         mockAnalytics = MockAnalyticsManager()
+        mockAuth = MockAuthService()
+        mockAuth.currentUserID = "activation-owner"
         DIContainer.shared.analyticsManager = mockAnalytics
+        DIContainer.shared.authService = mockAuth
     }
 
     override func tearDown() {
+        DIContainer.shared.analyticsManager = previousAnalytics
+        DIContainer.shared.authService = previousAuth
         defaults.removePersistentDomain(forName: suiteName)
         super.tearDown()
+    }
+
+    func testAccountProgressRequiresSignedInOwnerWithoutChangingInstallAnalytics() {
+        let event = ActivationFunnel.firstFoodLogged
+        let firstDate = Date(timeIntervalSince1970: 1_000)
+        let progress = AccountProgressStore(defaults: defaults)
+        mockAuth.currentUserID = nil
+        ActivationFunnel.logOnce(event, now: firstDate, userDefaults: defaults)
+        XCTAssertNil(progress.date(event, userID: "activation-owner"))
+
+        mockAuth.currentUserID = "activation-owner"
+        ActivationFunnel.logOnce(event, now: firstDate.addingTimeInterval(30), userDefaults: defaults)
+        XCTAssertEqual(progress.date(event, userID: "activation-owner"), firstDate.addingTimeInterval(30))
+        mockAuth.currentUserID = "another-owner"
+        ActivationFunnel.logOnce(event, now: firstDate.addingTimeInterval(60), userDefaults: defaults)
+        XCTAssertEqual(progress.date(event, userID: "another-owner"), firstDate.addingTimeInterval(60))
+        XCTAssertEqual(progress.date(event, userID: "activation-owner"), firstDate.addingTimeInterval(30))
+        XCTAssertEqual(mockAnalytics.loggedEvents.filter { $0.name == event }.count, 1)
     }
 
     func testLogOnceFiresExactlyOncePerInstall() {

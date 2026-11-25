@@ -100,8 +100,9 @@ struct WaterBottleView: View {
     var body: some View {
         GeometryReader { geometry in
             let minSide = min(geometry.size.width, geometry.size.height)
-            let bottleWidth = minSide * 0.52
-            let bottleHeight = minSide * 0.92
+            // Reserve room for the amount and action on smaller watches.
+            let bottleHeight = max(54, min(128, geometry.size.height - 104))
+            let bottleWidth = bottleHeight * 0.58
 
             VStack(spacing: 6) {
                 ZStack {
@@ -151,10 +152,16 @@ struct WaterBottleView: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    Text("Turn the crown to add water")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                    HStack(spacing: 6) {
+                        ForEach([8, 16], id: \.self) { ounces in
+                            Button("\(ounces) oz") { pendingOunces = Double(ounces) }
+                                .font(.caption.weight(.semibold))
+                                .buttonStyle(.bordered)
+                                .tint(WatchPalette.accentWater)
+                        }
+                    }
+                    Text("Or turn the crown")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)

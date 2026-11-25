@@ -41,7 +41,11 @@ final class MyFoodsLibraryViewModel: ObservableObject {
     }
 
     var duplicateGroups: [MyFoodsDuplicateGroup] {
-        MyFoodsLibraryRules.duplicateGroups(from: entries)
+        let separate = (try? SavedFoodDuplicateDecisionStore(userID: DIContainer.shared.authService.currentUserID).decisions()) ?? []
+        return MyFoodsLibraryRules.reviewGroups(from: entries).filter { group in
+            guard let key = try? SavedFoodDuplicateDecisionStore.key([group.keeper.item] + group.duplicates.map(\.item)) else { return true }
+            return !separate.contains(key)
+        }
     }
 
     func count(for filter: MyFoodsLibraryFilter) -> Int {
@@ -235,6 +239,9 @@ struct MyFoodsLibraryView: View {
     @EnvironmentObject private var bannerService: BannerService
     @StateObject private var viewModel: MyFoodsLibraryViewModel
     @State private var editingLog: DailyLog?
+    @State private var reviewingCopies: MyFoodsDuplicateGroup?
+    @State private var showingLibraryHistory = false
+    @StateObject private var maintenance = LibraryMutationSession(userID: DIContainer.shared.authService.currentUserID)
 
     private let loadsRemoteData: Bool
     private let onLibraryChanged: () -> Void
@@ -278,6 +285,7 @@ struct MyFoodsLibraryView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) { Button("Changes") { showingLibraryHistory = true } }
             }
             .refreshable {
                 guard loadsRemoteData else { return }
@@ -303,16 +311,26 @@ struct MyFoodsLibraryView: View {
             }
         }
         .alert(item: $viewModel.confirmation, content: confirmationAlert)
+        .sheet(item: $reviewingCopies) { group in
+            SavedFoodMergeReviewView(group: group, session: maintenance, onChanged: reloadAfterLibraryChange)
+        }
+        .sheet(isPresented: $showingLibraryHistory) {
+            LibraryMaintenanceHistoryView(session: maintenance, onChanged: reloadAfterLibraryChange)
+        }
+        .onChange(of: maintenance.checkpoint.history.map(\.id)) { _, _ in reloadAfterLibraryChange() }
     }
 
     private var libraryContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
                 if dynamicTypeSize.isAccessibilitySize {
-                    inlineSearchField
+                    LibraryInlineSearchField(prompt: "Search saved foods", text: $viewModel.query, identifier: "my_foods_inline_search")
                 }
 
                 libraryControls
+                if maintenance.pending != nil || maintenance.errorMessage != nil {
+                    LibraryMutationStatusView(session: maintenance, onChanged: reloadAfterLibraryChange).appSurface(.quiet)
+                }
 
                 if let loadError = viewModel.loadError {
                     inlineError(loadError)
@@ -333,23 +351,6 @@ struct MyFoodsLibraryView: View {
             .padding(.bottom, AppSpacing.section)
         }
         .accessibilityIdentifier("my_foods_library")
-    }
-
-    /// At accessibility sizes the system search bar clips even a one-word prompt, so search moves
-    /// into the list as a field that wraps with the text.
-    private var inlineSearchField: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            TextField("Search saved foods", text: $viewModel.query, axis: .vertical)
-                .appTextRole(.body)
-                .lineLimit(1...4)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-                .accessibilityIdentifier("my_foods_inline_search")
-        }
-        .appSurface(.quiet)
     }
 
     private var libraryControls: some View {
@@ -481,13 +482,14 @@ struct MyFoodsLibraryView: View {
             VStack(spacing: 0) {
                 ForEach(Array(viewModel.duplicateGroups.enumerated()), id: \.element.id) { index, group in
                     Button {
-                        viewModel.confirmation = .merge(group)
+                        reviewingCopies = group
                     } label: {
                         AppListRow(
                             icon: "square.on.square",
                             iconColor: AppPalette.caution,
                             title: group.keeper.item.name,
-                            subtitle: "\(group.itemCount) identical saved copies"
+                            subtitle: MyFoodsLibraryRules.areExactDuplicates([group.keeper.item] + group.duplicates.map(\.item))
+                                ? "\(group.itemCount) exact copies · choose a keeper" : "\(group.itemCount) possible matches · review differences"
                         ) {
                             Text("Review")
                                 .appTextRole(.caption)
@@ -614,6 +616,12 @@ struct MyFoodsLibraryView: View {
         }
     }
 
+    private func reloadAfterLibraryChange() {
+        viewModel.objectWillChange.send()
+        if loadsRemoteData { viewModel.load(using: dailyLogService) }
+        onLibraryChanged()
+    }
+
     private func showResult(success: Bool, title: String, message: String) {
         if success {
             HapticManager.instance.notification(.success)
@@ -673,7 +681,6 @@ private struct MyFoodsLibraryRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
-            foodGlyph
 
             Button(action: editAction) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -683,7 +690,7 @@ private struct MyFoodsLibraryRow: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(entry.item.servingSize.isEmpty ? "Serving details unavailable" : entry.item.servingSize)
+                    Text(entry.item.diaryPortionSummary)
                         .appTextRole(.secondary)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -729,24 +736,6 @@ private struct MyFoodsLibraryRow: View {
         .padding(.horizontal, AppSpacing.group)
         .padding(.vertical, AppSpacing.row)
         .accessibilityIdentifier("my_foods_row_\(entry.id)")
-    }
-
-    @ViewBuilder
-    private var foodGlyph: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            Image(systemName: "fork.knife")
-                .appTextRole(.control)
-                .foregroundStyle(.secondary)
-                .frame(width: 42, height: 42)
-                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-                .accessibilityHidden(true)
-        } else {
-            Text(FoodEmojiMapper.getEmoji(for: entry.item.name))
-                .font(.system(size: 23))
-                .frame(width: 42, height: 42)
-                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-                .accessibilityHidden(true)
-        }
     }
 
     private var normalizedBarcode: String? {
@@ -850,8 +839,30 @@ private extension MyFoodsLibrarySort {
     }
 }
 
+/// An in-list search field that wraps at the largest text sizes.
+struct LibraryInlineSearchField: View {
+    let prompt: String
+    @Binding var text: String
+    let identifier: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $text, axis: .vertical)
+                .appTextRole(.body)
+                .lineLimit(1...4)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier(identifier)
+        }
+        .appSurface(.quiet)
+    }
+}
+
 /// Applies the system search bar only when it can render its prompt without clipping.
-private struct SystemSearchBar: ViewModifier {
+struct SystemSearchBar: ViewModifier {
     let isEnabled: Bool
     @Binding var text: String
     let prompt: String

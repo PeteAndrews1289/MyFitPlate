@@ -9,6 +9,17 @@ public protocol UserNotificationScheduling {
     func add(_ request: UNNotificationRequest, completion: ((Error?) -> Void)?)
     func removePendingRequests(withIdentifiers identifiers: [String])
     func setBadgeCount(_ count: Int)
+    func pendingRequests(completion: @escaping ([UNNotificationRequest]) -> Void)
+    func deliveredRequestIdentifiers(completion: @escaping ([String]) -> Void)
+    func removeDeliveredRequests(withIdentifiers identifiers: [String])
+    func setReminderCategories(_ categories: Set<UNNotificationCategory>)
+}
+
+public extension UserNotificationScheduling {
+    func pendingRequests(completion: @escaping ([UNNotificationRequest]) -> Void) { completion([]) }
+    func deliveredRequestIdentifiers(completion: @escaping ([String]) -> Void) { completion([]) }
+    func removeDeliveredRequests(withIdentifiers identifiers: [String]) {}
+    func setReminderCategories(_ categories: Set<UNNotificationCategory>) {}
 }
 
 public struct SystemUserNotificationCenter: UserNotificationScheduling {
@@ -34,6 +45,18 @@ public struct SystemUserNotificationCenter: UserNotificationScheduling {
 
     public func removePendingRequests(withIdentifiers identifiers: [String]) {
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    public func pendingRequests(completion: @escaping ([UNNotificationRequest]) -> Void) { center.getPendingNotificationRequests(completionHandler: completion) }
+    public func deliveredRequestIdentifiers(completion: @escaping ([String]) -> Void) {
+        center.getDeliveredNotifications { completion($0.map { $0.request.identifier }) }
+    }
+    public func removeDeliveredRequests(withIdentifiers identifiers: [String]) { center.removeDeliveredNotifications(withIdentifiers: identifiers) }
+    public func setReminderCategories(_ categories: Set<UNNotificationCategory>) {
+        center.getNotificationCategories { existing in
+            let ids = Set(categories.map(\.identifier))
+            self.center.setNotificationCategories(Set(existing.filter { !ids.contains($0.identifier) }).union(categories))
+        }
     }
 
     public func setBadgeCount(_ count: Int) {

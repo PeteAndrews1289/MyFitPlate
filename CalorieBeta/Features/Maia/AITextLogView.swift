@@ -12,8 +12,19 @@ struct AITextLogView: View {
     @FocusState private var descriptionIsFocused: Bool
 
     private let textLogService = AITextLogService()
+    private let targetDate: Date
+    private let targetMeal: String
+    private let trainingFuelTarget: TrainingFuelTarget?
 
-    init() {
+    init(date: Date = Date(), mealName: String = "Dinner", trainingFuelTarget: TrainingFuelTarget? = nil) {
+        let pending = MealReviewSaveSession.pendingReview(source: "ai_text", userID: DIContainer.shared.authService.currentUserID)
+        self.trainingFuelTarget = pending.map { $0.trainingFuelTarget } ?? trainingFuelTarget
+        targetDate = pending?.draft.date ?? date
+        targetMeal = pending?.draft.mealName ?? mealName
+        if let pending {
+            _estimatedItems = State(initialValue: pending.draft.entries.map(\.food))
+            _showResults = State(initialValue: true)
+        }
         #if DEBUG
         guard ScreenshotDemoMode.isEnabled else { return }
         let screen = ScreenshotDemoData.requestedScreen
@@ -38,12 +49,10 @@ struct AITextLogView: View {
             ZStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppSpacing.section) {
-                        AppScreenHeader(
-                            eyebrow: "Maia Quick Log",
-                            title: "Describe a Meal",
-                            subtitle: "Write what you ate in your own words. Maia will separate it into foods for you to review."
-                        )
-                        .accessibilityIdentifier("ai_text_header")
+                        if let trainingFuelTarget { TrainingFuelTargetContextView(target: trainingFuelTarget) }
+                        Text("Tell Maia what you ate. Include portions, brands and extras when you remember them.")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("ai_text_header")
 
                         descriptionSection
                         detailGuidance
@@ -95,7 +104,7 @@ struct AITextLogView: View {
                 }
                 .sheet(isPresented: $showResults) {
                     if let estimatedItems {
-                        AITextResultsView(foodItems: estimatedItems) {
+                        AITextResultsView(foodItems: estimatedItems, date: targetDate, mealName: targetMeal, trainingFuelTarget: trainingFuelTarget) {
                             dismiss()
                         }
                     }
@@ -112,8 +121,7 @@ struct AITextLogView: View {
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
-                title: "Meal Description",
-                subtitle: "One sentence is enough. Include amounts when you know them."
+                title: "What did you eat?"
             )
 
             ZStack(alignment: .topLeading) {
@@ -145,36 +153,25 @@ struct AITextLogView: View {
                     .stroke(AppPalette.separator, lineWidth: 1)
             }
         }
-        .appSurface(.quiet)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ai_text_description_section")
     }
 
     private var detailGuidance: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(
-                title: "Details That Help",
-                subtitle: "Add only what you remember. You can correct every item before logging."
-            )
-
-            AITextGuidanceRow(icon: "scalemass", text: "Portion or serving size")
-            Divider()
-            AITextGuidanceRow(icon: "tag", text: "Brand or restaurant")
-            Divider()
-            AITextGuidanceRow(icon: "drop", text: "Sauces, oils, and toppings")
-            Divider()
-            AITextGuidanceRow(icon: "frying.pan", text: "Cooking method")
-
-            Label(
-                "Maia provides an estimate, not a verified database match. Nothing is logged until you review it.",
-                systemImage: "checkmark.shield"
-            )
-            .appTextRole(.secondary)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, AppSpacing.compact)
+            Label("AI estimate · review before logging", systemImage: "sparkles")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+            DisclosureGroup("Tips for a better estimate") {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AITextGuidanceRow(icon: "scalemass", text: "Portion or serving size")
+                    AITextGuidanceRow(icon: "tag", text: "Brand or restaurant")
+                    AITextGuidanceRow(icon: "drop", text: "Sauces, oils, and toppings")
+                    AITextGuidanceRow(icon: "frying.pan", text: "Cooking method")
+                    Text("Maia estimates nutrition; it is not a verified database match. You can correct every food before logging.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }.padding(.top, AppSpacing.row)
+            }.appTextRole(.control).tint(AppPalette.text)
         }
-        .appSurface(.quiet)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ai_text_guidance")
     }

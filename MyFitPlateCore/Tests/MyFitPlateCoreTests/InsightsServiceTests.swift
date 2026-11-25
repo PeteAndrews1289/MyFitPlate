@@ -245,7 +245,7 @@ final class InsightsServiceTests: XCTestCase {
             "calories": 400,
             "protein": 30,
             "carbs": 20,
-            "fats": 10,
+            "fats": 20,
             "ingredients": ["Chicken", "Lettuce"],
             "instructions": "Mix it"
         }

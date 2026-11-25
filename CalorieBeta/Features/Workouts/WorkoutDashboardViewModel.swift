@@ -3,7 +3,6 @@ import MyFitPlateCore
 import SwiftUI
 
 struct TrainingReadinessBrief {
-    let score: Int
     let status: String
     let message: String
     let icon: String
@@ -31,13 +30,13 @@ class WorkoutDashboardViewModel: ObservableObject {
             return nil
         }
 
-        let totalWorkoutsInProgram = daysPerWeek * 12
+        let totalWorkoutsInProgram = program.totalSlots
         guard progressIndex < totalWorkoutsInProgram else { return nil }
 
         let routineIndex = progressIndex % program.routines.count
         guard routineIndex < program.routines.count else { return nil }
 
-        let routine = program.routines[routineIndex]
+        guard let routine = program.routine(forSlot: progressIndex) else { return nil }
         let weekNumber = (progressIndex / daysPerWeek) + 1
         let dayNumber = (progressIndex % daysPerWeek) + 1
         let title = "Start Week \(weekNumber) · Day \(dayNumber)"
@@ -47,81 +46,34 @@ class WorkoutDashboardViewModel: ObservableObject {
 
     func trainingBrief(todayLog: DailyLog?, goalSettings: GoalSettings) -> TrainingReadinessBrief {
         let calories = todayLog?.totalCalories() ?? 0
-        let calorieGoal = max(goalSettings.calories ?? 2000, 1)
         let protein = todayLog?.totalMacros().protein ?? 0
         let proteinGoal = max(goalSettings.protein, 1)
         let water = todayLog?.waterTracker?.totalOunces ?? 0
         let waterGoal = max(goalSettings.waterGoal, 1)
         let loggedWorkouts = todayLog?.exercises?.count ?? 0
 
-        let calorieRatio = calories / calorieGoal
-        let proteinRatio = protein / proteinGoal
-        let waterRatio = water / waterGoal
-
-        var score = 48
-        score += calorieRatio >= 0.20 ? 14 : -4
-        score += proteinRatio >= 0.35 ? 14 : 0
-        score += waterRatio >= 0.35 ? 14 : -3
-        score += loggedWorkouts == 0 ? 6 : -6
-        score = min(max(score, 25), 95)
-
-        let status: String
-        let message: String
-        let icon: String
-        let role: AppSignalRole
-
-        if loggedWorkouts > 0 {
-            status = "Recovery Mode"
-            message = "You already logged activity today. Start another session if it is intentional, or keep the next block easy."
-            icon = "moon.zzz.fill"
-            role = .recovery
-        } else if score >= 78 {
-            status = "Primed to Train"
-            message = "Fuel, hydration, and protein are lining up. This is a good window for a focused session."
-            icon = "bolt.fill"
-            role = .positive
-        } else if waterRatio < 0.25 {
-            status = "Hydrate First"
-            message = "Log some water before you train. It is the fastest readiness win in the app."
-            icon = "drop.fill"
-            role = .recovery
-        } else if calorieRatio < 0.15 {
-            status = "Fuel First"
-            message = "You have not logged much food yet. Consider a small meal or snack before a hard session."
-            icon = "fork.knife"
-            role = .caution
-        } else {
-            status = "Ready, Build Gradually"
-            message = "You are clear to train. Warm up patiently and let the first working set tell you the day."
-            icon = "figure.strengthtraining.traditional"
-            role = .current
-        }
+        let hasFood = calories > 0 || protein > 0
+        let status = loggedWorkouts > 0 ? "Activity recorded" : hasFood || water > 0 ? "Today's logged fuel" : "No fuel recorded yet"
+        let message = "These are your logged amounts, not a readiness assessment. Missing entries do not mean you have not eaten or hydrated."
+        let icon = loggedWorkouts > 0 ? "checkmark.circle" : "list.bullet.clipboard"
+        let role: AppSignalRole = .current
 
         return TrainingReadinessBrief(
-            score: score,
             status: status,
             message: message,
             icon: icon,
             role: role,
             signals: [
-                TrainingSignal(title: "Fuel", value: calories > 0 ? "\(Int(calories.rounded())) cal" : "Not logged", icon: "flame.fill", role: .caution),
-                TrainingSignal(title: "Protein", value: "\(Int(protein.rounded()))/\(Int(proteinGoal.rounded()))g", icon: "bolt.fill", role: .effort),
-                TrainingSignal(title: "Water", value: "\(Int(water.rounded()))/\(Int(waterGoal.rounded())) oz", icon: "drop.fill", role: .recovery),
-                TrainingSignal(title: "Activity", value: loggedWorkouts == 0 ? "Open" : "\(loggedWorkouts) logged", icon: "figure.run", role: .effort)
+                TrainingSignal(title: "Fuel", value: calories > 0 ? "\(Int(calories.rounded()).formatted()) cal" : "Not logged", icon: "flame.fill", role: .caution),
+                TrainingSignal(title: "Protein", value: "\(Int(protein.rounded()).formatted()) of \(Int(proteinGoal.rounded()).formatted()) g", icon: "bolt.fill", role: .effort),
+                TrainingSignal(title: "Water", value: "\(Int(water.rounded()).formatted()) of \(Int(waterGoal.rounded()).formatted()) oz", icon: "drop.fill", role: .recovery),
+                TrainingSignal(title: "Activity", value: loggedWorkouts == 0 ? "Not logged" : "\(loggedWorkouts.formatted()) logged", icon: "figure.run", role: .effort)
             ]
         )
     }
 
     func completedLogsByIndex(for program: WorkoutProgram) -> [Int: WorkoutSessionLog] {
-        let current = program.currentProgressIndex ?? 0
-        let skipped = Set(program.skippedIndices ?? [])
-        let completedSlots = (0..<current).filter { !skipped.contains($0) }
-        let sortedLogs = sessionLogs.sorted { $0.date < $1.date }
-        var result: [Int: WorkoutSessionLog] = [:]
-        for (slot, log) in zip(completedSlots, sortedLogs) {
-            result[slot] = log
-        }
-        return result
+        WorkoutRules.sessionLogsBySlot(in: program, sessionLogs: sessionLogs)
     }
 
     func refreshSessionLogs(for program: WorkoutProgram?, workoutService: any WorkoutServicing, expectingAtLeast expectedCount: Int? = nil) async {
@@ -130,7 +82,10 @@ class WorkoutDashboardViewModel: ObservableObject {
             return
         }
 
-        var logs = await workoutService.fetchSessionLogs(for: program)
+        let ownerID = DIContainer.shared.authService.currentUserID
+        guard case .success(var logs) = await workoutService.fetchSessionLogsResult(for: program) else { return }
+        guard !Task.isCancelled, DIContainer.shared.authService.currentUserID == ownerID,
+              workoutService.activeProgram?.id == program.id else { return }
         if let expectedCount = expectedCount, logs.count < expectedCount {
             try? await Task.sleep(nanoseconds: 300_000_000)
             let retryLogs = await workoutService.fetchSessionLogs(for: program)
@@ -138,14 +93,10 @@ class WorkoutDashboardViewModel: ObservableObject {
                 logs = retryLogs
             }
         }
+        guard !Task.isCancelled, DIContainer.shared.authService.currentUserID == ownerID,
+              let latestProgram = workoutService.activeProgram, latestProgram.id == program.id else { return }
         sessionLogs = logs
 
-        let reconciledProgram = WorkoutRules.reconcileProgressFromSessionLogs(in: program, sessionLogs: logs)
-        if reconciledProgram.currentProgressIndex != program.currentProgressIndex {
-            let savedProgram = await workoutService.saveProgram(reconciledProgram) ?? reconciledProgram
-            if savedProgram.id == workoutService.activeProgram?.id {
-                workoutService.activeProgram = savedProgram
-            }
-        }
+        _ = await workoutService.reconcileProgramProgress(in: latestProgram, knownLogs: logs)
     }
 }

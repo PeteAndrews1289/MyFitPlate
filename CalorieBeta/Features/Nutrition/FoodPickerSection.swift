@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateDesign
 import MyFitPlateCore
 
 struct FoodPickerSection: View {
@@ -6,6 +7,8 @@ struct FoodPickerSection: View {
     let subtitle: String
     let foods: [FoodItem]
     let quickLoggedFoodIDs: Set<String>
+    let loggingFoodIDs: Set<String>
+    let isBuildingMeal: Bool
     let emptyTitle: String
     let emptyMessage: String
     let onSelect: (FoodItem) -> Void
@@ -18,6 +21,8 @@ struct FoodPickerSection: View {
         subtitle: String,
         foods: [FoodItem],
         quickLoggedFoodIDs: Set<String>,
+        loggingFoodIDs: Set<String> = [],
+        isBuildingMeal: Bool = false,
         emptyTitle: String,
         emptyMessage: String,
         onSelect: @escaping (FoodItem) -> Void,
@@ -29,6 +34,8 @@ struct FoodPickerSection: View {
         self.subtitle = subtitle
         self.foods = foods
         self.quickLoggedFoodIDs = quickLoggedFoodIDs
+        self.loggingFoodIDs = loggingFoodIDs
+        self.isBuildingMeal = isBuildingMeal
         self.emptyTitle = emptyTitle
         self.emptyMessage = emptyMessage
         self.onSelect = onSelect
@@ -39,16 +46,24 @@ struct FoodPickerSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(title: title, subtitle: subtitle.isEmpty ? nil : subtitle)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                    .foregroundStyle(AppPalette.text)
+                if !subtitle.isEmpty { Text(subtitle).appTextRole(.secondary).foregroundStyle(.secondary) }
+            }
 
             if foods.isEmpty {
                 FoodSearchEmptyState(icon: "tray", title: emptyTitle, message: emptyMessage)
             } else {
                 VStack(spacing: 0) {
+                    Divider()
                     ForEach(Array(foods.enumerated()), id: \.element.id) { index, food in
                         FoodPickerRow(
                             food: food,
                             isQuickLogged: quickLoggedFoodIDs.contains(food.id),
+                            isLogging: loggingFoodIDs.contains(food.id),
+                            isBuildingMeal: isBuildingMeal,
                             onSelect: onSelect,
                             onQuickLog: onQuickLog,
                             onDelete: onDelete,
@@ -56,12 +71,30 @@ struct FoodPickerSection: View {
                         )
 
                         if index < foods.count - 1 {
-                            Divider().padding(.leading, 66)
+                            Divider()
                         }
                     }
                 }
-                .appSurface(.quiet, padding: 0)
             }
+        }
+    }
+}
+
+struct FoodDisplayIdentity {
+    let fullName: String
+    let brand: String?
+    let product: String
+
+    init(name: String, brandName: String?) {
+        fullName = FoodSearchRanking.productDisplayName(name, brandName: brandName)
+        if let reported = FoodSearchRanking.reportedBrandName(brandName),
+           let prefix = fullName.range(of: reported + " ", options: [.anchored, .caseInsensitive, .diacriticInsensitive]),
+           prefix.upperBound != fullName.endIndex {
+            brand = reported
+            product = String(fullName[prefix.upperBound...])
+        } else {
+            brand = nil
+            product = fullName
         }
     }
 }
@@ -69,55 +102,34 @@ struct FoodPickerSection: View {
 struct FoodPickerRow: View {
     let food: FoodItem
     let isQuickLogged: Bool
+    var isLogging = false
+    var isBuildingMeal = false
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
     let onDelete: ((FoodItem) -> Void)?
     let source: String?
+    var selectionID: String?
+    var quickActionID: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var detailText: String {
-        if food.sourceMetadata?.sourceType == .nihDSLD {
-            let count = food.reportedMicronutrientCount
-            let noun = count == 1 ? "label nutrient" : "label nutrients"
-            return "\(count) \(noun)  •  NIH DSLD"
-        }
-
-        guard food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fats > 0 else {
-            return "Tap to review nutrition"
-        }
-
-        var parts: [String] = []
-        if food.calories > 0 { parts.append("\(Int(food.calories.rounded()).formatted()) cal") }
-        if food.protein > 0 { parts.append("P \(Int(food.protein.rounded()).formatted())g") }
-        if food.carbs > 0 { parts.append("C \(Int(food.carbs.rounded()).formatted())g") }
-        if food.fats > 0 { parts.append("F \(Int(food.fats.rounded()).formatted())g") }
-        return parts.joined(separator: "  ")
+    private var identity: FoodDisplayIdentity {
+        FoodDisplayIdentity(name: food.name, brandName: food.sourceMetadata?.brandName)
     }
 
-    private var servingText: String {
-        food.servingSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Serving details" : food.servingSize
+    private var displayName: String { identity.fullName }
+
+    private var detailText: String { food.diaryPortionSummary }
+
+    private var printedServing: String? {
+        guard let label = food.sourceMetadata?.labeledServing?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !label.isEmpty, label.caseInsensitiveCompare(ServingNutritionCalculator.displayPortion(food.servingSize)) != .orderedSame else { return nil }
+        return "Printed serving · " + label
     }
 
-    private var sourceDescriptor: FoodSourceDescriptor? {
-        if let metadata = food.sourceMetadata {
-            return FoodSourceClassifier.descriptor(for: metadata)
-        }
-        if let source {
-            return FoodSourceClassifier.descriptor(for: source, foodID: food.id)
-        }
-        return FoodSourceClassifier.descriptor(forFoodID: food.id)
-    }
+    private var portionNotice: String? { food.loggingPortionNotice(source: source) }
 
     private var selectionAccessibilityLabel: String {
-        var parts = [food.name, servingText]
-
-        if let sourceTitle = sourceDescriptor?.title,
-           !detailText.localizedCaseInsensitiveContains(sourceTitle) {
-            parts.append(sourceTitle)
-        }
-
-        parts.append(detailText)
-        return parts.joined(separator: ", ")
+        [displayName, detailText, printedServing, portionNotice == detailText ? nil : portionNotice].compactMap { $0 }.joined(separator: ", ")
     }
 
     // No swipe-to-reveal here: a row-level DragGesture claims vertical drags too, which
@@ -138,7 +150,7 @@ struct FoodPickerRow: View {
                 }
             }
         }
-        .padding(AppSpacing.row)
+        .padding(.vertical, AppSpacing.compact)
     }
 
     private var selectionButton: some View {
@@ -146,118 +158,83 @@ struct FoodPickerRow: View {
             onSelect(food)
         }) {
             HStack(spacing: 10) {
-                foodGlyph
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(food.name)
-                        .appTextRole(.body)
+                VStack(alignment: .leading, spacing: 3) {
+                    if let brand = identity.brand {
+                        Text(brand).appTextRole(.secondary).foregroundStyle(.secondary)
+                    }
+                    Text(identity.product)
+                        .font(.headline)
                         .foregroundStyle(AppPalette.text)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    Group {
-                        if dynamicTypeSize.isAccessibilitySize {
-                            VStack(alignment: .leading, spacing: 4) {
-                                servingLabel
-                                evidenceBadges
-                            }
-                        } else {
-                            HStack(spacing: 6) {
-                                servingLabel
-                                evidenceBadges
-                            }
-                        }
+                    Text(detailText)
+                        .appTextRole(.secondary).monospacedDigit().foregroundStyle(AppPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let printedServing {
+                        Text(printedServing).appTextRole(.caption).foregroundStyle(.secondary)
                     }
 
-                    Text(detailText)
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let portionNotice, portionNotice != detailText {
+                        Text(portionNotice).appTextRole(.caption).foregroundStyle(AppPalette.caution)
+                    }
                 }
 
                 Spacer(minLength: 6)
-
-                if !dynamicTypeSize.isAccessibilitySize {
-                    Image(systemName: "chevron.right")
-                        .appTextRole(.caption)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
             }
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(isLogging)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("food_picker_row_\(food.id)")
+        .accessibilityIdentifier(selectionID ?? "food_picker_row_\(food.id)")
         .accessibilityLabel(selectionAccessibilityLabel)
         .accessibilityHint("Review serving and nutrition")
     }
 
-    private var servingLabel: some View {
-        Text(servingText)
-            .appTextRole(.secondary)
-            .foregroundStyle(.secondary)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+    private var actionTitle: String {
+        if isQuickLogged { return isBuildingMeal ? "Selected" : "Logged" }
+        if portionNotice != nil { return "Review" }
+        return isBuildingMeal ? "Select" : "Log"
     }
 
-    @ViewBuilder
-    private var foodGlyph: some View {
-        Group {
-            if food.sourceMetadata?.sourceType == .nihDSLD {
-                Image(systemName: "pills.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(AppPalette.brandText)
-            } else if dynamicTypeSize.isAccessibilitySize {
-                Image(systemName: "fork.knife")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(FoodEmojiMapper.getEmoji(for: food.name))
-                    .font(.system(size: 23))
-            }
-        }
-        .frame(width: 46, height: 46)
-        .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-        .accessibilityHidden(true)
+    private var actionIcon: PlateIcon {
+        if isQuickLogged { return .check }
+        return portionNotice == nil ? .plus : .adjustments
     }
 
-    @ViewBuilder
-    private var evidenceBadges: some View {
-        if let sourceDescriptor {
-            FoodTrustMiniBadge(
-                food: food,
-                descriptor: sourceDescriptor,
-                metadata: food.sourceMetadata
-            )
-            .accessibilityHidden(true)
-        }
-
-        if FoodDataSanity.isSuspicious(food) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .appTextRole(.caption)
-                .foregroundStyle(AppPalette.caution)
-                .accessibilityLabel("Nutrition data looks off")
-        }
+    private var actionLabel: String {
+        if isLogging { return "Preparing " + displayName }
+        if isQuickLogged { return displayName + (isBuildingMeal ? " selected" : " logged") }
+        return (actionTitle == "Log" ? "Quick log" : actionTitle) + " " + displayName
     }
 
     private var actionButtons: some View {
         HStack(spacing: AppSpacing.compact) {
             if let onQuickLog {
-                Button(action: { onQuickLog(food) }) {
-                    Image(systemName: isQuickLogged ? "checkmark" : "plus")
-                        .appTextRole(.control)
-                        .foregroundStyle(isQuickLogged ? AppPalette.onBrand : AppPalette.brandText)
-                        .frame(width: 40, height: 40)
-                        .background(isQuickLogged ? Color.accentPositive : Color.clear, in: Circle())
-                        .overlay {
-                            Circle()
-                                .stroke(isQuickLogged ? Color.clear : AppPalette.brand.opacity(0.55), lineWidth: 1.4)
+                Button(action: { if portionNotice != nil { onSelect(food) } else { onQuickLog(food) } }) {
+                    HStack(spacing: 4) {
+                        if isLogging {
+                            ProgressView()
+                        } else if portionNotice != nil && !isQuickLogged {
+                            actionIcon.frame(width: 15, height: 15)
+                            Text(actionTitle).font(.subheadline.weight(.semibold))
+                        } else {
+                            actionIcon
+                                .frame(width: 16, height: 16)
+                                .frame(width: 30, height: 30)
+                                .background(AppPalette.control, in: Circle())
                         }
+                    }
+                    .foregroundStyle(isQuickLogged ? Color.secondary : AppPalette.brandText)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(isQuickLogged)
-                .accessibilityLabel(isQuickLogged ? "\(food.name) logged" : "Quick log \(food.name)")
+                .disabled(isQuickLogged || isLogging)
+                .accessibilityLabel(actionLabel)
+                .accessibilityValue(detailText)
+                .accessibilityHint(portionNotice ?? (isBuildingMeal ? "Keeps this amount in the meal draft without leaving search" : "Adds the shown amount without leaving search"))
+                .accessibilityIdentifier(quickActionID ?? "food_picker_add_\(food.id)")
             }
 
             if let onDelete {
@@ -265,7 +242,7 @@ struct FoodPickerRow: View {
                     Image(systemName: "trash")
                         .appTextRole(.body)
                         .foregroundStyle(.secondary)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(food.name) from recent foods")
@@ -275,28 +252,21 @@ struct FoodPickerRow: View {
 }
 
 struct FoodTrustMiniBadge: View {
-    let food: FoodItem
-    let descriptor: FoodSourceDescriptor
-    let metadata: FoodSourceMetadata?
+    private let descriptor: FoodSourceDescriptor
+    private let evaluation: FoodTrustEvaluation
 
     init(food: FoodItem, source: String? = nil) {
-        self.food = food
-        self.metadata = food.sourceMetadata
-        self.descriptor = FoodSourceClassifier.descriptor(
+        let descriptor = FoodSourceClassifier.descriptor(
             for: source ?? "unknown",
             foodID: food.id,
             metadata: food.sourceMetadata
         )
+        self.init(food: food, descriptor: descriptor, metadata: food.sourceMetadata)
     }
 
     init(food: FoodItem, descriptor: FoodSourceDescriptor, metadata: FoodSourceMetadata? = nil) {
-        self.food = food
         self.descriptor = descriptor
-        self.metadata = metadata
-    }
-
-    private var evaluation: FoodTrustEvaluation {
-        FoodTrustEvaluation.evaluate(item: food, descriptor: descriptor, metadata: metadata)
+        self.evaluation = FoodTrustEvaluation.evaluate(item: food, descriptor: descriptor, metadata: metadata)
     }
 
     private var tint: Color {
@@ -308,6 +278,10 @@ struct FoodTrustMiniBadge: View {
         case .low:
             return evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
+    }
+
+    var needsAttention: Bool {
+        evaluation.level == .low || evaluation.level == .review || evaluation.requiresCorrection || descriptor.isEstimated
     }
 
     private var title: String {

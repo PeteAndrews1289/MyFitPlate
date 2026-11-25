@@ -73,7 +73,8 @@ final class WeekInMotionTests: XCTestCase {
             weightHistory: [],
             runs: runs,
             calorieGoal: 2_000,
-            proteinGoal: proteinGoal
+            proteinGoal: proteinGoal,
+            now: weekEnding
         )
     }
 

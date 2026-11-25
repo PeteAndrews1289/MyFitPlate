@@ -56,6 +56,11 @@ public final class AIDataConsentStore: @unchecked Sendable {
         consent(for: userID)?.includesHealthData == true
     }
 
+    /// A queued request may use only the exact consent receipt it captured, including Health scope.
+    public func matches(_ receipt: AIDataConsent, for userID: String) -> Bool {
+        consent(for: userID) == receipt
+    }
+
     public func grant(for userID: String, includesHealthData: Bool, date: Date = Date()) {
         guard !userID.isEmpty else { return }
         let consent = AIDataConsent(grantedAt: date, includesHealthData: includesHealthData)
@@ -66,6 +71,7 @@ public final class AIDataConsentStore: @unchecked Sendable {
         }
         defaults.removeObject(forKey: legacyKey(for: userID))
         lock.unlock()
+        NotificationCenter.default.post(name: .aiDataConsentChanged, object: nil, userInfo: ["ownerID": userID])
     }
 
     public func revoke(for userID: String) {
@@ -76,6 +82,7 @@ public final class AIDataConsentStore: @unchecked Sendable {
         }
         defaults.removeObject(forKey: legacyKey(for: userID))
         lock.unlock()
+        NotificationCenter.default.post(name: .aiDataConsentChanged, object: nil, userInfo: ["ownerID": userID])
     }
 
     private func key(for userID: String) -> String? {
@@ -88,5 +95,6 @@ public final class AIDataConsentStore: @unchecked Sendable {
 }
 
 public extension Notification.Name {
+    static let aiDataConsentChanged = Notification.Name("MyFitPlate.AIDataConsentChanged")
     static let aiDataConsentRequired = Notification.Name("MyFitPlate.AIDataConsentRequired")
 }

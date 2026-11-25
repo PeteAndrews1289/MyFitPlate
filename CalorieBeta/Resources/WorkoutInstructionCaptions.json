@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "clips": {
+    "mfp.demo.bench-press": [
+      {
+        "start": 0,
+        "end": 2.4,
+        "text": "Flat bench, feet on the floor, hands holding the bar above the chest."
+      },
+      {
+        "start": 2.4,
+        "end": 4.9,
+        "text": "The bar lowers toward the chest, then is pressed upward."
+      },
+      {
+        "start": 4.9,
+        "end": 7.1,
+        "text": "Another controlled lowering and press; setup stays on the bench."
+      }
+    ],
+    "mfp.demo.deadlift": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "text": "With both hands on the bar, the lifter bends at hips and knees."
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "text": "The lifter stands with the bar close to the legs, then lowers it."
+      },
+      {
+        "start": 5,
+        "end": 7.4,
+        "text": "The lift repeats, returning to a standing position with the bar."
+      }
+    ],
+    "mfp.demo.squat": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "text": "A bar rests across the upper back; the lifter bends hips and knees."
+      },
+      {
+        "start": 2.5,
+        "end": 4.8,
+        "text": "The lifter returns toward standing with the bar held on the back."
+      },
+      {
+        "start": 4.8,
+        "end": 7.1,
+        "text": "The squat repeats, lowering into a bent-knee position."
+      }
+    ],
+    "mfp.demo.bent-over-row": [
+      {
+        "start": 0,
+        "end": 1.7,
+        "text": "The lifter hinges forward and holds the bar with both hands."
+      },
+      {
+        "start": 1.7,
+        "end": 3.4,
+        "text": "The bar is pulled toward the torso, then lowered."
+      },
+      {
+        "start": 3.4,
+        "end": 5.134,
+        "text": "The rowing motion repeats while the torso stays bent forward."
+      }
+    ]
+  }
+}

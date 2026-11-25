@@ -11,6 +11,15 @@ public enum ActivationFunnel {
 
     private static let onboardingCompletedAtKey = "activation_funnel_onboarding_completed_at"
 
+    /// True once `logOnce` has recorded the event on this device.
+    public static func hasLogged(_ eventName: String, userDefaults: UserDefaults = .standard) -> Bool {
+        userDefaults.bool(forKey: "activation_funnel_" + eventName)
+    }
+
+    public static func onboardingCompletedAt(userDefaults: UserDefaults = .standard) -> Date? {
+        userDefaults.object(forKey: onboardingCompletedAtKey) as? Date
+    }
+
     @MainActor
     public static func logOnce(
         _ eventName: String,
@@ -18,6 +27,9 @@ public enum ActivationFunnel {
         userDefaults: UserDefaults = .standard,
         parameters: [String: Any] = [:]
     ) {
+        AccountProgressStore(defaults: userDefaults).record(
+            eventName, userID: DIContainer.shared.authService.currentUserID, at: now
+        )
         let key = "activation_funnel_" + eventName
         if !userDefaults.bool(forKey: key) {
             if eventName == onboardingCompleted {

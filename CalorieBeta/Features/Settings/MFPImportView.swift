@@ -27,12 +27,19 @@ final class MFPImportViewModel: ObservableObject {
     private(set) var conflictCount = 0
     private var importableLogs: [DailyLog] = []
     private var importableWeighIns: [(date: Date, weightLbs: Double)] = []
+    private var preparedUserID: String?
+    private var selectionID = UUID()
 
     var totalEntries: Int {
         diaryLogs.reduce(0) { $0 + $1.meals.reduce(0) { $0 + $1.foodItems.count } }
     }
 
     func handlePicked(urls: [URL], dailyLogService: DailyLogService, goalSettings: GoalSettings) {
+        selectionID = UUID()
+        preparedUserID = nil
+        importableLogs = []
+        importableWeighIns = []
+        conflictCount = 0
         stage = .analyzing
         diaryLogs = []
         weighIns = []
@@ -85,22 +92,35 @@ final class MFPImportViewModel: ObservableObject {
     }
 
     private func prepareMergePlan(dailyLogService: DailyLogService, goalSettings: GoalSettings) {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            stage = .failed("You need to be signed in to import.")
+            return
+        }
+        let capturedSelectionID = selectionID
+        let selectedLogs = diaryLogs
+        let selectedWeighIns = weighIns
+        let calendar = Calendar.current
+        let existingWeightDays = Set(goalSettings.weightHistory.map { calendar.startOfDay(for: $0.date) })
         Task { @MainActor in
-            guard let userID = DIContainer.shared.authService.currentUserID else {
-                stage = .failed("You need to be signed in to import.")
+            guard capturedSelectionID == selectionID else { return }
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                stage = .failed("The active account changed. Select the export files again to continue safely.")
                 return
             }
-            let calendar = Calendar.current
 
             var existingDays = Set<Date>()
-            let sortedDates = diaryLogs.map(\.date).sorted()
+            let sortedDates = selectedLogs.map(\.date).sorted()
             if let first = sortedDates.first, let last = sortedDates.last {
                 let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: first, endDate: last)
+                guard capturedSelectionID == selectionID else { return }
                 guard DIContainer.shared.authService.currentUserID == userID else {
                     stage = .failed("The active account changed. Select the export files again to continue safely.")
                     return
                 }
-                let existing = (try? result.get()) ?? []
+                guard case .success(let existing) = result else {
+                    stage = .failed("Couldn't check your existing diary. Try selecting the files again before importing.")
+                    return
+                }
                 existingDays = Set(
                     existing
                         .filter { !$0.meals.flatMap(\.foodItems).isEmpty }
@@ -108,13 +128,13 @@ final class MFPImportViewModel: ObservableObject {
                 )
             }
 
-            let plan = MFPImport.mergePlan(imported: diaryLogs, existingLoggedDays: existingDays, calendar: calendar)
+            let plan = MFPImport.mergePlan(imported: selectedLogs, existingLoggedDays: existingDays, calendar: calendar)
             importableLogs = plan.toImport
             conflictCount = plan.skippedConflicts
 
-            let existingWeightDays = Set(goalSettings.weightHistory.map { calendar.startOfDay(for: $0.date) })
-            importableWeighIns = weighIns.filter { !existingWeightDays.contains(calendar.startOfDay(for: $0.date)) }
+            importableWeighIns = selectedWeighIns.filter { !existingWeightDays.contains(calendar.startOfDay(for: $0.date)) }
 
+            preparedUserID = userID
             stage = .preview
         }
     }
@@ -124,6 +144,10 @@ final class MFPImportViewModel: ObservableObject {
             stage = .failed("You need to be signed in to import.")
             return
         }
+        guard preparedUserID == userID else {
+            stage = .failed("The active account changed. Select the export files again to continue safely.")
+            return
+        }
         let logs = importableLogs
         let weights = importableWeighIns
         let total = logs.count + weights.count
@@ -131,22 +155,26 @@ final class MFPImportViewModel: ObservableObject {
 
         Task { @MainActor in
             var written = 0
-            // Each day is its own document, so writes are independent; the stagger keeps
-            // a multi-year import from stampeding Firestore all at once.
+            // Wait for each accepted write so progress reflects saved records.
             for log in logs {
                 guard DIContainer.shared.authService.currentUserID == userID else {
                     stage = .failed("Import stopped because the active account changed.")
                     return
                 }
-                dailyLogService.addMealGroupsToLog(
-                    for: userID,
-                    date: log.date,
-                    mealGroups: log.meals.map { (mealName: $0.name, foodItems: $0.foodItems) },
-                    source: "mfp_import"
-                )
+                let accepted = await withCheckedContinuation { continuation in
+                    dailyLogService.addMealGroupsToLog(
+                        for: userID,
+                        date: log.date,
+                        mealGroups: log.meals.map { (mealName: $0.name, foodItems: $0.foodItems) },
+                        source: "mfp_import", deduplicateFoodIDs: true
+                    ) { continuation.resume(returning: $0) }
+                }
+                guard accepted else {
+                    stage = .failed("Import paused after \(written) saved records. Select the files again to retry; saved days are skipped.")
+                    return
+                }
                 written += 1
                 stage = .importing(written: written, total: total)
-                try? await Task.sleep(nanoseconds: 60_000_000)
             }
 
             for weighIn in weights {
@@ -154,10 +182,18 @@ final class MFPImportViewModel: ObservableObject {
                     stage = .failed("Import stopped because the active account changed.")
                     return
                 }
-                goalSettings.updateUserWeight(weighIn.weightLbs, date: weighIn.date)
+                let accepted = await withCheckedContinuation { continuation in
+                    goalSettings.updateUserWeight(weighIn.weightLbs, date: weighIn.date,
+                        measurementID: WeightMeasurementDraft.importID(date: weighIn.date, weightLbs: weighIn.weightLbs)) {
+                        continuation.resume(returning: $0)
+                    }
+                }
+                guard accepted else {
+                    stage = .failed("Import paused after \(written) saved records. Your remaining weigh-ins haven't been saved.")
+                    return
+                }
                 written += 1
                 stage = .importing(written: written, total: total)
-                try? await Task.sleep(nanoseconds: 60_000_000)
             }
 
             guard DIContainer.shared.authService.currentUserID == userID else {
@@ -193,6 +229,7 @@ struct MFPImportView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = MFPImportViewModel()
     @State private var showingFilePicker = false
+    @State private var didPresentScreenshotState = false
 
     var body: some View {
         NavigationStack {
@@ -218,7 +255,7 @@ struct MFPImportView: View {
             .safeAreaInset(edge: .bottom) {
                 stageActionFooter
             }
-            .navigationTitle("Import Data")
+            .navigationTitle("Import history")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -246,6 +283,20 @@ struct MFPImportView: View {
         .background(AppPalette.canvas.ignoresSafeArea())
         .interactiveDismissDisabled(isImporting)
         .accessibilityIdentifier("settings_import_screen")
+        .onAppear {
+            #if DEBUG
+            guard ScreenshotDemoMode.isEnabled, !didPresentScreenshotState else { return }
+            didPresentScreenshotState = true
+            // Presentation-only fixtures; no file parsing or account writes occur.
+            switch ScreenshotDemoData.requestedScreen {
+            case "settings-import-preview": viewModel.stage = .preview
+            case "settings-import-finished": viewModel.stage = .finished(days: 14, entries: 56, weighIns: 3, conflicts: 2)
+            case "settings-import-failed": viewModel.stage = .failed("This file could not be read. Choose the original CSV from your export and try again. Your existing history is unchanged.")
+            case "settings-import-analyzing": viewModel.stage = .analyzing
+            default: break
+            }
+            #endif
+        }
     }
 
     private var isImporting: Bool {
@@ -256,8 +307,8 @@ struct MFPImportView: View {
     private var instructions: some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             AppScreenHeader(
-                eyebrow: "Data Import",
-                title: "Bring Your History With You",
+                eyebrow: "MyFitnessPal",
+                title: "Bring your history",
                 subtitle: "Import your diary and weight history in a few minutes. Days you've already logged in MyFitPlate are never changed."
             )
 
@@ -295,9 +346,11 @@ struct MFPImportView: View {
     private var preview: some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             AppScreenHeader(
-                eyebrow: "Import Preview",
-                title: "Ready to Import",
-                subtitle: "Review what MyFitPlate found before adding it to your history."
+                eyebrow: "Preview",
+                title: viewModel.diaryLogs.isEmpty && viewModel.weighIns.isEmpty ? "No records found" : "Ready to import",
+                subtitle: viewModel.diaryLogs.isEmpty && viewModel.weighIns.isEmpty
+                    ? "Choose an original diary or weight CSV export to continue."
+                    : "Review what MyFitPlate found before adding it to your history."
             )
 
             VStack(spacing: 0) {
@@ -327,7 +380,7 @@ struct MFPImportView: View {
                 ])
                 showingFilePicker = true
             } label: {
-                Text("Choose Different Files")
+                Text("Choose different files")
             }
             .buttonStyle(AppActionButtonStyle(.secondary))
         }
@@ -351,7 +404,7 @@ struct MFPImportView: View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             AppScreenHeader(
                 eyebrow: "Importing",
-                title: "Writing Your History",
+                title: "Adding your history",
                 subtitle: "Keep MyFitPlate open until this finishes."
             )
 
@@ -370,8 +423,8 @@ struct MFPImportView: View {
     private func finishedView(days: Int, entries: Int, weighIns: Int, conflicts: Int) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             AppScreenHeader(
-                eyebrow: "Import Complete",
-                title: "Your History Moved In",
+                eyebrow: "Import complete",
+                title: "History imported",
                 subtitle: "Reports and trends now include your imported history."
             ) {
                 Image(systemName: "checkmark.circle.fill")
@@ -381,10 +434,7 @@ struct MFPImportView: View {
             }
 
             VStack(alignment: .leading, spacing: AppSpacing.row) {
-                AppSectionHeader(
-                    title: "Import Receipt",
-                    subtitle: "A record of what this import added and intentionally left alone."
-                )
+                AppSectionHeader(title: "Import summary")
 
                 VStack(spacing: 0) {
                     previewRow("Days imported", days.formatted())
@@ -407,7 +457,7 @@ struct MFPImportView: View {
                         conflicts: conflicts
                     )
                 ) {
-                    Label("Share Import Receipt", systemImage: "square.and.arrow.up")
+                    Label("Share import summary", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(AppActionButtonStyle(.secondary))
             }
@@ -450,8 +500,11 @@ struct MFPImportView: View {
                     showingFilePicker = true
                 } label: {
                     if case .analyzing = viewModel.stage {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 50)
+                        HStack(spacing: AppSpacing.row) {
+                            ProgressView()
+                            Text("Reading files…")
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 50)
                     } else {
                         Label("Choose Files", systemImage: "doc.badge.plus")
                     }
@@ -469,6 +522,7 @@ struct MFPImportView: View {
                     Label("Import Everything", systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(viewModel.diaryLogs.isEmpty && viewModel.weighIns.isEmpty)
                 .accessibilityIdentifier("settings_import_confirm")
             }
 

@@ -15,6 +15,8 @@ public class AppState: ObservableObject {
     @Published public var selectedTab: Int = 0
     @Published public var pendingChatPrompt: String? = nil
     @Published public var pendingTrainingFuelTarget: TrainingFuelTarget? = nil
+    @Published public private(set) var pendingRunFuelReview: RunFuelReviewRequest?
+    @Published public private(set) var pendingMealPlannerDestination: MealPlannerDestination?
     
     private var authStateHandle: Any?
     private var activeUserID: String?
@@ -29,6 +31,14 @@ public class AppState: ObservableObject {
         authStateHandle = DIContainer.shared.authService.observeAuthState { [weak self] userID in
             Task { @MainActor in
                 guard let self = self else { return }
+                if self.activeUserID != userID {
+                    TTSManager.shared.stopSpeaking()
+                    AccountReminderCoordinator.shared.activateAccount(userID)
+                    self.pendingChatPrompt = nil
+                    self.pendingRunFuelReview = nil
+                    self.pendingMealPlannerDestination = nil
+                    self.pendingTrainingFuelTarget = nil
+                }
                 self.activeUserID = userID
                 if let userID = userID {
                     self.isUserLoggedIn = true
@@ -47,7 +57,33 @@ public class AppState: ObservableObject {
     public func setUserLoggedIn(_ loggedIn: Bool) {
         isUserLoggedIn = loggedIn
     }
+
+    @discardableResult
+    public func openMealPlanner(_ destination: MealPlannerDestination, now: Date = Date()) -> Bool {
+        guard destination.isAvailable(to: DIContainer.shared.authService.currentUserID, now: now) else { return false }
+        pendingMealPlannerDestination = destination
+        selectedTab = 3
+        return true
+    }
+
+    public func takeMealPlannerDestination(now: Date = Date()) -> MealPlannerDestination? {
+        guard let destination = pendingMealPlannerDestination else { return nil }
+        pendingMealPlannerDestination = nil
+        return destination.isAvailable(to: DIContainer.shared.authService.currentUserID, now: now) ? destination : nil
+    }
     
+    @discardableResult
+    public func openRunFuelReview(_ request: RunFuelReviewRequest) -> Bool {
+        guard request.ownerID == DIContainer.shared.authService.currentUserID, !request.day.isFuture() else { return false }
+        pendingRunFuelReview = request
+        selectedTab = 0
+        return true
+    }
+
+    public func clearRunFuelReview(id: String) {
+        if pendingRunFuelReview?.id == id { pendingRunFuelReview = nil }
+    }
+
     private func loadDarkModePreference(userID: String) {
         Task {
             do {
@@ -106,6 +142,10 @@ public class AppState: ObservableObject {
             if let userID {
                 TTSManager.shared.clearCachedSpeech(for: userID)
             }
+            // A quiz answered on this device belongs to the account that finished it, never to the
+            // next person who signs in here.
+            AccountSetupCoordinator.shared.store.clearAll()
+            AppReviewPromptQueue.shared.clearPending()
             EcosystemSyncManager.shared.clearAccountWidgetData()
             identifyReleaseHealthUser(nil)
         } catch {
@@ -134,21 +174,4 @@ public class AppState: ObservableObject {
             analyticsManager: DIContainer.shared.analyticsManager
         )
     }
-}
-
-
-public enum AppLog {
-    public static let app = Logger(subsystem: subsystem, category: "App")
-    public static let ai = Logger(subsystem: subsystem, category: "AI")
-    public static let data = Logger(subsystem: subsystem, category: "Data")
-    public static let health = Logger(subsystem: subsystem, category: "Health")
-    public static let liveActivity = Logger(subsystem: subsystem, category: "LiveActivity")
-    public static let mealPlanner = Logger(subsystem: subsystem, category: "MealPlanner")
-    public static let notifications = Logger(subsystem: subsystem, category: "Notifications")
-    public static let recipes = Logger(subsystem: subsystem, category: "Recipes")
-    public static let social = Logger(subsystem: subsystem, category: "Social")
-    public static let watch = Logger(subsystem: subsystem, category: "WatchConnectivity")
-    public static let workouts = Logger(subsystem: subsystem, category: "Workouts")
-
-    private static let subsystem = Bundle.main.bundleIdentifier ?? "MyFitPlate"
 }

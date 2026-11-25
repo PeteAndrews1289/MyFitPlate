@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct WaterTrackingCardView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -7,14 +8,15 @@ struct WaterTrackingCardView: View {
     var date: Date
     var insight: UserInsight?
     
-    private let waterIncrement: Double = 8.0
+    private var waterIncrement: Double { goalSettings.hydrationPreferences.preferredContainer?.ounces ?? 8 }
+    private var trackingOnly: Bool { goalSettings.hydrationTarget(for: date, recordedGoal: dailyLogService.currentDailyLog?.waterTracker?.goalOunces) == nil }
 
     private var waterIntake: Double {
         dailyLogService.currentDailyLog?.waterTracker?.totalOunces ?? 0.0
     }
 
     private var waterGoal: Double {
-        max(1, goalSettings.waterGoal)
+        max(1, goalSettings.hydrationTarget(for: date, recordedGoal: dailyLogService.currentDailyLog?.waterTracker?.goalOunces) ?? 1)
     }
 
     private var remainingWater: Double {
@@ -39,12 +41,12 @@ struct WaterTrackingCardView: View {
                             .foregroundColor(.textPrimary)
                     }
 
-                    Text(remainingWater > 0 ? "\(Int(remainingWater.rounded()).formatted()) oz left to hit your goal." : "Goal reached. Keep sipping as needed.")
+                    Text(trackingOnly ? "Tracking only · record what you drink." : remainingWater > 0 ? "\(Int(remainingWater.rounded()).formatted()) oz left to hit your goal." : "Daily target recorded.")
                         .appFont(size: 14, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
 
                     VStack(alignment: .leading, spacing: 6) {
-                        GeometryReader { geometry in
+                        if !trackingOnly { GeometryReader { geometry in
                             ZStack(alignment: .leading) {
                                 Capsule()
                                     .fill(Color(UIColor.secondarySystemFill))
@@ -56,17 +58,19 @@ struct WaterTrackingCardView: View {
                             }
                         }
                         .frame(height: 10)
+                        }
 
                         HStack {
-                            Text("\(Int(waterIntake.rounded()).formatted()) / \(Int(waterGoal.rounded()).formatted()) oz")
+                            Text(trackingOnly ? "\(Int(waterIntake.rounded()).formatted()) oz" : "\(Int(waterIntake.rounded()).formatted()) / \(Int(waterGoal.rounded()).formatted()) oz")
                                 .appFont(size: 12, weight: .semibold)
                                 .foregroundColor(.textPrimary)
 
                             Spacer()
 
-                            Text("\(Int((progress * 100).rounded()).formatted())%")
+                            if !trackingOnly { Text("\(Int((progress * 100).rounded()).formatted())%")
                                 .appFont(size: 12, weight: .semibold)
                                 .foregroundColor(AppPalette.hydration)
+                            }
                         }
                     }
 
@@ -85,7 +89,7 @@ struct WaterTrackingCardView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                GeometryReader { geometry in
+                if !trackingOnly { GeometryReader { geometry in
                     ZStack(alignment: .bottom) {
                         Rectangle()
                             .fill(
@@ -101,9 +105,10 @@ struct WaterTrackingCardView: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                 }
                 .frame(width: 62, height: 104)
+                }
             }
 
-            if let insight = insight {
+            if !trackingOnly, let insight = insight {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "lightbulb.fill")
                         .appFont(size: 13, weight: .bold)
@@ -135,9 +140,9 @@ struct WaterTrackingCardView: View {
         }
         let newIntake = waterIntake + amount
         if newIntake >= 0 {
-            dailyLogService.addWaterToCurrentLog(for: userID, amount: amount, goalOunces: goalSettings.waterGoal)
+            dailyLogService.addWaterToCurrentLog(for: userID, amount: amount, goalOunces: trackingOnly ? 0 : waterGoal)
         } else if waterIntake > 0 && amount < 0 {
-             dailyLogService.addWaterToCurrentLog(for: userID, amount: -waterIntake, goalOunces: goalSettings.waterGoal)
+             dailyLogService.addWaterToCurrentLog(for: userID, amount: -waterIntake, goalOunces: trackingOnly ? 0 : waterGoal)
         }
     }
 }

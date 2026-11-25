@@ -1,7 +1,7 @@
 import WidgetKit
 import AppIntents
 import SwiftUI
-import MyFitPlateCore
+import MyFitPlateShared
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
@@ -9,16 +9,18 @@ struct Provider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> Void) {
-        let entry = SimpleEntry(date: Date(), data: .previewData)
+        let entry = SimpleEntry(date: Date(), data: context.isPreview ? .previewData : SharedDataManager.shared.loadData())
         completion(entry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
         let data = SharedDataManager.shared.loadData()
-        let entry = SimpleEntry(date: Date(), data: data)
-
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(15 * 60)
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+        let now = Date()
+        var entries = [SimpleEntry(date: now, data: data)]
+        if let boundary = data?.nextDayRefreshBoundary(after: now) {
+            entries.append(SimpleEntry(date: boundary, data: data))
+        }
+        let timeline = Timeline(entries: entries, policy: .after(now.addingTimeInterval(15 * 60)))
         completion(timeline)
     }
 }
@@ -26,6 +28,17 @@ struct Provider: TimelineProvider {
 struct SimpleEntry: TimelineEntry {
     let date: Date
     let data: WidgetData?
+}
+
+private struct WidgetDisplayDateKey: EnvironmentKey {
+    static let defaultValue = Date.distantPast
+}
+
+private extension EnvironmentValues {
+    var widgetDisplayDate: Date {
+        get { self[WidgetDisplayDateKey.self] }
+        set { self[WidgetDisplayDateKey.self] = newValue }
+    }
 }
 
 private enum WidgetPalette {
@@ -51,12 +64,13 @@ struct CalorieWidgetEntryView: View {
     @Environment(\.widgetFamily) var family
 
     private var homeURL: URL {
-        URL(string: "myfitplate://home") ?? MyFitPlateLinks.appStoreURL
+        URL(string: "myfitplate://today") ?? MyFitPlateLinks.appStoreURL
     }
 
     private var destinationURL: URL {
         guard family != .accessoryCircular,
-              let deepLink = entry.data?.nextAction?.deepLink,
+              let data = entry.data, family != .accessoryRectangular || data.calorieGoal > 0,
+              let deepLink = data.currentNextAction(at: entry.date)?.deepLink,
               let url = URL(string: deepLink) else { return homeURL }
         return url
     }
@@ -88,15 +102,13 @@ struct CalorieWidgetEntryView: View {
                 if let data = entry.data { MediumWidgetView(data: data) } else { emptyInvite }
             }
         }
+        .environment(\.widgetDisplayDate, entry.date)
         .widgetURL(destinationURL)
         .containerBackground(for: .widget) {
             if isAccessory {
                 AccessoryWidgetBackground()
             } else {
-                ZStack {
-                    Rectangle().fill(.thickMaterial)
-                    WidgetPalette.backgroundPrimary.opacity(0.2)
-                }
+                WidgetPalette.backgroundPrimary
             }
         }
     }
@@ -130,7 +142,7 @@ struct AccessoryCircularCaloriesView: View {
         } else {
             VStack(spacing: 1) {
                 Image(systemName: "fork.knife")
-                Text("Log")
+                Text("Open")
                     .font(.caption2)
             }
         }
@@ -138,11 +150,12 @@ struct AccessoryCircularCaloriesView: View {
 }
 
 struct AccessoryRectangularCaloriesView: View {
+    @Environment(\.widgetDisplayDate) private var displayDate
     let data: WidgetData?
 
     var body: some View {
         if let data, data.calorieGoal > 0 {
-            if data.widgetFreshness.state == .stale {
+            if data.needsDayRefresh(at: displayDate) {
                 VStack(alignment: .leading, spacing: 2) {
                     Label("Open app to refresh", systemImage: "clock.badge.exclamationmark")
                         .font(.headline)
@@ -151,11 +164,11 @@ struct AccessoryRectangularCaloriesView: View {
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text(data.widgetFreshness.shortLabel)
+                    Text(data.widgetFreshness(at: displayDate).shortLabel)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-            } else if let action = data.nextAction {
+            } else if let action = data.currentNextAction(at: displayDate) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.title)
                         .font(.headline)
@@ -196,17 +209,18 @@ struct AccessoryRectangularCaloriesView: View {
 }
 
 struct AccessoryInlineCaloriesView: View {
+    @Environment(\.widgetDisplayDate) private var displayDate
     let data: WidgetData?
 
     var body: some View {
-        if let data, data.widgetFreshness.state == .stale {
+        if let data, data.needsDayRefresh(at: displayDate) {
             Text("MyFitPlate: Open app to refresh")
-        } else if let action = data?.nextAction {
+        } else if let action = data?.currentNextAction(at: displayDate) {
             Text("MyFitPlate: \(action.title)")
         } else if let data, data.calorieGoal > 0 {
             Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
         } else {
-            Text("MyFitPlate — log a meal")
+            Text("Open MyFitPlate")
         }
     }
 }
@@ -236,13 +250,14 @@ struct CalorieWidgetBundle: WidgetBundle {
 }
 
 struct MediumWidgetView: View {
+    @Environment(\.widgetDisplayDate) private var displayDate
     let data: WidgetData
     private var hasMacroWarning: Bool {
         abs(data.macroCalorieDelta ?? 0) >= 75
     }
 
     private var pathEvents: [WidgetPathEvent] {
-        data.currentPathEvents
+        data.currentPathEvents(at: displayDate)
     }
 
     var body: some View {
@@ -260,7 +275,7 @@ struct MediumWidgetView: View {
         VStack(spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Living Day")
+                    Text("Today")
                         .font(.caption.weight(.bold))
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
                         .font(.system(.headline, design: .rounded, weight: .bold))
@@ -270,7 +285,7 @@ struct MediumWidgetView: View {
 
                 Spacer(minLength: 4)
 
-                if data.widgetFreshness.state == .stale {
+                if data.needsDayRefresh(at: displayDate) {
                     WidgetFreshnessMark(data: data, compact: true)
                 }
 
@@ -296,7 +311,7 @@ struct MediumWidgetView: View {
 
             WidgetFuelPathStrip(events: Array(pathEvents.prefix(3)))
 
-            if let action = data.nextAction {
+            if let action = data.currentNextAction(at: displayDate) {
                 WidgetNextActionRow(action: action, compact: true)
             }
         }
@@ -330,7 +345,7 @@ struct MediumWidgetView: View {
                                 .foregroundColor(WidgetPalette.accentSignal)
                         }
 
-                        if data.widgetFreshness.state == .stale {
+                        if data.needsDayRefresh(at: displayDate) {
                             WidgetFreshnessMark(data: data, compact: true)
                         }
 
@@ -349,7 +364,7 @@ struct MediumWidgetView: View {
                 }
             }
 
-            if let action = data.nextAction {
+            if let action = data.currentNextAction(at: displayDate) {
                 WidgetNextActionRow(action: action, compact: true)
             }
         }
@@ -357,13 +372,14 @@ struct MediumWidgetView: View {
 }
 
 struct SmallWidgetView: View {
+    @Environment(\.widgetDisplayDate) private var displayDate
     let data: WidgetData
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Calories")
+                    Text("Cal left")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
@@ -377,12 +393,12 @@ struct SmallWidgetView: View {
 
                 VStack(alignment: .trailing, spacing: 1) {
                     HStack(spacing: 3) {
-                        if data.widgetFreshness.state == .stale {
+                        if data.needsDayRefresh(at: displayDate) {
                             Image(systemName: "clock.badge.exclamationmark")
                                 .foregroundStyle(WidgetPalette.accentSignal)
                                 .accessibilityHidden(true)
                         }
-                        Text("Protein")
+                        Text("Protein left")
                             .foregroundStyle(.secondary)
                     }
                     .font(.caption2)
@@ -394,7 +410,7 @@ struct SmallWidgetView: View {
                 }
             }
 
-            if let action = data.nextAction {
+            if let action = data.currentNextAction(at: displayDate) {
                 SmallWidgetNextActionRow(action: action)
             } else {
                 Spacer(minLength: 0)
@@ -463,11 +479,12 @@ private struct SmallWidgetNextActionRow: View {
 }
 
 struct LargeWidgetView: View {
+    @Environment(\.widgetDisplayDate) private var displayDate
     let data: WidgetData
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     private var pathEvents: [WidgetPathEvent] {
-        data.currentPathEvents
+        data.currentPathEvents(at: displayDate)
     }
 
     var body: some View {
@@ -485,9 +502,9 @@ struct LargeWidgetView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Living Day")
+                    Text("Today")
                         .font(.headline)
-                    if data.widgetFreshness.state == .stale {
+                    if data.needsDayRefresh(at: displayDate) {
                         WidgetFreshnessMark(data: data, compact: true)
                     } else {
                         Text("Your current path")
@@ -526,7 +543,7 @@ struct LargeWidgetView: View {
 
             WidgetFuelPathList(events: Array(pathEvents.prefix(4)))
 
-            if let action = data.nextAction {
+            if let action = data.currentNextAction(at: displayDate) {
                 WidgetNextActionRow(action: action)
             }
         }
@@ -568,11 +585,11 @@ struct LargeWidgetView: View {
                     .lineLimit(1)
             }
 
-            if data.widgetFreshness.state == .stale {
+            if data.needsDayRefresh(at: displayDate) {
                 WidgetFreshnessMark(data: data)
             }
 
-            if let action = data.nextAction {
+            if let action = data.currentNextAction(at: displayDate) {
                 WidgetNextActionRow(action: action)
             }
         }
@@ -580,23 +597,24 @@ struct LargeWidgetView: View {
 }
 
 private struct WidgetFreshnessMark: View {
+    @Environment(\.widgetDisplayDate) private var displayDate
     let data: WidgetData
     var compact = false
 
     var body: some View {
-        Label(data.widgetFreshness.shortLabel, systemImage: "clock.badge.exclamationmark")
+        Label(data.widgetFreshness(at: displayDate).shortLabel, systemImage: "clock.badge.exclamationmark")
             .font(compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
             .foregroundStyle(WidgetPalette.accentSignal)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(data.widgetFreshness.accessibilityLabel)
+            .accessibilityLabel(data.widgetFreshness(at: displayDate).accessibilityLabel)
     }
 }
 
 private extension WidgetData {
-    var widgetFreshness: AppDataFreshness {
-        AppDataFreshness(updatedAt: lastUpdated)
+    func widgetFreshness(at date: Date) -> AppDataFreshness {
+        AppDataFreshness(updatedAt: lastUpdated, now: date)
     }
 }
 
@@ -820,9 +838,9 @@ struct ProgressBubble: View {
 }
 
 private extension WidgetData {
-    var currentPathEvents: [WidgetPathEvent] {
+    func currentPathEvents(at date: Date) -> [WidgetPathEvent] {
         guard let pathDate,
-              Calendar.current.isDateInToday(pathDate) else { return [] }
+              !needsDayRefresh(at: date), Calendar.current.isDate(pathDate, inSameDayAs: date) else { return [] }
         return (pathEvents ?? []).sorted {
             if $0.startDate == $1.startDate { return $0.sequence < $1.sequence }
             return $0.startDate < $1.startDate

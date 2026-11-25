@@ -4,6 +4,29 @@ import XCTest
 final class InsightsRulesTests: XCTestCase {
     private let fixedDate = Date(timeIntervalSince1970: 1_767_225_600)
 
+    func testHistoricalDiaryCannotStandInForTodaysFood() {
+        let now = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: fixedDate)!
+        let yesterday = dailyLog(dayOffset: 1, calories: 2_000, protein: 150, water: nil, workoutCalories: nil)
+        let plan = InsightsRules.adaptiveCoachingPlan(today: yesterday, recentLogs: [yesterday],
+            goals: .init(calories: 2_000, protein: 150, weightGoal: "Maintain"), now: now)
+        XCTAssertEqual(plan.title, "Get today's baseline")
+    }
+
+    func testPersonalHRVDropAddsContextWithoutPrescribingRestOrSupplements() {
+        let now = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: fixedDate)!
+        let readings: [RecoveryEvidence.HRVReading] = (0..<28).map { day in
+            .init(date: Calendar.current.date(byAdding: .day, value: -day, to: now)!, milliseconds: day < 7 ? 70 : 100)
+        }
+        let evidence = RecoveryEvidence(hrvReadings: readings, now: now)
+        let plan = InsightsRules.adaptiveCoachingPlan(today: nil, recentLogs: [], recovery: evidence,
+            goals: .init(calories: 2_000, protein: 150, weightGoal: "Maintain"), now: now)
+        XCTAssertEqual(plan.title, "Check in before training")
+        XCTAssertEqual(plan.confidence, "Personal HRV trend")
+        XCTAssertFalse(plan.trainingMove.contains("Avoid"))
+        XCTAssertFalse(plan.recoveryMove.contains("magnesium"))
+        XCTAssertTrue(plan.dataPoints.contains("HRV: below your usual range"))
+    }
+
     func testLocalInsightsGenerateActionableFallbacksFromNutritionWorkoutAndWater() {
         let logs = [
             dailyLog(
@@ -39,7 +62,7 @@ final class InsightsRulesTests: XCTestCase {
         XCTAssertEqual(insights.map(\.priority), [100, 90, 85, 75, 70])
         XCTAssertEqual(insights[0].title, "Your Logging Base Is Building")
         XCTAssertEqual(insights[0].category, .positiveReinforcement)
-        XCTAssertEqual(insights[0].sourceData, "3 logged days across 3 days analyzed")
+        XCTAssertEqual(insights[0].sourceData, "3 logged days across 3 days analyzed; 3 fully logged food days")
 
         XCTAssertEqual(insights[1].title, "Protein Is the Easiest Lever")
         XCTAssertTrue(insights[1].message.contains("35g under"))
@@ -64,7 +87,7 @@ final class InsightsRulesTests: XCTestCase {
 
         XCTAssertEqual(insights.count, 2)
         XCTAssertEqual(insights[0].title, "Your Logging Base Is Building")
-        XCTAssertEqual(insights[0].sourceData, "0 logged days across 0 days analyzed")
+        XCTAssertEqual(insights[0].sourceData, "0 logged days across 0 days analyzed; 0 fully logged food days")
         XCTAssertEqual(insights[1].title, "Sleep Context Matters")
         XCTAssertEqual(insights[1].category, .sleep)
         XCTAssertTrue(insights[1].message.contains("7.0 hours"))
@@ -170,14 +193,14 @@ final class InsightsRulesTests: XCTestCase {
                 dailyLog(dayOffset: 1, calories: 2_000, protein: 120, water: nil, workoutCalories: nil),
                 dailyLog(dayOffset: 2, calories: 2_100, protein: 125, water: nil, workoutCalories: nil)
             ],
-            sleepHours: [7.2, 7.8],
+            recovery: RecoveryEvidence(sleepAverageHours: 7.5, sleepNightCount: 2, sleepUpdatedAt: now, now: now),
             goals: InsightsRules.GoalSnapshot(calories: 2_300, protein: 160, weightGoal: "Gain"),
             now: now
         )
 
         XCTAssertEqual(plan.title, "Anchor protein next")
         XCTAssertTrue(plan.primaryAction.contains("protein"))
-        XCTAssertTrue(plan.dataPoints.contains("3 logged days"))
+        XCTAssertTrue(plan.dataPoints.contains("3 fully logged days"))
         XCTAssertTrue(plan.patternNote.contains("protein"))
         XCTAssertTrue(plan.dataPoints.contains("0/3 protein days"))
     }
@@ -188,7 +211,7 @@ final class InsightsRulesTests: XCTestCase {
         let plan = InsightsRules.adaptiveCoachingPlan(
             today: nil,
             recentLogs: [dailyLog(dayOffset: 1, calories: 2_000, protein: 120, water: nil, workoutCalories: nil)],
-            sleepHours: [],
+            recovery: .unavailable,
             goals: InsightsRules.GoalSnapshot(calories: 2_100, protein: 150, weightGoal: "Maintain"),
             now: now
         )
@@ -212,14 +235,14 @@ final class InsightsRulesTests: XCTestCase {
                 dailyLog(dayOffset: 3, calories: 1_980, protein: 150, water: nil, workoutCalories: nil),
                 dailyLog(dayOffset: 4, calories: 2_010, protein: 152, water: nil, workoutCalories: nil)
             ],
-            sleepHours: [5.8, 6.1, 6.0],
+            recovery: RecoveryEvidence(sleepAverageHours: 5.966666666666666, sleepNightCount: 3, sleepUpdatedAt: now, now: now),
             goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
             now: now
         )
 
         XCTAssertEqual(plan.title, "Protect recovery")
-        XCTAssertEqual(plan.confidence, "High signal")
-        XCTAssertTrue(plan.dataPoints.contains("6.0h sleep avg"))
+        XCTAssertEqual(plan.confidence, "Recent sleep trend")
+        XCTAssertTrue(plan.dataPoints.contains { $0.contains("6.0 h/night across 3") })
         XCTAssertEqual(plan.patternNote, "Pattern: calories are landing close to target on most logged days.")
     }
 
@@ -234,7 +257,7 @@ final class InsightsRulesTests: XCTestCase {
                 dailyLog(dayOffset: 1, calories: 1_700, protein: 152, water: nil, workoutCalories: 220),
                 dailyLog(dayOffset: 2, calories: 2_350, protein: 151, water: nil, workoutCalories: 180)
             ],
-            sleepHours: [7.0, 7.2],
+            recovery: RecoveryEvidence(sleepAverageHours: 7.1, sleepNightCount: 2, sleepUpdatedAt: now, now: now),
             goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
             now: now
         )
@@ -277,7 +300,8 @@ final class InsightsRulesTests: XCTestCase {
             date: date,
             meals: [Meal(name: "Meals", foodItems: [food])],
             waterTracker: waterTracker,
-            exercises: exercises
+            exercises: exercises,
+            nutritionDayStatus: .complete
         )
     }
 
@@ -490,39 +514,36 @@ final class InsightsRulesTests: XCTestCase {
         XCTAssertEqual(insightGreatWork.title, "Keep Up the Great Work!")
     }
 
-    func testAdaptiveCoachingPlanHRVRedRecoveryAlert() {
+    func testAbsoluteLowHRVDoesNotPrescribeRestWithoutPersonalBaseline() {
         let now = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: fixedDate)!
         let today = dailyLog(dayOffset: 0, calories: 1_800, protein: 140, water: 64, workoutCalories: nil)
 
         let plan = InsightsRules.adaptiveCoachingPlan(
             today: today,
             recentLogs: [today],
-            sleepHours: [6.5, 7.0],
-            hrvAverage: 32.0,
+            recovery: RecoveryEvidence(hrvReadings: [.init(date: now, milliseconds: 32)], now: now),
             goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
             now: now
         )
 
-        XCTAssertEqual(plan.title, "Red Recovery Alert")
-        XCTAssertEqual(plan.primaryAction, "Switch to active recovery or rest")
-        XCTAssertTrue(plan.subtitle.contains("32 ms"))
+        XCTAssertEqual(plan.title, "Hold the rhythm")
+        XCTAssertTrue(plan.dataPoints.contains { $0.contains("building your usual range") })
     }
 
-    func testAdaptiveCoachingPlanHRVPeakGreenRecovery() {
+    func testAbsoluteHighHRVDoesNotPrescribePersonalRecords() {
         let now = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: fixedDate)!
         let today = dailyLog(dayOffset: 0, calories: 1_800, protein: 140, water: 64, workoutCalories: nil)
 
         let plan = InsightsRules.adaptiveCoachingPlan(
             today: today,
             recentLogs: [today],
-            sleepHours: [7.5, 8.0],
-            hrvAverage: 62.0,
+            recovery: RecoveryEvidence(sleepAverageHours: 7.75, sleepNightCount: 3, sleepUpdatedAt: now,
+                hrvReadings: [.init(date: now, milliseconds: 62)], now: now),
             goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
             now: now
         )
 
-        XCTAssertEqual(plan.title, "Peak Recovery State (Green)")
-        XCTAssertEqual(plan.primaryAction, "Push intensity or tackle progressive overload")
-        XCTAssertTrue(plan.subtitle.contains("62 ms"))
+        XCTAssertEqual(plan.title, "Hold the rhythm")
+        XCTAssertFalse(plan.trainingMove.contains("PR"))
     }
 }

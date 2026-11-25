@@ -15,6 +15,8 @@ struct PreBuiltProgramsView: View {
     @State private var selectionError: String?
     @State private var programPendingSchedule: WorkoutProgram?
     @State private var selectedStartDate = Date()
+    @State private var comparisonPrograms: [WorkoutProgram] = []
+    @State private var showingComparison = false
 
     private var filteredPrograms: [WorkoutProgram] {
         workoutService.preBuiltPrograms.filter { program in
@@ -51,6 +53,15 @@ struct PreBuiltProgramsView: View {
 
                     ProgramCatalogSearchCard(searchText: $searchText)
                     ProgramCatalogFilterBar(selectedFilter: $selectedFilter)
+                    if !comparisonPrograms.isEmpty {
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            Text("Compare: " + comparisonPrograms.map(\.name).joined(separator: " + ")).appTextRole(.control)
+                            Button("Compare these two plans") { showingComparison = true }
+                                .buttonStyle(AppActionButtonStyle(.secondary)).disabled(comparisonPrograms.count != 2)
+                                .accessibilityIdentifier("program_catalog_compare")
+                            Button("Clear comparison") { comparisonPrograms = [] }.frame(minHeight: 44)
+                        }.appSurface(.quiet)
+                    }
 
                     if filteredPrograms.isEmpty {
                         ProgramCatalogEmptyState()
@@ -66,6 +77,21 @@ struct PreBuiltProgramsView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Pre-built Programs")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingComparison) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        Text("Choose the work that fits your week").appTextRole(.screenTitle)
+                        Text("Estimates include prescribed work, between-set rest and setup. Review actual exercises and equipment before choosing. Comparing plans does not change your active program.").appTextRole(.secondary).foregroundStyle(.secondary)
+                        ForEach(comparisonPrograms, id: \.catalogID) { program in
+                            comparisonCard(program)
+                        }
+                    }.padding(AppSpacing.screenHorizontal)
+                }.background(AppPalette.canvas)
+                    .navigationTitle("Compare plans").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingComparison = false } } }
+            }.accessibilityIdentifier("program_catalog_comparison")
+        }
         .sheet(item: $showingPreBuiltDetail) { program in
             NavigationStack {
                 ProgramDetailView(
@@ -108,7 +134,7 @@ struct PreBuiltProgramsView: View {
             }
         }
     }
-    
+
     @ViewBuilder
     private func preBuiltProgramRow(_ program: WorkoutProgram) -> some View {
         let profile = profile(for: program)
@@ -174,8 +200,37 @@ struct PreBuiltProgramsView: View {
             }
             .buttonStyle(AppActionButtonStyle(.primary))
             .disabled(isSelecting)
+            Button(comparisonPrograms.contains(where: { $0.catalogID == program.catalogID }) ? "Remove from comparison" : "Add to comparison") {
+                if let index = comparisonPrograms.firstIndex(where: { $0.catalogID == program.catalogID }) { comparisonPrograms.remove(at: index) } else if comparisonPrograms.count < 2 { comparisonPrograms.append(program) }
+            }.frame(minHeight: 44)
+                .disabled(comparisonPrograms.count == 2 && !comparisonPrograms.contains(where: { $0.catalogID == program.catalogID }))
+                .accessibilityIdentifier("program_compare_\(program.catalogID)")
         }
         .appSurface(.emphasized)
+    }
+
+    private func comparisonCard(_ program: WorkoutProgram) -> some View {
+        let profile = profile(for: program)
+        let estimates = program.routines.compactMap { WorkoutPlanningEligibility.estimatedMinutes($0) }
+        let time = estimates.count == program.routines.count && !estimates.isEmpty
+            ? "\(estimates.min() ?? 0)–\(estimates.max() ?? 0) min per session (estimate)" : "Session time needs manual target review"
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text(program.name).appTextRole(.sectionTitle)
+            LabeledContent("Goal", value: profile.goal)
+            LabeledContent("Experience", value: profile.level)
+            LabeledContent("Frequency", value: "\(program.daysOfWeek?.count ?? program.routines.count) days/week")
+            LabeledContent("Block", value: "\(program.trainingBlock?.weeks.count ?? program.catalogRelease?.weekCount ?? 12) weeks")
+            Text(time).appTextRole(.control)
+            Text("Equipment: " + profile.equipment).appTextRole(.secondary)
+            Text("\(profile.setCount) prescribed sets across \(program.routines.count) distinct days").appTextRole(.secondary)
+            Text("Progression: " + (program.catalogRelease?.supportedPolicy.title ?? "Review authored targets")).appTextRole(.secondary)
+            ForEach(program.routines, id: \.id) { routine in
+                Text(routine.name + ": " + routine.exercises.map(\.name).joined(separator: ", ")).appTextRole(.caption)
+            }
+            Text(profile.summary).appTextRole(.caption).foregroundStyle(.secondary)
+            Button("Preview \(program.name)") { showingComparison = false; showingPreBuiltDetail = program }
+                .buttonStyle(AppActionButtonStyle(.secondary))
+        }.appSurface(.quiet)
     }
 
     private func selectPreBuiltProgram(_ program: WorkoutProgram, startDate: Date) {
@@ -215,122 +270,12 @@ struct PreBuiltProgramsView: View {
     }
 
     private func profile(for program: WorkoutProgram) -> ProgramCatalogProfile {
-        let name = program.name.lowercased()
-        let exercises = program.routines.flatMap(\.exercises)
-        let exerciseNames = exercises.map { $0.name.lowercased() }.joined(separator: " ")
-        let usesBodyweight = name.contains("bodyweight") || exerciseNames.contains("push-up") || exerciseNames.contains("burpee")
-        let usesBarbell = exerciseNames.contains("barbell") || exerciseNames.contains("deadlift") || exerciseNames.contains("bench press")
-        let usesMachine = name.contains("machine") || exerciseNames.contains("machine") || exerciseNames.contains("leg press")
-        let isDumbbellFocused = name.contains("dumbbell")
-        let isHypertrophyFocused = name.contains("hypertrophy") || name.contains("growth") || name.contains("volume") || name.contains("phul") || name.contains("phat")
-        let isConditioningFocused = name.contains("conditioning") || name.contains("fat loss") || name.contains("zone 2") || name.contains("kettlebell")
-        let isBeginnerStrength = name.contains("beginner") || name.contains("stronglifts") || name.contains("gzclp") || name.contains("5/3/1")
-        let mobilityExerciseCount = exercises.filter { $0.type == .flexibility }.count
-        let cardioExerciseCount = exercises.filter { $0.type == .cardio }.count
-        let isRecoveryFocused = name.contains("mobility") || name.contains("reset") || mobilityExerciseCount >= max(1, exercises.count / 2)
-        let setCount = exercises.reduce(0) { $0 + max($1.sets.count, $1.targetSets) }
-
-        if isRecoveryFocused {
-            return ProgramCatalogProfile(
-                goal: "Recovery",
-                level: "All Levels",
-                equipment: "Minimal Equipment",
-                summary: "A low-impact reset for mobility, core control, easy conditioning, and better recovery between harder sessions.",
-                icon: "heart.fill",
-                color: AppPalette.recovery,
-                tags: ["Mobility", "Core", "Recovery", "Low Impact"],
-                setCount: setCount
-            )
-        }
-
-        if isConditioningFocused || cardioExerciseCount >= max(2, exercises.count / 4) {
-            return ProgramCatalogProfile(
-                goal: "Conditioning",
-                level: "All Levels",
-                equipment: name.contains("kettlebell") ? "Kettlebell + Bodyweight" : "Flexible",
-                summary: "A higher-movement plan for strength maintenance, conditioning, energy expenditure, and work capacity.",
-                icon: "flame.fill",
-                color: AppPalette.caution,
-                tags: ["Conditioning", "Cardio", "Work Capacity", "Flexible"],
-                setCount: setCount
-            )
-        }
-
-        if usesMachine && name.contains("machine") {
-            return ProgramCatalogProfile(
-                goal: "Gym Access",
-                level: name.contains("beginner") ? "Beginner" : "All Levels",
-                equipment: "Machines",
-                summary: "A straightforward gym-machine path for users who want low-friction setup, stable movements, and easy progression.",
-                icon: "rectangle.grid.2x2.fill",
-                color: AppPalette.effort,
-                tags: ["Machines", "Gym", "Low Setup", "Repeatable"],
-                setCount: setCount
-            )
-        }
-
-        if isHypertrophyFocused {
-            return ProgramCatalogProfile(
-                goal: "Muscle Growth",
-                level: name.contains("beginner") ? "Beginner" : "Intermediate",
-                equipment: usesBarbell ? "Barbell + Accessories" : "Flexible",
-                summary: "A muscle-building split with enough weekly volume to train hard while keeping the structure easy to follow.",
-                icon: "dumbbell.fill",
-                color: AppPalette.achievement,
-                tags: ["Hypertrophy", "Muscle Growth", "Volume", "\(program.daysOfWeek?.count ?? 0) Days"],
-                setCount: setCount
-            )
-        }
-
-        if isDumbbellFocused {
-            return ProgramCatalogProfile(
-                goal: "Muscle Growth",
-                level: name.contains("beginner") ? "Beginner" : "Intermediate",
-                equipment: "Dumbbells",
-                summary: "A focused dumbbell plan for users training at home, in a small gym, or without consistent barbell access.",
-                icon: "dumbbell.fill",
-                color: AppPalette.achievement,
-                tags: ["Dumbbell", "Home Friendly", "Flexible", "\(program.daysOfWeek?.count ?? 0) Days"],
-                setCount: setCount
-            )
-        }
-
-        if usesBodyweight && !usesBarbell {
-            return ProgramCatalogProfile(
-                goal: "General Fitness",
-                level: "Beginner",
-                equipment: "Minimal Equipment",
-                summary: "A forgiving full-body path for building consistency, movement quality, and conditioning.",
-                icon: "figure.run",
-                color: .accentPositive,
-                tags: ["Beginner", "Full Body", "Conditioning", "Low Barrier"],
-                setCount: setCount
-            )
-        }
-
-        if usesBarbell || isBeginnerStrength {
-            return ProgramCatalogProfile(
-                goal: "Strength",
-                level: isBeginnerStrength ? "Beginner" : "Intermediate",
-                equipment: "Barbell",
-                summary: "A progressive strength block built around compound lifts, repeatable practice, and measurable performance.",
-                icon: "scalemass.fill",
-                color: .brandPrimary,
-                tags: ["Strength", "Barbell", "Progressive", "\(program.daysOfWeek?.count ?? 0) Days"],
-                setCount: setCount
-            )
-        }
-
-        return ProgramCatalogProfile(
-            goal: "Balanced",
-            level: "All Levels",
-            equipment: "Flexible",
-            summary: "A structured plan with enough variety to support steady weekly training.",
-            icon: "figure.strengthtraining.traditional",
-                color: AppPalette.effort,
-            tags: ["Balanced", "Flexible", "12 Weeks"],
-            setCount: setCount
-        )
+        let release = program.catalogRelease ?? WorkoutCatalogRelease.profile(templateID: program.id ?? "")
+        return ProgramCatalogProfile(goal: release?.goal ?? "Review plan", level: release?.experience ?? "Unspecified",
+            equipment: release?.equipment ?? "Review requirements", summary: release?.fidelity ?? "Review this saved split before adopting it.",
+            icon: "figure.strengthtraining.traditional", color: AppPalette.brand,
+            tags: (release?.tags ?? []) + ["Catalog v\(release?.version ?? 1)"],
+            setCount: program.routines.flatMap(\.exercises).reduce(0) { $0 + $1.sets.count })
     }
 }
 
@@ -469,7 +414,7 @@ private struct ProgramCatalogEmptyState: View {
                 .appFont(size: 28, weight: .semibold)
                 .foregroundColor(.brandForeground)
                 .frame(width: 58, height: 58)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
 
             Text("No matching programs")
                 .appFont(size: 18, weight: .bold)
@@ -551,7 +496,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                         Spacer(minLength: 0)
                     }
 
-                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                    AppDateField("Start Date", selection: $startDate)
                         .appFont(size: 15, weight: .semibold)
                         .tint(.brandPrimary)
                         .padding(14)
@@ -634,11 +579,11 @@ private struct PreBuiltProgramsHeader: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Ready-Made Training")
+                    Text("Find your next plan")
                         .appFont(size: 25, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Choose a complete plan, inspect the routine structure, then make it your active program.")
+                    Text("Browse the sessions before you choose.")
                         .appFont(size: 14)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
@@ -656,7 +601,7 @@ private struct PreBuiltProgramsHeader: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
                 .frame(width: 52, height: 52)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
             }
         }
         .appSurface(.emphasized)

@@ -21,7 +21,7 @@ struct ExerciseTrendChartView: View {
                     Text("Progressive Overload (\(metric))").font(.caption).foregroundColor(.secondary)
                 }
                 Spacer()
-                
+
                 if let first = dataPoints.first, let last = dataPoints.last, dataPoints.count > 1 {
                     let diff = last.value - first.value
                     let isPositive = diff >= 0

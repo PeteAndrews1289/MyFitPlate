@@ -29,6 +29,38 @@ final class WorkoutServiceTests: XCTestCase {
 
     // MARK: - Failure surfacing (silent write failures once froze program progress)
 
+    func testPartialLibraryDoesNotReplaceUnreadablePreferredProgramWithAnotherPlan() {
+        let selected = WorkoutProgram(id: "preferred", userID: "user_123", name: "PHUL", currentProgressIndex: 35)
+        let other = WorkoutProgram(id: "other", userID: "user_123", name: "Another plan")
+        service.setActiveProgram(selected)
+        var receive: ((Result<WorkoutLibrarySnapshot<WorkoutProgram>, Error>) -> Void)?
+        mockRepo.onProgramLibraryListenerAdded = { _, callback in receive = callback }
+        service.fetchRoutinesAndPrograms()
+        receive?(.success(WorkoutLibrarySnapshot(values: [other], unreadableIDs: ["preferred"])))
+        XCTAssertNil(service.activeProgram)
+        XCTAssertEqual(service.userPrograms.count, 1)
+        XCTAssertNotNil(service.loadErrorMessage)
+        XCTAssertEqual(defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_123")), "preferred")
+        receive?(.success(WorkoutLibrarySnapshot(values: [other, selected])))
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 35)
+        XCTAssertNil(service.loadErrorMessage)
+    }
+
+    func testOfflineSubsetDoesNotChangeThePreferredPlanAndLateAccountUpdateIsIgnored() {
+        let selected = WorkoutProgram(id: "preferred", userID: "user_123", name: "PHUL")
+        let other = WorkoutProgram(id: "other", userID: "user_123", name: "Other")
+        service.setActiveProgram(selected)
+        var receive: ((Result<WorkoutLibrarySnapshot<WorkoutProgram>, Error>) -> Void)?
+        mockRepo.onProgramLibraryListenerAdded = { _, callback in receive = callback }
+        service.fetchRoutinesAndPrograms()
+        receive?(.success(WorkoutLibrarySnapshot(values: [other], isFromCache: true)))
+        XCTAssertNil(service.activeProgram)
+        mockAuth.currentUserID = "another-account"
+        receive?(.success(WorkoutLibrarySnapshot(values: [selected])))
+        XCTAssertNil(service.activeProgram)
+        XCTAssertEqual(service.userPrograms.first?.id, "other")
+    }
+
     func testSaveProgramFailureRecordsNonFatalAndToasts() async {
         mockRepo.saveProgramError = NSError(domain: "test", code: 7)
         let program = WorkoutProgram(id: "p1", userID: "user_123", name: "P", dateCreated: Date(), routines: [])
@@ -45,7 +77,8 @@ final class WorkoutServiceTests: XCTestCase {
         mockRepo.saveWorkoutSessionLogError = NSError(domain: "test", code: 8)
         let log = WorkoutSessionLog(id: "log1", date: Date(), routineID: "r1", completedExercises: [])
 
-        await service.saveWorkoutSessionLog(log)
+        let accepted = await service.saveWorkoutSessionLog(log)
+        XCTAssertFalse(accepted, "Completion must remain open when history cannot accept the write")
 
         XCTAssertEqual(mockCrash.recordedErrors.count, 1)
         XCTAssertEqual(mockCrash.recordedErrors.first?.userInfo["operation"] as? String, "save_workout_session_log")
@@ -60,6 +93,53 @@ final class WorkoutServiceTests: XCTestCase {
         XCTAssertNotNil(saved)
         XCTAssertTrue(mockCrash.recordedErrors.isEmpty)
         XCTAssertNil(ToastManager.shared.toast)
+    }
+
+    func testStalePreBlockRoutineEditCannotReplaceActiveAuthoredRotation() async throws {
+        let routine = WorkoutRoutine(id: "phul-upper", userID: "user_123", name: "Upper", dateCreated: Date(),
+            exercises: [RoutineExercise(id: "bench", name: "Bench press", sets: [ExerciseSet(id: "set", target: "8-12")])])
+        let legacy = WorkoutProgram(id: "phul", userID: "user_123", name: "PHUL", routines: [routine],
+            daysOfWeek: [2, 3, 5, 6], currentProgressIndex: 39, skippedIndices: [2, 9, 20])
+        var canonical = legacy
+        canonical.trainingBlock = try WorkoutBlockRules.createRepeatingBlock(for: legacy)
+        service.userPrograms = [canonical]
+        service.activeProgram = canonical
+        var stale = legacy
+        stale.routines[0] = try XCTUnwrap(routine.deepCopy())
+        stale.routines[0].exercises[0].sets[0].target = "1 rep"
+
+        let result = await service.saveProgram(stale)
+
+        XCTAssertNil(result)
+        XCTAssertEqual(service.activeProgram?.trainingBlock?.revisionID, canonical.trainingBlock?.revisionID)
+        XCTAssertEqual(service.activeProgram?.routines[0].exercises[0].sets[0].target, "8-12")
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 39)
+        XCTAssertEqual(service.activeProgram?.skippedIndices, [2, 9, 20])
+        XCTAssertEqual(service.userPrograms.count, 1)
+        XCTAssertEqual(mockCrash.recordedErrors.count, 1)
+        XCTAssertNotNil(ToastManager.shared.toast)
+    }
+
+    func testOrdinaryMetadataSaveRetainsCanonicalBlockBeforeListenerRefresh() async throws {
+        let routine = WorkoutRoutine(id: "phul-upper", userID: "user_123", name: "Upper", dateCreated: Date(),
+            exercises: [RoutineExercise(id: "bench", name: "Bench press", sets: [ExerciseSet(id: "set", target: "8-12")])])
+        let legacy = WorkoutProgram(id: "phul", userID: "user_123", name: "PHUL", routines: [routine],
+            daysOfWeek: [2, 3, 5, 6], currentProgressIndex: 39, skippedIndices: [2, 9, 20])
+        var canonical = legacy
+        canonical.trainingBlock = try WorkoutBlockRules.createRepeatingBlock(for: legacy)
+        service.userPrograms = [canonical]
+        service.activeProgram = canonical
+        var metadataOnly = legacy
+        metadataOnly.name = "PHUL gym plan"
+        metadataOnly.currentProgressIndex = 40
+
+        let result = await service.saveProgram(metadataOnly)
+
+        XCTAssertEqual(result?.name, "PHUL gym plan")
+        XCTAssertEqual(result?.trainingBlock?.revisionID, canonical.trainingBlock?.revisionID)
+        XCTAssertEqual(service.activeProgram?.trainingBlock?.revisionID, canonical.trainingBlock?.revisionID)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 40)
+        XCTAssertTrue(mockCrash.recordedErrors.isEmpty)
     }
 
     override func tearDown() {
@@ -164,6 +244,56 @@ final class WorkoutServiceTests: XCTestCase {
             defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_123")),
             "p1"
         )
+    }
+
+    func testPartialOfflineCacheDoesNotReplacePreferredProgram() {
+        let preferred = WorkoutProgram(id: "preferred", userID: "user_123", name: "Preferred")
+        let cached = WorkoutProgram(id: "cached", userID: "user_123", name: "Cached")
+        service.setActiveProgram(preferred)
+        var receive: ((Result<[WorkoutProgram], Error>) -> Void)?
+        mockRepo.onProgramsSnapshotListenerAdded = { _, callback in receive = callback }
+        service.fetchRoutinesAndPrograms()
+        receive?(.success([]))
+        receive?(.success([cached]))
+        XCTAssertEqual(defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_123")), "preferred")
+        receive?(.success([cached, preferred]))
+        XCTAssertEqual(service.activeProgram?.id, "preferred")
+    }
+
+    func testRetryingFailedRefreshKeepsTheActiveProgramAndItsProgress() {
+        let program = WorkoutProgram(id: "original", userID: "user_123", name: "PHUL", currentProgressIndex: 35)
+        var receive: ((Result<[WorkoutProgram], Error>) -> Void)?
+        mockRepo.onProgramsSnapshotListenerAdded = { _, callback in receive = callback }
+        service.fetchRoutinesAndPrograms()
+        receive?(.success([program]))
+        service.setActiveProgram(program)
+        receive?(.failure(CocoaError(.coderValueNotFound)))
+
+        service.retryPendingSaves()
+
+        XCTAssertEqual(service.activeProgram?.id, "original")
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 35)
+        XCTAssertEqual(service.userPrograms.map(\.id), ["original"])
+        XCTAssertTrue(service.hasLoadedPrograms)
+        XCTAssertTrue(service.isLoadingPrograms)
+        receive?(.success([program]))
+        XCTAssertFalse(service.isLoadingPrograms)
+        XCTAssertNil(service.loadErrorMessage)
+    }
+
+    func testFailedInitialProgramReadIsNotPresentedAsAnEmptyLibrary() {
+        var receive: ((Result<[WorkoutProgram], Error>) -> Void)?
+        mockRepo.onProgramsSnapshotListenerAdded = { _, callback in receive = callback }
+        service.fetchRoutinesAndPrograms()
+        XCTAssertTrue(service.isLoadingPrograms)
+        XCTAssertFalse(service.hasLoadedPrograms)
+        receive?(.failure(CocoaError(.coderValueNotFound)))
+        XCTAssertFalse(service.isLoadingPrograms)
+        XCTAssertFalse(service.hasLoadedPrograms)
+        XCTAssertNotNil(service.loadErrorMessage)
+        receive?(.success([]))
+        XCTAssertTrue(service.hasLoadedPrograms)
+        XCTAssertNil(service.loadErrorMessage)
     }
 
     func testSaveProgram() async {
@@ -397,12 +527,12 @@ final class WorkoutServiceTests: XCTestCase {
         let r1 = WorkoutRoutine(id: "r1", userID: "user_123", name: "R1", dateCreated: Date(), exercises: [])
 
         var pCallback: ((Result<[WorkoutProgram], Error>) -> Void)?
-        mockRepo.onProgramsSnapshotListenerAdded = { userID, onUpdate in
+        mockRepo.onProgramsSnapshotListenerAdded = { _, onUpdate in
             pCallback = onUpdate
         }
         
         var rCallback: ((Result<[WorkoutRoutine], Error>) -> Void)?
-        mockRepo.onRoutinesSnapshotListenerAdded = { userID, onUpdate in
+        mockRepo.onRoutinesSnapshotListenerAdded = { _, onUpdate in
             rCallback = onUpdate
         }
         
@@ -434,15 +564,20 @@ final class WorkoutServiceTests: XCTestCase {
         let mockAI = MockAIService()
         let jsonResponse = """
         {
+            "schemaVersion": 2,
             "programName": "AI Plan",
             "routines": [
                 {
                     "name": "Day 1",
                     "exercises": [
                         {
-                            "name": "Squat",
+                            "name": "Bodyweight Squat",
+                            "movementID": "mfp.exercise.bodyweight-squat",
+                            "variantID": "standard-v1",
+                            "restSeconds": 60,
+                            "progressionPolicy": {"version": 1, "kind": "bodyweight", "incrementPounds": 5},
                             "type": "Strength",
-                            "sets": [{"target": "10"}],
+                            "sets": [{"target": "10", "prescription": {"schemaVersion": 1, "kind": "repetitions", "lowerBound": 10}}],
                             "alternatives": []
                         }
                     ]
@@ -509,6 +644,141 @@ final class WorkoutServiceTests: XCTestCase {
                 XCTFail("Expected decoding error")
             }
         }
+    }
+
+    // MARK: - Exact program/slot completion acknowledgment
+
+    private func completionProgram() -> WorkoutProgram {
+        let routine = WorkoutRoutine(id: "bound-routine", userID: "user_123", name: "Upper",
+                                     dateCreated: Date(timeIntervalSince1970: 1_700_000_000))
+        return WorkoutProgram(id: "bound-program", userID: "user_123", name: "PHUL",
+                              dateCreated: routine.dateCreated, routines: [routine], daysOfWeek: [2],
+                              currentProgressIndex: 0)
+    }
+
+    private func boundCompletion(slot: Int = 0, programID: String = "bound-program") -> WorkoutSessionLog {
+        WorkoutSessionLog(id: "bound-session-\(slot)", date: Date(), routineID: "bound-routine", completedExercises: [],
+                          programContext: WorkoutProgramSessionContext(programID: programID, slotIndex: slot))
+    }
+
+    func testProgramCompletionRetryAdvancesCapturedSlotOnlyOnce() async {
+        let program = completionProgram()
+        service.userPrograms = [program]
+        service.setActiveProgram(program)
+        let completion = boundCompletion()
+        mockRepo.mockFetchRecentSessionLogsResult = [completion, completion]
+        let accepted = await service.recordProgramCompletion(completion)
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 1)
+        let replayed = await service.recordProgramCompletion(completion)
+        XCTAssertTrue(replayed)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 1)
+    }
+
+    func testEarlyCompletionAcknowledgesHistoryWithoutSkippingCurrentSlot() async {
+        let program = completionProgram()
+        service.userPrograms = [program]
+        service.setActiveProgram(program)
+        let early = boundCompletion(slot: 2)
+        mockRepo.mockFetchRecentSessionLogsResult = [early]
+        let accepted = await service.recordProgramCompletion(early)
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 0)
+    }
+
+    func testProgramSaveFailureRetainsProgressForCompletionRetry() async {
+        let program = completionProgram()
+        service.userPrograms = [program]
+        service.setActiveProgram(program)
+        mockRepo.saveProgramError = NSError(domain: "save", code: 1)
+        let completion = boundCompletion()
+        let failed = await service.recordProgramCompletion(completion)
+        XCTAssertFalse(failed)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 0)
+        mockRepo.saveProgramError = nil
+        let retried = await service.recordProgramCompletion(completion)
+        XCTAssertTrue(retried)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 1)
+    }
+
+    func testHistoryFailureCannotGuessProgressFromOnlyLatestCompletion() async {
+        let program = completionProgram()
+        service.userPrograms = [program]
+        service.setActiveProgram(program)
+        mockRepo.fetchRecentSessionLogsError = NSError(domain: "read", code: 1)
+        let accepted = await service.recordProgramCompletion(boundCompletion())
+        XCTAssertFalse(accepted)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 0)
+    }
+
+    func testCapturedProgramCompletionCannotAdvanceAnotherActiveProgram() async {
+        let original = completionProgram()
+        var other = original
+        other.id = "other-program"
+        other.currentProgressIndex = 7
+        service.userPrograms = [original, other]
+        service.setActiveProgram(other)
+        let accepted = await service.recordProgramCompletion(boundCompletion())
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(service.userPrograms.first { $0.id == original.id }?.currentProgressIndex, 1)
+        XCTAssertEqual(service.activeProgram?.id, other.id)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 7)
+    }
+
+    func testUnknownProgramCompletionWaitsForLibraryInsteadOfAssumingDeletion() async {
+        let accepted = await service.recordProgramCompletion(boundCompletion())
+        XCTAssertFalse(accepted)
+        XCTAssertNil(service.activeProgram)
+    }
+
+    func testMissingProgramInCachedSubsetCannotClearCompletionRecovery() async {
+        mockRepo.onProgramLibraryListenerAdded = { _, receive in
+            receive(.success(WorkoutLibrarySnapshot(values: [], isFromCache: true)))
+        }
+        service.fetchRoutinesAndPrograms()
+        let accepted = await service.recordProgramCompletion(boundCompletion())
+        XCTAssertFalse(accepted)
+    }
+
+    func testConfirmedDeletedProgramDoesNotTrapSavedWorkout() async {
+        mockRepo.onProgramLibraryListenerAdded = { _, receive in
+            receive(.success(WorkoutLibrarySnapshot(values: [], isFromCache: false)))
+        }
+        service.fetchRoutinesAndPrograms()
+        let accepted = await service.recordProgramCompletion(boundCompletion())
+        XCTAssertTrue(accepted)
+    }
+
+    func testKnownForeignProgramIsNotMistakenForDeletedProgram() async {
+        mockRepo.onProgramLibraryListenerAdded = { _, receive in
+            receive(.success(WorkoutLibrarySnapshot(values: [], isFromCache: false)))
+        }
+        service.fetchRoutinesAndPrograms()
+        var foreign = completionProgram()
+        foreign.userID = "another-account"
+        service.userPrograms = [foreign]
+        let accepted = await service.recordProgramCompletion(boundCompletion())
+        XCTAssertFalse(accepted)
+        XCTAssertEqual(service.userPrograms.first?.currentProgressIndex, 0)
+    }
+
+    func testLifetimeHistoryWindowIncludesEarlierReceiptsAfterReschedule() {
+        var program = completionProgram()
+        program.dateCreated = Calendar.current.date(byAdding: .day, value: -600, to: Date())!
+        program.startDate = Date()
+        XCTAssertGreaterThanOrEqual(WorkoutService.sessionLogWindowDays(for: program), 613)
+        program.startDate = nil
+        XCTAssertGreaterThanOrEqual(WorkoutService.sessionLogWindowDays(for: program), 613)
+    }
+
+    func testLegacyCompletionDoesNotInventCurrentProgramContext() async {
+        let program = completionProgram()
+        service.userPrograms = [program]
+        service.setActiveProgram(program)
+        let unassigned = WorkoutSessionLog(id: "legacy", date: Date(), routineID: "bound-routine", completedExercises: [])
+        let accepted = await service.recordProgramCompletion(unassigned)
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(service.activeProgram?.currentProgressIndex, 0)
     }
 
     func testWorkoutServiceErrorDescriptions() {

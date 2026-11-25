@@ -3,6 +3,7 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 import AppIntents
+import MyFitPlateShared
 
 struct FastingActivityWidget: Widget {
     var body: some WidgetConfiguration {
@@ -27,7 +28,7 @@ struct FastingActivityWidget: Widget {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Text(timerInterval: context.state.startTime...Date().addingTimeInterval(86400 * 7), countsDown: false)
-                            .font(.system(size: 32, weight: .bold))
+                            .font(.system(size: 30, weight: .bold, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(LiveActivityPalette.caution)
                     }
@@ -38,8 +39,8 @@ struct FastingActivityWidget: Widget {
                         Text("Remaining")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(timerInterval: Date()...context.state.targetEndTime, countsDown: true)
-                            .font(.system(size: 24, weight: .semibold))
+                        Text(timerInterval: context.state.startTime...max(context.state.startTime, context.state.targetEndTime), countsDown: true)
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                             .foregroundColor(.white)
                     }
@@ -47,12 +48,12 @@ struct FastingActivityWidget: Widget {
 
                 HStack {
                     Spacer()
-                    Button(intent: EndFastIntent()) {
+                    Button(intent: EndFastIntent(sessionID: context.attributes.sessionID, ownerScope: context.attributes.ownerScope, revision: context.state.revision)) {
                         Text("End fast")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+                            .frame(minHeight: 44)
                             .background(LiveActivityPalette.caution.opacity(0.2))
                             .foregroundStyle(LiveActivityPalette.caution)
                             .clipShape(Capsule())
@@ -64,6 +65,7 @@ struct FastingActivityWidget: Widget {
             .activityBackgroundTint(Color.black.opacity(0.85))
             .activitySystemActionForegroundColor(Color.white)
 
+            .widgetURL(MyFitPlateLinks.ActivityDestination.fast.url(sessionID: context.attributes.sessionID?.uuidString))
         } dynamicIsland: { context in
             // 2. Dynamic Island UI
             DynamicIsland {
@@ -78,7 +80,7 @@ struct FastingActivityWidget: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(timerInterval: Date()...context.state.targetEndTime, countsDown: true)
+                    Text(timerInterval: context.state.startTime...max(context.state.startTime, context.state.targetEndTime), countsDown: true)
                         .font(.title2)
                         .monospacedDigit()
                         .foregroundStyle(LiveActivityPalette.caution)
@@ -88,12 +90,12 @@ struct FastingActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
                         Spacer()
-                        Button(intent: EndFastIntent()) {
+                        Button(intent: EndFastIntent(sessionID: context.attributes.sessionID, ownerScope: context.attributes.ownerScope, revision: context.state.revision)) {
                             Text("End fast")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                                 .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
+                                .frame(minHeight: 44)
                                 .background(LiveActivityPalette.caution.opacity(0.2))
                                 .foregroundStyle(LiveActivityPalette.caution)
                                 .clipShape(Capsule())
@@ -106,13 +108,14 @@ struct FastingActivityWidget: Widget {
             } compactLeading: {
                 Image(systemName: "flame.fill").foregroundStyle(LiveActivityPalette.caution)
             } compactTrailing: {
-                Text(timerInterval: Date()...context.state.targetEndTime, countsDown: true)
+                Text(timerInterval: context.state.startTime...max(context.state.startTime, context.state.targetEndTime), countsDown: true)
                     .monospacedDigit()
                     .frame(width: 45)
                     .foregroundStyle(LiveActivityPalette.caution)
             } minimal: {
                 Image(systemName: "flame.fill").foregroundStyle(LiveActivityPalette.caution)
             }
+            .widgetURL(MyFitPlateLinks.ActivityDestination.fast.url(sessionID: context.attributes.sessionID?.uuidString))
         }
     }
 }

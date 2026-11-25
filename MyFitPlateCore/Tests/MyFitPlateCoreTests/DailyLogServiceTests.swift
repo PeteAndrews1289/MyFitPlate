@@ -1,8 +1,129 @@
 import XCTest
 @testable import MyFitPlateCore
 
+private func diaryServiceDayKey(_ date: Date) -> String { DiaryDayContext.dayKey(for: date)! }
+
 @MainActor
 final class DailyLogServiceTests: XCTestCase {
+    func testDayReviewRejectsFailedSaveThenRetriesAndUndoesWithoutTouchingFood() async throws {
+        let date = Calendar.current.startOfDay(for: Date())
+        service.currentDailyLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(name: "Lunch", foodItems: [FoodItem(id: "meal", name: "Meal", calories: 500)])])
+        mockRepo.persistsDailyLogUpdates = true
+        try await mockRepo.saveDailyLog(userID: "user", log: XCTUnwrap(service.currentDailyLog))
+        mockRepo.updateLogSuccess = false
+        let rejected = await withCheckedContinuation { continuation in
+            service.setNutritionDayStatus(.complete, for: "user", date: date) { continuation.resume(returning: $0) }
+        }
+        XCTAssertFalse(rejected)
+        XCTAssertNil(service.currentDailyLog?.nutritionDayStatus)
+        mockRepo.updateLogSuccess = true
+        let accepted = await withCheckedContinuation { continuation in
+            service.setNutritionDayStatus(.complete, for: "user", date: date) { continuation.resume(returning: $0) }
+        }
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(service.currentDailyLog?.nutritionDayStatus, .complete)
+        service.undoLastDiaryChange(for: "user")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertNil(service.currentDailyLog?.nutritionDayStatus)
+        XCTAssertEqual(service.currentDailyLog?.meals[0].foodItems.first?.id, "meal")
+        let future = await withCheckedContinuation { continuation in
+            service.setNutritionDayStatus(.complete, for: "user", date: date.addingTimeInterval(86_400)) { continuation.resume(returning: $0) }
+        }
+        XCTAssertFalse(future)
+    }
+
+    func testDayReviewCanonicalRaceKeepsNewFoodWithoutOfferingItsUndo() async throws {
+        let date = Calendar.current.startOfDay(for: Date().addingTimeInterval(-86_400))
+        let original = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(name: "Lunch", foodItems: [FoodItem(id: "first", name: "Rice", calories: 200)])])
+        mockRepo.persistsDailyLogUpdates = true
+        try await mockRepo.saveDailyLog(userID: "user", log: original)
+        let loaded: DailyLog = try await withCheckedThrowingContinuation { continuation in
+            service.fetchLog(for: "user", date: date) { continuation.resume(with: $0) }
+        }
+        XCTAssertEqual(loaded.id, original.id)
+        mockRepo.shouldDeferDailyLogUpdateCompletions = true
+        let task = Task { @MainActor in
+            await withCheckedContinuation { continuation in
+                service.setNutritionDayStatus(.complete, for: "user", date: date, reviewedLog: original) { continuation.resume(returning: $0) }
+            }
+        }
+        for _ in 0..<100 where mockRepo.deferredDailyLogUpdateCompletions.isEmpty { await Task.yield() }
+        XCTAssertEqual(mockRepo.deferredDailyLogUpdateCompletions.count, 1)
+        var concurrent = try XCTUnwrap(mockRepo.lastUpdatedLog)
+        concurrent.meals[0].foodItems.append(FoodItem(id: "another-device", name: "Fruit", calories: 100))
+        mockRepo.mockFetchLogResult = .success(concurrent)
+        mockRepo.deferredDailyLogUpdateCompletions.removeFirst()(true)
+        let confirmed = await task.value
+        XCTAssertFalse(confirmed)
+        XCTAssertFalse(service.canUndoDiaryChange, "Review Undo must never include another writer's food")
+        XCTAssertEqual(service.currentDailyLog?.meals[0].foodItems.map(\.id), ["first", "another-device"])
+        XCTAssertEqual(service.currentDailyLog.map(NutritionDayEvidence.status), .unknown)
+    }
+
+    func testMealDraftReplayAddsMissingEntriesOnlyAndDoesNotReplaceUndoOnNoOp() async throws {
+        let date = Calendar.current.startOfDay(for: Date())
+        let original = FoodItem(id: "existing", name: "Already logged", calories: 50)
+        let first = FoodItem(id: "draft-one", name: "Oats", calories: 200)
+        let second = FoodItem(id: "draft-two", name: "Milk", calories: 100)
+        service.currentDailyLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(name: "Breakfast", foodItems: [original, first])])
+        let save: () async -> Bool = {
+            await withCheckedContinuation { continuation in
+                self.service.addMealGroupsToLog(for: "user", date: date,
+                                               mealGroups: [(mealName: "Breakfast", foodItems: [first, second])],
+                                               source: "meal_draft", deduplicateFoodIDs: true) {
+                    continuation.resume(returning: $0)
+                }
+            }
+        }
+        let firstAccepted = await save()
+        XCTAssertTrue(firstAccepted)
+        let undoID = try XCTUnwrap(service.undoChangeID)
+        XCTAssertEqual(service.undoID(forAddedFoods: ["draft-two"], userID: "user"), undoID)
+        XCTAssertNil(service.undoID(forAddedFoods: ["draft-one", "draft-two"], userID: "user"))
+        XCTAssertNil(service.undoID(forAddedFoods: ["draft-two"], userID: "different-account"))
+        let replayAccepted = await save()
+        XCTAssertTrue(replayAccepted)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.meals.flatMap(\.foodItems).map(\.id), ["existing", "draft-one", "draft-two"])
+        XCTAssertEqual(service.undoChangeID, undoID)
+        service.undoLastDiaryChange(for: "user")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.meals.flatMap(\.foodItems).map(\.id), ["existing", "draft-one"])
+    }
+
+    func testWorkoutSaveUsesCaptureDateAndRetryKeepsOneDiaryEntry() async throws {
+        let captured = Calendar.current.startOfDay(for: Date())
+        let historical = captured.addingTimeInterval(-86400 * 3)
+        service.activelyViewedDate = historical
+        service.currentDailyLog = DailyLog(id: diaryServiceDayKey(historical), date: historical, meals: [])
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(captured), date: captured, meals: []))
+        let exercise = LoggedExercise(id: "session", name: "Strength", durationMinutes: 20, caloriesBurned: 80,
+                                      date: captured, source: "routine", workoutID: "r", sessionID: "session")
+        let accepted = await service.saveWorkoutExercise(for: "user", exercise: exercise)
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.date, captured)
+        XCTAssertEqual(service.currentDailyLog?.id, diaryServiceDayKey(historical))
+        mockRepo.mockFetchLogResult = .success(try XCTUnwrap(mockRepo.lastUpdatedLog))
+        let retried = await service.saveWorkoutExercise(for: "user", exercise: exercise)
+        XCTAssertTrue(retried)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.exercises?.map(\.id), ["session"])
+    }
+
+    func testMovingFoodPreservesNutritionAndProvidesUndo() async throws {
+        let date = Calendar.current.startOfDay(for: Date())
+        let food = FoodItem(id: "food", name: "Oats", calories: 200, protein: 8, servingSize: "1 cup", calcium: 100)
+        service.currentDailyLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(name: "Breakfast", foodItems: [food])])
+        service.moveFood(for: "user", foodID: "food", date: date, to: "Lunch")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let moved = try XCTUnwrap(mockRepo.lastUpdatedLog)
+        XCTAssertTrue(moved.meals.first { $0.name == "Breakfast" }?.foodItems.isEmpty == true)
+        XCTAssertEqual(moved.meals.first { $0.name == "Lunch" }?.foodItems.first?.calcium, 100)
+        XCTAssertEqual(moved.totalCalories(), 200)
+        XCTAssertTrue(service.canUndoDiaryChange)
+        service.undoLastDiaryChange(for: "user")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.meals.first { $0.name == "Breakfast" }?.foodItems.map(\.id), ["food"])
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.totalCalories(), 200)
+    }
     
     var service: DailyLogService!
     var mockRepo: MockNutritionRepository!
@@ -11,6 +132,8 @@ final class DailyLogServiceTests: XCTestCase {
     var bannerService: BannerService!
     var mockCrashManager: MockCrashManager!
     var mockAnalyticsManager: MockAnalyticsManager!
+    private var undoDirectory: URL!
+    private var undoStore: EditorDraftStore!
     
     override func setUp() {
         super.setUp()
@@ -24,7 +147,9 @@ final class DailyLogServiceTests: XCTestCase {
         DIContainer.shared.crashManager = mockCrashManager
         DIContainer.shared.analyticsManager = mockAnalyticsManager
         
-        service = DailyLogService()
+        undoDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("daily-log-service-tests-\(UUID())")
+        undoStore = EditorDraftStore(directory: undoDirectory)
+        service = DailyLogService(undoStore: undoStore)
         service.activateAccount("user")
         goalSettings = GoalSettings()
         bannerService = BannerService()
@@ -34,20 +159,29 @@ final class DailyLogServiceTests: XCTestCase {
         service.setupDependencies(goalSettings: goalSettings, bannerService: bannerService, achievementService: achievementService)
     }
 
+    override func tearDown() {
+        service?.activateAccount(nil)
+        service = nil
+        undoStore = nil
+        if let undoDirectory { try? FileManager.default.removeItem(at: undoDirectory) }
+        undoDirectory = nil
+        super.tearDown()
+    }
+
     func testFetchLogInternalAsyncReturnsEmptyLogWhenNoCurrent() async throws {
         let date = Date()
         service.activelyViewedDate = date.addingTimeInterval(86400) // Different day
         
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "123", date: date, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
         
         let expectation = XCTestExpectation(description: "Fetch complete")
         service.fetchLog(for: "user", date: date) { result in
             switch result {
             case .success(let log):
-                XCTAssertEqual(log.id, "123")
+                XCTAssertEqual(log.id, diaryServiceDayKey(date))
                 expectation.fulfill()
             case .failure:
-                XCTFail()
+                XCTFail("Expected the captured diary day to load successfully")
             }
         }
         
@@ -57,7 +191,7 @@ final class DailyLogServiceTests: XCTestCase {
     func testAddFoodToCurrentLog() async {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
-        let initialLog = DailyLog(id: "1", date: date, meals: [])
+        let initialLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [])
         mockRepo.mockFetchLogResult = .success(initialLog)
         
         let food = FoodItem(id: "f1", name: "Apple", calories: 95)
@@ -76,7 +210,7 @@ final class DailyLogServiceTests: XCTestCase {
     func testRapidFoodMutationsAreSerializedWithoutLosingItems() async throws {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
 
         service.addFoodToLog(
             for: "user",
@@ -102,7 +236,7 @@ final class DailyLogServiceTests: XCTestCase {
         service.activelyViewedDate = date
         let food = FoodItem(id: "f1", name: "Apple", calories: 95)
         let meal = Meal(id: UUID(), name: "Breakfast", foodItems: [food])
-        let initialLog = DailyLog(id: "1", date: date, meals: [meal])
+        let initialLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [meal])
         mockRepo.mockFetchLogResult = .success(initialLog)
         
         var updatedFood = food
@@ -125,11 +259,11 @@ final class DailyLogServiceTests: XCTestCase {
 
         let rice = FoodItem(id: "rice", name: "Rice", calories: 300, protein: 6, carbs: 70, fats: 1)
         let chicken = FoodItem(id: "chicken", name: "Chicken", calories: 325, protein: 63, carbs: 0, fats: 8)
-        let displayedLog = DailyLog(id: "1", date: date, meals: [Meal(id: UUID(), name: "Dinner", foodItems: [rice, chicken])])
+        let displayedLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(id: UUID(), name: "Dinner", foodItems: [rice, chicken])])
         service.publishCurrentDailyLog(displayedLog)
 
         // A stale fetch that dropped the chicken (a write still in flight).
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: [Meal(id: UUID(), name: "Dinner", foodItems: [rice])]))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(id: UUID(), name: "Dinner", foodItems: [rice])]))
 
         var rice3 = rice   // bump 2 → 3 servings
         rice3.calories = 450; rice3.carbs = 105; rice3.protein = 9
@@ -150,7 +284,7 @@ final class DailyLogServiceTests: XCTestCase {
         service.activelyViewedDate = date
         let food = FoodItem(id: "f1", name: "Apple", calories: 95)
         let meal = Meal(id: UUID(), name: "Breakfast", foodItems: [food])
-        let initialLog = DailyLog(id: "1", date: date, meals: [meal])
+        let initialLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [meal])
         mockRepo.mockFetchLogResult = .success(initialLog)
         
         service.deleteFoodFromCurrentLog(for: "user", foodItemID: "f1")
@@ -161,12 +295,47 @@ final class DailyLogServiceTests: XCTestCase {
         let updatedLog = mockRepo.lastUpdatedLog!
         let allFoods = updatedLog.meals.flatMap { $0.foodItems }
         XCTAssertTrue(allFoods.isEmpty)
+        XCTAssertTrue(updatedLog.meals.isEmpty)
+    }
+
+    func testCapturedWaterUsesCaptureDayWhileHistoricalDiaryStaysOpen() async {
+        let today = Calendar.current.startOfDay(for: Date())
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
+        service.activelyViewedDate = yesterday
+        service.currentDailyLog = DailyLog(id: diaryServiceDayKey(yesterday), date: yesterday, meals: [])
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(today), date: today, meals: []))
+        let accepted = expectation(description: "durable acceptance")
+        service.addWaterToLog(for: "user", amount: 8, goalOunces: 64, capturedAt: today, entryID: "water-receipt") { success in
+            XCTAssertTrue(success)
+            accepted.fulfill()
+        }
+        await fulfillment(of: [accepted], timeout: 2)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.date, today)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.pendingMutationID, "water-receipt")
+        XCTAssertEqual(service.activelyViewedDate, yesterday)
+    }
+
+    func testUndoRemovesJustTheRecentlyAddedFood() async {
+        let today = Calendar.current.startOfDay(for: Date())
+        let existing = FoodItem(id: "existing", name: "Existing", calories: 100, protein: 10, carbs: 10, fats: 2)
+        let added = FoodItem(id: "added", name: "Added", calories: 100, protein: 10, carbs: 10, fats: 2)
+        let original = DailyLog(id: diaryServiceDayKey(today), date: today, meals: [Meal(name: "Lunch", foodItems: [existing])])
+        service.currentDailyLog = original
+        service.activelyViewedDate = today
+        mockRepo.mockFetchLogResult = .success(original)
+        service.addFoodToLog(for: "user", date: today, mealName: "Lunch", foodItem: added)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(service.canUndoDiaryChange)
+        service.undoLastDiaryChange(for: "user")
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(mockRepo.lastUpdatedLog?.meals.flatMap(\.foodItems).map(\.id), ["existing"])
+        XCTAssertFalse(service.canUndoDiaryChange)
     }
 
     func testAddWaterToCurrentLog() async {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
-        let initialLog = DailyLog(id: "1", date: date, meals: [])
+        let initialLog = DailyLog(id: diaryServiceDayKey(date), date: date, meals: [])
         mockRepo.mockFetchLogResult = .success(initialLog)
         
         service.addWaterToCurrentLog(for: "user", amount: 16.0, goalOunces: 64.0)
@@ -182,7 +351,7 @@ final class DailyLogServiceTests: XCTestCase {
         let sourceDate = Calendar.current.startOfDay(for: Date().addingTimeInterval(-86400))
         let targetDate = Calendar.current.startOfDay(for: Date())
         
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: sourceDate, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(sourceDate), date: sourceDate, meals: []))
         
         service.repeatFoods(from: sourceDate, to: targetDate, for: "user")
         
@@ -204,7 +373,7 @@ final class DailyLogServiceTests: XCTestCase {
                 XCTAssertEqual(items[0].name, "Oats")
                 expectation.fulfill()
             case .failure:
-                XCTFail()
+                XCTFail("Expected recommended foods to load successfully")
             }
         }
         
@@ -235,7 +404,7 @@ final class DailyLogServiceTests: XCTestCase {
         let viewedDate = Calendar.current.startOfDay(for: Date())
         let pastDate = Calendar.current.date(byAdding: .day, value: -1, to: viewedDate)!
         service.activelyViewedDate = viewedDate
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "past", date: pastDate, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(pastDate), date: pastDate, meals: []))
 
         service.addFoodToLog(
             for: "user",
@@ -248,7 +417,7 @@ final class DailyLogServiceTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 100_000_000)
 
         let updatedLog = try XCTUnwrap(mockRepo.lastUpdatedLog)
-        XCTAssertEqual(updatedLog.id, "past")
+        XCTAssertEqual(updatedLog.id, diaryServiceDayKey(pastDate))
         XCTAssertEqual(updatedLog.meals.map(\.name), ["Dinner"])
         XCTAssertNil(service.currentDailyLog)
     }
@@ -269,7 +438,7 @@ final class DailyLogServiceTests: XCTestCase {
 
     func testRejectedDailyLogWriteRecordsOperationTaggedNonFatal() async {
         let date = Calendar.current.startOfDay(for: Date())
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
         mockRepo.updateLogSuccess = false
 
         service.addFoodToLog(
@@ -302,7 +471,7 @@ final class DailyLogServiceTests: XCTestCase {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
         let existing = FoodItem(id: "existing", name: "Apple", calories: 95)
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: [Meal(name: "Breakfast", foodItems: [existing])]))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(name: "Breakfast", foodItems: [existing])]))
 
         service.updateFoodInCurrentLog(for: "user", updatedFoodItem: FoodItem(id: "missing", name: "Banana", calories: 110))
 
@@ -336,7 +505,7 @@ final class DailyLogServiceTests: XCTestCase {
     func testAddMealGroupsAddsMultipleMealsAndPublishesCurrentLog() async throws {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
 
         service.addMealGroupsToLog(
             for: "user",
@@ -373,7 +542,7 @@ final class DailyLogServiceTests: XCTestCase {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
         let existing = FoodItem(id: "existing", name: "Apple", calories: 95)
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: [Meal(name: "Breakfast", foodItems: [existing])]))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: [Meal(name: "Breakfast", foodItems: [existing])]))
 
         service.deleteFoodFromCurrentLog(for: "user", foodItemID: "missing")
 
@@ -402,8 +571,8 @@ final class DailyLogServiceTests: XCTestCase {
     func testAddWorkoutToLogAddsExercise() async throws {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
-        service.publishCurrentDailyLog(DailyLog(id: "1", date: date, meals: []))
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
+        service.publishCurrentDailyLog(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
 
         service.addWorkoutToCurrentLog(for: "user", exerciseName: "Walk", durationMinutes: 35, caloriesBurned: 180)
 
@@ -426,11 +595,11 @@ final class DailyLogServiceTests: XCTestCase {
 
     func testFetchDailyHistoryReturnsSuccessAndFailure() async {
         let date = Calendar.current.startOfDay(for: Date())
-        mockRepo.mockFetchDailyHistoryResult = .success([DailyLog(id: "1", date: date, meals: [])])
+        mockRepo.mockFetchDailyHistoryResult = .success([DailyLog(id: diaryServiceDayKey(date), date: date, meals: [])])
 
         let success = await service.fetchDailyHistory(for: "user")
         if case .success(let logs) = success {
-            XCTAssertEqual(logs.map(\.id), ["1"])
+            XCTAssertEqual(logs.map(\.id), [diaryServiceDayKey(date)])
         } else {
             XCTFail("expected history success")
         }
@@ -443,9 +612,10 @@ final class DailyLogServiceTests: XCTestCase {
     }
 
     func testDailyHistoryCompletingAfterAccountSwitchIsRejected() async {
+        let date = Date()
         mockRepo.fetchDailyHistoryDelayNanoseconds = 75_000_000
         mockRepo.mockFetchDailyHistoryResult = .success([
-            DailyLog(id: "old-account-history", date: Date(), meals: [])
+            DailyLog(id: diaryServiceDayKey(date), date: date, meals: [])
         ])
 
         let resultTask = Task {
@@ -480,7 +650,7 @@ final class DailyLogServiceTests: XCTestCase {
         
         let food = FoodItem(id: "r1", name: "Oats", calories: 150)
         let meal = Meal(name: "Breakfast", foodItems: [food])
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: sourceDate, meals: [meal]))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(sourceDate), date: sourceDate, meals: [meal]))
         
         service.repeatFoods(from: sourceDate, to: targetDate, for: "user")
         
@@ -510,7 +680,7 @@ final class DailyLogServiceTests: XCTestCase {
     func testNormalizedFoodForLogging() {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
         
         let food = FoodItem(id: "f1", name: "Apple", calories: 95)
         // Add a case where normalizedForEstimatedSource changes calories if source is some specific string
@@ -530,7 +700,7 @@ final class DailyLogServiceTests: XCTestCase {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date().addingTimeInterval(-86400)
         let yesterdayStart = Calendar.current.startOfDay(for: yesterday)
         let food1 = FoodItem(id: "1", name: "Eggs", calories: 150)
-        let sourceLog = DailyLog(date: yesterdayStart, meals: [Meal(name: "Breakfast", foodItems: [food1])])
+        let sourceLog = DailyLog(id: diaryServiceDayKey(yesterdayStart), date: yesterdayStart, meals: [Meal(name: "Breakfast", foodItems: [food1])])
         mockRepo.mockFetchLogResult = .success(sourceLog)
 
         let exp = XCTestExpectation(description: "Repeat meal")
@@ -545,7 +715,7 @@ final class DailyLogServiceTests: XCTestCase {
     func testRepeatYesterdayMealEmpty() async {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date().addingTimeInterval(-86400)
         let yesterdayStart = Calendar.current.startOfDay(for: yesterday)
-        let sourceLog = DailyLog(date: yesterdayStart, meals: [Meal(name: "Lunch", foodItems: [])])
+        let sourceLog = DailyLog(id: diaryServiceDayKey(yesterdayStart), date: yesterdayStart, meals: [Meal(name: "Lunch", foodItems: [])])
         mockRepo.mockFetchLogResult = .success(sourceLog)
 
         let exp = XCTestExpectation(description: "Repeat meal empty")
@@ -588,15 +758,15 @@ final class DailyLogServiceTests: XCTestCase {
         let first = expectation(description: "First fetch completes")
         let second = expectation(description: "Second fetch completes")
         service.fetchLog(for: "user", date: date) { result in
-            XCTAssertEqual(try? result.get().id, "user-log")
+            XCTAssertEqual(try? result.get().id, diaryServiceDayKey(date))
             first.fulfill()
         }
         service.fetchLog(for: "user", date: date) { result in
-            XCTAssertEqual(try? result.get().id, "user-log")
+            XCTAssertEqual(try? result.get().id, diaryServiceDayKey(date))
             second.fulfill()
         }
 
-        mockRepo.emitLogSnapshot(.success(DailyLog(id: "user-log", date: date, meals: [])), for: "user")
+        mockRepo.emitLogSnapshot(.success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: [])), for: "user")
 
         await fulfillment(of: [first, second], timeout: 1.0)
     }
@@ -610,18 +780,18 @@ final class DailyLogServiceTests: XCTestCase {
         service.activateAccount("user-2")
         service.fetchLog(for: "user-2", date: date) { _ in }
 
-        mockRepo.emitLogSnapshot(.success(DailyLog(id: "old-account", date: date, meals: [])), for: "user")
+        mockRepo.emitLogSnapshot(.success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: [])), for: "user")
         await Task.yield()
         XCTAssertNil(service.currentDailyLog)
 
-        mockRepo.emitLogSnapshot(.success(DailyLog(id: "new-account", date: date, meals: [])), for: "user-2")
+        mockRepo.emitLogSnapshot(.success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: [])), for: "user-2")
         await Task.yield()
-        XCTAssertEqual(service.currentDailyLog?.id, "new-account")
+        XCTAssertEqual(service.currentDailyLog?.id, diaryServiceDayKey(date))
     }
 
     func testMutationCompletingAfterAccountSwitchCannotPublishOldAccountState() async {
         let date = Calendar.current.startOfDay(for: Date())
-        mockRepo.mockFetchLogResult = .success(DailyLog(id: "old-account", date: date, meals: []))
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
         mockRepo.shouldDeferDailyLogUpdateCompletions = true
 
         service.addFoodToLog(
@@ -643,7 +813,8 @@ final class DailyLogServiceTests: XCTestCase {
     }
 
     func testSignOutClearsAccountScopedDailyLogAndSuggestions() {
-        service.publishCurrentDailyLog(DailyLog(id: "user-log", date: Date(), meals: []))
+        let date = Date()
+        service.publishCurrentDailyLog(DailyLog(id: diaryServiceDayKey(date), date: date, meals: []))
         service.smartSuggestions = [FoodItem(id: "food", name: "Oats", calories: 150)]
 
         mockAuth.currentUserID = nil

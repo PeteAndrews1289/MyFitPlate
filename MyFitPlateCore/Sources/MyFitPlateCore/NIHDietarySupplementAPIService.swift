@@ -8,10 +8,14 @@ public final class NIHDietarySupplementAPIService {
     }
 
     public func searchSupplements(query: String, limit: Int = 6) async -> [FoodItem] {
+        (try? await searchSupplementsResult(query: query, limit: limit).get()) ?? []
+    }
+
+    public func searchSupplementsResult(query: String, limit: Int = 6) async -> Result<[FoodItem], Error> {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else { return [] }
-        guard await isFeatureEnabled() else { return [] }
-        guard let service = await resolvedCloudFunctionService() else { return [] }
+        guard trimmed.count >= 2 else { return .success([]) }
+        guard await isFeatureEnabled() else { return .success([]) }
+        guard let service = await resolvedCloudFunctionService() else { return .failure(APIError.noData) }
 
         do {
             let payload = try await service.callFunction(
@@ -19,10 +23,10 @@ public final class NIHDietarySupplementAPIService {
                 with: ["query": trimmed, "limit": min(max(limit, 1), 8)]
             )
             let data = try Self.jsonData(from: payload)
-            return try NIHDietarySupplementParser.foodItems(from: data)
+            return .success(try NIHDietarySupplementParser.foodItems(from: data))
         } catch {
             AppLog.data.error("NIH supplement search failed: \(error.localizedDescription, privacy: .public)")
-            return []
+            return .failure(error)
         }
     }
 

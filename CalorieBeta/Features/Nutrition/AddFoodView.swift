@@ -10,7 +10,10 @@ struct AddFoodView: View {
     var targetMealName: String?
     var onLogUpdated: () -> Void
     var onUpdate: ((FoodItem) -> Void)?
+    var onSelectForMeal: ((FoodItem) -> Bool)?
+    @State private var selectionFailed = false
     var showsSavedControl: Bool
+    @StateObject private var saveSession: FoodDetailSaveSession
 
     @Environment(\.dismiss) var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -47,14 +50,22 @@ struct AddFoodView: View {
     @State private var labelScanFailed = false
 
     // MARK: - Robust Initializer
-    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "manual", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil, showsSavedControl: Bool = true) {
+    init(initialFoodItem inputFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "manual", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil, showsSavedControl: Bool = true, trainingFuelTarget: TrainingFuelTarget? = nil, onSelectForMeal: ((FoodItem) -> Bool)? = nil) {
+        let session = FoodDetailSaveSession(food: inputFoodItem, userID: DIContainer.shared.authService.currentUserID,
+            date: date, mealName: targetMealName ?? DailyLogRules.determineMealType(), source: source,
+            isEditing: source.starts(with: "log_"), restoresExisting: onUpdate == nil && onSelectForMeal == nil,
+            trainingFuelTarget: trainingFuelTarget,
+            draftScope: onUpdate == nil && onSelectForMeal == nil && !source.starts(with: "log_") ? "manual-food-review-" + source : nil)
+        _saveSession = StateObject(wrappedValue: session)
+        let initialFoodItem = session.restoredReview ? session.checkpoint.food : inputFoodItem
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
-        self.date = date
+        self.date = session.checkpoint.date
         self.source = source
-        self.targetMealName = targetMealName
+        self.targetMealName = session.checkpoint.mealName
         self.onLogUpdated = onLogUpdated
         self.onUpdate = onUpdate
+        self.onSelectForMeal = onSelectForMeal
         self.showsSavedControl = showsSavedControl
 
         let isEditingLoggedItem = source.starts(with: "log_")
@@ -207,6 +218,11 @@ struct AddFoodView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        if let target = saveSession.checkpoint.trainingFuelTarget {
+                            TrainingFuelTargetContextView(target: target, onDismiss: saveSession.checkpoint.isSubmitted || saveSession.isSaving ? nil : { _ = saveSession.removeFuelContext() })
+                        }
+                        if saveSession.restoredReview { Text("Restored your reviewed food and its original destination.").appTextRole(.secondary) }
+                        if saveSession.checkpoint.isSubmitted { Text("This exact amount is kept for retry. It will not be added twice.").appTextRole(.secondary) }
                         ManualFoodIdentityCard(foodName: $foodName)
 
                         if isBarcodeCorrectionFlow, let correctionBarcode {
@@ -268,10 +284,15 @@ struct AddFoodView: View {
                     .padding(.bottom, AppSpacing.group)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .disabled(saveSession.isSaving || saveSession.checkpoint.isSubmitted)
 
+                if let error = selectionFailed ? "Couldn’t save this portion to your selected meal. Try again." : saveSession.errorMessage {
+                    Text(error).appTextRole(.secondary).foregroundStyle(AppPalette.caution).padding(.horizontal)
+                        .accessibilityIdentifier("manual_food_save_error")
+                }
                 ManualFoodActionBar(
-                    title: buttonText(),
-                    isEnabled: logButtonEnabled,
+                    title: saveSession.isSaving ? "Saving…" : saveSession.checkpoint.isSubmitted ? "Retry reviewed save" : buttonText(),
+                    isEnabled: !saveSession.isSaving && !saveSession.isAccepted && (saveSession.checkpoint.isSubmitted || logButtonEnabled),
                     action: logAdjustedFood
                 )
             }
@@ -515,7 +536,7 @@ struct AddFoodView: View {
         dailyLogService.activelyViewedDate = self.date
 
         // Logic to determine if we should fetch API details or use existing
-        if source == "search_result" || source == "barcode_result" {
+        if !saveSession.restoredReview && (source == "search_result" || source == "barcode_result") {
             fetchAPIServingDetails()
         } else {
             // Create a default "1 serving" option from the existing data
@@ -575,7 +596,9 @@ struct AddFoodView: View {
     }
 
     private func logAdjustedFood() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              saveSession.userID == userID else { return }
+        if onUpdate == nil, saveSession.checkpoint.isSubmitted { saveReviewedManualFood(saveSession.checkpoint.food, userID: userID); return }
         let n = adjustedNutrients
 
         let rawItemToLog = FoodItem(
@@ -599,27 +622,25 @@ struct AddFoodView: View {
                 originalItem: initialFoodItem
             )
 
-        if let updateHandler = onUpdate {
+        if let onSelectForMeal {
+            guard onSelectForMeal(itemToLog) else { selectionFailed = true; return }
+            onLogUpdated()
+            dismiss()
+        } else if let updateHandler = onUpdate {
             updateHandler(itemToLog)
-        } else if isLoggedItem {
-            dailyLogService.updateFoodInCurrentLog(for: userID, updatedFoodItem: itemToLog)
-        } else if let targetMealName {
-            dailyLogService.addFoodToLog(
-                for: userID,
-                date: date,
-                mealName: targetMealName,
-                foodItem: itemToLog,
-                source: source
-            )
+            onLogUpdated(); dismiss()
         } else {
-            dailyLogService.addFoodToCurrentLog(for: userID, foodItem: itemToLog, source: source)
+            saveReviewedManualFood(itemToLog, userID: userID)
         }
-        rememberManualBarcodeCorrectionIfNeeded(itemToLog, userID: userID)
-        if onUpdate == nil {
+    }
+
+    private func saveReviewedManualFood(_ food: FoodItem, userID: String) {
+        saveSession.save(food: food, using: dailyLogService) { accepted in
+            guard accepted, saveSession.userID == userID, DIContainer.shared.authService.currentUserID == userID else { return }
+            rememberManualBarcodeCorrectionIfNeeded(saveSession.checkpoint.food, userID: userID)
             HapticManager.instance.feedback(.medium)
+            onLogUpdated(); dismiss()
         }
-        onLogUpdated()
-        dismiss()
     }
 
     private func rememberManualBarcodeCorrectionIfNeeded(_ foodItem: FoodItem, userID: String) {
@@ -778,8 +799,17 @@ struct AddFoodView: View {
         }
     }
 
-    private func buttonText() -> String { onUpdate != nil ? "Update item" : (isLoggedItem ? "Update logged item" : "Add to log") }
-    private func navigationTitleText() -> String { onUpdate != nil ? "Edit item" : (isLoggedItem ? "Edit logged item" : "Log food") }
+    private func buttonText() -> String {
+        if onSelectForMeal != nil { return "Select food" }
+        if onUpdate != nil { return "Update item" }
+        return isLoggedItem ? "Update logged item" : "Add to log"
+    }
+
+    private func navigationTitleText() -> String {
+        if onSelectForMeal != nil { return "Enter food" }
+        if onUpdate != nil { return "Edit item" }
+        return isLoggedItem ? "Edit logged item" : "Log food"
+    }
     private func hideKeyboard() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
 
     @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String, specifier: String = "%.1f") -> some View {

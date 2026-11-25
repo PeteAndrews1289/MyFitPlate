@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateDesign
 import MyFitPlateCore
 
 struct FoodSearchHeader: View {
@@ -8,26 +9,33 @@ struct FoodSearchHeader: View {
     let onSubmit: () -> Void
     var onMic: (() -> Void)?
     var isRecording: Bool = false
+    var onFocusChange: ((Bool) -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: AppSpacing.compact) {
             if !dynamicTypeSize.isAccessibilitySize {
-                Image(systemName: "magnifyingglass")
-                    .appTextRole(.control)
+                PlateIcon.search
+                    .frame(width: 20, height: 20)
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
             }
 
             TextField(
                 dynamicTypeSize.isAccessibilitySize ? "Search" : placeholder,
-                text: $searchText,
-                axis: dynamicTypeSize.isAccessibilitySize ? .vertical : .horizontal
+                text: $searchText
             )
                 .appTextRole(.body)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? AppSpacing.row : 0)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? (isFocused ? 4 : AppSpacing.row) : 0)
+                .focused($isFocused)
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded { isFocused = true })
+                .onChange(of: isFocused) { _, focused in onFocusChange?(focused) }
                 .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
                 .submitLabel(.search)
                 .onSubmit(onSubmit)
                 .accessibilityLabel("Search foods")
@@ -36,9 +44,9 @@ struct FoodSearchHeader: View {
             if !searchText.isEmpty {
                 Button(action: onClear) {
                     Image(systemName: "xmark.circle.fill")
-                        .appTextRole(.control)
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.tertiary)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
@@ -47,9 +55,9 @@ struct FoodSearchHeader: View {
             if let onMic = onMic {
                 Button(action: onMic) {
                     Image(systemName: isRecording ? "mic.fill" : "mic")
-                        .appTextRole(.control)
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(isRecording ? Color.accentProtein : AppPalette.brandText)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .background(isRecording ? Color.accentProtein.opacity(0.15) : Color.clear, in: Circle())
                 }
                 .buttonStyle(.plain)
@@ -58,11 +66,12 @@ struct FoodSearchHeader: View {
             }
         }
         .padding(.horizontal, AppSpacing.row)
-        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 104 : 54)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? (isFocused ? 72 : 104) : 54)
         .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 .stroke(AppPalette.separator.opacity(0.7), lineWidth: 0.5)
+                .allowsHitTesting(false)
         }
     }
 }

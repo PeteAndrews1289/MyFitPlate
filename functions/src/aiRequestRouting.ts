@@ -1,17 +1,21 @@
 export type AIRequestKind =
   | "general"
+  | "coaching"
+  | "planning"
   | "meal_photo"
   | "nutrition_label"
   | "menu_photo"
   | "receipt_photo"
-  | "recipe_photo";
+  | "recipe_photo"
+  | "pantry_observation";
 
 export interface AIRequestRoute {
   kind: AIRequestKind;
   model: string;
   fallbackModels?: string[];
   maxOutputTokens: number;
-  reasoningEffort?: "none" | "low";
+  reasoningEffort?: "none" | "low" | "medium";
+  reasoningTokenAllowance?: number;
   forcedResponseFormat?: Record<string, unknown>;
   usageCollection?: string;
   dailyLimit?: number;
@@ -19,8 +23,8 @@ export interface AIRequestRoute {
 
 export type AIVisionRouteConfiguration = Partial<Record<AIRequestKind, boolean>>;
 
-const GENERAL_MODEL = "gpt-4o-mini";
-const VISION_FALLBACK_MODEL = "gpt-4o-mini";
+const GENERAL_MODEL = "gpt-6-luna";
+const VISION_FALLBACK_MODEL = "gpt-6-sol";
 const VISION_USAGE_COLLECTION = "aiVisionUsage";
 const VISION_DAILY_LIMIT = 75;
 
@@ -205,6 +209,8 @@ const menuPhotoResponseFormat = {
               "carbs",
               "fats",
               "price",
+              "currency",
+              "priceText",
             ],
             properties: {
               itemName: { type: "string" },
@@ -214,6 +220,8 @@ const menuPhotoResponseFormat = {
               carbs: { type: "number", minimum: 0 },
               fats: { type: "number", minimum: 0 },
               price: { type: ["number", "null"], minimum: 0 },
+              currency: { type: ["string", "null"] },
+              priceText: { type: ["string", "null"] },
             },
           },
         },
@@ -230,20 +238,25 @@ const receiptPhotoResponseFormat = {
     schema: {
       type: "object",
       additionalProperties: false,
-      required: ["items"],
+      required: ["items", "storeName", "currency"],
       properties: {
+        storeName: { type: ["string", "null"] },
+        currency: { type: ["string", "null"] },
         items: {
           type: "array",
           maxItems: 120,
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["name", "quantity", "unit", "category"],
+            required: ["name", "quantity", "unit", "category", "originalName", "printedLinePrice", "currency"],
             properties: {
               name: { type: "string" },
               quantity: { type: "number", minimum: 0 },
               unit: { type: "string" },
               category: { type: "string" },
+              originalName: { type: ["string", "null"] },
+              printedLinePrice: { type: ["number", "null"] },
+              currency: { type: ["string", "null"] },
             },
           },
         },
@@ -285,13 +298,34 @@ const recipePhotoResponseFormat = {
   },
 };
 
+// Observation is deliberately distinct from recipe generation: an unusable/non-food image
+// can produce an empty list, and no quantity or stock mutation is inferred from recognition.
+const pantryObservationResponseFormat = {
+  type: "json_schema",
+  json_schema: {
+    name: "pantry_ingredient_observation",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["ingredients"],
+      properties: {
+        ingredients: { type: "array", minItems: 0, maxItems: 40, items: { type: "string" } },
+      },
+    },
+  },
+};
+
 export function normalizeAIRequestKind(value: unknown): AIRequestKind {
   switch (value) {
+    case "coaching":
+    case "planning":
     case "meal_photo":
     case "nutrition_label":
     case "menu_photo":
     case "receipt_photo":
     case "recipe_photo":
+    case "pantry_observation":
       return value;
     default:
       return "general";
@@ -301,12 +335,23 @@ export function normalizeAIRequestKind(value: unknown): AIRequestKind {
 export function resolveAIRequestRoute(value: unknown): AIRequestRoute {
   const kind = normalizeAIRequestKind(value);
   switch (kind) {
+    case "coaching":
+    case "planning":
+      return {
+        kind,
+        model: "gpt-6-astra",
+        fallbackModels: ["gpt-6.1-sol"],
+        reasoningEffort: kind === "planning" ? "medium" : "low",
+        reasoningTokenAllowance: kind === "planning" ? 6_000 : 3_000,
+        maxOutputTokens: kind === "planning" ? 12_000 : 6_000,
+      };
     case "meal_photo":
       return {
         kind,
-        model: "gpt-5.6-terra",
+        model: "gpt-6.1-sol",
         fallbackModels: [VISION_FALLBACK_MODEL],
-        maxOutputTokens: 4_000,
+        maxOutputTokens: 7_000,
+        reasoningTokenAllowance: 3_000,
         reasoningEffort: "low",
         forcedResponseFormat: mealPhotoResponseFormat,
         usageCollection: VISION_USAGE_COLLECTION,
@@ -315,9 +360,10 @@ export function resolveAIRequestRoute(value: unknown): AIRequestRoute {
     case "menu_photo":
       return {
         kind,
-        model: "gpt-5.6-terra",
+        model: "gpt-6.1-sol",
         fallbackModels: [VISION_FALLBACK_MODEL],
-        maxOutputTokens: 3_000,
+        maxOutputTokens: 9_000,
+        reasoningTokenAllowance: 3_000,
         reasoningEffort: "low",
         forcedResponseFormat: menuPhotoResponseFormat,
         usageCollection: VISION_USAGE_COLLECTION,
@@ -326,9 +372,10 @@ export function resolveAIRequestRoute(value: unknown): AIRequestRoute {
     case "nutrition_label":
       return {
         kind,
-        model: "gpt-5.6-luna",
+        model: GENERAL_MODEL,
         fallbackModels: [VISION_FALLBACK_MODEL],
-        maxOutputTokens: 3_000,
+        maxOutputTokens: 4_500,
+        reasoningTokenAllowance: 1_500,
         reasoningEffort: "low",
         forcedResponseFormat: nutritionLabelResponseFormat,
         usageCollection: VISION_USAGE_COLLECTION,
@@ -337,20 +384,32 @@ export function resolveAIRequestRoute(value: unknown): AIRequestRoute {
     case "receipt_photo":
       return {
         kind,
-        model: "gpt-5.6-luna",
+        model: GENERAL_MODEL,
         fallbackModels: [VISION_FALLBACK_MODEL],
-        maxOutputTokens: 2_400,
+        maxOutputTokens: 8_000,
         reasoningEffort: "none",
         forcedResponseFormat: receiptPhotoResponseFormat,
+        usageCollection: VISION_USAGE_COLLECTION,
+        dailyLimit: VISION_DAILY_LIMIT,
+      };
+    case "pantry_observation":
+      return {
+        kind,
+        model: GENERAL_MODEL,
+        fallbackModels: [VISION_FALLBACK_MODEL],
+        maxOutputTokens: 1_600,
+        reasoningEffort: "none",
+        forcedResponseFormat: pantryObservationResponseFormat,
         usageCollection: VISION_USAGE_COLLECTION,
         dailyLimit: VISION_DAILY_LIMIT,
       };
     case "recipe_photo":
       return {
         kind,
-        model: "gpt-5.6-luna",
+        model: "gpt-6.1-sol",
         fallbackModels: [VISION_FALLBACK_MODEL],
-        maxOutputTokens: 2_400,
+        maxOutputTokens: 5_400,
+        reasoningTokenAllowance: 3_000,
         reasoningEffort: "low",
         forcedResponseFormat: recipePhotoResponseFormat,
         usageCollection: VISION_USAGE_COLLECTION,
@@ -360,6 +419,8 @@ export function resolveAIRequestRoute(value: unknown): AIRequestRoute {
       return {
         kind,
         model: GENERAL_MODEL,
+        fallbackModels: [VISION_FALLBACK_MODEL],
+        reasoningEffort: "none",
         maxOutputTokens: 6_000,
       };
   }
@@ -370,7 +431,7 @@ export function isReasoningRoute(route: AIRequestRoute): boolean {
 }
 
 export function isReasoningModel(model: string): boolean {
-  return model.startsWith("gpt-5.");
+  return /^gpt-[56](?:[.-]|$)/.test(model);
 }
 
 export function resolveAIRequestModels(route: AIRequestRoute): string[] {
@@ -378,7 +439,15 @@ export function resolveAIRequestModels(route: AIRequestRoute): string[] {
     .filter((model, index, models) => models.indexOf(model) === index);
 }
 
-/// Only model-availability failures may move to a lower-cost fallback. Authentication,
+// Older clients specify a visible-answer budget. Reasoning tokens share the API completion
+// limit, so reserve additional room rather than starving the answer on upgraded routes.
+export function resolveAICompletionTokenLimit(route: AIRequestRoute, requested: unknown): number {
+  const visibleBudget = typeof requested === "number" && Number.isFinite(requested) && requested >= 1
+    ? Math.floor(requested) : route.maxOutputTokens;
+  return Math.min(visibleBudget + (route.reasoningTokenAllowance ?? 0), route.maxOutputTokens);
+}
+
+/// Only model-availability failures may move to another supported model. Authentication,
 /// quota, schema, and provider-service errors must remain visible instead of being masked.
 export function isAIModelAvailabilityError(error: unknown): boolean {
   if (!error || typeof error !== "object") {

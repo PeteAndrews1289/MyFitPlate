@@ -14,6 +14,7 @@ final class RunningShoeStoreTests: XCTestCase {
         authService = MockAuthService()
         authService.currentUserID = "runner-a"
         store = RunningShoeStore(userDefaults: testDefaults, authService: authService)
+        store.addShoe(RunningShoe(name: "Road Trainer", brand: "Example", isDefault: true))
     }
 
     override func tearDown() {
@@ -25,10 +26,10 @@ final class RunningShoeStoreTests: XCTestCase {
         super.tearDown()
     }
 
-    func testDefaultSeeding() {
-        XCTAssertEqual(store.shoes.count, 1)
-        XCTAssertEqual(store.shoes.first?.name, "Road Trainer")
-        XCTAssertTrue(store.shoes.first?.isDefault ?? false)
+    func testFreshAccountDoesNotInventOwnedGear() {
+        authService.currentUserID = "new-account"
+        XCTAssertTrue(store.shoes.isEmpty)
+        XCTAssertNil(store.defaultShoe())
     }
 
     func testAddShoeWithDefaultOverride() {
@@ -41,7 +42,7 @@ final class RunningShoeStoreTests: XCTestCase {
         XCTAssertFalse(firstShoe?.isDefault ?? true)
     }
 
-    func testRetireDefaultShoePromotesNext() {
+    func testRetireDefaultShoeLeavesFutureRecordingsUnassigned() {
         let shoe2 = RunningShoe(name: "Daily Trainer", brand: "Brooks", isDefault: false)
         store.addShoe(shoe2)
 
@@ -53,8 +54,8 @@ final class RunningShoeStoreTests: XCTestCase {
 
         XCTAssertTrue(store.shoe(for: defaultShoe.id)?.isRetired ?? false)
         XCTAssertFalse(store.shoe(for: defaultShoe.id)?.isDefault ?? true)
-        XCTAssertEqual(store.defaultShoe()?.name, "Daily Trainer")
-        XCTAssertTrue(store.defaultShoe()?.isDefault ?? false)
+        XCTAssertNil(store.defaultShoe())
+        XCTAssertFalse(store.shoe(for: shoe2.id)?.isDefault ?? true)
     }
 
     func testMileageCalculationAndWearPercentage() {
@@ -129,6 +130,43 @@ final class RunningShoeStoreTests: XCTestCase {
         XCTAssertEqual(originalMeters, originalDefault.initialMeters + 8000, accuracy: 0.001, "Explicit tags stay put")
     }
 
+    func testHealthIdentityUsesOriginalRecordingShoeTagWithoutOverwritingNewerExplicitChoices() {
+        let date = Date(timeIntervalSince1970: 1_750_000_000)
+        let original = RunningShoe(id: "original-shoe", name: "Original", brand: "A")
+        let replacement = RunningShoe(id: "replacement-shoe", name: "Replacement", brand: "B")
+        store.addShoe(original)
+        store.addShoe(replacement)
+        store.tagRun(runID: "recording-original", withShoeID: original.id)
+        let run = Run(id: "health-uuid", source: .recorded, startDate: date, endDate: date.addingTimeInterval(600),
+                      distanceMeters: 2_000, movingSeconds: 600, recordingID: "recording-original")
+        XCTAssertEqual(store.applyTags(to: [run]).first?.shoeID, original.id)
+        var embeddedChoice = run
+        embeddedChoice.shoeID = replacement.id
+        XCTAssertEqual(store.applyTags(to: [embeddedChoice]).first?.shoeID, replacement.id,
+                       "The original recording fallback must not override an existing explicit choice")
+        store.tagRun(runID: run.id, withShoeID: replacement.id)
+        XCTAssertEqual(store.applyTags(to: [run]).first?.shoeID, replacement.id,
+                       "A tag chosen for the confirmed Health identity takes precedence")
+        var unrelated = run.reidentified(as: "unrelated")
+        unrelated.recordingID = nil
+        XCTAssertNil(store.applyTags(to: [unrelated]).first?.shoeID)
+    }
+
+    func testOriginalRecordingTagFallbackRemainsAccountScopedAndDoesNotUseDefaultShoe() {
+        let date = Date(timeIntervalSince1970: 1_750_000_000)
+        store.tagRun(runID: "recording-original", withShoeID: "account-a-shoe")
+        let run = Run(id: "health-uuid", source: .recorded, startDate: date, endDate: date.addingTimeInterval(600),
+                      distanceMeters: 2_000, movingSeconds: 600, recordingID: "recording-original")
+        authService.currentUserID = "runner-b"
+        XCTAssertNil(store.applyTags(to: [run]).first?.shoeID)
+        store.tagRun(runID: "recording-original", withShoeID: "account-b-shoe")
+        XCTAssertEqual(store.applyTags(to: [run]).first?.shoeID, "account-b-shoe")
+        authService.currentUserID = "runner-a"
+        XCTAssertEqual(store.applyTags(to: [run]).first?.shoeID, "account-a-shoe")
+        authService.currentUserID = nil
+        XCTAssertNil(store.applyTags(to: [run]).first?.shoeID)
+    }
+
     func testShoePerformanceAnalytics() {
         let fastShoe = RunningShoe(name: "Vaporfly", brand: "Nike")
         let slowShoe = RunningShoe(name: "Pegasus", brand: "Nike")
@@ -154,7 +192,7 @@ final class RunningShoeStoreTests: XCTestCase {
         store.tagRun(runID: "same-run", withShoeID: accountAShoe.id)
 
         authService.currentUserID = "runner-b"
-        XCTAssertEqual(store.shoes.map(\.name), ["Road Trainer"])
+        XCTAssertTrue(store.shoes.isEmpty)
         XCTAssertNil(store.shoeID(forRunID: "same-run"))
 
         let accountBShoe = RunningShoe(name: "Account B Trail", brand: "B")
@@ -185,5 +223,55 @@ final class RunningShoeStoreTests: XCTestCase {
         XCTAssertNotNil(store.shoe(for: accountAShoe.id))
         XCTAssertNil(store.shoes.first(where: { $0.name == "Signed-out shoe" }))
         XCTAssertNil(store.shoeID(forRunID: "signed-out-run"))
+    }
+}
+
+extension RunningShoeStoreTests {
+    func testCorruptExplicitTagDataIsKeptInsteadOfOverwritten() throws {
+        let key = try XCTUnwrap(AccountScopedStorageKey.make(prefix: "myfitplate.running_shoe_tags", userID: "runner-a"))
+        let original = Data("unreadable original tags".utf8)
+        testDefaults.set(original, forKey: key)
+        store.tagRun(runID: "new-run", withShoeID: store.defaultShoe()?.id)
+        XCTAssertEqual(testDefaults.data(forKey: key), original)
+    }
+    func testRetiredShoeIsNotAutomaticallyAssignedToFutureRecordings() throws {
+        let shoe = try XCTUnwrap(store.defaultShoe())
+        store.retireShoe(id: shoe.id)
+        XCTAssertNil(store.defaultShoe())
+        XCTAssertNotNil(store.shoe(for: shoe.id), "Historical explicit assignments retain their inventory reference")
+    }
+    func testExplicitNoneSurvivesEmbeddedTagAndHealthAliasReload() throws {
+        let shoe = try XCTUnwrap(store.defaultShoe())
+        let original = Run(id: "health-id", source: .recorded, startDate: Date(), endDate: Date(), distanceMeters: 5000,
+                           movingSeconds: 1500, shoeID: shoe.id, recordingID: "recording-id")
+        store.tagRun(original, withShoeID: nil)
+        XCTAssertNil(store.explicitShoeID(for: original))
+        let reloaded = RunningShoeStore(userDefaults: testDefaults, authService: authService)
+        let alias = Run(id: "later-health-id", source: .recorded, startDate: original.startDate, endDate: original.endDate,
+                        distanceMeters: original.distanceMeters, movingSeconds: original.movingSeconds,
+                        shoeID: shoe.id, recordingID: "recording-id")
+        XCTAssertNil(reloaded.explicitShoeID(for: alias))
+        XCTAssertEqual(reloaded.totalMeters(for: shoe.id, across: [original, alias]), shoe.initialMeters)
+        reloaded.tagRun(alias, withShoeID: shoe.id)
+        XCTAssertEqual(reloaded.explicitShoeID(for: alias), shoe.id)
+    }
+    func testLifetimeMileageKeepsOldRunsAndDeduplicatesSameReceipt() throws {
+        let shoe = try XCTUnwrap(store.defaultShoe())
+        let start = Date().addingTimeInterval(-500 * 86400)
+        let old = Run(id: "old", source: .recorded, startDate: start, endDate: start.addingTimeInterval(1800),
+                      distanceMeters: 5000, movingSeconds: 1800, shoeID: shoe.id)
+        XCTAssertEqual(store.totalMeters(for: shoe.id, across: [old, old]), shoe.initialMeters + 5000)
+        var revised = old; revised.distanceMeters = 5500
+        XCTAssertEqual(store.totalMeters(for: shoe.id, across: [revised]), shoe.initialMeters + 5500)
+        store.tagRun(old, withShoeID: nil)
+        XCTAssertEqual(store.totalMeters(for: shoe.id, across: [old]), shoe.initialMeters)
+    }
+    func testDefaultChangeNeverAssignsAnUnassignedOldRun() throws {
+        let start = Date().addingTimeInterval(-200 * 86400)
+        let old = Run(id: "unassigned", source: .imported(appName: "Apple Watch"), startDate: start, endDate: start.addingTimeInterval(1000), distanceMeters: 3000, movingSeconds: 1000)
+        let shoe = RunningShoe(name: "New default", brand: "Example", isDefault: true)
+        store.addShoe(shoe)
+        XCTAssertNil(store.explicitShoeID(for: old))
+        XCTAssertEqual(store.totalMeters(for: shoe.id, across: [old]), 0)
     }
 }

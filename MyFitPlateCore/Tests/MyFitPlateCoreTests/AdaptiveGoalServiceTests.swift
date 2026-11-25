@@ -50,7 +50,7 @@ final class AdaptiveGoalServiceTests: XCTestCase {
             calendar: calendar
         ))
         XCTAssertEqual(low.dataConfidence, .low)
-        assertOptionalEqual(low.calculatedTDEE, 1_900)
+        XCTAssertNil(low.calculatedTDEE)
         XCTAssertFalse(low.isActionable)
         XCTAssertNotNil(low.guardrailMessage)
     }
@@ -71,10 +71,10 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.dataConfidence, .insufficient)
     }
 
-    func testExpenditureSnapshotRejectsLikelyPartialLowCalorieLogs() throws {
+    func testExpenditureSnapshotExcludesExplicitlyPartialLogs() throws {
         let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
             weightHistory: weightHistory(count: 7, startingWeight: 200),
-            dailyLogs: dailyLogs(count: 10, calories: 400),
+            dailyLogs: dailyLogs(count: 10, calories: 400).map { var log = $0; log.nutritionDayStatus = .partial; return log },
             today: today,
             calendar: calendar
         ))
@@ -114,20 +114,20 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         XCTAssertNotNil(snapshot.guardrailMessage)
     }
 
-    func testExpenditureSnapshotPausesWhenManyDaysArePartial() throws {
+    func testExpenditureSnapshotUsesConfirmedDaysAndExcludesPartialDays() throws {
         let calories = Array(repeating: 2_100.0, count: 14) + Array(repeating: 350.0, count: 7)
         let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
             weightHistory: weightHistory(count: 21, startingWeight: 180),
-            dailyLogs: dailyLogs(caloriesByDay: calories),
+            dailyLogs: dailyLogs(caloriesByDay: calories).map { var log = $0; if log.totalCalories() < 500 { log.nutritionDayStatus = .partial }; return log },
             today: today,
             calendar: calendar
         ))
 
         XCTAssertEqual(snapshot.validLogCount, 14)
         XCTAssertEqual(snapshot.partialLogCount, 7)
-        XCTAssertNil(snapshot.calculatedTDEE)
-        XCTAssertFalse(snapshot.isActionable)
-        XCTAssertTrue(snapshot.guardrailMessage?.contains("7 days") == true)
+        assertOptionalEqual(snapshot.calculatedTDEE, 2_100)
+        XCTAssertTrue(snapshot.isActionable)
+        XCTAssertNil(snapshot.guardrailMessage)
     }
 
     func testDataConfidenceColorNamesAreStableForUI() {
@@ -161,7 +161,7 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         XCTAssertTrue(proposal.title.contains("Raise"))
         XCTAssertEqual(proposal.trainingLoadLabel, "High")
         XCTAssertEqual(proposal.confidence, .high)
-        XCTAssertTrue(proposal.reasons.contains { $0.contains("Food-log adherence") })
+        XCTAssertTrue(proposal.reasons.contains { $0.contains("Food coverage") })
         XCTAssertTrue(proposal.reasons.contains { $0.contains("Training load") })
         XCTAssertEqual(proposal.macroGoals.protein, proposal.proposedCalories * 0.30 / 4, accuracy: 0.001)
     }
@@ -244,7 +244,8 @@ final class AdaptiveGoalServiceTests: XCTestCase {
                 meals: [Meal(name: "Meals", foodItems: [food])],
                 exercises: shouldIncludeWorkout(index: index, workoutsEvery: workoutsEvery)
                     ? [LoggedExercise(name: "Workout", durationMinutes: 45, caloriesBurned: 250, date: day(daysAgo))]
-                    : []
+                    : [],
+                nutritionDayStatus: .complete
             )
         }
     }

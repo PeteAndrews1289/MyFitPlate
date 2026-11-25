@@ -75,7 +75,7 @@ struct HomeDailyLogSummaryStrip: View {
             )
             DiaryMetricPill(
                 title: "Water",
-                value: goalProgress(current: water, goal: goalSettings.waterGoal),
+                value: goalProgress(current: water, goal: goalSettings.hydrationTarget(for: log.date, recordedGoal: log.waterTracker?.goalOunces)),
                 subtitle: "oz",
                 icon: "drop.fill"
             )
@@ -219,7 +219,7 @@ struct DailySnapshotStrip: View {
             )
         }
 
-        if waterProgress < 0.35 && isToday {
+        if waterProgress < 0.35 && isToday && !goalSettings.isWaterTrackingOnly {
             return (
                 "Hydration is the easy win",
                 "You are at \(Int(waterIntake.rounded()).formatted()) oz. One quick water log gets the day moving.",

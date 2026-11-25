@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct RecipeDetailView: View {
     @State private var recipe: Recipe
@@ -8,6 +9,7 @@ struct RecipeDetailView: View {
     @State private var showingAddToLogSheet = false
     @State private var showingAddToPlanSheet = false
     @State private var showingEditSheet = false
+    @State private var showingVersions = false
 
     init(recipe: Recipe) {
         _recipe = State(initialValue: recipe)
@@ -16,11 +18,36 @@ struct RecipeDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                RecipeIdentityHeader(recipe: recipe)
-                RecipeNutritionSummary(nutrition: recipe.nutrition)
-                RecipeIngredientsSection(ingredients: recipe.ingredients)
+                HStack(alignment: .top, spacing: AppSpacing.compact) {
+                    RecipeIdentityHeader(recipe: recipe)
+                    if recipe.id != nil {
+                        Button { showingVersions = true } label: { Image(systemName: "clock.arrow.circlepath") }
+                            .buttonStyle(AppIconButtonStyle(.plain))
+                            .accessibilityLabel("Recipe versions")
+                            .accessibilityIdentifier("recipe_version_history")
+                    }
+                }
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    RecipeNutritionSummary(nutrition: recipe.nutritionPerPortion)
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                        Text(recipe.nutritionBasisLabel)
+                        if let weight = recipe.cookedWeightGrams, weight.isFinite, weight > 0 {
+                            Spacer(minLength: 0)
+                            Text("\(weight.formatted(.number.precision(.fractionLength(0...1)))) g cooked")
+                                .accessibilityLabel("Finished batch, \(weight.formatted()) grams cooked")
+                                .accessibilityIdentifier("recipe_detail_cooked_weight")
+                        }
+                    }.appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                if recipe.nutritionNeedsReview == true || !recipe.unresolvedIngredientTexts.isEmpty {
+                    Text("Saved nutrition may be estimated or unchanged after ingredient edits. Review the recipe before logging.")
+                        .appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                }
+                RecipeIngredientsSection(
+                    ingredients: RecipePortionRules.originalIngredientLines(for: recipe),
+                    basis: (recipe.ingredientBasis ?? recipe.nutritionBasis) == .wholeRecipe ? "Amounts for the whole recipe" : recipe.ingredientBasis == .perServing ? "Amounts for one serving" : "Amounts as saved")
                 RecipeInstructionsSection(instructions: recipe.instructions)
-                RecipeNutrientDetailsSection(nutrition: recipe.nutrition)
+                RecipeNutrientDetailsSection(nutrition: recipe.nutritionPerPortion)
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.group)
@@ -31,7 +58,7 @@ struct RecipeDetailView: View {
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showingEditSheet = true }
             }
         }
@@ -41,30 +68,23 @@ struct RecipeDetailView: View {
                 onLog: { showingAddToLogSheet = true }
             )
         }
+        .sheet(isPresented: $showingVersions) {
+            if let id = recipe.id { RecipeVersionHistoryView(recipeID: id) { updated in
+                if let updated, updated.id == recipe.id { recipe = updated }
+            } }
+        }
         .sheet(isPresented: $showingEditSheet) {
             CreateRecipeView(recipeToEdit: recipe) { updated in
                 recipe = updated
             }
         }
         .sheet(isPresented: $showingAddToLogSheet) {
-            if recipe.detailedIngredients != nil {
-                RecipeLoggingView(
-                    recipe: recipe,
-                    dailyLog: $dailyLogService.currentDailyLog,
-                    date: dailyLogService.activelyViewedDate,
-                    onLogUpdated: { showingAddToLogSheet = false }
-                )
-            } else {
-                NavigationStack {
-                    AddFoodView(
-                        initialFoodItem: recipeService.recipeToFoodItem(recipe: recipe),
-                        dailyLog: $dailyLogService.currentDailyLog,
-                        date: dailyLogService.activelyViewedDate,
-                        source: "recipe_detail",
-                        onLogUpdated: { showingAddToLogSheet = false }
-                    )
-                }
-            }
+            RecipeLoggingView(
+                recipe: recipe,
+                dailyLog: $dailyLogService.currentDailyLog,
+                date: dailyLogService.activelyViewedDate,
+                onLogUpdated: { showingAddToLogSheet = false }
+            )
         }
         .sheet(isPresented: $showingAddToPlanSheet) {
             AddRecipeToPlanSheet(recipe: recipe)
@@ -80,51 +100,8 @@ private struct RecipeIdentityHeader: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: AppSpacing.row) {
-                    recipeArtwork
-                    identityText
-                }
-            } else {
-                HStack(alignment: .top, spacing: AppSpacing.group) {
-                    recipeArtwork
-                    identityText
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var recipeArtwork: some View {
-        if let imageURLString = recipe.imageURL, let url = URL(string: imageURLString) {
-            CachedAsyncImage(url: url) { image in
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 68, height: 68)
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-            } placeholder: {
-                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                    .fill(AppPalette.control)
-                    .frame(width: 68, height: 68)
-            }
-            .accessibilityHidden(true)
-        } else if dynamicTypeSize.isAccessibilitySize {
-            Image(systemName: "fork.knife")
-                .appTextRole(.sectionTitle)
-                .foregroundStyle(.secondary)
-                .frame(width: 68, height: 68)
-                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-                .accessibilityHidden(true)
-        } else {
-            Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .font(.system(size: 36))
-                .frame(width: 68, height: 68)
-                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
-                .accessibilityHidden(true)
-        }
+        identityText
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var identityText: some View {
@@ -152,7 +129,7 @@ private struct RecipeIdentityHeader: View {
     }
 
     private var ingredientMetadata: some View {
-        Label("\(recipe.ingredients.count.formatted()) ingredients", systemImage: "basket")
+        Label("\(recipe.ingredients.count.formatted()) ingredient\(recipe.ingredients.count == 1 ? "" : "s")", systemImage: "basket")
             .appTextRole(.secondary)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -203,12 +180,13 @@ private struct RecipeNutritionSummary: View {
 
 private struct RecipeIngredientsSection: View {
     let ingredients: [String]
+    let basis: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
                 title: "Ingredients",
-                subtitle: "Amounts are shown as saved with this recipe."
+                subtitle: basis
             )
 
             VStack(spacing: 0) {
@@ -222,7 +200,7 @@ private struct RecipeIngredientsSection: View {
                     ForEach(Array(ingredients.enumerated()), id: \.offset) { index, ingredient in
                         HStack(alignment: .top, spacing: AppSpacing.row) {
                             Circle()
-                                .fill(AppPalette.brand)
+                                .fill(AppPalette.separator)
                                 .frame(width: 6, height: 6)
                                 .padding(.top, 7)
                                 .accessibilityHidden(true)
@@ -257,8 +235,8 @@ private struct RecipeInstructionsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
-                title: "Instructions",
-                subtitle: instructions.isEmpty ? nil : "Follow the saved order."
+                title: "Method",
+                subtitle: instructions.isEmpty ? nil : "\(instructions.count) steps"
             )
 
             VStack(spacing: 0) {
@@ -456,8 +434,23 @@ private struct AddRecipeToPlanSheet: View {
     @State private var replaceExistingMealType = false
     @State private var isSaving = false
     @State private var alertMessage: String?
+    @State private var isLoadingPlan = true
+    @State private var planRequestID = UUID()
+    @State private var owner: String?
+    @State private var portionAmountText = "1"
+    @State private var portionUnit: RecipePortionUnit
 
     private let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snack"]
+
+    init(recipe: Recipe) {
+        self.recipe = recipe
+        _portionUnit = State(initialValue: RecipePortionRules.defaultSelection(for: recipe).unit)
+    }
+
+    private var portionSelection: RecipePortionSelection {
+        RecipePortionSelection(unit: portionUnit, amount: Double(portionAmountText.replacingOccurrences(of: ",", with: ".")) ?? .nan)
+    }
+    private var portionSnapshot: RecipePortionSnapshot? { try? RecipePortionRules.snapshot(for: recipe, selection: portionSelection) }
 
     private var selectedMealCount: Int {
         existingPlan?.meals.filter { mealTypeMatches($0.mealType, selectedMealType) }.count ?? 0
@@ -478,18 +471,25 @@ private struct AddRecipeToPlanSheet: View {
                         )
                     }
 
-                    RecipeNutritionSummary(nutrition: recipe.nutrition)
+                    Text(recipe.nutritionBasisLabel).appTextRole(.secondary).foregroundStyle(.secondary)
+                    RecipePortionPicker(recipe: recipe, unit: $portionUnit, amountText: $portionAmountText,
+                                        identifier: "recipe_plan_portion")
+                    RecipeNutritionSummary(nutrition: portionSnapshot?.selectedNutrition ?? .zero)
                 }
+                .disabled(isSaving)
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.group)
                 .padding(.bottom, AppSpacing.group)
             }
             .background(AppPalette.canvas.ignoresSafeArea())
+            .accessibilityIdentifier("recipe_plan_scroll")
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Add to Plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -503,7 +503,8 @@ private struct AddRecipeToPlanSheet: View {
                     }
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(isSaving)
+                .disabled(isSaving || isLoadingPlan || owner == nil || portionSnapshot == nil)
+                .accessibilityIdentifier("recipe_plan_save")
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.row)
                 .padding(.bottom, AppSpacing.compact)
@@ -514,8 +515,14 @@ private struct AddRecipeToPlanSheet: View {
                         .frame(height: 1)
                 }
             }
-            .task { await loadExistingPlan() }
+            .interactiveDismissDisabled(isSaving)
+            .task {
+                owner = DIContainer.shared.authService.currentUserID
+                await loadExistingPlan()
+            }
             .onChange(of: selectedDate) { _, _ in
+                existingPlan = nil
+                replaceExistingMealType = false
                 Task { await loadExistingPlan() }
             }
             .onChange(of: selectedMealType) { _, _ in
@@ -561,95 +568,73 @@ private struct AddRecipeToPlanSheet: View {
     }
 
     private func loadExistingPlan() async {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
-        let plan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
-        guard DIContainer.shared.authService.currentUserID == userID else { return }
-        existingPlan = plan
+        guard let owner, DIContainer.shared.authService.currentUserID == owner else { return }
+        let date = selectedDate, requestID = UUID()
+        planRequestID = requestID
+        isLoadingPlan = true
+        mealPlannerService.invalidateCache(for: owner)
+        let result = await mealPlannerService.fetchBasePlanResult(for: date, userID: owner)
+        guard planRequestID == requestID, date == selectedDate,
+              DIContainer.shared.authService.currentUserID == owner else { return }
+        isLoadingPlan = false
+        switch result {
+        case .success(let plan): existingPlan = plan
+        case .failure: alertMessage = "Couldn't load this day's plan. Your choices are still here. Saving will check the plan again."
+        }
     }
 
     private func saveToPlan() {
-        guard !isSaving else { return }
-        guard let userID = DIContainer.shared.authService.currentUserID else {
+        guard !isSaving, portionSnapshot != nil else { return }
+        guard let owner, DIContainer.shared.authService.currentUserID == owner else {
             alertMessage = "You need to be signed in to update a meal plan."
             return
         }
-
         isSaving = true
-
-        Task { @MainActor in
-            var plan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
-                ?? emptyPlan(for: selectedDate)
-            guard DIContainer.shared.authService.currentUserID == userID else {
-                isSaving = false
-                return
-            }
-            if replaceExistingMealType {
-                plan.meals.removeAll { mealTypeMatches($0.mealType, selectedMealType) }
-            }
-            plan.meals.append(plannedMeal)
-            plan.meals.sort(by: sortMeals)
-
-            let didSave = await mealPlannerService.savePlan(plan, for: userID)
-            guard DIContainer.shared.authService.currentUserID == userID else {
-                isSaving = false
-                return
-            }
-            guard didSave else {
-                isSaving = false
-                alertMessage = "Your recipe and meal-slot choices are still here. Check your connection, then try again."
-                HapticManager.instance.notification(.warning)
-                return
-            }
-            await mealPlannerService.refreshGroceryList(for: userID)
-            guard DIContainer.shared.authService.currentUserID == userID else {
-                isSaving = false
-                return
-            }
+        let date = selectedDate, mealType = selectedMealType
+        let replacing = replaceExistingMealType, reviewedPlan = existingPlan
+        let meal: PlannedMeal
+        do {
+            meal = PlannedMeal(mealType: mealType, recipeID: recipe.id,
+                foodItem: try RecipePortionRules.foodItem(for: recipe, selection: portionSelection),
+                ingredients: try RecipePortionRules.ingredients(for: recipe, selection: portionSelection),
+                instructions: recipe.instructions.joined(separator: "\n"))
+        } catch {
             isSaving = false
-            HapticManager.instance.feedback(.medium)
-            dismiss()
+            alertMessage = error.localizedDescription
+            return
         }
-    }
-
-    private var plannedMeal: PlannedMeal {
-        PlannedMeal(
-            id: UUID().uuidString,
-            mealType: selectedMealType,
-            recipeID: recipe.id,
-            foodItem: recipeService.recipeToFoodItem(recipe: recipe),
-            ingredients: recipe.ingredients,
-            instructions: recipe.instructions.joined(separator: "\n")
-        )
-    }
-
-    private func emptyPlan(for date: Date) -> MealPlanDay {
-        let startOfDay = Calendar.current.startOfDay(for: date)
-        return MealPlanDay(id: mealPlanID(for: startOfDay), date: startOfDay, meals: [])
-    }
-
-    private func sortMeals(_ first: PlannedMeal, _ second: PlannedMeal) -> Bool {
-        let firstOrder = mealOrder(for: first.mealType)
-        let secondOrder = mealOrder(for: second.mealType)
-        if firstOrder != secondOrder {
-            return firstOrder < secondOrder
+        Task { @MainActor in
+            defer { isSaving = false }
+            do {
+                mealPlannerService.invalidateCache(for: owner)
+                let fetched = try await mealPlannerService.fetchBasePlanResult(for: date, userID: owner).get()
+                let original = fetched ?? MealPlanEditingRules.emptyDay(date)
+                if replacing, !MealPlanEditingRules.matches(fetched, expected: reviewedPlan ?? MealPlanEditingRules.emptyDay(date)) {
+                    // Refresh slots before asking the user to confirm replacement again.
+                    existingPlan = fetched
+                    replaceExistingMealType = false
+                    throw MealPlanEditError.changed
+                }
+                var updated = original
+                if replacing { updated.meals.removeAll { mealTypeMatches($0.mealType, mealType) } }
+                updated.meals.append(MealPlanEditingRules.duplicate(meal))
+                try await mealPlannerService.applyPlanChange(
+                    MealPlanChange(title: "Recipe added", before: [original], after: [updated]), for: owner
+                )
+                guard DIContainer.shared.authService.currentUserID == owner else { throw MealPlanEditError.accountChanged }
+                HapticManager.instance.feedback(.medium)
+                dismiss()
+            } catch {
+                alertMessage = MealPlannerErrorText.message(for: error)
+                HapticManager.instance.notification(.warning)
+            }
         }
-        return (first.foodItem?.name ?? "")
-            .localizedCaseInsensitiveCompare(second.foodItem?.name ?? "") == .orderedAscending
-    }
-
-    private func mealOrder(for mealType: String) -> Int {
-        mealTypes.firstIndex { mealType.localizedCaseInsensitiveContains($0) } ?? mealTypes.count
     }
 
     private func mealTypeMatches(_ lhs: String, _ rhs: String) -> Bool {
-        lhs.localizedCaseInsensitiveContains(rhs) || rhs.localizedCaseInsensitiveContains(lhs)
+        MealPlanEditingRules.canonicalSlot(lhs) == MealPlanEditingRules.canonicalSlot(rhs)
     }
 
-    private func mealPlanID(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
 }
 
 private struct RecipePlanIdentity: View {
@@ -754,3 +739,59 @@ private struct AddRecipePlanModeControl: View {
         .appSurface(.quiet)
     }
 }
+
+#if DEBUG
+/// Direct, mock-account-only presentations for the whole-app design contact sheet.
+struct NutritionDesignGallery: View {
+    let screen: String
+    @EnvironmentObject private var goals: GoalSettings
+    @State private var waterAmount = "96"
+    private var recipe: Recipe { ScreenshotDemoData.recipeDemoRecipes[0] }
+    @ViewBuilder var body: some View {
+        switch screen {
+        case "ai-summary": AISummaryView(estimatedItems: ScreenshotDemoData.aiTextDemoFoods, mealName: "Dinner", date: Date())
+        case "ai-menu": AIMenuSelectionView(estimatedItems: .constant(ScreenshotDemoData.aiTextDemoFoods), date: Date(), mealName: "Dinner")
+        case "ai-text-review": AITextResultsView(foodItems: ScreenshotDemoData.aiTextDemoFoods, date: Date(), mealName: "Dinner", onLogComplete: {})
+        case "preferences": SuggestionPreferencesView(goalSettings: goals)
+        case "water": SetWaterGoalView(waterGoalInput: $waterAmount, onAccepted: {})
+        case let name where name.hasPrefix("buffet-"): BuffetDesignGallery(screen: name)
+        case "recipe-create": CreateRecipeView()
+        case "recipe-edit": CreateRecipeView(recipeToEdit: recipe)
+        case "recipe-detail": NavigationStack { RecipeDetailView(recipe: recipe) }
+        case "recipe-log": RecipeLoggingView(recipe: recipe, dailyLog: .constant(nil), date: Date(), mealName: "Lunch", onLogUpdated: {})
+        case "recipe-plan": AddRecipeToPlanSheet(recipe: recipe)
+        case "recipe-history": RecipeVersionHistoryView(recipeID: recipe.id ?? "design-recipe", onChanged: { _ in })
+        case "week-review": MealPlanDraftReviewView(draft: MealPlanWeekDraft(days: ScreenshotDemoData.mealPrepDemoDays, title: "Your week"), didSave: {})
+        case "week-partial": MealPlanDraftReviewView(draft: partialWeek, didSave: {})
+        case "day-review":
+            if let batch = try? NutritionDayBatchReview(ownerID: DIContainer.shared.authService.currentUserID ?? "mock_user", status: .complete, logs: [ScreenshotDemoData.trustHubDemoLog]) {
+                NutritionBatchReviewView(initial: batch)
+            }
+        default: NavigationStack { RecipeListView() }
+        }
+    }
+    private var partialWeek: MealPlanWeekDraft {
+        // Use an unseeded future week so existing demo plans cannot fill the intended gap.
+        let start = Calendar.current.date(byAdding: .day, value: 35, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+        var constraints = MealPlanConstraints(calories: 1800, protein: 150, carbs: 200, fats: 35)
+        constraints.practicalWeek = MealPlanningWeekBrief(mealTypes: ["Dinner"],
+            days: (0..<7).map { MealPlanningDayBrief(offset: $0, cookingMinutes: $0 == 2 ? 15 : 60) })
+        let days = (0..<7).map { offset -> MealPlanDay in
+            let date = Calendar.current.date(byAdding: .day, value: offset, to: start) ?? start
+            var day = MealPlanEditingRules.emptyDay(date)
+            if offset != 2 {
+                var food = recipe.foodItemForLogging()
+                food.id = "design-dinner-food-\(offset)"
+                var meal = PlannedMeal(id: "design-dinner-\(offset)", mealType: "Dinner", foodItem: food,
+                    ingredients: RecipePortionRules.originalIngredientLines(for: recipe), instructions: recipe.instructions.joined(separator: "\n"))
+                meal.planningEvidence = try? PlannedMealEvidence(profile: RecipePlanningProfile(prepMinutes: 25,
+                    equipment: ["Stove"], costPerServing: 5, reviewedAt: Date()), meal: meal)
+                day.meals = [meal]
+            }
+            return day
+        }
+        return MealPlanWeekDraft(days: days, title: "A week that fits", constraints: constraints)
+    }
+
+}
+#endif

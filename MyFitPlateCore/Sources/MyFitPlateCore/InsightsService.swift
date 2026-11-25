@@ -6,6 +6,11 @@ import HealthKit
 @MainActor
 public class InsightsService: ObservableObject {
     @Published public var currentInsights: [UserInsight] = []
+    @Published public private(set) var insightReports: [SavedInsightReport] = []
+    @Published public private(set) var insightHistoryNotice: String?
+    private var requestedInsightWindow: (start: Date, end: Date)?
+    private var requestedInsightGoals: InsightsRules.GoalSnapshot?
+    private var lastWeeklyInsightWindowDays: Int?
     @Published public var smartSuggestion: UserInsight? = nil
     @Published public var currentCoachingPlan: AdaptiveCoachingPlan?
     @Published public var currentRunRecoveryPrompt: RunRecoveryTarget? = nil
@@ -22,6 +27,7 @@ public class InsightsService: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private var lastWeeklyInsightFetch: Date?
+    private var coachingLogs: [DailyLog] = []
     public struct NotificationContext {
         public let gender: String
         public let phase: MenstrualPhase?
@@ -53,9 +59,11 @@ public class InsightsService: ObservableObject {
         self.goalSettings = goalSettings
         self.healthKitViewModel = healthKitViewModel
 
-        healthKitViewModel.$sleepSamples
+        healthKitViewModel.$sleepSamples.map { _ in () }
+            .merge(with: healthKitViewModel.$hrvHistorySamples.map { _ in () })
             .debounce(for: .seconds(2), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
+                self?.generateDailySmartInsight()
                 self?.generateAndFetchInsights()
             }
             .store(in: &cancellables)
@@ -69,8 +77,17 @@ public class InsightsService: ObservableObject {
         suggestionRequestID = nil
         activeAccountID = userID
         currentInsights = []
+        insightReports = []
+        insightHistoryNotice = nil
+        requestedInsightWindow = nil
+        requestedInsightGoals = nil
+        lastWeeklyInsightWindowDays = nil
+        if let userID {
+            do { insightReports = try InsightReportStore().reports(userID: userID) } catch { insightHistoryNotice = "Saved insight reports could not be opened. Their files are kept on this device." }
+        }
         smartSuggestion = nil
         currentCoachingPlan = nil
+        coachingLogs = []
         currentRunRecoveryPrompt = nil
         isLoadingInsights = false
         isGeneratingSuggestion = false
@@ -86,9 +103,11 @@ public class InsightsService: ObservableObject {
         activateAccount(userID)
     }
 
-    public func generateSingleMealSuggestion(pantryItems: [String] = [], avoiding: [String] = []) async -> MealSuggestion? {
+    public func generateSingleMealSuggestion(pantryItems: [String] = [], avoiding: [String] = [], alternative: MealSuggestionAlternativeReason? = nil, day: DiaryDayContext? = nil) async -> MealSuggestion? {
         guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
         activateCurrentAccountIfNeeded(userID)
+        let constraints = goalSettings.effectiveMealConstraintProfile
+        do { try constraints?.validate() } catch { return nil }
         let requestID = UUID()
         suggestionRequestID = requestID
         self.isGeneratingSuggestion = true
@@ -98,11 +117,11 @@ public class InsightsService: ObservableObject {
             }
         }
         
-        let remainingCalories = max(0, (goalSettings.calories ?? 2000) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0))
-        let remainingProtein = max(0, goalSettings.protein - (dailyLogService.currentDailyLog?.totalMacros().protein ?? 0))
-        let remainingCarbs = max(0, goalSettings.carbs - (dailyLogService.currentDailyLog?.totalMacros().carbs ?? 0))
-        let remainingFats = max(0, goalSettings.fats - (dailyLogService.currentDailyLog?.totalMacros().fats ?? 0))
-        
+        guard let initialBudget = await budgetForMealSuggestion(on: day, userID: userID),
+              initialBudget.isValid, initialBudget.calories > 0 else { return nil }
+        let remainingCalories = initialBudget.calories, remainingProtein = initialBudget.protein
+        let remainingCarbs = initialBudget.carbs, remainingFats = initialBudget.fats
+        let capturedDayID = dailyLogService.currentDailyLog?.id
         let mealType = InsightsRules.determineMealType(for: Date())
         let proteinPrefs = goalSettings.suggestionProteins.isEmpty ? "any" : goalSettings.suggestionProteins.joined(separator: ", ")
         let carbPrefs = goalSettings.suggestionCarbs.isEmpty ? "any" : goalSettings.suggestionCarbs.joined(separator: ", ")
@@ -122,7 +141,7 @@ public class InsightsService: ObservableObject {
             pantryItems: pantryItems,
             avoiding: avoiding
         )
-        guard let responseString = await fetchAIResponse(prompt: prompt) else {
+        guard let responseString = await fetchAIResponse(prompt: prompt + "\n" + (constraints?.prompt ?? "") + "\n" + (alternative?.instruction ?? "")) else {
             return nil
         }
         guard isActiveAccount(userID), suggestionRequestID == requestID else { return nil }
@@ -131,7 +150,14 @@ public class InsightsService: ObservableObject {
         }
 
         do {
-            let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData)
+            let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData).withGeneratedEvidence()
+            guard let budget = await budgetForMealSuggestion(on: day, userID: userID), suggestionRequestID == requestID,
+                  day != nil || dailyLogService.currentDailyLog?.id == capturedDayID,
+                  goalSettings.effectiveMealConstraintProfile == constraints,
+                  !MealConstraintRules.report(candidate: suggestion.constraintCandidate, profile: constraints).isBlocked,
+                  MealSuggestionFeasibilityRules.fitsGeneration(suggestion, remaining: .init(calories: budget.calories, protein: budget.protein, carbs: budget.carbs, fats: budget.fats)),
+                  alternative != .vegetarian || !MealConstraintRules.report(candidate: suggestion.constraintCandidate,
+                      profile: MealConstraintProfile(diet: .vegetarian)).isBlocked else { return nil }
             return suggestion
         } catch {
             // This decode failing silently is exactly how the feature shipped dead —
@@ -144,10 +170,13 @@ public class InsightsService: ObservableObject {
 
     public func generateTrainingFuelSuggestion(
         target: TrainingFuelTarget,
-        pantryItems: [String] = []
+        pantryItems: [String] = [],
+        alternative: MealSuggestionAlternativeReason? = nil
     ) async -> MealSuggestion? {
         guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
         activateCurrentAccountIfNeeded(userID)
+        let constraints = goalSettings.effectiveMealConstraintProfile
+        do { try constraints?.validate() } catch { return nil }
         let requestID = UUID()
         suggestionRequestID = requestID
         isGeneratingSuggestion = true
@@ -157,18 +186,21 @@ public class InsightsService: ObservableObject {
             }
         }
 
-        let initialBudget = currentTrainingFuelBudget()
+        let capturedDay = target.context.flatMap { context in
+            context.day.date(calendar: context.calendar).flatMap { DiaryDayContext(userID: context.ownerID, date: $0, timeZone: context.calendar.timeZone) }
+        }
+        guard let initialBudget = await budgetForMealSuggestion(on: capturedDay, userID: userID) else { return nil }
         guard [
             initialBudget.calories,
             initialBudget.protein,
             initialBudget.carbs,
-            initialBudget.fat
+            initialBudget.fats
         ].allSatisfy(\.isFinite),
               initialBudget.calories >= 60 else { return nil }
         let prompt = InsightsRules.createTrainingFuelSuggestionPrompt(
             target: target,
             dailyRemainingCalories: initialBudget.calories,
-            dailyRemainingFat: initialBudget.fat,
+            dailyRemainingFat: initialBudget.fats,
             proteinPrefs: goalSettings.suggestionProteins.isEmpty
                 ? "any"
                 : goalSettings.suggestionProteins.joined(separator: ", "),
@@ -177,22 +209,26 @@ public class InsightsService: ObservableObject {
                 : goalSettings.suggestionCarbs.joined(separator: ", "),
             pantryItems: pantryItems
         )
-        guard let responseString = await fetchAIResponse(prompt: prompt),
+        guard let responseString = await fetchAIResponse(prompt: prompt + "\n" + (constraints?.prompt ?? "") + "\n" + (alternative?.instruction ?? "")),
               let jsonData = InsightsRules.extractJSONPayload(responseString).data(using: .utf8) else {
             return nil
         }
         guard isActiveAccount(userID), suggestionRequestID == requestID else { return nil }
 
         do {
-            let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData)
-            let liveBudget = currentTrainingFuelBudget()
+            let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData).withGeneratedEvidence()
+            guard goalSettings.effectiveMealConstraintProfile == constraints,
+                  !MealConstraintRules.report(candidate: suggestion.constraintCandidate, profile: constraints).isBlocked else { return nil }
+            guard let liveBudget = await budgetForMealSuggestion(on: capturedDay, userID: userID), suggestionRequestID == requestID else { return nil }
+            guard alternative != .vegetarian || !MealConstraintRules.report(candidate: suggestion.constraintCandidate,
+                profile: MealConstraintProfile(diet: .vegetarian)).isBlocked else { return nil }
             guard InsightsRules.trainingFuelSuggestionFitsBudget(
                 suggestion,
                 target: target,
                 dailyRemainingCalories: liveBudget.calories,
                 dailyRemainingProtein: liveBudget.protein,
                 dailyRemainingCarbs: liveBudget.carbs,
-                dailyRemainingFat: liveBudget.fat
+                dailyRemainingFat: liveBudget.fats
             ) else {
                 AppLog.ai.error("Training fuel suggestion failed deterministic budget validation")
                 return nil
@@ -203,6 +239,21 @@ public class InsightsService: ObservableObject {
             AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_training_fuel_suggestion")
             return nil
         }
+    }
+
+    private func budgetForMealSuggestion(on day: DiaryDayContext?, userID: String) async -> MealSuggestionBudget? {
+        guard isActiveAccount(userID) else { return nil }
+        guard let day else {
+            let value = currentTrainingFuelBudget()
+            return .init(calories: value.calories, protein: value.protein, carbs: value.carbs, fats: value.fat)
+        }
+        guard day.isOwned(by: userID) else { return nil }
+        let result: Result<DailyLog, Error> = await withCheckedContinuation { continuation in
+            dailyLogService.fetchLogInternal(for: userID, day: day) { continuation.resume(returning: $0) }
+        }
+        guard isActiveAccount(userID), case .success(let log) = result, log.id == day.dayKey else { return nil }
+        return MealSuggestionBudget(calories: goalSettings.calories ?? 0, protein: goalSettings.protein,
+            carbs: goalSettings.carbs, fats: goalSettings.fats).subtracting(log)
     }
 
     private func currentTrainingFuelBudget() -> (
@@ -242,9 +293,10 @@ public class InsightsService: ObservableObject {
         )
         self.currentCoachingPlan = InsightsRules.adaptiveCoachingPlan(
             today: log,
-            recentLogs: log.map { [$0] } ?? [],
-            sleepHours: self.healthKitViewModel?.sleepSamples.map { $0.endDate.timeIntervalSince($0.startDate) / 3600 } ?? [],
-            hrvAverage: self.healthKitViewModel?.hrvAverage,
+            recentLogs: coachingLogs.filter { cached in
+                !Calendar.current.isDate(cached.date, inSameDayAs: log?.date ?? .distantPast)
+            } + (log.map { [$0] } ?? []),
+            recovery: self.healthKitViewModel?.coachingRecoveryEvidence() ?? .unavailable,
             goals: goalSnapshot(),
             now: Date()
         )
@@ -252,7 +304,8 @@ public class InsightsService: ObservableObject {
 
     public func generateAndFetchInsights(
         forLastDays days: Int = 7,
-        requestConsentIfNeeded: Bool = false
+        requestConsentIfNeeded: Bool = false,
+        forceRefresh: Bool = false
     ) {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         activateCurrentAccountIfNeeded(userID)
@@ -264,11 +317,13 @@ public class InsightsService: ObservableObject {
             NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
         }
 
-        if let lastFetch = lastWeeklyInsightFetch, !currentInsights.isEmpty, Calendar.current.isDateInToday(lastFetch) {
+        if !forceRefresh, insightHistoryNotice == nil, lastWeeklyInsightWindowDays == max(1, min(90, days)),
+           let lastFetch = lastWeeklyInsightFetch, !currentInsights.isEmpty, Calendar.current.isDateInToday(lastFetch) {
             return
         }
 
         let sleepData = self.healthKitViewModel?.sleepSamples ?? []
+        requestedInsightGoals = goalSnapshot()
         let requestID = UUID()
 
         isLoadingInsights = true
@@ -277,7 +332,7 @@ public class InsightsService: ObservableObject {
 
         analysisTask = Task {
             let endDate = Calendar.current.startOfDay(for: Date())
-            guard let startDate = Calendar.current.date(byAdding: .day, value: -(days), to: endDate) else {
+            guard let startDate = Calendar.current.date(byAdding: .day, value: -(max(1, min(90, days)) - 1), to: endDate) else {
                 self.handleInsightsError(
                     message: "Could not calculate date range for insights.",
                     userID: userID,
@@ -286,6 +341,7 @@ public class InsightsService: ObservableObject {
                 return
             }
 
+            requestedInsightWindow = (startDate, endDate)
             let result = await self.fetchLogsForAnalysis(userID: userID, startDate: startDate, endDate: endDate)
 
             guard !Task.isCancelled,
@@ -294,18 +350,18 @@ public class InsightsService: ObservableObject {
 
             switch result {
             case .success(let logs):
+                self.coachingLogs = logs
                 self.currentCoachingPlan = InsightsRules.adaptiveCoachingPlan(
                     today: logs.first { Calendar.current.isDateInToday($0.date) },
                     recentLogs: logs,
-                    sleepHours: sleepData.map { $0.endDate.timeIntervalSince($0.startDate) / 3600 },
-                    hrvAverage: self.healthKitViewModel?.hrvAverage,
+                    recovery: self.healthKitViewModel?.coachingRecoveryEvidence() ?? .unavailable,
                     goals: self.goalSnapshot(),
                     now: Date()
                 )
 
                 if logs.count < 3 {
                     let noDataInsight = [UserInsight(title: "More Data Needed", message: "Log consistently for a few more days to unlock your personalized weekly insights!", category: .nutritionGeneral, priority: 100)]
-                    self.handleInsightsResult(insights: noDataInsight, error: nil, userID: userID, requestID: requestID)
+                    self.handleInsightsResult(insights: self.attachInsightEvidence(noDataInsight, logs: logs, sleepSamples: [], origin: .localRules), error: nil, userID: userID, requestID: requestID)
                     return
                 }
 
@@ -439,6 +495,18 @@ public class InsightsService: ObservableObject {
         } else {
             self.currentInsights = insights
             self.lastWeeklyInsightFetch = Date()
+            if let window = requestedInsightWindow {
+                lastWeeklyInsightWindowDays = (Calendar.current.dateComponents([.day], from: window.start, to: window.end).day ?? 0) + 1
+            }
+            if let evidence = insights.first?.evidence {
+                do {
+                    try InsightReportStore().record(.init(evidence: evidence, insights: insights), currentUserID: userID)
+                    insightReports = try InsightReportStore().reports(userID: userID)
+                    insightHistoryNotice = nil
+                } catch {
+                    insightHistoryNotice = "This report is visible, but its history could not be saved on this device. Refresh to retry."
+                }
+            }
         }
     }
 
@@ -461,7 +529,8 @@ public class InsightsService: ObservableObject {
 
         do {
             let insightsResponse = try JSONDecoder().decode([String: [UserInsight]].self, from: jsonData)
-            return insightsResponse["insights"] ?? []
+            return attachInsightEvidence(insightsResponse["insights"] ?? [], logs: logs,
+                sleepSamples: healthDataForAI, origin: .aiInterpretation)
         } catch {
             AppLog.ai.error("Failed to decode generated insights: \(error.localizedDescription, privacy: .public)")
             AIResponseTelemetry.recordDecodeFailure(
@@ -484,12 +553,30 @@ public class InsightsService: ObservableObject {
     }
 
     private func generateLocalInsights(from logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings) -> [UserInsight] {
-        let sleepHours = sleepSamples.map { $0.endDate.timeIntervalSince($0.startDate) / 3600 }
-        return InsightsRules.localInsights(
-            from: logs,
-            sleepHours: sleepHours,
-            goals: goalSnapshot(from: goals)
-        )
+        let start = requestedInsightWindow?.start ?? Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
+        let end = requestedInsightWindow?.end ?? Date()
+        let sleepByNight = SleepEvidenceRules.hoursByNight(from: sleepSamples).filter { $0.key >= start && $0.key <= end }
+        let values = InsightsRules.localInsights(from: logs, sleepHours: Array(sleepByNight.values), goals: requestedInsightGoals ?? goalSnapshot(from: goals))
+        return attachInsightEvidence(values, logs: logs, sleepSamples: sleepSamples, origin: .localRules)
+    }
+
+    private func attachInsightEvidence(_ insights: [UserInsight], logs: [DailyLog],
+                                       sleepSamples: [HKCategorySample], origin: InsightEvidenceSnapshot.Origin) -> [UserInsight] {
+        guard let ownerID = activeAccountID, isActiveAccount(ownerID) else { return [] }
+        let now = Date()
+        let start = requestedInsightWindow?.start ?? Calendar.current.date(byAdding: .day, value: -6, to: now) ?? now
+        let end = requestedInsightWindow?.end ?? now
+        do {
+            let evidence = try InsightEvidenceSnapshot(ownerID: ownerID, logs: logs,
+                sleepHoursByNight: SleepEvidenceRules.hoursByNight(from: sleepSamples),
+                calorieGoal: requestedInsightGoals?.calories ?? goalSettings.calories ?? 0,
+                proteinGoal: requestedInsightGoals?.protein ?? goalSettings.protein,
+                start: start, end: end, origin: origin, now: now)
+            return insights.map { $0.attaching(evidence) }
+        } catch {
+            insightHistoryNotice = "Input evidence could not be recorded. These observations are not saved as verified reports."
+            return insights.map { value in var copy = value; copy.evidence = nil; return copy }
+        }
     }
 
     private func goalSnapshot(from goals: GoalSettings? = nil) -> InsightsRules.GoalSnapshot {
@@ -515,17 +602,7 @@ public class InsightsService: ObservableObject {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "EEEE"
 
-        let dailyNutritionSummary = logs.map { log -> String in
-            let day = dateFormatter.string(from: log.date)
-            let macros = log.totalMacros()
-            let fiber = log.micronutrientCoverage(for: .fiber).hasReportedData
-                ? "\(Int(log.totalMicronutrient(.fiber)))g"
-                : "not reported"
-            let sodium = log.micronutrientCoverage(for: .sodium).hasReportedData
-                ? "\(Int(log.totalMicronutrient(.sodium)))mg"
-                : "not reported"
-            return "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(fiber), Sodium: \(sodium)"
-        }.joined(separator: "\n")
+        let dailyNutritionSummary = NutritionDayEvidence.historicalSummary(logs)
 
         let dailyWorkoutSummary = logs.compactMap { log -> String? in
             guard let exercises = log.exercises, !exercises.isEmpty else { return nil }
@@ -535,16 +612,15 @@ public class InsightsService: ObservableObject {
             return "- \(day): Burned \(Int(totalBurn)) calories from \(exerciseNames)."
         }.joined(separator: "\n")
 
-        let sleepSummaryByDay = Dictionary(grouping: sleepSamples) {
-            Calendar.current.startOfDay(for: $0.startDate)
-        }.mapValues { samples -> TimeInterval in
-            samples.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
+        let sleepHoursByNight = SleepEvidenceRules.hoursByNight(from: sleepSamples).filter { date, _ in
+            guard let window = requestedInsightWindow else { return true }
+            let day = Calendar.current.startOfDay(for: date)
+            return day >= window.start && day <= window.end
         }
-
-        let sleepSummaryString = sleepSummaryByDay.keys.sorted().map { date -> String in
+        let sleepSummaryString = sleepHoursByNight.keys.sorted().map { date -> String in
             let day = dateFormatter.string(from: date)
-            let hours = (sleepSummaryByDay[date] ?? 0) / 3600
-            return "- \(day): \(String(format: "%.1f", hours)) hours"
+            let hours = sleepHoursByNight[date] ?? 0
+            return "- Night beginning \(day): \(String(format: "%.1f", hours)) hours asleep"
         }.joined(separator: "\n")
 
         let journalSummary = logs.compactMap { log -> String? in
@@ -554,13 +630,14 @@ public class InsightsService: ObservableObject {
             return "- \(day): \(entrySummaries)"
         }.joined(separator: "\n")
 
+        let capturedGoals = requestedInsightGoals ?? goalSnapshot(from: goals)
         let userGoals = """
         User's Goals:
-        - Calorie Target: \(Int(goals.calories ?? 0)) kcal
-        - Protein Target: \(Int(goals.protein))g
+        - Calorie Target: \(Int(capturedGoals.calories)) kcal
+        - Protein Target: \(Int(capturedGoals.protein))g
         - Fiber Target: 25g
         - Sodium Limit: 2300mg
-        - Weight Goal: \(goals.goal)
+        - Weight Goal: \(capturedGoals.weightGoal)
         """
 
         return InsightsRules.createAIPrompt(
@@ -575,9 +652,9 @@ public class InsightsService: ObservableObject {
     private func fetchAIResponse(prompt: String) async -> String? {
         let result = await DIContainer.shared.aiService.performRequest(
             messages: [["role": "user", "content": prompt]],
-            model: "gpt-4o-mini",
+            model: "gpt-6-astra",
             temperature: 0.7,
-            responseFormat: ["type": "json_object"]
+            responseFormat: ["type": "json_object"], requestKind: .coaching
         )
 
         switch result {

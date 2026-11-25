@@ -2,11 +2,20 @@ import Foundation
 
 public struct AccountDeletionOutcome: Sendable {
     public let userID: String
+    /// True when an Apple account was deleted but its Sign in with Apple token could not be
+    /// revoked. The deletion itself still completed.
+    public let appleTokenRevocationFailed: Bool
+
+    public init(userID: String, appleTokenRevocationFailed: Bool = false) {
+        self.userID = userID
+        self.appleTokenRevocationFailed = appleTokenRevocationFailed
+    }
 }
 
 public enum AccountDeletionError: LocalizedError {
     case missingCurrentUser
     case emptyPassword
+    case accountChanged
     case reauthenticationFailed(Error)
     case dataDeletionFailed(Error)
     case authDeletionFailed(Error)
@@ -17,6 +26,8 @@ public enum AccountDeletionError: LocalizedError {
             return "We couldn't verify your account. Please sign out, sign back in, and try again."
         case .emptyPassword:
             return "Please enter your password to continue."
+        case .accountChanged:
+            return "Your account changed. No deletion was started for the new account. Reopen account settings to continue."
         case .reauthenticationFailed(let error):
             return "Re-authentication failed: \(error.localizedDescription)"
         case .dataDeletionFailed:
@@ -32,6 +43,8 @@ public enum AccountDeletionError: LocalizedError {
             return "missing_user"
         case .emptyPassword:
             return "empty_password"
+        case .accountChanged:
+            return "account_changed"
         case .reauthenticationFailed:
             return "reauthentication"
         case .dataDeletionFailed:
@@ -44,4 +57,5 @@ public enum AccountDeletionError: LocalizedError {
 
 public protocol AccountDeletionServicing: Sendable {
     func deleteCurrentAccount(password: String) async throws -> AccountDeletionOutcome
+    func deleteCurrentAccount(appleCredential: AppleIDCredential) async throws -> AccountDeletionOutcome
 }

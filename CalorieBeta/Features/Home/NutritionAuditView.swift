@@ -15,7 +15,7 @@ struct NutritionAuditLaunchButton: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Review Food Trust")
+                    Text("Check today's food data")
                         .appFont(size: 13, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -37,8 +37,8 @@ struct NutritionAuditLaunchButton: View {
             .background(AppPalette.caution.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Review Food Trust. Sources, cross-checks, and items to fix.")
-        .accessibilityHint("Opens the Trust Hub for today's foods.")
+        .accessibilityLabel("Check today's food data. Sources, cross-checks, and items to fix.")
+        .accessibilityHint("Opens the food data check for today's foods.")
     }
 }
 
@@ -110,11 +110,11 @@ struct NutritionAuditView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Trust Hub")
+                    Text("Check your food data")
                         .appFont(size: 28, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("See what supports today's nutrition, then fix the entries with the greatest impact.")
+                    Text("Review the entries that matter most to today’s nutrition.")
                         .appFont(size: 14, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
@@ -165,7 +165,7 @@ struct NutritionAuditView: View {
             .padding(16)
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Audit")
+        .navigationTitle("Food data check")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: logTrustHubViewed)
         .toolbar {
@@ -316,13 +316,13 @@ private struct NutritionEvidenceMap: View {
     }
 
     private var evidenceMapTitle: some View {
-        Text("Evidence Map")
+        Text("Where the numbers come from")
             .appFont(size: 18, weight: .bold)
             .foregroundStyle(AppPalette.text)
     }
 
     private var evidenceMapSubtitle: some View {
-        Text("Support by field. Source documentation and cross-database agreement remain separate.")
+        Text("Source coverage and agreement are shown separately.")
             .appFont(size: 13, weight: .medium)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

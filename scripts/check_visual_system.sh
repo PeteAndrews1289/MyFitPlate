@@ -14,10 +14,11 @@ readonly forbidden_patterns=(
   'static[[:space:]]+var[[:space:]]+brandGradient'
 )
 
+# Include new source files before they are staged; ignored build products stay excluded.
 status=0
 
 for pattern in "${forbidden_patterns[@]}"; do
-  if matches=$(git grep -n -E "$pattern" -- '*.swift'); then
+  if matches=$(git grep --untracked --exclude-standard -n -E "$pattern" -- '*.swift'); then
     printf 'Retired visual-system symbol found:\n%s\n' "$matches" >&2
     status=1
   fi
@@ -29,12 +30,14 @@ readonly material_pattern='\.(ultraThinMaterial|thinMaterial|regularMaterial|thi
 readonly material_allowlist=(
   'CalorieBeta/UIComponents/CustomTabBar.swift'
   'CalorieBeta/UIComponents/ImageProcessingView.swift'
+  'CalorieBeta/UIComponents/NotificationBanner.swift'
   'CalorieBeta/Features/Maia/AIChatComponents.swift'
   'CalorieBeta/Features/Workouts/RunningViews.swift'
   'CalorieWidget/CalorieWidget.swift'
+  'MyFitPlateCore/Sources/MyFitPlateCore/ToastManager.swift'
 )
 
-material_matches="$(git grep -n -E "$material_pattern" -- '*.swift' || true)"
+material_matches="$(git grep --untracked --exclude-standard -n -E "$material_pattern" -- '*.swift' || true)"
 while IFS= read -r match; do
   [[ -z "$match" ]] && continue
   file="${match%%:*}"
@@ -69,7 +72,7 @@ readonly gradient_allowlist=(
   'MyFitPlateCore/Sources/MyFitPlateCore/DesignSystem.swift'
 )
 
-gradient_matches="$(git grep -n -E 'LinearGradient[[:space:]]*\(' -- '*.swift' || true)"
+gradient_matches="$(git grep --untracked --exclude-standard -n -E 'LinearGradient[[:space:]]*\(' -- '*.swift' || true)"
 while IFS= read -r match; do
   [[ -z "$match" ]] && continue
   file="${match%%:*}"
@@ -107,7 +110,7 @@ readonly shadow_allowlist=(
   'MyFitPlateCore/Sources/MyFitPlateCore/ToastManager.swift'
 )
 
-shadow_matches="$(git grep -n -E '\.shadow[[:space:]]*\(' -- '*.swift' || true)"
+shadow_matches="$(git grep --untracked --exclude-standard -n -E '\.shadow[[:space:]]*\(' -- '*.swift' || true)"
 while IFS= read -r match; do
   [[ -z "$match" ]] && continue
   file="${match%%:*}"
@@ -156,7 +159,7 @@ readonly direct_color_allowlist=(
   'MyFitPlateCore/Sources/MyFitPlateCore/AppVisualSystem.swift'
 )
 
-direct_color_matches="$(git grep -n -E "$direct_color_pattern" -- \
+direct_color_matches="$(git grep --untracked --exclude-standard -n -E "$direct_color_pattern" -- \
   'CalorieBeta' \
   'CalorieWidget' \
   'LiveActivity' \
@@ -190,7 +193,7 @@ readonly brand_foreground_allowlist=(
   'CalorieBeta/Features/Workouts/RunStoryPosterView.swift:2'
 )
 
-brand_foreground_matches="$(git grep -n -E "$brand_foreground_pattern" -- \
+brand_foreground_matches="$(git grep --untracked --exclude-standard -n -E "$brand_foreground_pattern" -- \
   'CalorieBeta' \
   'CalorieWidget' \
   'LiveActivity' \
@@ -229,7 +232,7 @@ done
 # Their labels and symbols need the dark on-brand/on-signal role; white falls below contrast
 # targets on the current green, blue, aqua, amber, and violet palette.
 readonly conditional_white_pattern='(isSelected|didLog|didConfirm|event\.state|day\.hasTraining).*white'
-if matches=$(git grep -n -E "$conditional_white_pattern" -- \
+if matches=$(git grep --untracked --exclude-standard -n -E "$conditional_white_pattern" -- \
   'CalorieBeta' \
   'CalorieWidget' \
   'MyFitPlateWatch Watch App' \

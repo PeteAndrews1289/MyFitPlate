@@ -11,6 +11,7 @@ const {
 test("account deletion covers every top-level usage collection", () => {
   assert.deepEqual(ACCOUNT_DELETION_USAGE_COLLECTIONS, [
     "aiUsage",
+    "aiBudgetUsage",
     "aiUsageBreakdown",
     "aiVisionUsage",
     "fatSecretUsage",
@@ -28,6 +29,7 @@ test("AI usage prefixes remain stable for every request kind", () => {
   assert.equal(aiUsageRequestPrefix("menu_photo"), "menuPhoto");
   assert.equal(aiUsageRequestPrefix("receipt_photo"), "receiptPhoto");
   assert.equal(aiUsageRequestPrefix("recipe_photo"), "recipePhoto");
+  assert.equal(aiUsageRequestPrefix("pantry_observation"), "pantryObservation");
 });
 
 test("AI usage counts clamp invalid values and round finite values", () => {

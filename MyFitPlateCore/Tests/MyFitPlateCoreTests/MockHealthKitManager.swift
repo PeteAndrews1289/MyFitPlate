@@ -4,6 +4,37 @@ import HealthKit
 
 public final class MockHealthKitManager: HealthKitManaging, @unchecked Sendable {
     public init() {}
+    public var copiedNutritionAuthorized = true
+    public var holdCopiedSaves = false
+    public var copiedSaveSuccess = true
+    public var copiedDeleteSuccess = true
+    public var copiedEvents: [String] = []
+    public var copiedFoods: [FoodItem] = []
+    public var copiedSaveCallbacks: [(Bool) -> Void] = []
+
+    public func canSaveCopiedNutrition(for foodItem: FoodItem) -> Bool { copiedNutritionAuthorized }
+    public func saveCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) {
+        copiedEvents.append("save:\(foodItem.id)"); copiedFoods.append(foodItem)
+        if holdCopiedSaves { copiedSaveCallbacks.append(completion) } else { completion(copiedSaveSuccess) }
+    }
+    public func deleteCopiedNutrition(for foodItem: FoodItem, userID: String, completion: @escaping (Bool) -> Void) {
+        copiedEvents.append("delete:\(foodItem.id)"); completion(copiedDeleteSuccess)
+    }
+
+    public var inventoryNutritionAuthorized = true
+    public var holdInventorySaves = false
+    public var inventorySaveSuccess = true
+    public var inventoryDeleteSuccess = true
+    public var inventoryEvents: [String] = []
+    public var inventorySaveCallbacks: [(Bool) -> Void] = []
+    public func canSaveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID) -> Bool { inventoryNutritionAuthorized }
+    public func saveInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void) {
+        inventoryEvents.append("save:\(operationID.uuidString):\(foodItem.id)")
+        if holdInventorySaves { inventorySaveCallbacks.append(completion) } else { completion(inventorySaveSuccess) }
+    }
+    public func deleteInventoryNutrition(for foodItem: FoodItem, userID: String, operationID: UUID, completion: @escaping (Bool) -> Void) {
+        inventoryEvents.append("delete:\(operationID.uuidString):\(foodItem.id)"); completion(inventoryDeleteSuccess)
+    }
 
     public var requestAuthorizationSuccess: Bool = true
     public var requestAuthorizationError: Error? = nil

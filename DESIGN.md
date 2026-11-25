@@ -98,6 +98,10 @@ The data palette is stable across every chart, ring, receipt, and diary surface:
 - Cards: padding 14–16, corner radius 16–20 continuous, section spacing 16.
 - One line of hierarchy per card: title row → optional support line → content. If a card
   needs three font sizes to explain itself, it's two cards.
+- The run recorder's single live metric is a glanceable exception: 64 pt rounded bold,
+  reduced to 44 pt at accessibility sizes, with monospaced digits and single-line fitting.
+  Time, distance, and pace share this same hero treatment; surrounding labels and controls
+  use the existing text roles and remain readable without relying on the large metric.
 
 ## 5. Copy
 
@@ -106,19 +110,13 @@ The data palette is stable across every chart, ring, receipt, and diary surface:
 - No duplicated messaging; no exclamation marks in system copy; contractions welcome.
 - Empty states invite ("Choose training days to unlock scheduling") — never apologize.
 
-## 6. Emoji tiles are brand — keep them (decision, 2026-07-02)
+## 6. Food and training identity
 
-Food and exercise emoji tiles (🍗 🏋️ via `FoodEmojiMapper`/`ExerciseEmojiMapper`) are a
-deliberate brand choice, not clutter. They make MyFitPlate instantly recognizable next to
-sterile flat-icon competitors. Rules:
-
-- Never replace emoji tiles with SF Symbols in list rows, sliders, or diary entries.
-- Emoji sit on **neutral** containers (system fills), sized 26pt in rows / 42–44pt in
-  hero tiles — the container is quiet so the emoji carries the personality.
-- Emoji are decorative: containers get `accessibilityHidden(true)` or are excluded from
-  the combined element's label. Never rely on an emoji to convey meaning alone.
-- System UI chrome (tab bar, toolbars, settings) stays SF Symbols — emoji are for
-  *content* (foods, exercises), not controls.
+Use the typography and alignment of Food Search and the portion editor throughout the app.
+Give food and recipe names the leading edge in browsing, planning and diary rows. Place the
+serving and units beside the name. Use photographs in capture review where the user can
+check the input. Use system symbols for actions and keep changing numbers aligned.
+Give exercise names and set values the same leading alignment in the workout player.
 
 ## 7. Motion + empty states
 
@@ -141,3 +139,38 @@ sterile flat-icon competitors. Rules:
 - [ ] Icon-only buttons have `accessibilityLabel`; decorative images hidden
 - [ ] Dark mode glance (tinted `.opacity` washes often break here)
 - [ ] Dynamic Type sanity at XL (`AppFont` scales automatically; check clipping)
+
+## 9. Focused workspaces (2026-11-03)
+
+- The first viewport should contain the task: a meal, an editable set, or the current
+  cooking step. Put summaries and administrative tools after it or in a clearly named destination.
+- Keep the five familiar destinations in one navigation dock. Quick Log retains its own
+  48-point target. Reserve the dock's intrinsic height in the parent layout; nested
+  navigation hosts did not consistently honor an outer safe-area inset. Use safe-area
+  insets for screen-local controls, without estimated bottom padding. Sticky task
+  controls and final scroll content must remain above navigation.
+- Compact tab labels are a navigation exception to full text scaling. They retain complete
+  accessibility names, selected traits, 44-point targets and native large-content previews.
+- Keep Start workout, equipment setup, rest adjustment and Skip directly reachable. A
+  Current set action may scroll, but must never complete or change a set.
+- Program Overview answers what comes next; Schedule owns calendar and date editing;
+  Progress owns outcomes and block review. A completed block's next action belongs on Overview.
+- Planner tab returns retain the selected account's date and Day/Week view within the app
+  session. Calendar selection is directly available from the visible date range.
+- Cooking puts the current task first. Active timers remain visible with direct controls;
+  idle timer administration and exports stay secondary. Complete & next advances only
+  after the checkmark has saved successfully.
+- Compact layout must not remove meaningful serving, stock, target or save reviews.
+  Fewer taps comes from removing navigation and repeated choices, not bypassing those reviews.
+- Preserve the explicit type-erasure boundaries around Train, Program and Meal Planner
+  presentation trees. Simulator success alone did not catch earlier physical Release crashes.
+
+## Whole-app refinement — November 4, 2026
+
+Use the default San Francisco design for reading text, form labels, lists, and controls. Use system serif for display, screen and section titles, and rounded digits for prominent metrics. Apply `appFormStyle()` to native Form/List editors: compact section spacing, a consistent surface, and readable body type. Shared sheet headers use one aligned title/close row; quiet actions use text without a second outlined card.
+
+Put the task before administration: a session's sets before media tools, meals before generation settings, charts before methodology. Use a named disclosure for optional explanation and a menu for infrequent management actions. Do not hide saving failures, pending submissions, conflicts, or Undo in those disclosures. Keep common entry points direct, including camera logging, previous/next date, history, and rest controls.
+
+For each screen, record which states were reviewed in source, exercised on the simulator, or checked on a physical device. Record native system prompts separately.
+
+- UI automation identifiers belong on individual controls and disclosure labels. A transparent `HStack` or whole `DisclosureGroup` can propagate its identifier over its children. Use a contained semantic group when the parent genuinely needs an identity, and preserve independently addressable child controls. This avoids false navigation failures without changing saved state or user-facing behavior.

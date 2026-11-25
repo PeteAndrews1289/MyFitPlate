@@ -15,6 +15,11 @@ let package = Package(
         .library(
             name: "MyFitPlateCore",
             targets: ["MyFitPlateCore"]),
+        // The few types the app shares with its widget and Live Activity extensions. Keeping it
+        // separate keeps those extensions small; Core re-exports it for the app.
+        .library(
+            name: "MyFitPlateShared",
+            targets: ["MyFitPlateShared"]),
     ],
     dependencies: [
         .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.7.0")
@@ -23,8 +28,15 @@ let package = Package(
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
+            name: "MyFitPlateShared",
+            resources: [
+                .copy("PrivacyInfo.xcprivacy")
+            ]
+        ),
+        .target(
             name: "MyFitPlateCore",
             dependencies: [
+                "MyFitPlateShared",
                 .product(name: "SwiftSoup", package: "SwiftSoup")
             ],
             resources: [
@@ -33,6 +45,6 @@ let package = Package(
         ),
         .testTarget(
             name: "MyFitPlateCoreTests",
-            dependencies: ["MyFitPlateCore"]),
+            dependencies: ["MyFitPlateCore", "MyFitPlateShared"]),
     ]
 )

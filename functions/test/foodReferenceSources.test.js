@@ -6,8 +6,10 @@ const {
   searchCanadianNutrientFile,
 } = require("../lib/canadianNutrientFile.js");
 const {
+  lookupDietarySupplementBarcode,
   mapDSLDLabel,
   rankSupplementResults,
+  searchDietarySupplements,
   supplementBarcodeSearchQueries,
 } = require("../lib/dietarySupplementLabels.js");
 
@@ -153,4 +155,81 @@ test("DSLD barcode lookup formats UPC-A the way label records store it", () => {
   const queries = supplementBarcodeSearchQueries("748927052497");
   assert.ok(queries.includes("\"7 48927 05249 7\""));
   assert.ok(queries.length <= 5);
+});
+
+function mockLabelCatalog(t, search, label) {
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (url.pathname.endsWith("/search-filter")) return search(url.searchParams.get("q"));
+    assert.match(url.pathname, /\/label\/\d+$/);
+    return label(Number(url.pathname.split("/").pop()));
+  });
+}
+
+function labelHits(...ids) {
+  return Response.json({ hits: ids.map(id => ({ _id: String(id) })) });
+}
+
+function capsuleLabel(id, barcode) {
+  return Response.json({
+    id, fullName: "Vitamin D3", brandName: "Example", upcSku: barcode,
+    servingSizes: [{ order: 1, minQuantity: 1, unit: "capsule" }],
+    ingredientRows: [{ name: "Vitamin D", quantity: [{ quantity: 25, unit: "mcg" }] }],
+  });
+}
+
+test("DSLD search keeps available labels when a sibling detail request fails", async (t) => {
+  mockLabelCatalog(t, () => labelHits(90001, 90002), id =>
+    id === 90001 ? new Response(null, { status: 503 }) : capsuleLabel(id)
+  );
+  const results = await searchDietarySupplements("vitamin");
+  assert.deepEqual(results.map(item => item.id), ["dsld_90002"]);
+  assert.equal(results[0].servingSize, "1 capsule");
+});
+
+test("DSLD search distinguishes an unavailable catalog from a definitive empty result", async (t) => {
+  mockLabelCatalog(t, q => {
+    if (q === "malformed") return Response.json({});
+    if (q === "malformed label") return labelHits(90007);
+    if (q === "unavailable") return labelHits(90003, 90004);
+    if (q === "removed") return labelHits(90004, 90005, 90006);
+    return labelHits();
+  }, id => {
+    if (id === 90006) return Response.json({ id, fullName: "Retired", offMarket: 1 });
+    if (id === 90007) return Response.json({});
+    return new Response(null, { status: id === 90003 ? 503 : id === 90004 ? 404 : 410 });
+  });
+  await assert.rejects(searchDietarySupplements("unavailable"));
+  await assert.rejects(searchDietarySupplements("malformed"));
+  await assert.rejects(searchDietarySupplements("malformed label"));
+  assert.deepEqual(await searchDietarySupplements("removed"), []);
+  assert.deepEqual(await searchDietarySupplements("no hits"), []);
+});
+
+test("DSLD barcode lookup returns a verified match even if another spelling or label fails", async (t) => {
+  const barcode = "012345678905";
+  const [first] = supplementBarcodeSearchQueries(barcode);
+  mockLabelCatalog(t, q => q === first ? labelHits(90101, 90102) : new Response(null, { status: 503 }),
+    id => id === 90101 ? new Response(null, { status: 503 }) : capsuleLabel(id, barcode.padStart(14, "0"))
+  );
+  const match = await lookupDietarySupplementBarcode(barcode);
+  assert.equal(match.id, "dsld_90102");
+});
+
+test("DSLD barcode lookup reports an incomplete lookup unless it found the exact package", async (t) => {
+  const barcode = "012345678905";
+  const [first] = supplementBarcodeSearchQueries(barcode);
+  let failIndex = true;
+  let failLabel = true;
+  mockLabelCatalog(t, q => {
+    if (q === first && failIndex) return new Response(null, { status: 503 });
+    return labelHits(90103, 90104);
+  }, id => id === 90103 ? capsuleLabel(id, "748927052497") : new Response(null, { status: failLabel ? 503 : 404 }));
+  await assert.rejects(lookupDietarySupplementBarcode(barcode));
+  failLabel = false;
+  await assert.rejects(lookupDietarySupplementBarcode(barcode));
+  failIndex = false;
+  failLabel = true;
+  await assert.rejects(lookupDietarySupplementBarcode(barcode));
+  failLabel = false;
+  assert.equal(await lookupDietarySupplementBarcode(barcode), undefined);
 });

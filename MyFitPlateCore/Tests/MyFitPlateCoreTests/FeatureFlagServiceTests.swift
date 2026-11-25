@@ -46,12 +46,17 @@ final class FeatureFlagServiceTests: XCTestCase {
     }
 
     func testSetOverrideThenClearFallsBackToRemote() {
-        let service = FeatureFlagService(remoteProvider: StubProvider([.newWorkoutRoutine: false]))
-        service.setOverride(true, for: .newWorkoutRoutine)
-        XCTAssertTrue(service.isFeatureEnabled(.newWorkoutRoutine))
+        let service = FeatureFlagService(remoteProvider: StubProvider([.newMealPlanner: false]))
+        service.setOverride(true, for: .newMealPlanner)
+        XCTAssertTrue(service.isFeatureEnabled(.newMealPlanner))
 
-        service.setOverride(nil, for: .newWorkoutRoutine)
-        XCTAssertFalse(service.isFeatureEnabled(.newWorkoutRoutine)) // back to remote = false
+        service.setOverride(nil, for: .newMealPlanner)
+        XCTAssertFalse(service.isFeatureEnabled(.newMealPlanner)) // back to remote = false
+    }
+
+    func testRemovedDormantWorkoutFlagCannotPretendToGateTrain() {
+        XCTAssertNil(FeatureFlag(rawValue: "newWorkoutRoutine"))
+        XCTAssertFalse(FeatureFlag.allCases.map(\.remoteConfigKey).contains("feature_newWorkoutRoutine"))
     }
 
     func testRefreshDelegatesToProvider() async {

@@ -1,22 +1,29 @@
 import MyFitPlateCore
 
 import Foundation
+import Combine
 import SwiftUI
 
 struct WorkoutHistoryView: View {
-    @StateObject private var analyticsService = WorkoutAnalyticsService()
-    @State private var logs: [WorkoutSessionLog] = []
-    @State private var isLoading = true
+    @EnvironmentObject private var workoutService: WorkoutService
+    @StateObject private var history: WorkoutHistoryLoader
     @State private var searchText = ""
     @State private var selectedRange: WorkoutHistoryRange = .all
     @State private var selectedExercise: String?
-    private let fixtureLogs: [WorkoutSessionLog]?
-
+    @State private var selectedProgram = ""
+    @State private var selectedBlock = ""
+    @State private var selectedSetup = ""
+    @State private var selectedType = ""
+    @State private var showingContextFilters = false
     init(fixtureLogs: [WorkoutSessionLog]? = nil) {
-        self.fixtureLogs = fixtureLogs
-        _logs = State(initialValue: fixtureLogs ?? [])
-        _isLoading = State(initialValue: fixtureLogs == nil)
+        _history = StateObject(wrappedValue: WorkoutHistoryLoader(fixtureLogs: fixtureLogs))
     }
+
+    private var logs: [WorkoutSessionLog] { history.logs }
+    private var isLoading: Bool { history.isLoading }
+    private var isLoadingMore: Bool { history.isLoadingMore }
+    private var loadError: String? { history.loadError }
+    private var hasCompleteCoverage: Bool { history.hasCompleteCoverage }
 
     private var rangeFilteredLogs: [WorkoutSessionLog] {
         logs.filter { selectedRange.contains($0.date) }
@@ -25,6 +32,7 @@ struct WorkoutHistoryView: View {
     private var filteredLogs: [WorkoutSessionLog] {
         rangeFilteredLogs.filter { log in
             matchesSelectedExercise(log) && matchesSearch(log)
+                && WorkoutReportScope(programID: selectedProgram.isEmpty ? nil : selectedProgram, blockID: selectedBlock.isEmpty ? nil : selectedBlock, exerciseType: ExerciseType(rawValue: selectedType), setupKey: selectedSetup.isEmpty ? nil : selectedSetup).contains(log, now: .distantFuture)
         }
     }
 
@@ -37,58 +45,108 @@ struct WorkoutHistoryView: View {
     }
 
     private var hasActiveFilters: Bool {
-        selectedRange != .all || selectedExercise != nil || !searchText.trimmedForHistory.isEmpty
+        selectedRange != .all || selectedExercise != nil || !searchText.trimmedForHistory.isEmpty || !selectedProgram.isEmpty || !selectedBlock.isEmpty || !selectedSetup.isEmpty || !selectedType.isEmpty
     }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                if isLoading {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.group) {
+                WorkoutSyncNotice(service: workoutService)
+                if let loadError {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        Text(loadError).appTextRole(.body)
+                        Button("Try again") { Task { await loadHistory(force: true) } }
+                            .buttonStyle(AppActionButtonStyle(.secondary))
+                    }
+                    .appSurface(.quiet)
+                }
+                if isLoading && logs.isEmpty {
                     WorkoutHistoryLoadingState()
                         .padding(.top, 60)
-                } else if logs.isEmpty {
+                } else if logs.isEmpty && loadError == nil {
                     WorkoutHistoryEmptyState()
                         .padding(.top, 50)
-                } else {
-                    WorkoutHistoryHeaderCard(
-                        sessionCount: filteredLogs.count,
-                        totalSessionCount: logs.count,
-                        totalVolume: highlights.totalVolume,
-                        totalSets: highlights.totalSets,
-                        latestDate: filteredLogs.first?.date
-                    )
-
+                } else if !logs.isEmpty {
                     WorkoutHistoryFilterCard(
                         searchText: $searchText,
                         selectedRange: $selectedRange
                     )
 
-                    if !exerciseStats.isEmpty {
-                        WorkoutHistoryExerciseRail(
-                            stats: exerciseStats,
-                            selectedExercise: $selectedExercise
-                        )
+                    DisclosureGroup(isExpanded: $showingContextFilters) {
+                        Picker("Program", selection: $selectedProgram) {
+                            Text("All programs").tag("")
+                            ForEach(workoutService.userPrograms) { Text($0.name).tag($0.id ?? "") }
+                        }.onChange(of: selectedProgram) { _, _ in selectedBlock = "" }
+                        Picker("Block", selection: $selectedBlock) {
+                            Text("All blocks").tag("")
+                            ForEach(Array(Set(logs.filter { selectedProgram.isEmpty || $0.programContext?.programID == selectedProgram }.compactMap { $0.programContext?.blockSession?.blockID })).sorted(), id: \.self) { Text("Block \($0.prefix(8))").tag($0) }
+                        }
+                        Picker("Setup", selection: $selectedSetup) {
+                            Text("All setups").tag("")
+                            ForEach((try? WorkoutEvidenceReportRules.snapshot(logs: logs, scope: WorkoutReportScope(), now: .distantFuture))?.setups ?? []) { Text("\($0.name) · \($0.context)").tag($0.id) }
+                        }
+                        Picker("Session content", selection: $selectedType) {
+                            Text("All types").tag("")
+                            ForEach(ExerciseType.allCases, id: \.self) { Text($0.rawValue).tag($0.rawValue) }
+                        }
+                        if !exerciseStats.isEmpty {
+                            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                                Text("Exercise").appTextRole(.secondary)
+                                WorkoutHistoryExerciseRail(
+                                    stats: exerciseStats,
+                                    selectedExercise: $selectedExercise
+                                )
+                            }
+                            .padding(.vertical, AppSpacing.compact)
+                        }
+                        NavigationLink("Training report", destination: WorkoutEvidenceReportView(initialProgramID: selectedProgram.isEmpty ? nil : selectedProgram))
+                            .frame(minHeight: 44)
+                    } label: {
+                        HStack {
+                            Label("More filters", systemImage: "line.3.horizontal.decrease")
+                                .appTextRole(.secondary)
+                            Spacer()
+                            let count = [selectedProgram, selectedBlock, selectedSetup, selectedType].filter { !$0.isEmpty }.count + (selectedExercise == nil ? 0 : 1)
+                            if count > 0 {
+                                Text("\(count) active").appTextRole(.caption).foregroundStyle(AppPalette.brandText)
+                            }
+                        }
+                        .accessibilityIdentifier("workout_history_context_filters")
                     }
-
-                    WorkoutHistoryHighlightsCard(highlights: highlights)
+                    .tint(AppPalette.text)
+                    .appSurface(.quiet)
 
                     if filteredLogs.isEmpty {
                         WorkoutHistoryNoMatchesState {
                             searchText = ""
                             selectedRange = .all
                             selectedExercise = nil
+                            selectedProgram = ""; selectedBlock = ""; selectedSetup = ""; selectedType = ""
                         }
                     } else {
-                        WorkoutHistorySectionHeader(
-                            title: selectedExercise ?? "Recent Sessions",
-                            subtitle: "\(filteredLogs.count) \(filteredLogs.count == 1 ? "session" : "sessions")"
-                        )
+                        let count = filteredLogs.count
+                        let sessionCount = "\(count) \(count == 1 ? "session" : "sessions")"
+                        let coverage = hasCompleteCoverage ? nil : "More history available"
+                        if let selectedExercise {
+                            AppSectionHeader(title: selectedExercise, subtitle: [sessionCount, coverage].compactMap { $0 }.joined(separator: " · "))
+                                .accessibilityElement(children: .combine)
+                                .accessibilityAddTraits(.isHeader)
+                        } else {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(sessionCount).appTextRole(.control)
+                                if let coverage { Text(coverage).appTextRole(.secondary).foregroundStyle(.secondary) }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
 
-                        VStack(spacing: 0) {
+                        LazyVStack(spacing: 0) {
                             ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
                                 NavigationLink(destination: WorkoutCompleteAnalyticsView(log: log)) {
                                     WorkoutHistoryRow(
                                         log: log,
+                                        routineName: log.displayName(routines: workoutService.userRoutines, programs: workoutService.userPrograms),
+                                        programPosition: log.programPosition(in: workoutService.userPrograms),
                                         personalRecordCount: WorkoutHistoryInsights.personalRecordCount(for: log, allLogs: logs)
                                     )
                                 }
@@ -104,8 +162,26 @@ struct WorkoutHistoryView: View {
                         .accessibilityIdentifier("workout_history_list")
                     }
 
-                    Color.clear
-                        .frame(height: 104)
+                    historyCoverage
+
+                    DisclosureGroup("History highlights") {
+                        WorkoutHistoryHeaderCard(
+                            sessionCount: filteredLogs.count,
+                            totalSessionCount: logs.count,
+                            totalVolume: highlights.totalVolume,
+                            totalSets: highlights.totalSets,
+                            latestDate: filteredLogs.first?.date,
+                            hasCompleteCoverage: hasCompleteCoverage
+                        )
+                        .padding(.top, AppSpacing.row)
+                        WorkoutHistoryHighlightsCard(highlights: highlights)
+                            .padding(.top, AppSpacing.row)
+                    }
+                    .appTextRole(.secondary)
+                    .tint(AppPalette.text)
+
+                    Color.clear.frame(height: AppSpacing.group)
+
                 }
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
@@ -122,7 +198,7 @@ struct WorkoutHistoryView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(isLoading)
+                .disabled(isLoading || isLoadingMore)
                 .accessibilityLabel("Refresh workout history")
             }
         }
@@ -132,6 +208,10 @@ struct WorkoutHistoryView: View {
         .background(AppPalette.canvas.ignoresSafeArea())
         .task {
             await loadHistory(force: false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutSessionCorrected)) { note in
+            guard note.object as? String == DIContainer.shared.authService.currentUserID else { return }
+            Task { await loadHistory(force: true) }
         }
     }
 
@@ -153,23 +233,30 @@ struct WorkoutHistoryView: View {
         }
     }
 
-    @MainActor
-    private func loadHistory(force: Bool) async {
-        guard fixtureLogs == nil else {
-            isLoading = false
-            return
+    private var historyCoverage: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                if isLoadingMore { ProgressView().accessibilityLabel("Loading remaining workout history") }
+                Image(systemName: hasCompleteCoverage ? "checkmark.circle" : "clock.arrow.circlepath")
+                    .foregroundStyle(hasCompleteCoverage ? AppPalette.positive : AppPalette.brandText)
+                Text(history.coverageText)
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if history.canLoadEarlier && !isLoading && !isLoadingMore {
+                Button("Load all earlier sessions") { Task { await history.loadRemaining() } }
+                    .buttonStyle(AppActionButtonStyle(.secondary))
+                    .accessibilityIdentifier("workout_history_load_more")
+            }
         }
-        guard force || logs.isEmpty else { return }
-        guard let uid = DIContainer.shared.authService.currentUserID else {
-            isLoading = false
-            return
-        }
-
-        isLoading = true
-        let fetchedLogs = await analyticsService.fetchWorkoutHistory(userID: uid, limit: 200)
-        logs = fetchedLogs.sorted { $0.date > $1.date }
-        isLoading = false
+        .appSurface(.quiet)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("workout_history_coverage")
     }
+
+    @MainActor
+    private func loadHistory(force: Bool) async { await history.load(force: force) }
+
 }
 
 private enum WorkoutHistoryRange: String, CaseIterable, Identifiable {
@@ -242,11 +329,11 @@ private enum WorkoutHistoryInsights {
         var volumeByExercise: [String: Double] = [:]
         var bestSetByExercise: [String: CompletedSet] = [:]
 
-        for (index, log) in logs.enumerated() {
+        for (index, log) in WorkoutSetMath.uniqueSessions(logs).enumerated() {
             let logID = stableLogIdentity(for: log, fallbackIndex: index)
             for exercise in log.completedExercises {
                 sessionIDsByExercise[exercise.exerciseName, default: []].insert(logID)
-                setsByExercise[exercise.exerciseName, default: 0] += exercise.sets.count
+                setsByExercise[exercise.exerciseName, default: 0] += WorkoutSetMath.workingSets(in: exercise).count
                 volumeByExercise[exercise.exerciseName, default: 0] += volume(for: exercise)
 
                 if let bestSet = bestSet(in: exercise),
@@ -256,13 +343,14 @@ private enum WorkoutHistoryInsights {
             }
         }
 
+        let ambiguous = WorkoutHistoryInsights.incompatibleNames(in: logs)
         return setsByExercise.map { name, sets in
             WorkoutExerciseHistoryStat(
                 name: name,
                 sessions: sessionIDsByExercise[name]?.count ?? 0,
                 sets: sets,
                 volume: volumeByExercise[name] ?? 0,
-                bestSet: bestSetByExercise[name]
+                bestSet: ambiguous.contains(WorkoutSetMath.normalizedName(name)) ? nil : bestSetByExercise[name]
             )
         }
         .sorted {
@@ -276,7 +364,7 @@ private enum WorkoutHistoryInsights {
         guard !logs.isEmpty else { return .empty }
 
         let totalSets = logs.reduce(0) { partial, log in
-            partial + log.completedExercises.reduce(0) { $0 + $1.sets.count }
+            partial + WorkoutSetMath.workingSetCount(log)
         }
         let totalVolume = logs.reduce(0) { partial, log in
             partial + log.completedExercises.reduce(0) { $0 + volume(for: $1) }
@@ -299,39 +387,28 @@ private enum WorkoutHistoryInsights {
     }
 
     static func personalRecordCount(for log: WorkoutSessionLog, allLogs: [WorkoutSessionLog]) -> Int {
-        let olderLogs = allLogs.filter { $0.date < log.date }
-        guard !olderLogs.isEmpty else { return bestLift(in: [log]) == nil ? 0 : 1 }
-
-        var previousBestByExercise: [String: Double] = [:]
-        for olderLog in olderLogs {
-            for exercise in olderLog.completedExercises {
-                let best = exercise.sets.map(estimatedOneRepMax).max() ?? 0
-                previousBestByExercise[exercise.exerciseName] = max(previousBestByExercise[exercise.exerciseName] ?? 0, best)
-            }
-        }
-
-        var recordCount = 0
-        for exercise in log.completedExercises {
-            let currentBest = exercise.sets.map(estimatedOneRepMax).max() ?? 0
-            let previousBest = previousBestByExercise[exercise.exerciseName] ?? 0
-            if currentBest > 0, currentBest > previousBest + 0.1 {
-                recordCount += 1
-            }
-        }
-        return recordCount
+        WorkoutSetMath.recordCount(in: log, history: allLogs)
     }
 
     static func stableLogIdentity(for log: WorkoutSessionLog, fallbackIndex: Int) -> String {
         log.id ?? "\(Int(log.date.timeIntervalSince1970))-\(log.routineID)-\(fallbackIndex)"
     }
 
+    private static func incompatibleNames(in logs: [WorkoutSessionLog]) -> Set<String> {
+        Dictionary(grouping: logs.flatMap(\.completedExercises), by: { WorkoutSetMath.normalizedName($0.exerciseName) })
+            .reduce(into: Set<String>()) { result, group in
+                if let first = group.value.first, !group.value.allSatisfy({ WorkoutSetMath.compatible(first, $0) }) { result.insert(group.key) }
+            }
+    }
+
     private static func bestLift(in logs: [WorkoutSessionLog]) -> (title: String, subtitle: String)? {
+        let ambiguous = incompatibleNames(in: logs)
         var bestExerciseName: String?
         var topCompletedSet: CompletedSet?
 
         for log in logs {
             for exercise in log.completedExercises {
-                guard let candidate = bestSet(in: exercise) else { continue }
+                guard !ambiguous.contains(WorkoutSetMath.normalizedName(exercise.exerciseName)), let candidate = bestSet(in: exercise) else { continue }
                 if estimatedOneRepMax(candidate) > estimatedOneRepMax(topCompletedSet) {
                     bestExerciseName = exercise.exerciseName
                     topCompletedSet = candidate
@@ -347,16 +424,16 @@ private enum WorkoutHistoryInsights {
     }
 
     private static func bestSet(in exercise: CompletedExercise) -> CompletedSet? {
-        exercise.sets.max { estimatedOneRepMax($0) < estimatedOneRepMax($1) }
+        WorkoutSetMath.bestSet(exercise)
     }
 
     private static func volume(for exercise: CompletedExercise) -> Double {
-        exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+        WorkoutSetMath.volume(exercise)
     }
 
     private static func estimatedOneRepMax(_ set: CompletedSet?) -> Double {
-        guard let set, set.weight > 0, set.reps > 0 else { return 0 }
-        return set.weight * (1 + Double(set.reps) / 30)
+        guard let set else { return 0 }
+        return WorkoutSetMath.strengthScore(set)
     }
 }
 
@@ -379,32 +456,22 @@ private struct WorkoutHistoryHeaderCard: View {
     let totalVolume: Double
     let totalSets: Int
     let latestDate: Date?
+    let hasCompleteCoverage: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppScreenHeader(
-                eyebrow: "Training Log",
-                title: "Workout History",
+                title: "Your training",
                 subtitle: latestDate.map {
                     "Last workout: \($0.formatted(date: .abbreviated, time: .omitted))"
                 } ?? "No sessions match the current filters."
-            ) {
-                Text(totalSessionCount == sessionCount ? "\(sessionCount) shown" : "\(sessionCount) of \(totalSessionCount)")
-                    .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brandText)
-                    .padding(.horizontal, AppSpacing.row)
-                    .frame(minHeight: 36)
-                    .background(
-                        AppPalette.brand.opacity(0.10),
-                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    )
-            }
+            )
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Sessions", value: sessionCount.formatted()),
-                AppMetricItem(label: "Sets", value: totalSets.formatted(), accent: .accentPositive),
+                AppMetricItem(label: hasCompleteCoverage ? "Sessions" : "Loaded sessions", value: sessionCount.formatted()),
+                AppMetricItem(label: hasCompleteCoverage ? "Sets" : "Loaded sets", value: totalSets.formatted(), accent: .accentPositive),
                 AppMetricItem(
-                    label: "Volume",
+                    label: hasCompleteCoverage ? "Volume" : "Loaded volume",
                     value: totalVolume > 0 ? totalVolume.formattedWorkoutVolume : "0",
                     accent: AppPalette.caution
                 )
@@ -416,25 +483,31 @@ private struct WorkoutHistoryHeaderCard: View {
 }
 
 private struct WorkoutHistoryFilterCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var searchText: String
     @Binding var selectedRange: WorkoutHistoryRange
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
-            AppSectionHeader(
-                title: "Find Sessions",
-                subtitle: "Search by movement or date, then narrow the time range."
-            )
-
             VStack(alignment: .leading, spacing: AppSpacing.row) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    Text("Search exercise or date")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true)
+                }
                 HStack(spacing: AppSpacing.compact) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
 
-                    TextField("Search exercise or date", text: $searchText)
+                    TextField(dynamicTypeSize.isAccessibilitySize ? "" : "Search exercise or date", text: $searchText)
                         .appTextRole(.body)
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
+                        .accessibilityLabel("Search exercise or date")
+                        .accessibilityIdentifier("workout_history_search")
 
                     if !searchText.isEmpty {
                         Button {
@@ -463,6 +536,7 @@ private struct WorkoutHistoryFilterCard: View {
             }
             .appSurface(.quiet)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workout_history_filters")
     }
 }
@@ -473,11 +547,6 @@ private struct WorkoutHistoryExerciseRail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            WorkoutHistorySectionHeader(
-                title: "Exercise Focus",
-                subtitle: selectedExercise ?? "Tap a movement to filter"
-            )
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     WorkoutExerciseFilterChip(
@@ -578,24 +647,20 @@ private struct WorkoutHistoryHighlightsCard: View {
 
 struct WorkoutHistoryRow: View {
     let log: WorkoutSessionLog
+    let routineName: String
+    let programPosition: String
     let personalRecordCount: Int
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var totalVolume: Double {
         log.completedExercises.reduce(0) { exerciseSum, exercise in
-            exerciseSum + exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+            exerciseSum + WorkoutSetMath.volume(exercise)
         }
     }
 
     private var completedSetCount: Int {
         log.completedExercises.reduce(0) { $0 + $1.sets.count }
-    }
-
-    private var exercisePreview: String {
-        let preview = log.completedExercises.prefix(2).map { $0.exerciseName }.joined(separator: ", ")
-        guard !preview.isEmpty else { return "Workout" }
-        return preview + (log.completedExercises.count > 2 ? "..." : "")
     }
 
     // Split into typed steps: the previous single chained expression with inline
@@ -618,10 +683,9 @@ struct WorkoutHistoryRow: View {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        HStack(alignment: .top, spacing: AppSpacing.row) {
-                            dateBadge
-                            sessionIdentity
-                        }
+                        Text(log.date.formatted(.dateTime.month(.abbreviated).day()))
+                            .appTextRole(.caption).foregroundStyle(AppPalette.brandText)
+                        sessionIdentity
                         recordBadge
                     }
                 } else {
@@ -672,13 +736,13 @@ struct WorkoutHistoryRow: View {
 
     private var sessionIdentity: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(exercisePreview)
+            Text(routineName)
                 .appTextRole(.control)
                 .foregroundStyle(AppPalette.text)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
 
             Text(
-                [log.date.formatted(date: .omitted, time: .shortened), topSetText]
+                [log.date.formatted(date: .omitted, time: .shortened), programPosition, topSetText]
                     .compactMap { $0 }
                     .joined(separator: " · ")
             )
@@ -698,15 +762,6 @@ struct WorkoutHistoryRow: View {
             .appTextRole(.caption)
             .foregroundStyle(Color.accentPositive)
         }
-    }
-}
-
-private struct WorkoutHistorySectionHeader: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        AppSectionHeader(title: title, subtitle: subtitle)
     }
 }
 
@@ -780,5 +835,118 @@ private extension Double {
             return String(format: "%.1fK", self / 1_000)
         }
         return "\(Int(self))"
+    }
+}
+
+/// Read-only progressive loading. Totals become complete only after the cursor is
+/// exhausted by an online read; errors retain each already-confirmed page.
+@MainActor
+final class WorkoutHistoryLoader: ObservableObject {
+    typealias PageFetcher = @MainActor (String, WorkoutHistoryCursor?, Int) async throws -> WorkoutHistoryPage
+    @Published private(set) var logs: [WorkoutSessionLog]
+    @Published private(set) var isLoading: Bool
+    @Published private(set) var isLoadingMore = false
+    @Published private(set) var loadError: String?
+    @Published private(set) var hasCompleteCoverage: Bool
+    @Published private(set) var cachedCoverage = false
+    private(set) var nextCursor: WorkoutHistoryCursor?
+    private var loadRequestID = UUID()
+    private var loadedUserID: String?
+    private var seenCursors = Set<String>()
+    private let isFixture: Bool
+    private let currentUserID: @MainActor () -> String?
+    private let fetchPage: PageFetcher
+
+    init(fixtureLogs: [WorkoutSessionLog]? = nil,
+         currentUserID: @escaping @MainActor () -> String? = { DIContainer.shared.authService.currentUserID },
+         fetchPage: @escaping PageFetcher = { uid, cursor, size in
+             try await DIContainer.shared.workoutRepository.fetchWorkoutHistoryPage(userID: uid, cursor: cursor, pageSize: size)
+         }) {
+        logs = fixtureLogs ?? []; isFixture = fixtureLogs != nil
+        isLoading = fixtureLogs == nil; hasCompleteCoverage = fixtureLogs != nil
+        self.currentUserID = currentUserID; self.fetchPage = fetchPage
+    }
+
+    var canLoadEarlier: Bool { nextCursor != nil }
+    var coverageText: String {
+        if cachedCoverage { return "\(logs.count) cached sessions loaded. Reconnect and refresh to confirm complete history. Filters and totals cover only these loaded sessions." }
+        if hasCompleteCoverage { return "All \(logs.count) dated sessions loaded. Filters and totals include your full loaded history. Refresh to include newly saved or backdated workouts." }
+        if isLoadingMore { return "Loading complete history · \(logs.count) sessions loaded so far. Totals update as earlier sessions arrive." }
+        return "\(logs.count) sessions loaded · earlier history is not yet confirmed complete. Filters and totals cover only the loaded sessions." }
+
+    func load(force: Bool) async {
+        guard !isFixture else { isLoading = false; return }
+        guard let uid = currentUserID() else { clearForAccountChange(); return }
+        if loadedUserID != uid { clearForAccountChange(); loadedUserID = uid }
+        guard force || logs.isEmpty else { return }
+        let requestID = UUID(); loadRequestID = requestID
+        isLoading = true; isLoadingMore = false; hasCompleteCoverage = false; loadError = nil
+        seenCursors = []
+        defer { if requestID == loadRequestID { isLoading = false } }
+        do {
+            try Task.checkCancellation()
+            let page = try await fetchPage(uid, nil, 50)
+            guard accepts(userID: uid, requestID: requestID) else { return }
+            try accept(page, userID: uid, replacing: true)
+            isLoading = false
+            if page.isFromCache && page.logs.isEmpty {
+                loadError = "No online history read was confirmed. Reconnect and refresh; an empty cache does not mean your workouts are gone."
+            }
+            if !page.isFromCache { await drain(userID: uid, requestID: requestID) }
+        } catch {
+            guard accepts(userID: uid, requestID: requestID) else { return }
+            loadError = error is CancellationError ? "History loading paused. Your loaded sessions are kept; refresh or continue loading when ready."
+                : logs.isEmpty ? "Workout history could not load. Try again when connected."
+                : "History could not refresh completely. Your loaded sessions are still shown."
+        }
+    }
+
+    func loadRemaining() async {
+        guard !isLoading, !isLoadingMore, let uid = currentUserID(), uid == loadedUserID, nextCursor?.userID == uid else { return }
+        await drain(userID: uid, requestID: loadRequestID)
+    }
+
+    private func drain(userID: String, requestID: UUID) async {
+        guard nextCursor != nil else { return }
+        isLoadingMore = true; loadError = nil
+        defer { if requestID == loadRequestID { isLoadingMore = false } }
+        do {
+            while let cursor = nextCursor {
+                try Task.checkCancellation()
+                let page = try await fetchPage(userID, cursor, 50)
+                guard accepts(userID: userID, requestID: requestID) else { return }
+                try accept(page, userID: userID, replacing: false)
+                if page.isFromCache { break }
+            }
+        } catch {
+            guard accepts(userID: userID, requestID: requestID) else { return }
+            loadError = error is CancellationError ? "History loading paused. Your loaded sessions are kept; continue loading earlier sessions when ready."
+                : "Earlier sessions could not load. Your current list and filters are kept; try Load all earlier sessions again."
+        }
+    }
+
+    private func accept(_ page: WorkoutHistoryPage, userID: String, replacing: Bool) throws {
+        if let cursor = page.nextCursor {
+            try cursor.validate(userID: userID)
+            let key = "\(cursor.lastSeconds)|\(cursor.lastNanoseconds)|\(cursor.lastDocumentID)"
+            guard seenCursors.insert(key).inserted else { throw WorkoutHistoryReadError.invalidCursor }
+        }
+        logs = WorkoutSetMath.uniqueSessions(replacing ? page.logs : page.logs + logs).sorted {
+            if $0.date != $1.date { return $0.date > $1.date }; return ($0.id ?? "") > ($1.id ?? "")
+        }
+        nextCursor = page.nextCursor
+        cachedCoverage = replacing ? page.isFromCache : cachedCoverage || page.isFromCache
+        hasCompleteCoverage = nextCursor == nil && !cachedCoverage
+    }
+
+    private func accepts(userID: String, requestID: UUID) -> Bool {
+        guard requestID == loadRequestID else { return false }
+        guard currentUserID() == userID else { clearForAccountChange(); return false }
+        return true
+    }
+    private func clearForAccountChange() {
+        loadRequestID = UUID(); loadedUserID = nil; logs = []; nextCursor = nil
+        isLoading = false; isLoadingMore = false; cachedCoverage = false; hasCompleteCoverage = false
+        loadError = nil; seenCursors = []
     }
 }

@@ -6,6 +6,7 @@ public enum Route: String, Hashable, Identifiable, Sendable {
     case profile
     case settings
     case nutrition
+    case cookingTimer
     case workouts
     case reports
     case community
@@ -14,18 +15,34 @@ public enum Route: String, Hashable, Identifiable, Sendable {
     case builder
     case runs
     case trainingFuel
+    case tools
+    case foodPreferences
+    case recipes
+    case pantry
+    case grocery
+    case buffet
+    case plateCalculator
+    case weekRescue
+    case mealExperiments
+    case activeWorkout, activeRun, activeFast
+    case unavailable
 
     public var id: String { rawValue }
 
+    public var isActiveSession: Bool {
+        self == .activeWorkout || self == .activeRun || self == .activeFast
+    }
+
     public var selectedTab: Int {
         switch self {
-        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder, .trainingFuel:
+        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder, .trainingFuel, .unavailable, .activeFast,
+             .tools, .foodPreferences, .recipes, .pantry, .grocery, .buffet:
             return 0
-        case .maia:
+        case .maia, .mealExperiments:
             return 1
-        case .workouts, .runs:
+        case .workouts, .runs, .activeWorkout, .activeRun, .plateCalculator, .weekRescue:
             return 2
-        case .nutrition:
+        case .nutrition, .cookingTimer:
             return 3
         case .reports:
             return 4

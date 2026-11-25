@@ -206,6 +206,13 @@ final class GoalCalorieMathTests: XCTestCase {
     }
 
     @MainActor
+    private func recalculateGoals() async {
+        await withCheckedContinuation { continuation in
+            goalSettings.recalculateAllGoals { continuation.resume() }
+        }
+    }
+
+    @MainActor
     func testMacroSplitFollowsPercentages() async throws {
         goalSettings.gender = "Male"
         goalSettings.calorieGoalMethod = .custom
@@ -213,8 +220,7 @@ final class GoalCalorieMathTests: XCTestCase {
         goalSettings.carbsPercentage = 50
         goalSettings.fatsPercentage = 20
         goalSettings.calories = 2000
-        goalSettings.recalculateAllGoals()
-        try await Task.sleep(nanoseconds: 400_000_000)
+        await recalculateGoals()
 
         XCTAssertEqual(goalSettings.protein, 0.30 * 2000 / 4, accuracy: 0.5) // 150g
         XCTAssertEqual(goalSettings.carbs, 0.50 * 2000 / 4, accuracy: 0.5)   // 250g
@@ -231,8 +237,7 @@ final class GoalCalorieMathTests: XCTestCase {
             goalSettings.activityLevel = 1.55
             goalSettings.calorieGoalMethod = .mifflinWithActivity
             goalSettings.goal = goal
-            goalSettings.recalculateAllGoals()
-            try await Task.sleep(nanoseconds: 300_000_000)
+            await recalculateGoals()
             return goalSettings.calories ?? 0
         }
 
@@ -254,24 +259,28 @@ final class GoalCalorieMathTests: XCTestCase {
         goalSettings.activityLevel = 1.2
         goalSettings.goal = "Lose"
         goalSettings.calorieGoalMethod = .mifflinWithActivity
-        goalSettings.recalculateAllGoals()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await recalculateGoals()
 
         XCTAssertEqual(goalSettings.calories ?? 0, 1500, accuracy: 0.5)
     }
 
     @MainActor
-    func testDynamicTDEEUsesAdaptiveExpenditure() async throws {
+    func testDynamicTDEESeedsAMissingGoalAndPreservesAnAcceptedGoal() async throws {
         let adaptive = AdaptiveGoalService()
         adaptive.calculatedTDEE = 2500
         goalSettings.adaptiveGoalService = adaptive
         goalSettings.gender = "Male"
         goalSettings.goal = "Maintain"
         goalSettings.calorieGoalMethod = .dynamicTDEE
-        goalSettings.recalculateAllGoals()
-        try await Task.sleep(nanoseconds: 300_000_000)
-
+        goalSettings.calories = nil
+        await recalculateGoals()
         XCTAssertEqual(goalSettings.calories ?? 0, 2500, accuracy: 1.0)
+
+        goalSettings.calories = 2300
+        adaptive.calculatedTDEE = 2600
+        await recalculateGoals()
+        XCTAssertEqual(adaptive.calculatedTDEE, 2600)
+        XCTAssertEqual(goalSettings.calories ?? 0, 2300, accuracy: 1.0)
     }
 }
 
@@ -283,16 +292,17 @@ final class AdaptiveTDEETests: XCTestCase {
         Calendar.current.date(byAdding: .day, value: -n, to: Date())!
     }
 
-    private func log(cal: Double, daysAgo n: Int) -> DailyLog {
-        DailyLog(date: daysAgo(n), meals: [Meal(name: "Lunch", foodItems: [makeFood(cal: cal)])])
+    private func log(cal: Double, daysAgo n: Int, status: NutritionDayStatus = .complete) -> DailyLog {
+        DailyLog(date: daysAgo(n), meals: [Meal(name: "Lunch", foodItems: [makeFood(cal: cal)])], nutritionDayStatus: status)
     }
 
     @MainActor
     func testFlatWeightYieldsTDEEEqualToIntake() async throws {
         let service = AdaptiveGoalService()
-        // 8 stable weigh-ins (no trend) + 12 days logging 2000 kcal => TDEE ≈ intake.
-        let weights = (1...8).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
-        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+        // Reviewed whole-day intake is required: 10 weigh-ins and 13 complete days
+        // produce usable evidence, while flat weight makes TDEE equal to intake.
+        let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0) }
 
         service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
         try await Task.sleep(nanoseconds: 400_000_000)
@@ -300,6 +310,8 @@ final class AdaptiveTDEETests: XCTestCase {
         XCTAssertNotNil(service.calculatedTDEE)
         XCTAssertEqual(service.calculatedTDEE ?? 0, 2000, accuracy: 1.0)
         XCTAssertEqual(service.last21DaysCalorieAverage ?? 0, 2000, accuracy: 1.0)
+        XCTAssertEqual(service.recentValidLogCount, 13)
+        XCTAssertTrue(service.isEstimateActionable)
     }
 
     @MainActor
@@ -307,7 +319,7 @@ final class AdaptiveTDEETests: XCTestCase {
         let service = AdaptiveGoalService()
         // Declining weight on 2000 kcal/day means the body burns MORE than intake.
         let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 176.0 + Double($0) * 0.8) }
-        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0) }
 
         service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
         try await Task.sleep(nanoseconds: 400_000_000)
@@ -321,12 +333,45 @@ final class AdaptiveTDEETests: XCTestCase {
         let service = AdaptiveGoalService()
         // Only 3 weigh-ins — below the 7-weight minimum.
         let weights = (1...3).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
-        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0) }
 
         service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
         try await Task.sleep(nanoseconds: 400_000_000)
 
         XCTAssertNil(service.calculatedTDEE)
         XCTAssertEqual(service.dataConfidence, .insufficient)
+    }
+
+    @MainActor
+    func testUnreviewedDaysCannotProduceAnAdaptiveEstimate() async throws {
+        let service = AdaptiveGoalService()
+        let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
+        let logs = (1...13).map { log(cal: 2000, daysAgo: $0, status: .unknown) }
+
+        service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertNil(service.calculatedTDEE)
+        XCTAssertNil(service.last21DaysCalorieAverage)
+        XCTAssertEqual(service.recentValidLogCount, 0)
+        XCTAssertEqual(service.partialLogCount, 13)
+        XCTAssertEqual(service.dataConfidence, .insufficient)
+        XCTAssertFalse(service.isEstimateActionable)
+    }
+
+    @MainActor
+    func testTwelveCompleteDaysKeepTheEstimateBehindItsEvidenceGuardrail() async throws {
+        let service = AdaptiveGoalService()
+        let weights = (1...10).map { (id: "\($0)", date: daysAgo($0), weight: 180.0) }
+        let logs = (1...12).map { log(cal: 2000, daysAgo: $0) }
+
+        service.calculateExpenditure(weightHistory: weights, dailyLogs: logs)
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertNil(service.calculatedTDEE)
+        XCTAssertEqual(service.recentValidLogCount, 12)
+        XCTAssertEqual(service.dataConfidence, .low)
+        XCTAssertNotNil(service.tdeeGuardrailMessage)
+        XCTAssertFalse(service.isEstimateActionable)
     }
 }

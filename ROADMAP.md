@@ -171,6 +171,21 @@ The next product bet should deepen the moat rather than widen the feature list:
    so Health Canada and NIH results cannot be confused with their visual Trust badges. The workout
    dashboard outlier passed unchanged and was classified as Xcode/simulator instability. The UI
    harness also stopped launching a redundant app session before every routed test.
+## Next Release: Plan-First Onboarding And Sign In With Apple
+
+Version 2.3 has been live on the App Store since 2026-07-21. The next release starts with the
+first-run funnel, tracked in PR #10:
+
+- New people answer a goal-first quiz before creating an account, see their plan, then save it
+  with Sign in with Apple or email.
+- Account setup waits for authentication to finish, creates the profile before applying the plan,
+  never overwrites an established account, and offers retry or sign-out on failure.
+- Apple accounts confirm deletion with Apple and revoke the Sign in with Apple token.
+
+Owner gates before release: enable the Firebase Apple provider with its OAuth code-flow settings,
+confirm the Sign in with Apple capability on the App ID, recheck App Store privacy answers, and
+register the new funnel events in Firebase.
+
 ## Post-2.3 Product Bets
 
 1. **Recovery Continuum:** connect regional training load, recovery evidence, nutrition timing, and

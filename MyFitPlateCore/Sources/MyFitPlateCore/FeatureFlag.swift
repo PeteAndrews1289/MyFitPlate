@@ -2,7 +2,6 @@ import Foundation
 
 public enum FeatureFlag: String, CaseIterable {
     case newMealPlanner
-    case newWorkoutRoutine
     case premiumFeatures
     case mealPhotoLogging
     case nutritionLabelScanner
@@ -21,7 +20,6 @@ public enum FeatureFlag: String, CaseIterable {
     public var defaultValue: Bool {
         switch self {
         case .newMealPlanner: return false
-        case .newWorkoutRoutine: return false
         case .premiumFeatures: return false
         case .mealPhotoLogging: return true
         case .nutritionLabelScanner: return true

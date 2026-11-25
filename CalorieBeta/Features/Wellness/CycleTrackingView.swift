@@ -8,13 +8,8 @@ struct CycleTrackingView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppScreenHeader(
-                    eyebrow: "Cycle Context",
-                    title: "Cycle Phase",
-                    subtitle: "A calendar estimate based on your most recent period start."
-                ) {
-                    cycleOptionsMenu
-                }
+                Text("A calendar estimate from your most recent period start.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
 
                 if let cycleDay = cycleService.cycleDay {
                     CyclePhaseRingView(
@@ -43,10 +38,16 @@ struct CycleTrackingView: View {
         }
         .accessibilityIdentifier("cycle_tracking_screen")
         .background(AppPalette.canvas.ignoresSafeArea())
-        .navigationTitle("")
+        .navigationTitle("Cycle")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { cycleOptionsMenu } }
         .onAppear {
+            #if DEBUG
+            if ScreenshotDemoMode.isEnabled, ScreenshotDemoData.requestedScreen == "cycle-settings" {
+                showingCycleSettings = true
+            }
+            #endif
             if !ScreenshotDemoMode.isEnabled {
                 cycleService.fetchAIInsight()
             }
@@ -67,22 +68,22 @@ struct CycleTrackingView: View {
 
     private var cycleOptionsMenu: some View {
         Menu {
-            Button("Log Period Start", systemImage: "calendar.badge.plus") {
+            Button("Log period start", systemImage: "calendar.badge.plus") {
                 cycleService.logPeriodStart()
             }
 
-            Button("Cycle Settings", systemImage: "slider.horizontal.3") {
+            Button("Cycle settings", systemImage: "slider.horizontal.3") {
                 showingCycleSettings = true
             }
 
             if cycleService.cycleDay != nil {
-                Button("Clear Last Period Start", systemImage: "trash", role: .destructive) {
+                Button("Clear last period start", systemImage: "trash", role: .destructive) {
                     cycleService.clearLastPeriodStart()
                 }
             }
         } label: {
             Image(systemName: "ellipsis")
-                .accessibilityLabel("Cycle Options")
+                .accessibilityLabel("Cycle options")
         }
         .buttonStyle(AppIconButtonStyle(.neutral))
         .accessibilityIdentifier("cycle_options_button")
@@ -92,18 +93,18 @@ struct CycleTrackingView: View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             GuidanceEmptyState(
                 icon: "calendar.badge.clock",
-                title: "No Cycle Logged Yet",
+                title: "No period start recorded",
                 message: "Log your latest period start to create a private calendar estimate."
             )
 
             VStack(spacing: AppSpacing.row) {
-                Button("Log Period Start") {
+                Button("Log period start") {
                     cycleService.logPeriodStart()
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
                 .accessibilityIdentifier("log_period_start_button")
 
-                Button("Adjust Cycle Settings") {
+                Button("Cycle settings") {
                     showingCycleSettings = true
                 }
                 .buttonStyle(AppActionButtonStyle(.secondary))
@@ -132,7 +133,7 @@ struct CyclePhaseRingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             VStack(alignment: .leading, spacing: AppSpacing.group) {
-                AppSectionHeader(title: "Estimated Phase", subtitle: "Day \(cycleDay.cycleDayNumber) of a typical \(cycleLength)-day cycle")
+                AppSectionHeader(title: "Estimated phase", subtitle: "Day \(cycleDay.cycleDayNumber) of a typical \(cycleLength)-day cycle")
 
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppSpacing.section) {
@@ -149,9 +150,10 @@ struct CyclePhaseRingView: View {
             }
             .appSurface(.emphasized)
 
-            VStack(alignment: .leading, spacing: AppSpacing.group) {
-                AppSectionHeader(title: "Phase Map", subtitle: "Typical timing, not a fertility prediction")
-
+            DisclosureGroup("Typical phase timing") {
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    Text("Typical timing, not a fertility prediction")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
                 Group {
                     if dynamicTypeSize.isAccessibilitySize {
                         VStack(spacing: AppSpacing.row) {
@@ -171,8 +173,11 @@ struct CyclePhaseRingView: View {
                         }
                     }
                 }
-                .appSurface(.quiet)
+                }
+                .padding(.top, AppSpacing.row)
             }
+            .appTextRole(.control)
+            .appSurface(.quiet)
         }
     }
 
@@ -200,7 +205,7 @@ struct CyclePhaseRingView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(width: 148, height: 148)
+        .frame(width: 120, height: 120)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Day \(cycleDay.cycleDayNumber), estimated \(cycleDay.phase.rawValue) phase")
     }

@@ -6,240 +6,162 @@ struct MuscleRecoveryMapView: View {
     @EnvironmentObject private var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject private var workoutService: WorkoutService
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     @State private var recoveries: [MuscleRecoveryEstimate]
+    @State private var evidence: [RecoveryRegionEvidence] = []
+    @State private var observations: [RecoveryCheckIn] = []
     @State private var selectedGroup: RecoveryMuscleGroup
     @State private var isLoading: Bool
+    @State private var showingMap = false
     @State private var recoveryTask: Task<Void, Never>?
     @State private var loadGeneration = UUID()
-
+    @State private var checkInRequest: RecoveryCheckInRequest?
+    @State private var removingCheckIn: RecoveryCheckIn?
+    @State private var loadMessage: String?
+    @State private var observationMessage: String?
     private let fixtureRecoveries: [MuscleRecoveryEstimate]?
-
     init(fixtureRecoveries: [MuscleRecoveryEstimate]? = nil) {
         self.fixtureRecoveries = fixtureRecoveries
         let initial = fixtureRecoveries ?? []
         _recoveries = State(initialValue: initial)
-        _selectedGroup = State(
-            initialValue: initial.first(where: { $0.status != .noRecentSignal })?.group ?? .chest
-        )
+        _selectedGroup = State(initialValue: initial.first(where: { $0.status != .noRecentSignal })?.group ?? .chest)
         _isLoading = State(initialValue: fixtureRecoveries == nil)
     }
-
-    private var selectedRecovery: MuscleRecoveryEstimate? {
-        recoveries.first(where: { $0.group == selectedGroup })
-    }
-
-    private var readyCount: Int {
-        recoveries.filter(\.isReady).count
-    }
-
-    private var recoveringCount: Int {
-        recoveries.filter { ![.ready, .noRecentSignal].contains($0.status) }.count
-    }
-
-    private var noSignalCount: Int {
-        recoveries.filter { $0.status == .noRecentSignal }.count
-    }
-
+    private var selectedRecovery: MuscleRecoveryEstimate? { recoveries.first { $0.group == selectedGroup } }
+    private var selectedEvidence: RecoveryRegionEvidence? { evidence.first { $0.group == selectedGroup } }
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(
-                title: "Recovery Field",
-                subtitle: dynamicTypeSize.isAccessibilitySize
-                    ? nil
-                    : "An estimate from recent working sets and sleep, shown by muscle region."
-            ) {
-                AppStatusBadge(
-                    readyCount == 1 ? "1 ready" : "\(readyCount) ready",
-                    icon: "bolt.fill",
-                    role: .current
-                )
-            }
-
+            AppSectionHeader(title: "Recovery & training exposure", subtitle: "Your recent work, sleep and check-in. A planning aid, with no readiness score.")
             if isLoading {
-                loadingState
+                HStack { ProgressView(); Text("Reading dated training evidence").appTextRole(.secondary) }
             } else {
-                if dynamicTypeSize.isAccessibilitySize {
-                    if let selectedRecovery {
-                        RecoveryEvidencePanel(
-                            estimate: selectedRecovery,
-                            sleepSignalDate: healthKitViewModel.sleepSummary.lastSleepDate
-                        )
-                        .id(selectedRecovery.id)
-                        .transition(.opacity)
-                    }
-
-                    recoverySummary
-
-                    RecoveryRegionList(
-                        recoveries: recoveries,
-                        selectedGroup: $selectedGroup
-                    )
-                } else {
-                    recoverySummary
-
-                    RecoveryBodyField(
-                        recoveries: recoveries,
-                        selectedGroup: $selectedGroup
-                    )
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Muscle recovery body field")
-                    .accessibilityIdentifier("muscle_recovery_body_field")
-
-                    if let selectedRecovery {
-                        RecoveryEvidencePanel(
-                            estimate: selectedRecovery,
-                            sleepSignalDate: healthKitViewModel.sleepSummary.lastSleepDate
-                        )
-                        .id(selectedRecovery.id)
-                        .transition(.opacity)
-                    }
+                if let loadMessage { Label(loadMessage, systemImage: "exclamationmark.circle").appTextRole(.secondary).foregroundStyle(AppPalette.caution) }
+                if let selectedEvidence {
+                    RecoveryEvidencePanel(evidence: selectedEvidence)
+                    checkInActions
+                    RecoveryPlanningActionsView(evidence: selectedEvidence, workoutService: workoutService)
+                        .appSurface(.quiet).id(selectedEvidence.id)
+                } else if let selectedRecovery {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        Text(selectedRecovery.group.displayName).appTextRole(.sectionTitle)
+                        Text(selectedRecovery.status.displayName).appTextRole(.control)
+                        Text("Example training exposure. No measured tissue-readiness percentage is shown.").appTextRole(.secondary).foregroundStyle(.secondary)
+                    }.appSurface(.quiet)
                 }
-
-                Label(
-                    "Recovery is an estimate for planning training, not an injury or medical assessment.",
-                    systemImage: "info.circle"
-                )
-                .appTextRole(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                RecoveryRegionList(recoveries: recoveries, evidence: evidence, selectedGroup: $selectedGroup)
+                Button {
+                    showingMap.toggle()
+                } label: {
+                    HStack {
+                        Text(showingMap ? "Hide body map" : "Show body map")
+                        Spacer()
+                        Image(systemName: showingMap ? "chevron.up" : "chevron.down")
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(showingMap ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("muscle_recovery_map_toggle")
+                if showingMap {
+                    RecoveryBodyField(recoveries: recoveries, selectedGroup: $selectedGroup)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Muscle training exposure body field")
+                        .accessibilityIdentifier("muscle_recovery_body_field")
+                }
+                Label("Unknown means missing evidence, not fully recovered. Stop or change painful movements; this map does not assess injuries.", systemImage: "info.circle")
+                    .appTextRole(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Muscle recovery")
+        .accessibilityElement(children: .contain).accessibilityLabel("Muscle recovery")
         .accessibilityIdentifier("muscle_recovery_map")
-        .onAppear {
-            guard fixtureRecoveries == nil else { return }
-            calculateRecovery()
+        .onAppear { if fixtureRecoveries == nil { calculateRecovery() } }
+        .onChange(of: dailyLogService.currentDailyLog) { _, _ in if fixtureRecoveries == nil { calculateRecovery() } }
+        .onChange(of: healthKitViewModel.sleepSummary.lastNightScore) { _, _ in if fixtureRecoveries == nil { calculateRecovery() } }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutSessionCorrected)) { note in
+            if note.object as? String == DIContainer.shared.authService.currentUserID { calculateRecovery() }
         }
-        .onChange(of: dailyLogService.currentDailyLog) { _, _ in
-            guard fixtureRecoveries == nil else { return }
-            calculateRecovery()
+        .onDisappear { recoveryTask?.cancel() }
+        .sheet(item: $checkInRequest) { request in
+            NavigationStack { RecoveryCheckInView(request: request) { calculateRecovery() } }
         }
-        .onDisappear {
-            recoveryTask?.cancel()
-        }
+        .confirmationDialog("Remove this dated check-in?", isPresented: Binding(get: { removingCheckIn != nil }, set: { if !$0 { removingCheckIn = nil } }), titleVisibility: .visible) {
+            Button("Remove check-in", role: .destructive) { removeObservation() }
+            Button("Cancel", role: .cancel) { removingCheckIn = nil }
+        } message: { Text("Workout history and program targets stay intact.") }
     }
-
-    private var recoverySummary: some View {
-        AppMetricStrip(items: [
-            AppMetricItem(label: "Ready", value: readyCount.formatted(), accent: AppPalette.brand),
-            AppMetricItem(label: "Recovering", value: recoveringCount.formatted(), accent: AppPalette.caution),
-            AppMetricItem(label: "No recent signal", value: noSignalCount.formatted(), accent: Color.secondary)
-        ])
-    }
-
-    private var loadingState: some View {
-        HStack(spacing: AppSpacing.row) {
-            ProgressView()
-                .tint(AppPalette.brand)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Reading recent training")
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-                Text("Combining completed sets with your latest sleep signal.")
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
+    private var checkInActions: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Button("Add \(selectedGroup.displayName.lowercased()) check-in") { openCheckIn(nil) }
+                .frame(minHeight: 44).accessibilityIdentifier("recovery_add_check_in")
+            if let observationMessage { Text(observationMessage).appTextRole(.secondary).foregroundStyle(AppPalette.caution) }
+            let selected = observations.filter { $0.group == selectedGroup }
+            if !selected.isEmpty {
+                DisclosureGroup("Dated check-ins · on this device") {
+                    ForEach(selected.prefix(12)) { value in
+                        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                            Text(value.observedAt.formatted(date: .abbreviated, time: .shortened)).appTextRole(.control)
+                            Text("Soreness: \(value.soreness?.title ?? "Unknown") · Fatigue: \(value.fatigue?.title ?? "Unknown")")
+                                .appTextRole(.secondary)
+                            if !value.note.isEmpty { Text(value.note).appTextRole(.secondary).fixedSize(horizontal: false, vertical: true) }
+                            HStack {
+                                Button("Edit") { openCheckIn(value) }.frame(minHeight: 44)
+                                Button("Remove", role: .destructive) { removingCheckIn = value }.frame(minHeight: 44)
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, AppSpacing.compact)
+                    }
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface(.quiet)
     }
-
+    private func openCheckIn(_ existing: RecoveryCheckIn?) {
+        guard let owner = DIContainer.shared.authService.currentUserID else { return }
+        checkInRequest = .init(userID: owner, group: selectedGroup, existing: existing)
+    }
+    private func removeObservation() {
+        guard let value = removingCheckIn, let owner = DIContainer.shared.authService.currentUserID else { return }
+        do { try RecoveryCheckInStore().remove(value, userID: owner); removingCheckIn = nil; calculateRecovery() } catch { observationMessage = error.localizedDescription }
+    }
     private func calculateRecovery() {
-        recoveryTask?.cancel()
-        let requestID = UUID()
-        loadGeneration = requestID
+        recoveryTask?.cancel(); let requestID = UUID(); loadGeneration = requestID
         guard let userID = DIContainer.shared.authService.currentUserID else {
-            let now = Date()
-            recoveries = RecoveryMuscleGroup.allCases.map {
-                MuscleRecoveryRules.estimate(
-                    group: $0,
-                    lastTrained: nil,
-                    sets: nil,
-                    sleepScore: nil,
-                    asOf: now
-                )
-            }
-            isLoading = false
-            return
+            recoveries = []; evidence = []; observations = []; isLoading = false; return
         }
-
-        isLoading = true
-        let now = Date()
-        let lookbackDays = 14
-        let startDate = Calendar.current.date(byAdding: .day, value: -lookbackDays, to: now) ?? now
-        let sleepScore = healthKitViewModel.sleepSummary.lastNightScore
-            ?? healthKitViewModel.sleepSummary.averageScore
-
+        let now = Date(); isLoading = true; loadMessage = nil
         recoveryTask = Task { @MainActor in
-            var lastTrained: [RecoveryMuscleGroup: Date] = [:]
-            var lastSessionSets: [RecoveryMuscleGroup: Int] = [:]
-
-            func record(_ muscleSets: [RecoveryMuscleGroup: Int], at date: Date) {
-                for (group, sets) in muscleSets where date > (lastTrained[group] ?? .distantPast) {
-                    lastTrained[group] = date
-                    lastSessionSets[group] = sets
+            let result = await workoutService.fetchRecentSessionLogsResult(sinceDays: 14)
+            guard !Task.isCancelled, loadGeneration == requestID, DIContainer.shared.authService.currentUserID == userID else { return }
+            let sessions: [WorkoutSessionLog]
+            switch result {
+            case .success(let values): sessions = values
+            case .failure: sessions = []; loadMessage = "Training history could not be refreshed. Missing history is unknown; no plan changes were made."
+            }
+            do { observations = try RecoveryCheckInStore().observations(userID: userID); observationMessage = nil } catch { observations = []; observationMessage = "Check-ins could not be read. Saved records are preserved. " + error.localizedDescription }
+            let runResult: Result<[Run], Error> = await withCheckedContinuation { continuation in
+                RunImportService().fetchRunsResult(since: now.addingTimeInterval(-7 * 86_400), userID: userID) { continuation.resume(returning: $0) }
+            }
+            guard !Task.isCancelled, loadGeneration == requestID, DIContainer.shared.authService.currentUserID == userID else { return }
+            let runs: [Run]
+            switch runResult {
+            case .success(let values): runs = values
+            case .failure: runs = RunFallbackStore.shared.runs(since: now.addingTimeInterval(-7 * 86_400), for: userID)
+                loadMessage = [loadMessage, "Running context includes saved local runs only; Apple Health history was unavailable."].compactMap { $0 }.joined(separator: " ")
+            }
+            let sleepScore = healthKitViewModel.sleepSummary.lastNightScore
+            let sleepDate = healthKitViewModel.coachingRecoveryEvidence(now: now).sleepUpdatedAt
+            evidence = MuscleRecoveryRules.regionEvidence(sessions: sessions, runs: runs, checkIns: observations,
+                sleepScore: sleepScore, sleepDate: sleepDate, asOf: now)
+            recoveries = evidence.map { item in
+                let status: MuscleRecoveryStatus
+                switch item.state {
+                case .unknown: status = .noRecentSignal
+                case .stopAndChange, .reviewCheckIn: status = .fatigued
+                case .accumulatedExposure: status = .recovering
+                case .recentExposure: status = .nearlyReady
+                case .lowerRecentLoad: status = .ready
                 }
-            }
-
-            let sessions = await workoutService.fetchRecentSessionLogs(sinceDays: lookbackDays)
-            guard !Task.isCancelled,
-                  loadGeneration == requestID,
-                  DIContainer.shared.authService.currentUserID == userID else { return }
-            for session in sessions {
-                var muscleSets: [RecoveryMuscleGroup: Int] = [:]
-                for completed in session.completedExercises {
-                    for group in MuscleRecoveryRules.muscleGroups(for: completed.exerciseName) {
-                        muscleSets[group, default: 0] += completed.sets.count
-                    }
-                }
-                record(muscleSets, at: session.date)
-            }
-
-            let history = await dailyLogService.fetchDailyHistory(
-                for: userID,
-                startDate: startDate,
-                endDate: now
-            )
-            guard !Task.isCancelled,
-                  loadGeneration == requestID,
-                  DIContainer.shared.authService.currentUserID == userID else { return }
-            if case .success(let logs) = history {
-                for log in logs {
-                    guard let exercises = log.exercises else { continue }
-                    var muscleSets: [RecoveryMuscleGroup: Int] = [:]
-                    for exercise in exercises {
-                        for group in MuscleRecoveryRules.muscleGroups(for: exercise.name) {
-                            // Daily activity entries do not retain set detail. Six sets is a
-                            // conservative proxy and is disclosed as an estimate in the UI.
-                            muscleSets[group, default: 0] += 6
-                        }
-                    }
-                    if !muscleSets.isEmpty {
-                        record(muscleSets, at: log.date)
-                    }
-                }
-            }
-
-            let estimates = RecoveryMuscleGroup.allCases.map { group in
-                MuscleRecoveryRules.estimate(
-                    group: group,
-                    lastTrained: lastTrained[group],
-                    sets: lastSessionSets[group],
-                    sleepScore: sleepScore,
-                    asOf: now
-                )
-            }
-
-            guard !Task.isCancelled,
-                  loadGeneration == requestID,
-                  DIContainer.shared.authService.currentUserID == userID else { return }
-            recoveries = estimates
-            if recoveries.contains(where: { $0.group == selectedGroup && $0.status != .noRecentSignal }) == false,
-               let firstSignal = recoveries.first(where: { $0.status != .noRecentSignal }) {
-                selectedGroup = firstSignal.group
+                return .init(group: item.group, lastTrained: item.training.first?.date, lastSessionSets: item.training.first?.workingSets ?? 0,
+                    recoveryHours: 1, sleepMultiplier: 1, asOf: now, planningStatus: status)
             }
             isLoading = false
         }
@@ -269,11 +191,11 @@ private struct RecoveryBodyField: View {
             .frame(height: 320)
 
             HStack(alignment: .top, spacing: 4) {
-                RecoveryLegendItem(title: "Fatigued", role: .critical)
-                RecoveryLegendItem(title: "Recovering", role: .caution)
-                RecoveryLegendItem(title: "Near ready", role: .recovery)
-                RecoveryLegendItem(title: "Ready", role: .current)
-                RecoveryLegendItem(title: "No signal", role: .neutral)
+                RecoveryLegendItem(title: "Recent", role: .critical)
+                RecoveryLegendItem(title: "Exposure", role: .caution)
+                RecoveryLegendItem(title: "Less recent", role: .recovery)
+                RecoveryLegendItem(title: "Lower load", role: .current)
+                RecoveryLegendItem(title: "Unknown", role: .neutral)
             }
         }
         .padding(AppSpacing.group)
@@ -294,6 +216,7 @@ private struct RecoveryBodyField: View {
 
 private struct RecoveryRegionList: View {
     let recoveries: [MuscleRecoveryEstimate]
+    var evidence: [RecoveryRegionEvidence] = []
     @Binding var selectedGroup: RecoveryMuscleGroup
 
     var body: some View {
@@ -360,9 +283,7 @@ private struct RecoveryRegionList: View {
     }
 
     private func regionSummary(_ estimate: MuscleRecoveryEstimate) -> String {
-        estimate.status == .noRecentSignal
-            ? "No recent training signal"
-            : "\(estimate.status.displayName), about \(estimate.roundedPercentage)% recovered"
+        evidence.first(where: { $0.group == estimate.group })?.state.title ?? estimate.status.displayName
     }
 }
 
@@ -738,7 +659,7 @@ private struct RecoveryZoneButton: View {
         .accessibilityValue(
             estimate.status == .noRecentSignal
                 ? "No recent training signal"
-                : "About \(estimate.roundedPercentage) percent recovered"
+                : estimate.status.displayName
         )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("muscle_recovery_zone_\(side.rawValue.lowercased())_\(estimate.group.rawValue)")
@@ -1051,150 +972,52 @@ private struct RecoveryZoneShape: Shape {
 }
 
 private struct RecoveryEvidencePanel: View {
-    let estimate: MuscleRecoveryEstimate
-    let sleepSignalDate: Date?
-
-    private var role: AppSignalRole {
-        estimate.status.signalRole
-    }
-
+    let evidence: RecoveryRegionEvidence
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.group) {
-            HStack(alignment: .top, spacing: AppSpacing.row) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(estimate.group.displayName)
-                        .appTextRole(.sectionTitle)
-                        .foregroundStyle(AppPalette.text)
-
-                    Text(estimate.status.detailText(for: estimate))
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: AppSpacing.compact)
-
-                AppStatusBadge(
-                    estimate.status.displayName,
-                    icon: estimate.status.icon,
-                    role: role
-                )
-            }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
-                    AppFreshnessLabel(calculationFreshness)
-                    Spacer(minLength: 0)
-                    confidenceLabel
-                }
-                VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                    AppFreshnessLabel(calculationFreshness)
-                    confidenceLabel
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text(evidence.group.displayName).appTextRole(.sectionTitle)
+            Label(evidence.state.title, systemImage: evidence.state == .stopAndChange ? "exclamationmark.triangle" : "list.bullet.clipboard")
+                .appTextRole(.control).foregroundStyle(evidence.state == .stopAndChange ? AppPalette.caution : AppPalette.brandText)
+            Text(evidence.explanation).appTextRole(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Updated \(evidence.asOf.formatted(date: .abbreviated, time: .shortened)) · \(evidence.modelVersion)")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+            RecoveryEvidenceRow(icon: "list.number", title: "Measured strength exposure", value: "\(evidence.sevenDayWorkingSets) working sets in 7 days. Warm-ups and diary summaries excluded.")
+            if evidence.training.isEmpty {
+                Text("No eligible strength session found in the available last 14 days.").appTextRole(.secondary).foregroundStyle(.secondary)
+            } else {
+                DisclosureGroup("Training evidence · \(evidence.training.count) sessions") {
+                    ForEach(evidence.training) { item in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(item.workingSets) working sets · \(item.date.formatted(date: .abbreviated, time: .shortened))").appTextRole(.control)
+                            Text(item.exerciseNames.joined(separator: ", ")).appTextRole(.secondary).foregroundStyle(.secondary)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, AppSpacing.compact)
+                    }
                 }
             }
-
-            RecoveryHorizonView(estimate: estimate, role: role)
-
-            Divider()
-
-            VStack(spacing: 0) {
-                RecoveryEvidenceRow(
-                    icon: "clock.arrow.circlepath",
-                    title: "Last trained",
-                    value: lastTrainedText
-                )
-                Divider().padding(.leading, 34)
-                RecoveryEvidenceRow(
-                    icon: "list.number",
-                    title: "Recent volume",
-                    value: volumeText
-                )
-                Divider().padding(.leading, 34)
-                RecoveryEvidenceRow(
-                    icon: "bed.double.fill",
-                    title: "Sleep adjustment",
-                    value: sleepAdjustmentText
-                )
+            if evidence.group == .legs {
+                RecoveryEvidenceRow(icon: "figure.run", title: "Running context", value: evidence.runs.isEmpty ? "No eligible run of at least 10 minutes and 100 m in available history. Other running exposure is unknown." : "\(evidence.runs.count) recorded runs in 7 days; separate duration context, never converted into strength sets.")
+                ForEach(evidence.runs) { run in
+                    Text("\(run.movingMinutes.formatted(.number.precision(.fractionLength(0...1)))) min · \(run.date.formatted(date: .abbreviated, time: .shortened)) · \(run.source)")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
             }
+            RecoveryEvidenceRow(icon: "bed.double.fill", title: "Sleep evidence", value: sleepText)
+            RecoveryEvidenceRow(icon: "person.text.rectangle", title: "Subjective check-in", value: checkInText)
         }
-        .appSurface(.quiet)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Selected muscle recovery evidence")
-        .accessibilityIdentifier("muscle_recovery_evidence")
+        .appSurface(.quiet).accessibilityElement(children: .contain)
+        .accessibilityLabel("Selected muscle recovery evidence").accessibilityIdentifier("muscle_recovery_evidence")
     }
-
-    private var calculationFreshness: AppDataFreshness {
-        AppDataFreshness(
-            updatedAt: estimate.asOf,
-            currentFor: 15 * 60,
-            staleAfter: 60 * 60
-        )
+    private var sleepText: String {
+        let date = evidence.sleepDate?.formatted(date: .abbreviated, time: .shortened) ?? "date unknown"
+        switch evidence.sleepFreshness {
+        case .current: return "Recent sleep score \(evidence.sleepScore.map(String.init) ?? "Unknown") · \(date). Not a direct measurement of muscle readiness."
+        case .stale: return "Stale sleep · \(date). Excluded from the current planning signal."
+        case .unknown: return "Unknown. A recent dated sleep score is unavailable."
+        }
     }
-
-    private var confidenceLabel: some View {
-        Label(confidenceText, systemImage: confidenceIcon)
-            .appTextRole(.caption)
-            .foregroundStyle(confidenceColor)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var confidenceText: String {
-        if estimate.status == .noRecentSignal {
-            return "No training evidence"
-        }
-        if estimate.lastSessionSets == 0 {
-            return "Lower confidence · set detail missing"
-        }
-        if sleepSignalDate == nil {
-            return "Training evidence · no sleep signal"
-        }
-        return "Training + sleep evidence"
-    }
-
-    private var confidenceIcon: String {
-        if estimate.status == .noRecentSignal || estimate.lastSessionSets == 0 {
-            return "exclamationmark.circle"
-        }
-        return sleepSignalDate == nil ? "moon.zzz" : "checkmark.shield"
-    }
-
-    private var confidenceColor: Color {
-        if estimate.status == .noRecentSignal {
-            return .secondary
-        }
-        if estimate.lastSessionSets == 0 || sleepSignalDate == nil {
-            return AppPalette.caution
-        }
-        return AppPalette.brandText
-    }
-
-    private var lastTrainedText: String {
-        guard let hours = estimate.hoursSinceTraining else { return "No session in the last 14 days" }
-        if hours < 1 { return "Less than an hour ago" }
-        if hours < 24 {
-            let roundedHours = Int(hours.rounded(.down))
-            return roundedHours == 1 ? "1 hour ago" : "\(roundedHours) hours ago"
-        }
-
-        let days = Int((hours / 24).rounded(.down))
-        return days == 1 ? "Yesterday" : "\(days) days ago"
-    }
-
-    private var volumeText: String {
-        guard estimate.lastSessionSets > 0 else { return "No set detail available" }
-        let suffix = estimate.lastSessionSets == 1 ? "working set" : "working sets"
-        return "\(estimate.lastSessionSets) \(suffix) · ~\(Int(estimate.recoveryHours.rounded()))h window"
-    }
-
-    private var sleepAdjustmentText: String {
-        if estimate.sleepMultiplier < 1 {
-            return "Strong sleep shortened the estimate by about 10%"
-        }
-        if estimate.sleepMultiplier > 1 {
-            let percent = Int(((estimate.sleepMultiplier - 1) * 100).rounded())
-            return "Recent sleep extended the estimate by about \(percent)%"
-        }
-        return "No sleep adjustment applied"
+    private var checkInText: String {
+        guard let value = evidence.checkIn else { return "Unknown. Add an optional dated soreness or fatigue check-in." }
+        return "\(value.observedAt.formatted(date: .abbreviated, time: .shortened)) · Soreness \(value.soreness?.title ?? "Unknown"), fatigue \(value.fatigue?.title ?? "Unknown")" + (evidence.checkInIsFresh ? "." : ". Stale; not treated as a current observation.")
     }
 }
 
@@ -1228,50 +1051,6 @@ private struct RecoveryEvidenceRow: View {
     }
 }
 
-private struct RecoveryHorizonView: View {
-    let estimate: MuscleRecoveryEstimate
-    let role: AppSignalRole
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.compact) {
-            HStack {
-                Text("Estimated recovery")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(estimate.status == .noRecentSignal ? "No signal" : "~\(estimate.roundedPercentage)%")
-                    .appTextRole(.control)
-                    .foregroundStyle(role.color)
-                    .monospacedDigit()
-            }
-
-            AppProgressTrack(progress: estimate.progress, role: role, height: 8)
-
-            HStack {
-                Text("Training")
-                Spacer()
-                Text(midpointLabel)
-                Spacer()
-                Text("Ready")
-            }
-            .appTextRole(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Estimated recovery for \(estimate.group.displayName)")
-        .accessibilityValue(
-            estimate.status == .noRecentSignal
-                ? "No recent signal"
-                : "About \(estimate.roundedPercentage) percent, \(estimate.status.displayName)"
-        )
-    }
-
-    private var midpointLabel: String {
-        guard estimate.status != .noRecentSignal else { return "No recent data" }
-        return "~\(Int((estimate.recoveryHours / 2).rounded()))h"
-    }
-}
-
 private extension MuscleRecoveryStatus {
     var signalRole: AppSignalRole {
         switch self {
@@ -1285,11 +1064,11 @@ private extension MuscleRecoveryStatus {
 
     var displayName: String {
         switch self {
-        case .noRecentSignal: "No recent signal"
-        case .fatigued: "Fatigued"
-        case .recovering: "Recovering"
-        case .nearlyReady: "Near ready"
-        case .ready: "Ready"
+        case .noRecentSignal: "Unknown"
+        case .fatigued: "Review training"
+        case .recovering: "Accumulated exposure"
+        case .nearlyReady: "Recent training"
+        case .ready: "Lower recent load"
         }
     }
 
@@ -1304,19 +1083,7 @@ private extension MuscleRecoveryStatus {
     }
 
     func detailText(for estimate: MuscleRecoveryEstimate) -> String {
-        switch self {
-        case .noRecentSignal:
-            return "No matching strength session was found in the last 14 days."
-        case .ready:
-            return estimate.wasNotTrainedRecently
-                ? "Estimated ready, with no recent session for this region."
-                : "The estimated recovery window has passed."
-        case .fatigued, .recovering, .nearlyReady:
-            let hours = estimate.hoursUntilReady
-            if hours < 1 { return "Expected to move into ready soon." }
-            if hours < 20 { return "Expected ready in about \(Int(hours.rounded())) hours." }
-            let days = Int((hours / 24).rounded(.up))
-            return days == 1 ? "Expected ready tomorrow." : "Expected ready in about \(days) days."
-        }
+        estimate.lastTrained == nil ? "No eligible recent training evidence. Readiness is unknown."
+            : "Training exposure is a planning signal, not measured tissue readiness."
     }
 }

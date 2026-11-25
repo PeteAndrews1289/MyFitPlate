@@ -16,7 +16,7 @@ struct AYCEActivityWidget: Widget {
                         .font(.headline)
                         .foregroundColor(.white)
                     Spacer()
-                    Text(context.state.statusText)
+                    Text(context.isStale ? "Open meal to refresh" : context.state.statusText)
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.achievement)
@@ -24,7 +24,7 @@ struct AYCEActivityWidget: Widget {
 
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Buffet Price")
+                        Text("Source")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Text(context.state.buffetPriceText)
@@ -36,10 +36,10 @@ struct AYCEActivityWidget: Widget {
                     Spacer()
 
                     VStack(alignment: .center, spacing: 2) {
-                        Text("Plates/Items")
+                        Text("Portions")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text("\(context.state.itemsCount)")
+                        Text(context.state.itemsCount.formatted(.number.precision(.fractionLength(0...2))))
                             .font(.system(size: 20, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(LiveActivityPalette.caution)
@@ -48,7 +48,7 @@ struct AYCEActivityWidget: Widget {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Current Value")
+                        Text("Meal total")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Text(context.state.currentValueText)
@@ -60,6 +60,7 @@ struct AYCEActivityWidget: Widget {
             }
             .padding()
             .activityBackgroundTint(Color.black.opacity(0.75))
+            .widgetURL(URL(string: "myfitplate://buffet"))
 
         } dynamicIsland: { context in
             DynamicIsland {
@@ -79,7 +80,7 @@ struct AYCEActivityWidget: Widget {
                         .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.statusText)
+                    Text(context.isStale ? "Open meal to refresh" : context.state.statusText)
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.achievement)
@@ -97,6 +98,7 @@ struct AYCEActivityWidget: Widget {
                 Image(systemName: "fork.knife")
                     .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
             }
+            .widgetURL(URL(string: "myfitplate://buffet"))
         }
     }
 }

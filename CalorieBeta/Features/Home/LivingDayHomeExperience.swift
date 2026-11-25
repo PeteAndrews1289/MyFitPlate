@@ -74,11 +74,16 @@ struct LivingDayHydrationState: Equatable {
     let consumed: Double
     let target: Double
     let increment: Double
+    let canAddWater: Bool
+    let trackingOnly: Bool
+    let unit: WaterVolumeUnit
 
-    init(consumed: Double, target: Double, increment: Double = 8) {
+    init(consumed: Double, target: Double, increment: Double = 8, canAddWater: Bool = true, trackingOnly: Bool = false, unit: WaterVolumeUnit = .ounces) {
         self.consumed = consumed.isFinite ? max(0, consumed) : 0
         self.target = target.isFinite ? max(1, target) : 1
         self.increment = increment.isFinite ? max(1, increment) : 8
+        self.canAddWater = canAddWater
+        self.trackingOnly = trackingOnly; self.unit = unit
     }
 }
 
@@ -86,18 +91,28 @@ struct LivingDayHomeExperience: View {
     let snapshot: LivingDaySnapshot
     let transition: LivingDayTransition?
     let hydration: LivingDayHydrationState?
+    let showsCurrentDayActions: Bool
+    let isHeaderSpotlightActive: Bool
     let onEventSelected: (LivingDaySnapshot.Event) -> Void
     let onActionSelected: (DailyNextAction) -> Void
     let onAddWater: () -> Void
+    let compactPresentation: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isExpanded = false
+    @State private var isGuidanceExpanded = false
+    @State private var isExplanationExpanded = false
     @State private var presentedTransition: LivingDayTransition?
     @State private var emphasizedEventID: String?
     @State private var density: LivingDayPathDensity
-    @State private var showingShareOptions = false
+    @State private var shareRequest: PrivateDayShareCapture?
+    private let shareLog: DailyLog?
+    private let shareWeightPounds: Double?
+    private let shareOwnerID: String?
+    private let shareCalendar: Calendar
     @State private var didLogExposure = false
+    @AppStorage("living_day_hidden_event_kinds_v1") private var hiddenEventKinds = 0
 
     private let persistsDensity: Bool
 
@@ -107,17 +122,27 @@ struct LivingDayHomeExperience: View {
         snapshot: LivingDaySnapshot,
         transition: LivingDayTransition?,
         hydration: LivingDayHydrationState? = nil,
+        showsCurrentDayActions: Bool = true,
+        isHeaderSpotlightActive: Bool = false,
         density: LivingDayPathDensity? = nil,
         onEventSelected: @escaping (LivingDaySnapshot.Event) -> Void,
         onActionSelected: @escaping (DailyNextAction) -> Void,
-        onAddWater: @escaping () -> Void = {}
+        onAddWater: @escaping () -> Void = {},
+        compactPresentation: Bool = false,
+        shareLog: DailyLog? = nil, shareWeightPounds: Double? = nil, shareOwnerID: String? = nil,
+        shareCalendar: Calendar = .current
     ) {
         self.snapshot = snapshot
+        self.shareLog = shareLog; self.shareWeightPounds = shareWeightPounds
+        self.shareOwnerID = shareOwnerID; self.shareCalendar = shareCalendar
         self.transition = transition
         self.hydration = hydration
+        self.showsCurrentDayActions = showsCurrentDayActions
+        self.isHeaderSpotlightActive = isHeaderSpotlightActive
         self.onEventSelected = onEventSelected
         self.onActionSelected = onActionSelected
         self.onAddWater = onAddWater
+        self.compactPresentation = compactPresentation
         persistsDensity = density == nil
 
         let storedDensity = UserDefaults.standard.string(forKey: LivingDayPathDensity.defaultsKey)
@@ -127,31 +152,60 @@ struct LivingDayHomeExperience: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            header
+            if !compactPresentation {
+                header
+            }
             LivingDayBudgetView(
                 budget: snapshot.budget,
                 hydration: hydration,
-                onAddWater: onAddWater
+                onAddWater: onAddWater, compactPresentation: compactPresentation,
+                isHistorical: !showsCurrentDayActions
             )
-            LivingDayActionButton(action: snapshot.nextAction) {
-                onActionSelected(snapshot.nextAction)
+            .anchorPreference(key: SpotlightBoundsKey.self, value: .bounds) {
+                isHeaderSpotlightActive ? $0 : nil
             }
-            LivingDayMaiaAnnotation(
-                annotation: DailyNextActionAnnotationRules.make(for: snapshot.nextAction)
-            ) {
-                DIContainer.shared.analyticsManager?.logEvent(
-                    ProductAnalytics.Event.livingDayMaiaAnnotationOpened.rawValue,
-                    parameters: ["action_kind": snapshot.nextAction.kind.rawValue]
-                )
-                onActionSelected(snapshot.nextAction)
-            }
-            if let presentedTransition {
-                LivingDayTransitionNotice(transition: presentedTransition)
-                    .transition(statusTransition)
-            }
-            timeline
+            if compactPresentation {
+                HStack(spacing: AppSpacing.compact) {
+                    if showsCurrentDayActions {
+                        Button { onActionSelected(snapshot.nextAction) } label: {
+                            HStack(spacing: AppSpacing.compact) {
+                                Image(systemName: snapshot.nextAction.icon)
+                                Text(snapshot.nextAction.title).appTextRole(.control)
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right").appTextRole(.caption)
+                            }
+                            .foregroundStyle(AppPalette.brandText).padding(.horizontal, AppSpacing.row)
+                            .frame(minHeight: 44)
+                            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(snapshot.nextAction.accessibilityHint)
+                        .accessibilityIdentifier("livingDayCurrentAction")
+                    }
+                    Button {
+                        withAnimation(reduceMotion ? nil : AppMotion.standard) { isGuidanceExpanded.toggle() }
+                    } label: {
+                        if showsCurrentDayActions {
+                            Image(systemName: "info.circle").frame(width: 44, height: 44)
+                        } else {
+                            Label("Day timeline", systemImage: "clock").appTextRole(.secondary).frame(minHeight: 44)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showsCurrentDayActions ? "Why this step and day timeline" : "Day timeline")
+                    .accessibilityValue(isGuidanceExpanded ? "Expanded" : "Collapsed")
+                    .accessibilityIdentifier("home_guidance_disclosure")
+                }
+                if isGuidanceExpanded {
+                    header
+                    supportingContent
+                }
+            } else { supportingContent }
+
         }
         .frame(maxWidth: 520, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("livingDaySummary")
         .task(id: transition?.id) {
             await presentTransitionIfNeeded()
         }
@@ -168,35 +222,98 @@ struct LivingDayHomeExperience: View {
                 parameters: ["density": newValue.rawValue]
             )
         }
-        .sheet(isPresented: $showingShareOptions) {
-            LivingDayShareOptionsView(snapshot: snapshot)
+        .sheet(item: $shareRequest) { request in
+            LivingDayShareOptionsView(capture: request)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Living Day")
-                    .appTextRole(.sectionTitle)
-                    .foregroundStyle(AppPalette.text)
-
-                Label(freshness.title, systemImage: freshness.icon)
-                    .appTextRole(.caption)
-                    .foregroundStyle(freshness.color)
-                    .fixedSize(horizontal: false, vertical: true)
+    private var supportingContent: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            if showsCurrentDayActions {
+                if !compactPresentation {
+                    LivingDayActionButton(action: snapshot.nextAction) {
+                        onActionSelected(snapshot.nextAction)
+                    }
+                }
+                if compactPresentation {
+                    Text(snapshot.nextAction.detail).appTextRole(.body)
+                    Text(DailyNextActionAnnotationRules.make(for: snapshot.nextAction).text)
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("livingDayMaiaAnnotation")
+                } else {
+                DisclosureGroup("Why this next step", isExpanded: $isExplanationExpanded) {
+                    Text(DailyNextActionAnnotationRules.make(for: snapshot.nextAction).text)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, AppSpacing.compact)
+                }
+                .appTextRole(.secondary)
+                .accessibilityIdentifier("livingDayMaiaAnnotation")
+                .onChange(of: isExplanationExpanded) { _, expanded in
+                    if expanded {
+                        DIContainer.shared.analyticsManager?.logEvent(
+                            ProductAnalytics.Event.livingDayMaiaAnnotationOpened.rawValue,
+                            parameters: ["action_kind": snapshot.nextAction.kind.rawValue]
+                        )
+                    }
+                }
+                }
             }
+            if let presentedTransition {
+                LivingDayTransitionNotice(transition: presentedTransition)
+                    .transition(statusTransition)
+            }
+            timeline
+        }
+    }
 
-            Spacer(minLength: 0)
+    private var header: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    headerTitle
+                    headerActions
+                }
+            } else {
+                HStack(alignment: .center, spacing: 12) {
+                    headerTitle
+                    Spacer(minLength: 0)
+                    headerActions
+                }
+            }
+        }
+    }
 
+    private var headerTitle: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Day summary")
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+
+            Label(freshness.title, systemImage: freshness.icon)
+                .appTextRole(.caption)
+                .foregroundStyle(freshness.color)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var headerActions: some View {
+        HStack(spacing: AppSpacing.row) {
             Button {
-                showingShareOptions = true
+                if let ownerID = shareOwnerID, ownerID == DIContainer.shared.authService.currentUserID {
+                    shareRequest = .init(ownerID: ownerID, snapshot: snapshot, calendar: shareCalendar,
+                                         log: shareLog, weightPounds: shareWeightPounds, metric: BodyUnits.prefersMetric())
+                }
             } label: {
                 Image(systemName: "square.and.arrow.up")
             }
             .buttonStyle(AppIconButtonStyle(.neutral))
-            .accessibilityLabel("Share Living Day")
+            .accessibilityLabel("Share my day")
             .accessibilityIdentifier("livingDayShareButton")
 
             Menu {
@@ -229,6 +346,17 @@ struct LivingDayHomeExperience: View {
 
                 Spacer(minLength: 0)
 
+                Menu {
+                    ForEach(Array(["Meals", "Strength & runs", "Other activity", "Recovery"].enumerated()), id: \.offset) { index, title in
+                        Toggle(title, isOn: Binding(get: { hiddenEventKinds & (1 << index) == 0 }, set: { shown in
+                            if shown { hiddenEventKinds &= ~(1 << index) } else { hiddenEventKinds |= 1 << index }
+                        }))
+                    }
+                    Button("Show all types") { hiddenEventKinds = 0 }
+                } label: { Image(systemName: "line.3.horizontal.decrease") }
+                    .buttonStyle(AppIconButtonStyle(.neutral)).accessibilityLabel("Timeline event types")
+                    .accessibilityIdentifier("livingDayEventFilter")
+
                 if density == .compact, snapshot.events.count > collapsedEventLimit {
                     Button {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
@@ -249,7 +377,7 @@ struct LivingDayHomeExperience: View {
             .padding(.bottom, 12)
 
             if visibleEvents.isEmpty {
-                Text("No meals or training yet")
+                Text(snapshot.events.isEmpty ? "No meals or training yet" : "No events match these filters")
                     .appFont(size: 14, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
@@ -287,7 +415,7 @@ struct LivingDayHomeExperience: View {
     }
 
     private var visibleEvents: [LivingDaySnapshot.Event] {
-        let events = snapshot.events
+        let events = filteredEvents
         guard density == .compact else { return events }
         guard !isExpanded, events.count > collapsedEventLimit else { return events }
 
@@ -306,9 +434,19 @@ struct LivingDayHomeExperience: View {
         return Array(events[start..<(start + collapsedEventLimit)])
     }
 
-    private var hiddenEventCount: Int {
-        max(0, snapshot.events.count - visibleEvents.count)
+    private var filteredEvents: [LivingDaySnapshot.Event] {
+        snapshot.events.enumerated().filter { _, event in
+            let bit: Int
+            switch event.kind {
+            case .meal, .plannedMeal: bit = 0
+            case .strength, .run: bit = 1
+            case .walk, .activity: bit = 2
+            case .recovery: bit = 3
+            }
+            return hiddenEventKinds & (1 << bit) == 0
+        }.sorted { $0.element.startDate == $1.element.startDate ? $0.offset < $1.offset : $0.element.startDate < $1.element.startDate }.map(\.element)
     }
+    private var hiddenEventCount: Int { max(0, filteredEvents.count - visibleEvents.count) }
 
     private func shouldShowNow(before event: LivingDaySnapshot.Event, at index: Int) -> Bool {
         guard let currentTime = snapshot.currentTime, event.startDate > currentTime else { return false }
@@ -446,104 +584,81 @@ private struct LivingDayTransitionNotice: View {
     }
 }
 
-private struct LivingDayMaiaAnnotation: View {
-    let annotation: DailyNextActionAnnotation
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "bubble.left.and.text.bubble.right.fill")
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundStyle(Color.brandForeground)
-                    .frame(width: 30, height: 30)
-                    .background(Color.brandPrimary.opacity(0.1), in: Circle())
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Maia")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundStyle(Color.brandForeground)
-                    Text(annotation.text)
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundStyle(Color.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 4)
-                Image(systemName: "chevron.right")
-                    .appFont(size: 10, weight: .bold)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 10)
-            }
-            .padding(.vertical, 2)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Maia. \(annotation.text)")
-        .accessibilityHint("Opens the current action")
-        .accessibilityIdentifier("livingDayMaiaAnnotation")
-    }
-}
-
 private struct LivingDayBudgetView: View {
     let budget: LivingDaySnapshot.Budget
     let hydration: LivingDayHydrationState?
     let onAddWater: () -> Void
+    var compactPresentation = false
+    var isHistorical = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Daily Budget")
-                .appFont(size: 13, weight: .bold)
-                .foregroundStyle(.secondary)
-
-            ForEach(budget.nutrients, id: \.kind) { nutrient in
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(nutrient.title)
-                                .foregroundStyle(AppPalette.text)
-                            Spacer()
-                            Text(nutrient.goalProgressText)
-                                .foregroundStyle(Color.textPrimary)
-                                .monospacedDigit()
-                        }
-                        .appFont(size: 12, weight: .bold)
-
-                        Text(nutrient.remainingText)
-                            .appFont(size: 11, weight: .medium)
-                            .foregroundStyle(.secondary)
-
-                        LivingDayBudgetBar(nutrient: nutrient)
+            if let calories = budget.nutrients.first(where: { $0.kind == .calories }) {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    if isHistorical, let consumed = calories.consumed {
+                        Text("\(consumed.formatted(.number.precision(.fractionLength(0)))) cal logged")
+                            .appTextRole(.metric).monospacedDigit()
+                            .accessibilityIdentifier("home_calories_logged")
+                        Text(calories.target.map { "Current goal · " + $0.formatted(.number.precision(.fractionLength(0))) + " cal" } ?? "Current goal unavailable")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("home_historical_target_scope")
+                    } else if let target = calories.target, let consumed = calories.consumed {
+                        let remaining = target - consumed
+                        Text("\(Int(abs(remaining).rounded()).formatted()) cal \(remaining >= 0 ? "left" : "over")")
+                            .appTextRole(.metric).monospacedDigit()
+                            .accessibilityIdentifier("home_calories_remaining")
+                        Text("\(calories.goalProgressText) logged")
+                            .appTextRole(.secondary).foregroundStyle(.secondary)
+                    } else {
+                        Text("Calorie goal unavailable").appTextRole(.control)
                     }
-                } else {
-                    HStack(spacing: 10) {
-                        Text(nutrient.title)
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 54, alignment: .leading)
-
-                        LivingDayBudgetBar(nutrient: nutrient)
-
-                        VStack(alignment: .trailing, spacing: 1) {
-                            Text(nutrient.goalProgressText)
-                                .appFont(size: 11, weight: .bold)
-                                .foregroundStyle(Color.textPrimary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-
-                            Text(nutrient.remainingText)
-                                .appFont(size: 10, weight: .medium)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(width: 112, alignment: .trailing)
-                        .monospacedDigit()
+                    LivingDayBudgetBar(nutrient: calories)
+                    if let planned = calories.planned, planned > 0 {
+                        Text("+\(Int(planned.rounded()).formatted()) cal planned · \(calories.remainingText)")
+                            .appTextRole(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
 
-            if let hydration {
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.row))
+             : AnyLayout(HStackLayout(alignment: .top, spacing: AppSpacing.row))) {
+                ForEach(budget.nutrients.filter { $0.kind != .calories }, id: \.kind) { nutrient in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(nutrient.title).appTextRole(.caption).foregroundStyle(.secondary)
+                        Text(nutrient.goalProgressText).appTextRole(.secondary).monospacedDigit()
+                            .fixedSize(horizontal: false, vertical: true)
+                        LivingDayBudgetBar(nutrient: nutrient)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(nutrient.accessibilitySummary)
+                    .accessibilityAddTraits(.isStaticText)
+                    .accessibilityIdentifier("living_day_nutrient_\(nutrient.kind.rawValue)")
+                }
+            }
+
+            if let hydration, compactPresentation {
+                HStack(spacing: AppSpacing.compact) {
+                    Label(hydrationProgressText(hydration), systemImage: "drop")
+                        .appTextRole(.secondary).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(hydrationProgressText(hydration))
+                        .accessibilityIdentifier("livingDayWaterProgress")
+                    Spacer(minLength: AppSpacing.compact)
+                    if hydration.canAddWater {
+                        Button("Add " + hydrationAmount(hydration.increment, unit: hydration.unit), action: onAddWater)
+                            .appTextRole(.secondary).frame(minHeight: 44)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .accessibilityLabel("Add " + hydrationAmount(hydration.increment, unit: hydration.unit) + " of water")
+                            .accessibilityValue(hydrationProgressText(hydration))
+                            .accessibilityIdentifier("livingDayAddWaterButton")
+                    }
+                }
+            } else if let hydration {
                 Divider()
                     .padding(.vertical, 2)
 
@@ -555,28 +670,44 @@ private struct LivingDayBudgetView: View {
         }
         .accessibilityElement(children: .contain)
     }
+    private func hydrationAmount(_ ounces: Double, unit: WaterVolumeUnit) -> String {
+        "\(unit.amount(fromOunces: ounces).formatted(.number.precision(.fractionLength(0...1)))) \(unit.symbol)"
+    }
+
+    private func hydrationProgressText(_ hydration: LivingDayHydrationState) -> String {
+        let current = hydration.unit.amount(fromOunces: hydration.consumed).formatted(.number.precision(.fractionLength(0...1)))
+        if hydration.trackingOnly { return "\(current) \(hydration.unit.symbol) · tracking only" }
+        let target = hydration.unit.amount(fromOunces: hydration.target).formatted(.number.precision(.fractionLength(0...1)))
+        return "\(current) / \(target) \(hydration.unit.symbol)"
+    }
+
 }
 
 private struct LivingDayHydrationControl: View {
     let hydration: LivingDayHydrationState
     let onAddWater: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @EnvironmentObject private var goals: GoalSettings
+    @EnvironmentObject private var diary: DailyLogService
 
     private var progress: Double {
         min(1, max(0, hydration.consumed / hydration.target))
     }
 
     private var progressText: String {
-        "\(Int(hydration.consumed.rounded()).formatted()) / \(Int(hydration.target.rounded()).formatted()) oz"
+        let current = hydration.unit.amount(fromOunces: hydration.consumed).formatted(.number.precision(.fractionLength(0...1)))
+        let goal = hydration.unit.amount(fromOunces: hydration.target).formatted(.number.precision(.fractionLength(0...1)))
+        return hydration.trackingOnly ? "\(current) \(hydration.unit.symbol)" : "\(current) / \(goal) \(hydration.unit.symbol)"
     }
 
     private var statusText: String {
+        if hydration.trackingOnly { return "Tracking only" }
         let remaining = hydration.target - hydration.consumed
         if remaining > 0 {
-            return "\(Int(remaining.rounded()).formatted()) oz left"
+            return "\(hydration.unit.amount(fromOunces: remaining).formatted(.number.precision(.fractionLength(0...1)))) \(hydration.unit.symbol) left"
         }
         if remaining < 0 {
-            return "\(Int(abs(remaining).rounded()).formatted()) oz over goal"
+            return "Target recorded"
         }
         return "Goal reached"
     }
@@ -604,7 +735,7 @@ private struct LivingDayHydrationControl: View {
                         .monospacedDigit()
                 }
 
-                GeometryReader { geometry in
+                if !hydration.trackingOnly { GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule()
                             .fill(Color.secondary.opacity(0.13))
@@ -615,6 +746,7 @@ private struct LivingDayHydrationControl: View {
                 }
                 .frame(height: 8)
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: progress)
+                }
 
                 Text(statusText)
                     .appFont(size: 10, weight: .medium)
@@ -623,13 +755,23 @@ private struct LivingDayHydrationControl: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Water, \(progressText), \(statusText)")
 
-            Button(action: onAddWater) {
-                Image(systemName: "plus")
+            if hydration.canAddWater {
+                Button(action: onAddWater) {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(AppIconButtonStyle(.brand))
+                .accessibilityLabel("Add \(Int(hydration.increment.rounded()).formatted()) ounces of water")
+                .accessibilityValue(progressText)
+                .accessibilityIdentifier("livingDayAddWaterButton")
+                .contextMenu {
+                    ForEach(goals.hydrationPreferences.containers) { container in
+                        Button("Add " + container.label) {
+                            guard let owner = DIContainer.shared.authService.currentUserID else { return }
+                            diary.addWaterToCurrentLog(for: owner, amount: container.ounces, goalOunces: hydration.trackingOnly ? 0 : hydration.target)
+                        }
+                    }
+                }
             }
-            .buttonStyle(AppIconButtonStyle(.brand))
-            .accessibilityLabel("Add \(Int(hydration.increment.rounded()).formatted()) ounces of water")
-            .accessibilityValue(progressText)
-            .accessibilityIdentifier("livingDayAddWaterButton")
         }
     }
 }
@@ -661,6 +803,8 @@ private struct LivingDayBudgetBar: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(nutrient.accessibilitySummary)
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityIdentifier("living_day_budget_bar_\(nutrient.kind.rawValue)")
     }
 }
 
@@ -676,7 +820,7 @@ private struct LivingDayActionButton: View {
                     .appFont(size: 15, weight: .bold)
                     .foregroundStyle(AppPalette.onBrand)
                     .frame(width: 34, height: 34)
-                    .background(AppPalette.onBrand.opacity(0.12), in: Circle())
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.title)
@@ -690,16 +834,17 @@ private struct LivingDayActionButton: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .appFont(size: 12, weight: .bold)
+                    .accessibilityHidden(true)
             }
             .foregroundStyle(AppPalette.onBrand)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(action.color, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(AppPalette.brand, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
         }
         .buttonStyle(.plain)
         .contentTransition(.opacity)
         .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.24),
+            reduceMotion ? nil : AppMotion.standard,
             value: action
         )
         .accessibilityHint(action.accessibilityHint)
@@ -996,7 +1141,7 @@ private extension LivingDaySnapshot.NutrientBudget {
 
     var color: Color {
         switch kind {
-        case .calories: return .brandPrimary
+        case .calories: return AppPalette.energy
         case .protein: return .accentProtein
         case .carbs: return .accentCarbs
         case .fats: return .accentFats
@@ -1164,9 +1309,49 @@ private extension DailyNextAction {
         switch kind {
         case .preWorkoutFuel, .recoveryMeal: return "Opens the current Training Fuel target"
         case .proteinCatchUp: return "Opens food search"
-        case .trustReview: return "Opens today's Food Trust review"
+        case .trustReview: return "Opens today's food data check"
         case .steadyDay:
             return deepLink.contains("meal-plan") ? "Opens Meal Plan" : "Moves to today's food diary"
         }
     }
 }
+
+#if DEBUG
+/// A read-only presentation fixture: no account preferences or water logs are changed.
+struct CompactHydrationDesignGallery: View {
+    @State private var unit: WaterVolumeUnit = .milliliters
+    @State private var trackingOnly = true
+    private let budget = LivingDaySnapshot.Budget(
+        calories: .init(kind: .calories, consumed: 1200, planned: 0, target: 2100),
+        protein: .init(kind: .protein, consumed: 85, planned: 0, target: 140),
+        carbs: .init(kind: .carbs, consumed: 150, planned: 0, target: 240),
+        fats: .init(kind: .fats, consumed: 40, planned: 0, target: 70))
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                Picker("Water unit", selection: $unit) {
+                    Text("oz").tag(WaterVolumeUnit.ounces)
+                    Text("mL").tag(WaterVolumeUnit.milliliters)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("hydration_design_unit")
+                Toggle("Track without a target", isOn: $trackingOnly)
+                    .accessibilityIdentifier("hydration_design_tracking_only")
+                LivingDayBudgetView(budget: budget,
+                    hydration: .init(consumed: WaterVolumeUnit.milliliters.ounces(from: 1000),
+                        target: WaterVolumeUnit.milliliters.ounces(from: 2000),
+                        increment: WaterVolumeUnit.milliliters.ounces(from: 500),
+                        trackingOnly: trackingOnly, unit: unit),
+                    onAddWater: {}, compactPresentation: true)
+                    .appSurface(.quiet)
+                Text("Read-only presentation example. No water is logged.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }.padding(AppSpacing.screenHorizontal)
+        }
+        .background(AppPalette.canvas)
+        .navigationTitle("Water presentation")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+#endif

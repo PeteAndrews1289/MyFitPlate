@@ -247,7 +247,7 @@ final class PantryServiceTests: XCTestCase {
         XCTAssertEqual(saved.quantity, 2, accuracy: 0.001)
     }
 
-    func testFoodLoggedNotificationRemovesMatchingIngredient() async throws {
+    func testFoodLoggedNotificationPreservesInventoryWithoutAnExplicitConsumptionMapping() async {
         let existingID = UUID()
         service.startListening(userID: "user-1")
         await waitForPantryTasks()
@@ -256,10 +256,21 @@ final class PantryServiceTests: XCTestCase {
         DailyLogNotifications.postFoodLogged(FoodItem(id: "food-1", name: "1 tomato", calories: 25), userID: "user-1")
         await waitForPantryTasks()
 
+        XCTAssertTrue(mockRepo.savedPantryItems.isEmpty)
+        XCTAssertTrue(mockRepo.deletedPantryItemIDs.isEmpty)
+        XCTAssertEqual(service.pantryItems.first?.id, existingID)
+        XCTAssertEqual(service.pantryItems.first?.quantity, 2)
+    }
+
+    func testExplicitInventoryQuantityEditStillReplacesTheSelectedStockAmount() async throws {
+        let existing = item(name: "Rice", quantity: 800, unit: "g")
+        service.pantryItems = [existing]
+        var edited = existing; edited.quantity = 600
+        service.addOrUpdateItem(edited, userID: "user-1")
+        await waitForPantryTasks()
         let saved = try XCTUnwrap(mockRepo.savedPantryItems.first)
-        XCTAssertEqual(saved.id, existingID)
-        XCTAssertEqual(saved.quantity, 1, accuracy: 0.001)
-        XCTAssertEqual(mockRepo.savedPantryUserIDs, ["user-1"])
+        XCTAssertEqual(saved.id, existing.id)
+        XCTAssertEqual(saved.quantity, 600, "An explicit edit must neither add nor deduct an inferred serving")
     }
 
     func testSaveAndDeleteFailuresDoNotMutateMockRecords() async {

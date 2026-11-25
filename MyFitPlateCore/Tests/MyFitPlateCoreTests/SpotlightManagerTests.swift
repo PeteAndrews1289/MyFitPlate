@@ -60,4 +60,31 @@ final class SpotlightManagerTests: XCTestCase {
         XCTAssertTrue(manager.shownSpotlightIDs.isEmpty)
         XCTAssertFalse(manager.isShown(id: "train_hub"))
     }
+
+    func testPausingForSetupDoesNotConsumeUnseenSteps() {
+        let manager = SpotlightManager(defaults: testDefaults)
+        manager.markAsShown(id: "existing_step")
+        manager.setPresentationPaused(true)
+        XCTAssertTrue(manager.isPresentationPaused)
+        XCTAssertFalse(manager.isShown(id: "first_run_step"))
+        manager.setPresentationPaused(false)
+        XCTAssertFalse(manager.isPresentationPaused)
+        XCTAssertEqual(manager.shownSpotlightIDs, ["existing_step"])
+        let restored = SpotlightManager(defaults: testDefaults)
+        XCTAssertFalse(restored.isPresentationPaused, "A transient sheet must not suppress tours after relaunch.")
+        XCTAssertEqual(restored.shownSpotlightIDs, ["existing_step"])
+    }
+
+    func testReplayKeepsPresentationPausedUntilTheCoverCloses() {
+        let manager = SpotlightManager(defaults: testDefaults)
+        manager.markAsShown(id: "home")
+        manager.setPresentationPaused(true)
+        manager.requestReplay()
+        XCTAssertTrue(manager.isPresentationPaused)
+        XCTAssertTrue(manager.shownSpotlightIDs.isEmpty)
+        XCTAssertEqual(manager.replayToken, 1)
+        manager.setPresentationPaused(false)
+        XCTAssertFalse(manager.isShown(id: "home"))
+    }
+
 }

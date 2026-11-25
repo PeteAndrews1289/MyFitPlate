@@ -2,29 +2,31 @@
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import MyFitPlateShared
 
 struct RunActivityWidget: Widget {
     private let brandGreen = Color(red: 0.263, green: 0.678, blue: 0.435)
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RunActivityAttributes.self) { context in
+            let stale = context.isStale || !RunActivityTimerRules.isFresh(reportedAt: context.state.reportedAt)
             // Lock screen
             VStack(spacing: 10) {
                 HStack {
                     Image(systemName: "figure.run")
                         .foregroundColor(brandGreen)
-                    Text(context.state.workoutStepText ?? (context.state.isPaused ? "Run paused" : "Running"))
+                    Text(heading(for: context.state, stale: stale))
                         .font(.headline)
                         .foregroundColor(.white)
                         .lineLimit(1)
                     Spacer()
-                    Text(context.state.paceText)
+                    Text(stale ? "Pace unavailable" : context.state.paceText)
                         .font(.subheadline)
                         .monospacedDigit()
                         .foregroundColor(.secondary)
                 }
 
-                if let target = context.state.workoutTargetText {
+                if !stale, let target = context.state.workoutTargetText {
                     Text(target)
                         .font(.caption)
                         .foregroundColor(brandGreen)
@@ -46,30 +48,27 @@ struct RunActivityWidget: Widget {
                     Spacer()
 
                     VStack(alignment: .trailing) {
-                        Text("Time")
+                        Text(stale ? "Last reported active" : context.state.isPaused ? "Paused active time" : "Active estimate")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        if context.state.isPaused {
-                            Text(context.state.elapsedText)
-                                .font(.system(size: 24, weight: .semibold))
-                                .monospacedDigit()
-                                .foregroundColor(.white)
-                        } else {
-                            Text(timerInterval: context.state.startTime...Date().addingTimeInterval(86400), countsDown: false)
-                                .font(.system(size: 24, weight: .semibold))
-                                .monospacedDigit()
-                                .foregroundColor(.white)
-                                .frame(maxWidth: 90)
-                                .multilineTextAlignment(.trailing)
-                        }
+                        elapsedText(for: context.state, stale: stale)
+                            .font(.system(size: 24, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundColor(.white)
+                            .frame(minWidth: 100, maxWidth: 128)
+                            .multilineTextAlignment(.trailing)
                     }
                 }
+
+                reportCaption(for: context.state)
             }
             .padding()
             .activityBackgroundTint(Color.black.opacity(0.6))
 
+            .widgetURL(MyFitPlateLinks.ActivityDestination.run.url(sessionID: context.attributes.recordingID))
         } dynamicIsland: { context in
-            DynamicIsland {
+            let stale = context.isStale || !RunActivityTimerRules.isFresh(reportedAt: context.state.reportedAt)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
                         Image(systemName: "figure.run")
@@ -81,13 +80,13 @@ struct RunActivityWidget: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.paceText)
+                    Text(stale ? "Pace unavailable" : context.state.paceText)
                         .font(.headline)
                         .monospacedDigit()
                         .foregroundColor(.white)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if let step = context.state.workoutStepText {
+                    if !stale, let step = context.state.workoutStepText {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(step)
                                 .font(.caption)
@@ -100,15 +99,18 @@ struct RunActivityWidget: Widget {
                                     .lineLimit(1)
                             }
                         }
-                    } else if context.state.isPaused {
-                        Text("Paused · \(context.state.elapsedText)")
+                    } else if context.state.isPaused || stale {
+                        Text("\(stale ? "Last reported active" : "Paused") · \(context.state.elapsedText)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     } else {
-                        Text(timerInterval: context.state.startTime...Date().addingTimeInterval(86400), countsDown: false)
-                            .font(.caption)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
+                        VStack(spacing: 2) {
+                            elapsedText(for: context.state, stale: false)
+                                .font(.caption)
+                                .monospacedDigit()
+                            reportCaption(for: context.state)
+                        }
+                        .foregroundColor(.secondary)
                     }
                 }
             } compactLeading: {
@@ -123,7 +125,35 @@ struct RunActivityWidget: Widget {
                 Image(systemName: "figure.run")
                     .foregroundColor(brandGreen)
             }
+            .widgetURL(MyFitPlateLinks.ActivityDestination.run.url(sessionID: context.attributes.recordingID))
         }
+    }
+
+    private func heading(for state: RunActivityAttributes.ContentState, stale: Bool) -> String {
+        if stale { return "Check recording in app" }
+        return state.workoutStepText ?? (state.isPaused ? "Run paused" : "Run recording")
+    }
+
+    private func elapsedText(for state: RunActivityAttributes.ContentState, stale: Bool) -> Text {
+        guard !state.isPaused, !stale,
+              let interval = RunActivityTimerRules.elapsedInterval(startTime: state.startTime, reportedAt: state.reportedAt) else {
+            return Text(state.elapsedText)
+        }
+        // Both the interval and pauseTime have a fixed cutoff carried by this
+        // snapshot. OS stale-context delivery may arrive minutes after process death.
+        return Text(timerInterval: interval, pauseTime: interval.upperBound, countsDown: false)
+    }
+
+    private func reportCaption(for state: RunActivityAttributes.ContentState) -> some View {
+        HStack(spacing: 8) {
+            Text("Last reported \(state.elapsedText)")
+            Spacer(minLength: 0)
+            if let reportedAt = state.reportedAt {
+                Text("Updated ") + Text(reportedAt, style: .relative)
+            }
+        }
+        .font(.caption2)
+        .foregroundColor(.secondary)
     }
 }
 #endif

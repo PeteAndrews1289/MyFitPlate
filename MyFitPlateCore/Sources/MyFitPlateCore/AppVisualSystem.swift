@@ -41,6 +41,15 @@ public enum AppTextRole: CaseIterable, Sendable {
         }
     }
 
+    /// Serif headings identify content. Controls use the system face and metrics use rounded digits.
+    public var design: Font.Design {
+        switch self {
+        case .display, .screenTitle, .sectionTitle: .serif
+        case .metric: .rounded
+        default: .default
+        }
+    }
+
     fileprivate var relativeTextStyle: Font.TextStyle {
         switch self {
         case .display: .largeTitle
@@ -79,7 +88,7 @@ public struct AppTextRoleModifier: ViewModifier {
                 dynamicTypeSize.isAccessibilitySize
                     ? role.accessibilityRelativeTextStyle
                     : role.relativeTextStyle,
-                design: dynamicTypeSize.isAccessibilitySize ? .default : .rounded,
+                design: dynamicTypeSize.isAccessibilitySize ? .default : role.design,
                 weight: role.weight
             )
         )
@@ -89,6 +98,29 @@ public struct AppTextRoleModifier: ViewModifier {
 public extension View {
     func appTextRole(_ role: AppTextRole) -> some View {
         modifier(AppTextRoleModifier(role: role))
+    }
+
+    /// Shared presentation for native editors and grouped lists. Navigation and
+    /// save behavior remain at the call site; this only sets their visual rhythm.
+    func appFormStyle() -> some View {
+        modifier(AppFormStyleModifier())
+    }
+}
+
+public struct AppFormStyleModifier: ViewModifier {
+    public init() {}
+
+    public func body(content: Content) -> some View {
+#if os(iOS)
+        content
+            .listSectionSpacing(AppSpacing.group)
+            .contentMargins(.top, AppSpacing.compact, for: .scrollContent)
+            .scrollContentBackground(.hidden)
+            .background(AppPalette.surface)
+            .font(.system(.body, design: .default))
+#else
+        content.font(.system(.body, design: .default))
+#endif
     }
 }
 
@@ -272,7 +304,7 @@ public struct AppActionButtonStyle: ButtonStyle {
             .multilineTextAlignment(.center)
             .padding(.horizontal, AppSpacing.group)
             .frame(maxWidth: fillsWidth ? .infinity : nil)
-            .frame(minHeight: 50)
+            .frame(minHeight: fillsWidth ? 50 : 44)
             .foregroundStyle(foregroundColor)
             .background(backgroundColor, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             .overlay {
@@ -290,7 +322,7 @@ public struct AppActionButtonStyle: ButtonStyle {
         case .primary: AppPalette.onBrand
         case .destructive: .white
         case .secondary: AppPalette.text
-        case .ghost: AppPalette.brandText
+        case .ghost: AppPalette.text
         }
     }
 
@@ -307,14 +339,15 @@ public struct AppActionButtonStyle: ButtonStyle {
         switch role {
         case .primary, .destructive: .clear
         case .secondary: AppPalette.separator
-        case .ghost: AppPalette.brandText.opacity(0.55)
+        case .ghost: .clear
         }
     }
 
     private var borderWidth: CGFloat {
         switch role {
         case .primary, .destructive: 0
-        case .secondary, .ghost: 1
+        case .secondary: 1
+        case .ghost: 0
         }
     }
 }
@@ -477,6 +510,7 @@ public struct AppSectionHeader<Trailing: View>: View {
             Text(title)
                 .appTextRole(.sectionTitle)
                 .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let subtitle {
                 Text(subtitle)
@@ -813,16 +847,16 @@ public struct AppSheetScaffold<Content: View>: View {
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.compact)
-            .padding(.bottom, AppSpacing.group)
+            .padding(.bottom, AppSpacing.row)
         } else {
-            ZStack(alignment: .topTrailing) {
+            HStack(alignment: .center, spacing: AppSpacing.row) {
                 headerText
-                    .padding(.trailing, 44 + AppSpacing.group)
+                    .layoutPriority(1)
                 closeButton
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.compact)
-            .padding(.bottom, AppSpacing.group)
+            .padding(.bottom, AppSpacing.row)
         }
     }
 
@@ -850,14 +884,15 @@ public struct AppSheetScaffold<Content: View>: View {
     private var closeButton: some View {
         Button(action: dismiss) {
             Image(systemName: "xmark")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(AppPalette.text)
-                .frame(width: 44, height: 44)
+                .frame(width: 32, height: 32)
                 .background(
                     AppPalette.control,
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    in: Circle()
                 )
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -905,78 +940,10 @@ public struct AppEditorScaffold<Content: View, Actions: View>: View {
                     actions
                         .padding(.horizontal, AppSpacing.screenHorizontal)
                         .padding(.top, AppSpacing.compact)
-                        .padding(.bottom, AppSpacing.group)
+                        .padding(.bottom, AppSpacing.row)
                 }
                 .background(AppPalette.canvas)
             }
-        }
-    }
-}
-
-public enum AppDataFreshnessState: CaseIterable, Equatable, Sendable {
-    case current
-    case aging
-    case stale
-    case unavailable
-}
-
-/// A shared, deterministic interpretation of when synchronized data should still be trusted.
-public struct AppDataFreshness: Equatable, Sendable {
-    public let state: AppDataFreshnessState
-    public let updatedAt: Date?
-    public let age: TimeInterval?
-
-    public init(
-        updatedAt: Date?,
-        now: Date = Date(),
-        currentFor: TimeInterval = 15 * 60,
-        staleAfter: TimeInterval = 2 * 60 * 60
-    ) {
-        self.updatedAt = updatedAt
-
-        guard let updatedAt else {
-            state = .unavailable
-            age = nil
-            return
-        }
-
-        let age = max(0, now.timeIntervalSince(updatedAt))
-        self.age = age
-
-        if age <= currentFor {
-            state = .current
-        } else if age <= staleAfter {
-            state = .aging
-        } else {
-            state = .stale
-        }
-    }
-
-    public var shortLabel: String {
-        guard let age else { return "Not synced" }
-
-        if age < 90 {
-            return "Updated now"
-        }
-        if age < 60 * 60 {
-            return "Updated \(max(1, Int(age / 60)))m ago"
-        }
-        if age < 24 * 60 * 60 {
-            return "Updated \(max(1, Int(age / (60 * 60))))h ago"
-        }
-        return "Updated \(max(1, Int(age / (24 * 60 * 60))))d ago"
-    }
-
-    public var accessibilityLabel: String {
-        switch state {
-        case .current:
-            shortLabel
-        case .aging:
-            "\(shortLabel). Recent data may still be syncing."
-        case .stale:
-            "\(shortLabel). Data may be out of date."
-        case .unavailable:
-            "Not synced. Open MyFitPlate on your phone to update this data."
         }
     }
 }

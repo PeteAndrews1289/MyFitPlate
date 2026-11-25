@@ -35,6 +35,37 @@ final class RunImportServiceTests: XCTestCase {
         XCTAssertNotNil(defaultService)
     }
 
+    func testAdapterRetainsHealthKitActiveDurationForPausedWatchWorkout() {
+        let start = Date(timeIntervalSince1970: 1_750_000_000)
+        let workout = HKWorkout(activityType: .running, start: start, end: start.addingTimeInterval(1_800),
+                                duration: 1_500, totalEnergyBurned: nil,
+                                totalDistance: HKQuantity(unit: .meter(), doubleValue: 5_000), metadata: nil)
+        let summary = RunImportService.summary(from: workout)
+        XCTAssertEqual(summary.durationSeconds, 1_500)
+        XCTAssertEqual(RunImportRules.run(from: summary).movingSeconds, 1_500)
+        XCTAssertEqual(summary.endDate, start.addingTimeInterval(1_800))
+    }
+
+    func testStableRecordingMetadataIsReadAndTrustedOnlyForOurOwnWorkouts() {
+        let start = Date(timeIntervalSince1970: 1_750_000_000)
+        let workout = HKWorkout(activityType: .running, start: start, end: start.addingTimeInterval(1_800),
+                                duration: 1_500, totalEnergyBurned: nil,
+                                totalDistance: HKQuantity(unit: .meter(), doubleValue: 5_000),
+                                metadata: [RunRecorderRules.recordingIDMetadataKey: "original-recording",
+                                           RunSaveReviewRules.healthReviewMetadataKey: RunSaveReview.shortRecording.rawValue])
+        XCTAssertEqual(RunImportService.summary(from: workout).recordingID, "original-recording")
+        XCTAssertEqual(RunImportService.summary(from: workout).saveReview, .shortRecording)
+        func imported(bundleID: String) -> Run {
+            RunImportRules.run(from: ImportedWorkoutSummary(uuid: "health-uuid", activity: .running,
+                startDate: start, endDate: start.addingTimeInterval(1_800), distanceMeters: 5_000,
+                sourceName: "Test", sourceBundleID: bundleID, durationSeconds: 1_500,
+                recordingID: "original-recording"))
+        }
+        XCTAssertEqual(imported(bundleID: "MyFitPlate.CalorieBeta").recordingID, "original-recording")
+        XCTAssertNil(imported(bundleID: "com.external.watch").recordingID,
+                     "A different app's metadata must not attach itself to a local recording")
+    }
+
     func testFetchRunsSuccess() {
         let now = Date()
         let start1 = now.addingTimeInterval(-3600)
@@ -206,5 +237,45 @@ final class RunImportServiceTests: XCTestCase {
         XCTAssertEqual(summary.distanceMeters, 3000)
         XCTAssertEqual(summary.activeCalories, 250)
         XCTAssertTrue(summary.isIndoor)
+    }
+}
+
+extension RunImportServiceTests {
+    func testRecentResultPreservesFailureInsteadOfClaimingEmptyHistory() {
+        mockStore.workoutQueryError = CocoaError(.fileReadUnknown)
+        let done = expectation(description: "Recent read failure")
+        service.fetchRunsResult(since: Date().addingTimeInterval(-86400), userID: "owner") { result in
+            if case .success = result { XCTFail("Failed history must not look successfully empty") }
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+    }
+    func testLifetimeQueryHasNoRecentWindowOrFourHundredRunCap() throws {
+        let start = Date().addingTimeInterval(-500 * 86400)
+        mockStore.workoutQueryResult = (0..<401).map { index in
+            let date = start.addingTimeInterval(Double(index) * 3600)
+            return HKWorkout(activityType: .running, start: date, end: date.addingTimeInterval(1800),
+                             duration: 1800, totalEnergyBurned: nil,
+                             totalDistance: HKQuantity(unit: .meter(), doubleValue: 5000), metadata: nil)
+        }
+        let done = expectation(description: "Complete lifetime result")
+        service.fetchLifetimeRuns(userID: "owner") { result in
+            switch result {
+            case .success(let runs): XCTAssertEqual(runs.count, 401)
+            case .failure(let error): XCTFail("\(error)")
+            }
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+        XCTAssertEqual((mockStore.executedQueries.last as? HKSampleQuery)?.limit, HKObjectQueryNoLimit)
+    }
+    func testLifetimeImportFailureIsNotSuccessfulEmptyMileage() {
+        mockStore.workoutQueryError = CocoaError(.fileReadUnknown)
+        let done = expectation(description: "Visible failure")
+        service.fetchLifetimeRuns(userID: "owner") { result in
+            if case .success = result { XCTFail("An unavailable complete history cannot claim zero mileage") }
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
     }
 }

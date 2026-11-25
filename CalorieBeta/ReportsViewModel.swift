@@ -31,6 +31,7 @@ class ReportsViewModel: ObservableObject {
 
     let dailyLogService: DailyLogService
     let healthKitManager: HealthKitManaging
+    private let sleepHistoryStore: SleepHistoryStore
 
     // *** This is the weak reference to the HealthKitViewModel ***
     private weak var healthKitViewModel: HealthKitViewModel?
@@ -44,15 +45,24 @@ class ReportsViewModel: ObservableObject {
     private var workoutAnalyticsTask: Task<Void, Never>?
     private var mealScoreHistoryTask: Task<Void, Never>?
     private var activeReportRequestID: UUID?
+    private var diaryDays: [String: DailyLog] = [:]
+    func diaryEntry(for day: DiaryDayContext) -> DailyLog? {
+        guard day.isOwned(by: currentUserID), activeReportUserID == currentUserID, !isLoading, errorMessage == nil else { return nil }
+        return diaryDays[day.dayKey]
+    }
     private var activeReportUserID: String?
     private var mealScoreHistoryRequestID: UUID?
+    private var sleepRange: (start: Date, end: Date)?
+    @Published var sleepHistoryNotice: String?
 
     init(
         dailyLogService: DailyLogService,
-        healthKitManager: HealthKitManaging = HealthKitManager.shared
+        healthKitManager: HealthKitManaging = HealthKitManager.shared,
+        sleepHistoryStore: SleepHistoryStore? = nil
     ) {
         self.dailyLogService = dailyLogService
         self.healthKitManager = healthKitManager
+        self.sleepHistoryStore = sleepHistoryStore ?? SleepHistoryStore()
     }
 
     // *** This setup method is correct ***
@@ -89,63 +99,25 @@ class ReportsViewModel: ObservableObject {
               let userID = activeReportUserID,
               isCurrentReportRequest(requestID, userID: userID) else { return }
 
-        guard !samples.isEmpty else {
-            self.enhancedSleepReport = nil
-            self.lastNightSleepScore = nil
-            self.wellnessScore = nil
-            scheduleWellnessRecalculation(requestID: requestID, userID: userID)
-            return
-        }
+        processCanonicalSleep(SleepNightEvidence.normalize(samples), notice: nil, requestID: requestID, userID: userID)
+    }
 
+    private func processCanonicalSleep(_ nights: [SleepNightEvidence], notice: String?, requestID: UUID, userID: String) {
+        guard isCurrentReportRequest(requestID, userID: userID) else { return }
+        sleepHistoryNotice = notice
         let calendar = Calendar.current
-        var dailyData: [Date: EnhancedSleepReport.DailySleepStageData] = [:]
-        var allBedtimes: [Date] = []
-        var bedtimesByDay: [Date: Date] = [:]
-
-        let sleepByNight = Dictionary(grouping: samples) { sleepNightKey(for: $0, calendar: calendar) }
-        var mostRecentSleepDay: Date?
-
-        for (day, samplesForDay) in sleepByNight {
-            let relevantSamples = samplesForDay
-
-            let inBedSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .inBed }
-            let asleepSamples = relevantSamples.filter { 
-                guard let value = HKCategoryValueSleepAnalysis(rawValue: $0.value) else { return false }
-                return value == .asleepCore || value == .asleepDeep || value == .asleepREM || value == .asleepUnspecified
-            }
-            
-            let coreSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .asleepCore }
-            let deepSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .asleepDeep }
-            let remSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .asleepREM }
-            let awakeSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .awake }
-
-            let timeCore = calculateTotalDuration(from: coreSamples)
-            let timeDeep = calculateTotalDuration(from: deepSamples)
-            let timeREM = calculateTotalDuration(from: remSamples)
-            let timeAwake = calculateTotalDuration(from: awakeSamples)
-
-            var timeInBed = calculateTotalDuration(from: inBedSamples)
-            let timeAsleep = calculateTotalDuration(from: asleepSamples)
-
-            if timeInBed == 0 && (timeAsleep > 0 || timeAwake > 0) {
-                 let firstStart = relevantSamples.map {$0.startDate}.min() ?? day
-                 let lastEnd = relevantSamples.map {$0.endDate}.max() ?? calendar.date(byAdding: .day, value: 1, to: day) ?? day
-                 timeInBed = lastEnd.timeIntervalSince(firstStart)
-            }
-
-            if timeAsleep > 0 {
-                dailyData[day] = EnhancedSleepReport.DailySleepStageData(
-                    date: day, timeInBed: timeInBed, timeAsleep: timeAsleep, timeCore: timeCore,
-                    timeDeep: timeDeep, timeREM: timeREM, timeAwake: timeAwake
-                )
-                if let bedtime = relevantSamples.map({$0.startDate}).min() {
-                    allBedtimes.append(bedtime)
-                    bedtimesByDay[day] = bedtime
-                }
-                if mostRecentSleepDay.map({ day > $0 }) ?? true { mostRecentSleepDay = day }
-            }
+        let scoped = nights.filter { night in
+            guard let range = sleepRange else { return true }
+            return night.night >= range.start && night.night <= range.end
         }
-
+        let dailyData = Dictionary(uniqueKeysWithValues: scoped.map { night in
+            (night.night, EnhancedSleepReport.DailySleepStageData(date: night.night, timeInBed: night.timeInBed,
+                timeAsleep: night.timeAsleep, timeCore: night.timeCore, timeDeep: night.timeDeep,
+                timeREM: night.timeREM, timeAwake: night.timeAwake))
+        })
+        let allBedtimes = scoped.compactMap(\.firstSleep)
+        let bedtimesByDay = Dictionary(uniqueKeysWithValues: scoped.compactMap { night in night.firstSleep.map { (night.night, $0) } })
+        let mostRecentSleepDay = scoped.last?.night
         let validDays = dailyData.values.sorted { $0.date < $1.date }
         guard !validDays.isEmpty else {
             self.enhancedSleepReport = nil; self.lastNightSleepScore = nil
@@ -181,13 +153,15 @@ class ReportsViewModel: ObservableObject {
         let weeklyAverageScore = dailyScores.reduce(0, +) / max(dailyScores.count, 1)
         guard let firstDate = validDays.first?.date, let lastDate = validDays.last?.date else { return }
         let dateFormatter = DateFormatter(); dateFormatter.dateFormat = "MMM d"
-        let dateRangeString = "\(dateFormatter.string(from: firstDate)) - \(dateFormatter.string(from: lastDate))"
+        let dateRangeString = "\(dateFormatter.string(from: sleepRange?.start ?? firstDate)) - \(dateFormatter.string(from: sleepRange?.end ?? lastDate))"
 
         self.enhancedSleepReport = EnhancedSleepReport(
             dateRange: dateRangeString, averageSleepScore: weeklyAverageScore, averageTimeInBed: avgInBed,
             averageTimeAsleep: avgAsleep, averageTimeInCore: avgCore, averageTimeInDeep: avgDeep,
             averageTimeInREM: avgREM, averageTimeAwake: avgAwake, sleepConsistencyScore: consistencyScore,
-            sleepConsistencyMessage: consistencyMessage, dailySleepData: validDays
+            sleepConsistencyMessage: consistencyMessage, dailySleepData: validDays, nightEvidence: scoped,
+            requestedDayCount: sleepRange.map { (calendar.dateComponents([.day], from: $0.start, to: $0.end).day ?? 0) + 1 }, evidenceNotice: notice,
+            requestedNights: sleepRange.map { $0.start...$0.end }
         )
 
         if errorMessage == "No data available for the selected timeframe." {
@@ -229,7 +203,7 @@ class ReportsViewModel: ObservableObject {
         let stdDev = calculateStdDev(for: bedtimeMinuteValues) // Calculate standard deviation
         // Assign score and message based on standard deviation
         let score: Int; let message: String
-        if stdDev <= 15 { score = 100; message = "Excellent! Bedtime varies by only \(Int(round(stdDev))) mins." } else if stdDev <= 30 { score = 88; message = "Good. Bedtime varies by ~\(Int(round(stdDev))) mins." } else if stdDev <= 60 { score = 70; message = "Fair. Bedtime varies by ~\(Int(round(stdDev))) mins. Aim for more regularity." } else if stdDev <= 90 { score = 55; message = "Bedtime was off by ~\(Int(round(stdDev))) mins. Keep nudging it earlier." } else { score = 40; message = "Inconsistent. Bedtime varies by over an hour and a half (\(Int(round(stdDev))) mins)." }
+        if stdDev <= 15 { score = 100; message = "Recorded bedtime varies by \(Int(round(stdDev))) mins." } else if stdDev <= 30 { score = 88; message = "Recorded bedtime varies by ~\(Int(round(stdDev))) mins." } else if stdDev <= 60 { score = 70; message = "Recorded bedtime varies by ~\(Int(round(stdDev))) mins." } else if stdDev <= 90 { score = 55; message = "Recorded bedtime varies by ~\(Int(round(stdDev))) mins." } else { score = 40; message = "Recorded bedtime varies by over an hour and a half (\(Int(round(stdDev))) mins)." }
         return (score, message)
     }
 
@@ -297,9 +271,23 @@ class ReportsViewModel: ObservableObject {
         return sqrt(variance)
     }
 
+    func invalidateAccountProjection() {
+        reportTask?.cancel(); wellnessTask?.cancel(); workoutAnalyticsTask?.cancel(); mealScoreHistoryTask?.cancel()
+        diaryDays.removeAll()
+        activeReportRequestID = nil; activeReportUserID = nil; mealScoreHistoryRequestID = nil
+        summary = nil; mealScore = nil; mealScoreHistory = []
+        calorieTrend = []; proteinTrend = []; carbTrend = []; fatTrend = []
+        micronutrientAverages = []; mealDistributionData = []
+        reportSpecificInsight = nil; enhancedSleepReport = nil; weeklyWorkoutReport = nil; workoutAnalytics = nil
+        wellnessScore = nil; lastNightSleepScore = nil; sleepRange = nil; sleepHistoryNotice = nil
+        yesterdaysLog = nil; didCalculateYesterdaysMealScore = false; isLoading = false; errorMessage = nil
+    }
+
     // Fetches all necessary data for the selected timeframe.
     func fetchData(for timeframe: ReportTimeframe, startDate: Date? = nil, endDate: Date? = nil) {
+        if activeReportUserID != nil && activeReportUserID != currentUserID { invalidateAccountProjection() }
         guard let userID = currentUserID, currentGoals != nil else {
+            invalidateAccountProjection()
             reportTask?.cancel()
             wellnessTask?.cancel()
             workoutAnalyticsTask?.cancel()
@@ -330,6 +318,8 @@ class ReportsViewModel: ObservableObject {
         weeklyWorkoutReport = nil
         workoutAnalytics = nil
         enhancedSleepReport = nil
+        sleepRange = nil
+        sleepHistoryNotice = nil
         lastNightSleepScore = nil
         wellnessScore = nil
         didCalculateYesterdaysMealScore = false
@@ -385,38 +375,57 @@ class ReportsViewModel: ObservableObject {
                 endDate: yesterday
             )
 
+            let calendar = Calendar.current
+            self.sleepRange = (reportStartDate, reportEndDate)
+            let sleepStore = self.sleepHistoryStore
+            let cached: SleepHistorySnapshot?
+            do {
+                cached = try sleepStore.load(userID: userID, start: reportStartDate, end: reportEndDate, zone: calendar.timeZone.identifier)
+            } catch {
+                cached = nil
+                self.sleepHistoryNotice = "Saved sleep history could not be opened. Its file is kept on this device."
+            }
+            if let cached {
+                self.processCanonicalSleep(cached.nights,
+                    notice: "Saved snapshot from \(cached.fetchedAt.formatted(date: .abbreviated, time: .shortened)). Refreshing Apple Health…",
+                    requestID: requestID, userID: userID)
+            }
             if self.healthKitViewModel?.isAuthorized ?? false {
-                let sleepStartDate = Calendar.current.date(
-                    byAdding: .day,
-                    value: -1,
-                    to: reportStartDate
-                ) ?? reportStartDate
-                self.healthKitManager.fetchSleepAnalysis(
-                    startDate: sleepStartDate,
-                    endDate: reportEndDate
-                ) { [weak self] samples, _ in
+                let start = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: reportStartDate) ?? reportStartDate
+                let lastEvening = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: reportEndDate) ?? reportEndDate
+                let end = min(Date(), calendar.date(byAdding: .day, value: 1, to: lastEvening) ?? reportEndDate)
+                self.healthKitManager.fetchSleepAnalysis(startDate: min(start, end), endDate: end) { [weak self] samples, error in
                     Task { @MainActor in
-                        guard let self,
-                              self.isCurrentReportRequest(requestID, userID: userID) else { return }
-                        if let samples {
-                            let reportEndBoundary = Calendar.current.date(
-                                byAdding: .day,
-                                value: 1,
-                                to: reportEndDate
-                            ) ?? reportEndDate
-                            let filteredSamples = samples.filter {
-                                let night = self.sleepNightKey(for: $0, calendar: Calendar.current)
-                                return night >= reportStartDate && night < reportEndBoundary
-                            }
-                            self.processAndScoreSleepData(samples: filteredSamples)
-                        } else {
-                            self.enhancedSleepReport = nil
-                            self.lastNightSleepScore = nil
-                            self.wellnessScore = nil
-                            self.scheduleWellnessRecalculation(requestID: requestID, userID: userID)
+                        guard let self, self.isCurrentReportRequest(requestID, userID: userID) else { return }
+                        guard error == nil, let samples else {
+                            let notice = cached == nil
+                                ? "Sleep could not be refreshed from Apple Health. Unavailable nights are not zero sleep."
+                                : "Apple Health could not be refreshed. Showing the saved snapshot; newer or corrected records may be missing."
+                            self.processCanonicalSleep(cached?.nights ?? [], notice: notice, requestID: requestID, userID: userID)
+                            return
                         }
+                        let nights = SleepNightEvidence.normalize(samples, calendar: calendar).filter {
+                            $0.night >= reportStartDate && $0.night <= reportEndDate
+                        }
+                        // HealthKit may return an empty array when read access is unavailable.
+                        // Retain a known snapshot instead of declaring that prior records disappeared.
+                        if nights.isEmpty, let cached, !cached.nights.isEmpty {
+                            self.processCanonicalSleep(cached.nights,
+                                notice: "Apple Health returned no readable sleep records. Showing the saved snapshot, which may be stale. Check source records and read permissions in Health.",
+                                requestID: requestID, userID: userID)
+                            return
+                        }
+                        let snapshot = SleepHistorySnapshot(ownerID: userID, startDay: reportStartDate, endDay: reportEndDate,
+                            timeZoneIdentifier: calendar.timeZone.identifier, nights: nights)
+                        var notice: String?
+                        do { try sleepStore.save(snapshot, currentUserID: self.currentUserID) } catch { notice = "Current sleep records are shown, but this snapshot could not be saved for offline use." }
+                        self.processCanonicalSleep(nights, notice: notice, requestID: requestID, userID: userID)
                     }
                 }
+            } else {
+                self.processCanonicalSleep(cached?.nights ?? [],
+                    notice: cached == nil ? "Connect Apple Health to view readable sleep records." : "Apple Health is unavailable. Showing the saved snapshot.",
+                    requestID: requestID, userID: userID)
             }
 
             let mainResult = await logResult
@@ -461,8 +470,16 @@ class ReportsViewModel: ObservableObject {
         userID: String
     ) {
         guard let goals = currentGoals else { return } // Need goals for comparisons
-        // Filter out logs that have no meals AND no exercises (empty days)
-        let validLogs = logs.filter { !$0.meals.isEmpty || !($0.exercises?.isEmpty ?? true) }
+        let now = Date()
+        let earliestDay = logs.compactMap { NutritionDayEvidence.civilDate(for: $0) }.min() ?? now
+        let days = NutritionDayEvidence.days(logs, from: earliestDay, through: now, now: now)
+        diaryDays.removeAll(keepingCapacity: true)
+        for day in days {
+            if let key = NutritionDayReviewRules.key(day) { diaryDays[key] = day }
+        }
+        let completeLogs = days.filter { NutritionDayEvidence.isComplete($0, now: now) }
+        // Recorded trends retain partial days; intake averages and scores require a reviewed day.
+        let validLogs = days.filter { !$0.meals.flatMap(\.foodItems).isEmpty || !($0.exercises?.isEmpty ?? true) || NutritionDayEvidence.isComplete($0, now: now) }
         let daysWithActualLogEntries = validLogs.count
 
         // Reset all data arrays and summary before processing
@@ -483,14 +500,15 @@ class ReportsViewModel: ObservableObject {
 
         // Process workouts first (if any). Dedupe per-day so a routine also recorded on
         // Apple Health isn't counted twice in the workout count or calories burned.
-        let allExercises = validLogs.flatMap { ($0.exercises ?? []).dedupedAgainstHealthKit() }
+        let activeDays = validLogs.map { ($0.exercises ?? []).dedupedAgainstHealthKit() }.filter { !$0.isEmpty }
+        let allExercises = activeDays.flatMap { $0 }
         if !allExercises.isEmpty {
             let totalWorkouts = allExercises.count; let totalCaloriesBurned = allExercises.reduce(0) {$0 + $1.caloriesBurned}
             // Find most frequent workout type
-            let frequency = Dictionary(grouping: allExercises, by: {$0.name}).mapValues {$0.count}
-            let mostFrequent = frequency.max {$0.value < $1.value}?.key ?? "N/A"
+            let frequency = Dictionary(grouping: allExercises, by: \.name).mapValues(\.count)
+            let mostFrequent = frequency.keys.sorted().max { frequency[$0, default: 0] < frequency[$1, default: 0] } ?? "N/A"
             // Create the workout report summary
-            self.weeklyWorkoutReport = WorkoutReport(totalWorkouts: totalWorkouts, totalCaloriesBurned: totalCaloriesBurned, mostFrequentWorkout: mostFrequent)
+            self.weeklyWorkoutReport = WorkoutReport(totalWorkouts: totalWorkouts, activeDays: activeDays.count, totalCaloriesBurned: totalCaloriesBurned, mostFrequentWorkout: mostFrequent)
         }
 
         // Calculate detailed workout analytics without allowing an older timeframe to repaint the view.
@@ -508,23 +526,28 @@ class ReportsViewModel: ObservableObject {
              // Iterate through each valid daily log
              for log in validLogs {
                  let c=log.totalCalories(); let mac=log.totalMacros()
-                 // Accumulate totals
-                 totCals+=c; totProt+=mac.protein; totCarb+=mac.carbs; totFat+=mac.fats
-                 for nutrient in reportedMicronutrients where log.micronutrientCoverage(for: nutrient).hasReportedData {
-                     micronutrientTotals[nutrient, default: 0] += log.totalMicronutrient(nutrient)
-                     micronutrientReportedDays[nutrient, default: 0] += 1
+                 if NutritionDayEvidence.isComplete(log, now: now) {
+                     totCals+=c; totProt+=mac.protein; totCarb+=mac.carbs; totFat+=mac.fats
+                     for nutrient in reportedMicronutrients where log.micronutrientCoverage(for: nutrient).hasReportedData {
+                         micronutrientTotals[nutrient, default: 0] += log.totalMicronutrient(nutrient)
+                         micronutrientReportedDays[nutrient, default: 0] += 1
+                     }
                  }
                  // Create data points for trends
-                 let date=Calendar.current.startOfDay(for: log.date) // Use start of day for consistency
-                 tmpCalT.append(DateValuePoint(date: date, value: c)); tmpProtT.append(DateValuePoint(date: date, value: mac.protein)); tmpCarbT.append(DateValuePoint(date: date, value: mac.carbs)); tmpFatT.append(DateValuePoint(date: date, value: mac.fats))
+                 guard let date = NutritionDayEvidence.civilDate(for: log) else { continue }
+                 if !log.meals.flatMap(\.foodItems).isEmpty || NutritionDayEvidence.isComplete(log, now: now) {
+                     tmpCalT.append(DateValuePoint(date: date, value: c)); tmpProtT.append(DateValuePoint(date: date, value: mac.protein)); tmpCarbT.append(DateValuePoint(date: date, value: mac.carbs)); tmpFatT.append(DateValuePoint(date: date, value: mac.fats))
+                 }
                  // Accumulate calories per meal type
                  for meal in log.meals { mealCals[meal.name, default: 0.0] += meal.foodItems.reduce(0) { $0 + $1.calories } }
              }
              // Calculate averages
-             let divisor = Double(daysWithActualLogEntries)
+             let divisor = Double(max(completeLogs.count, 1))
              let avgCals=totCals/divisor; let avgProt=totProt/divisor; let avgCarb=totCarb/divisor; let avgFat=totFat/divisor
              // Create the overall summary report
-             self.summary = ReportSummary(timeframe: timeframeName, averageCalories: avgCals, averageProtein: avgProt, averageCarbs: avgCarb, averageFats: avgFat, daysLogged: daysWithActualLogEntries)
+             if !completeLogs.isEmpty {
+                 self.summary = ReportSummary(timeframe: timeframeName, averageCalories: avgCals, averageProtein: avgProt, averageCarbs: avgCarb, averageFats: avgFat, daysLogged: completeLogs.count)
+             }
              // Set the trend data, sorted by date
              self.calorieTrend=tmpCalT.sorted {$0.date<$1.date}; self.proteinTrend=tmpProtT.sorted {$0.date<$1.date}; self.carbTrend=tmpCarbT.sorted {$0.date<$1.date}; self.fatTrend=tmpFatT.sorted {$0.date<$1.date}
              // Create micronutrient average data points
@@ -538,7 +561,7 @@ class ReportsViewModel: ObservableObject {
                  (.vitaminC, goals.vitaminCGoal ?? 1),
                  (.vitaminD, goals.vitaminDGoal ?? 1)
              ]
-             let nutritionDayCount = validLogs.filter { !$0.meals.flatMap(\.foodItems).isEmpty }.count
+             let nutritionDayCount = completeLogs.count
              self.micronutrientAverages = micronutrientGoals.compactMap { nutrient, goal in
                  guard goal > 0,
                        let reportedDays = micronutrientReportedDays[nutrient],
@@ -555,15 +578,17 @@ class ReportsViewModel: ObservableObject {
                  )
              }
              // Calculate meal distribution if total calories > 0
-             if totCals > 0 { var tmpMealDist: [MealDistributionDataPoint] = []; for (n, c) in mealCals { tmpMealDist.append(MealDistributionDataPoint(mealName: n, totalCalories: c / divisor)) }; self.mealDistributionData = tmpMealDist.sorted { $0.mealName < $1.mealName } } else { self.mealDistributionData = [] } // Clear distribution if no calories logged
+             let foodDayCount = validLogs.filter { $0.meals.contains { !$0.foodItems.isEmpty } }.count
+             if foodDayCount > 0 {
+                 self.mealDistributionData = mealCals.map { name, calories in
+                     MealDistributionDataPoint(mealName: name, totalCalories: calories / Double(foodDayCount))
+                 }.sorted { $0.mealName < $1.mealName }
+             }
              // Generate a simple insight based on the logs
-             self.reportSpecificInsight = generateReportInsight(from: validLogs)
-         } else {
-             // If no valid logs, but sleep or workout data exists, create a zeroed summary
-             if enhancedSleepReport != nil || weeklyWorkoutReport != nil { self.summary = ReportSummary(timeframe: timeframeName, averageCalories: 0, averageProtein: 0, averageCarbs: 0, averageFats: 0, daysLogged: 0) }
+             self.reportSpecificInsight = generateReportInsight(from: completeLogs)
          }
          // If still no summary, no sleep, no workout, no analytics, and no error message, set the error message.
-         if summary == nil && enhancedSleepReport == nil && weeklyWorkoutReport == nil && workoutAnalytics == nil && errorMessage == nil { self.errorMessage = "No data available for the selected timeframe." }
+         if validLogs.isEmpty && summary == nil && enhancedSleepReport == nil && weeklyWorkoutReport == nil && workoutAnalytics == nil && errorMessage == nil { self.errorMessage = "No data available for the selected timeframe." }
     }
 
     // Generates a simple insight based on the highest calorie day.
@@ -573,7 +598,7 @@ class ReportsViewModel: ObservableObject {
         // Format the date for display
         let formatter = DateFormatter(); formatter.dateStyle = .medium; let dateString = formatter.string(from: highestCalorieLog.date)
         // Create the insight object
-        return UserInsight(title: "Highest Calorie Day", message: "Your highest calorie day was \(dateString), with \(String(format: "%.0f", highestCalorieLog.totalCalories())) calories.", category: .smartSuggestion)
+        return UserInsight(title: "Highest confirmed intake", message: "Among your fully logged days, \(dateString) had the highest recorded intake: \(highestCalorieLog.totalCalories().formatted(.number.precision(.fractionLength(0)))) calories.", category: .smartSuggestion)
     }
 
     // Fetches historical meal scores from Firestore.
@@ -646,10 +671,15 @@ class ReportsViewModel: ObservableObject {
         let hrvValue = (await hrvSample)?.quantity.doubleValue(for: HKUnit(from: "ms"))
         guard !Task.isCancelled, isCurrentReportRequest(requestID, userID: userID) else { return }
 
+        let latestSleepDay = healthKitViewModel?.sleepSummary.lastSleepDate
+        let currentSleepScore = latestSleepDay.flatMap { day -> Int? in
+            let age = Date().timeIntervalSince(day)
+            return age >= 0 && age <= 48 * 3600 ? healthKitViewModel?.sleepSummary.lastNightScore : nil
+        }
         // Calculate the final wellness score using the service
         let finalWellnessScore = wellnessScoreService.calculateWellnessScore(
-            mealScore: calculatedMealScore.overallScore > 0 ? calculatedMealScore : nil, // Pass meal score only if calculated
-            lastNightSleepScore: lastNightSleepScore,
+            mealScore: calculatedMealScore.grade != "N/A" ? calculatedMealScore : nil,
+            lastNightSleepScore: currentSleepScore,
             restingHeartRate: rhrValue, hrv: hrvValue
         )
 
@@ -664,6 +694,7 @@ class ReportsViewModel: ObservableObject {
     private func fetchLatestHRV() async -> HKQuantitySample? { await withCheckedContinuation { c in healthKitManager.fetchLatestHRV { c.resume(returning: $0) } } }
     
     private func saveMealScore(for userID: String, date: Date, score: MealScore) {
+        guard score.grade != "N/A" else { return }
         Task {
             do {
                 try await DIContainer.shared.reportsRepository.saveMealScore(userID: userID, date: date, score: score)
@@ -676,7 +707,7 @@ class ReportsViewModel: ObservableObject {
     // Calculates the meal score based on calorie, macro, and quality adherence.
     // This is the correct "live" version.
     private func calculateMealScore(for log: DailyLog, goals: GoalSettings) async -> MealScore {
-        guard let calorieGoal = goals.calories, calorieGoal > 0 else { return .noScore }
+        guard NutritionDayEvidence.isComplete(log), let calorieGoal = goals.calories, calorieGoal > 0 else { return .noScore }
         
         // Calorie Control Score (40%)
         let calorieDiff = abs(log.totalCalories() - calorieGoal)

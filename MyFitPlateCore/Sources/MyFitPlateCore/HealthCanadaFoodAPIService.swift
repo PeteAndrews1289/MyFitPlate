@@ -8,10 +8,14 @@ public final class HealthCanadaFoodAPIService {
     }
 
     public func searchFoods(query: String, limit: Int = 12) async -> [FoodItem] {
+        (try? await searchFoodsResult(query: query, limit: limit).get()) ?? []
+    }
+
+    public func searchFoodsResult(query: String, limit: Int = 12) async -> Result<[FoodItem], Error> {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else { return [] }
-        guard await isFeatureEnabled() else { return [] }
-        guard let service = await resolvedCloudFunctionService() else { return [] }
+        guard trimmed.count >= 2 else { return .success([]) }
+        guard await isFeatureEnabled() else { return .success([]) }
+        guard let service = await resolvedCloudFunctionService() else { return .failure(APIError.noData) }
 
         do {
             let payload = try await service.callFunction(
@@ -19,10 +23,10 @@ public final class HealthCanadaFoodAPIService {
                 with: ["query": trimmed, "limit": min(max(limit, 1), 20)]
             )
             let data = try Self.jsonData(from: payload)
-            return try HealthCanadaFoodParser.foodItems(from: data)
+            return .success(try HealthCanadaFoodParser.foodItems(from: data))
         } catch {
             AppLog.data.error("Health Canada food search failed: \(error.localizedDescription, privacy: .public)")
-            return []
+            return .failure(error)
         }
     }
 

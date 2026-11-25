@@ -1,69 +1,24 @@
 import SwiftUI
 import MyFitPlateCore
 
-// DESIGN.md rule 1: search is this screen's hero. The alternate logging paths are one
-// compact, horizontally scrollable row of chips (~44pt) instead of a 2x3 grid of 82pt
-// tiles (~280pt) — the user's saved and recent foods rise above the fold, where the
-// actual logging happens.
-struct FoodSearchActionGrid: View {
-    let manualAction: () -> Void
-    let quickAddAction: () -> Void
-    let cameraAction: () -> Void
-    let menuAction: () -> Void
-    let barcodeAction: () -> Void
-    let textAction: () -> Void
-    let valueRadarAction: () -> Void
-    let chainBuilderAction: () -> Void
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                FoodSearchActionChip(title: "Fast Food", icon: "takeoutbag.and.cup.and.straw.fill", action: chainBuilderAction)
-                FoodSearchActionChip(title: "Barcode", icon: "barcode.viewfinder", action: barcodeAction)
-                FoodSearchActionChip(title: "Camera", icon: "camera.fill", action: cameraAction)
-                FoodSearchActionChip(title: "Describe", icon: "text.bubble.fill", action: textAction)
-                FoodSearchActionChip(title: "Menu", icon: "list.bullet.rectangle.portrait.fill", action: menuAction)
-                FoodSearchActionChip(title: "Value Radar", icon: "chart.pie.fill", action: valueRadarAction)
-                FoodSearchActionChip(title: "Quick macros", icon: "bolt.fill", action: quickAddAction)
-                FoodSearchActionChip(title: "Manual", icon: "square.and.pencil", action: manualAction)
-            }
-        }
-    }
-}
-
-struct FoodSearchActionChip: View {
+struct FoodCaptureButton: View {
     let title: String
-    let icon: String
+    let symbol: String
+    let identifier: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: AppSpacing.compact) {
-                Image(systemName: icon)
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-
-                Text(title)
-                    .appTextRole(.secondary)
-                    .foregroundStyle(AppPalette.text)
-                    .lineLimit(1)
+            VStack(spacing: 2) {
+                Image(systemName: symbol).appTextRole(.control)
+                Text(title).appTextRole(.caption)
             }
-            .padding(.horizontal, AppSpacing.row)
-            .frame(minHeight: 44)
-            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    .stroke(AppPalette.separator.opacity(0.55), lineWidth: 0.5)
-            }
+            .foregroundStyle(AppPalette.text)
+            .frame(minWidth: 44, minHeight: 44)
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("food_search_action_\(identifier)")
-    }
-
-    private var identifier: String {
-        title
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "_")
+        .accessibilityIdentifier(identifier)
     }
 }
 

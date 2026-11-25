@@ -3,12 +3,27 @@ import XCTest
 
 final class RoutineEditorViewModelTests: XCTestCase {
 
+    func testIdentityBasedReorderPreservesSetPayloadAndIgnoresExternalDrop() throws {
+        let first = RoutineExercise(name: "Squat", type: .strength, sets: [ExerciseSet(target: "5 reps")])
+        let second = RoutineExercise(name: "Deadlift", type: .strength, sets: [ExerciseSet(target: "8 reps")])
+        let third = RoutineExercise(name: "Plank", type: .flexibility, sets: [ExerciseSet(target: "30 sec")])
+        let routine = WorkoutRoutine(id: "rotation", userID: "user", name: "Session", dateCreated: Date(), exercises: [first, second, third])
+        let vm = RoutineEditorViewModel(routine: routine) { _ in }
+        let originalPayloads = try Dictionary(uniqueKeysWithValues: vm.exercises.map { ($0.id, try PlanFingerprint.make($0)) })
+        vm.moveExercise(id: first.id, to: third.id)
+        XCTAssertEqual(vm.exercises.map(\.id), [second.id, third.id, first.id])
+        vm.moveExercise(id: "external-or-deleted-row", to: third.id)
+        XCTAssertEqual(vm.exercises.map(\.id), [second.id, third.id, first.id])
+        for exercise in vm.exercises { XCTAssertEqual(try PlanFingerprint.make(exercise), originalPayloads[exercise.id]) }
+        XCTAssertEqual(routine.exercises.map(\.id), [first.id, second.id, third.id], "Reordering a draft never edits the saved routine reference")
+    }
+
     func testViewModelInitialization() {
         let routine = WorkoutRoutine(id: "123", userID: "user", name: "Leg Day", dateCreated: Date(), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         XCTAssertEqual(vm.routineName, "Leg Day")
-        XCTAssertTrue(vm.canSave)
+        XCTAssertFalse(vm.canSave, "A named but empty routine cannot be played")
         XCTAssertEqual(vm.exercises.count, 0)
     }
 
@@ -22,6 +37,8 @@ final class RoutineEditorViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canSave)
 
         vm.routineName = "New Name"
+        XCTAssertFalse(vm.canSave)
+        vm.addExercise(from: ExercisePickerDraft(name: "Squat", category: nil, type: .strength))
         XCTAssertTrue(vm.canSave)
     }
 

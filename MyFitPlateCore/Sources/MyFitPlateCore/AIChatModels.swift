@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 public func capitalizedFirstLetter(of string: String) -> String {
     guard let first = string.first else { return "" }
@@ -9,11 +10,15 @@ public struct ChatMessage: Identifiable, Codable, Equatable {
     public let id: UUID
     public let text: String
     public let isUser: Bool
+    public let createdAt: Date?
+    public let responseMetadata: AIResponseMetadata?
 
-    public init(id: UUID = UUID(), text: String, isUser: Bool) {
+    public init(id: UUID = UUID(), text: String, isUser: Bool, createdAt: Date? = Date(), responseMetadata: AIResponseMetadata? = nil) {
         self.id = id
         self.text = text
         self.isUser = isUser
+        self.createdAt = createdAt
+        self.responseMetadata = responseMetadata
     }
 }
 
@@ -143,7 +148,13 @@ public struct MaiaContextContract: Codable, Equatable {
 }
 
 public struct MaiaActionPayload: Codable, Identifiable {
-    public var id: UUID { UUID() }
+    public var id: UUID {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let bytes = Array(SHA256.hash(data: (try? encoder.encode(self)) ?? Data()).prefix(16))
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
     public let type: String?
     public let mealName: String?
     public let calories: Double?
@@ -165,10 +176,10 @@ public extension MaiaActionPayload {
         switch type {
         case "meal_suggestion", nil:
             guard let mealName, !mealName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  let calories, calories >= 0,
-                  let protein, protein >= 0,
-                  let carbs, carbs >= 0,
-                  let fats, fats >= 0 else {
+                  let calories, calories.isFinite, calories >= 0,
+                  let protein, protein.isFinite, protein >= 0,
+                  let carbs, carbs.isFinite, carbs >= 0,
+                  let fats, fats.isFinite, fats >= 0 else {
                 return "meal_suggestion_missing_fields"
             }
         case "generate_meal_plan", "stop_fast":
@@ -176,19 +187,19 @@ public extension MaiaActionPayload {
         case "log_workout":
             guard let exerciseName, !exerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   let durationMinutes, durationMinutes > 0,
-                  let caloriesBurned, caloriesBurned >= 0 else {
+                  let caloriesBurned, caloriesBurned.isFinite, caloriesBurned > 0 else {
                 return "log_workout_missing_fields"
             }
         case "log_water":
-            guard let amountOunces, amountOunces > 0 else {
+            guard let amountOunces, amountOunces.isFinite, amountOunces > 0 else {
                 return "log_water_missing_fields"
             }
         case "start_fast":
-            guard fastHours == nil || (fastHours ?? 0) > 0 else {
+            guard fastHours == nil || (1..<24).contains(fastHours ?? 0) else {
                 return "start_fast_invalid_hours"
             }
         case "log_weight":
-            guard let weightPounds, weightPounds > 0 else {
+            guard let weightPounds, weightPounds.isFinite, weightPounds > 0 else {
                 return "log_weight_missing_fields"
             }
         default:

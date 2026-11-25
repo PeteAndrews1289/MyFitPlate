@@ -132,6 +132,8 @@ final class LivingDayInclusiveRenderingTests: XCTestCase {
             .padding(18)
         }
         .background(Color(UIColor.systemBackground))
+        .environmentObject(GoalSettings(healthKitManager: MockHealthKitManager(), isEditingPreview: true))
+        .environmentObject(DailyLogService())
         .environment(\.sizeCategory, sizeCategory)
         .environment(\.colorScheme, colorScheme)
 

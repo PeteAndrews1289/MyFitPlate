@@ -73,6 +73,37 @@ final class NutritionLogModelsTests: XCTestCase {
 
     // MARK: - ServingNutritionCalculator Tests
 
+    func testPortionEditorOffersMassOnlyForAnExplicitMass() throws {
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("8 x oz"), "8 oz")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("8 × oz"), "8 oz")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("g"), "1 g")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("4 oz"), "4 oz")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("2 x 100 g"), "2 × 100 g")
+        XCTAssertEqual(ServingNutritionCalculator.displayPortion("2 x 1 small apple"), "2 × 1 small apple")
+        XCTAssertEqual(try XCTUnwrap(ServingNutritionCalculator.measuredGrams(in: "4 oz")), 113.3980925, accuracy: 0.00001)
+        XCTAssertEqual(ServingNutritionCalculator.measuredGrams(in: "1 container (150 g)"), 150)
+        XCTAssertEqual(ServingNutritionCalculator.measuredGrams(in: "grams"), 1)
+        XCTAssertEqual(ServingNutritionCalculator.measuredGrams(in: "0.25 kg"), 250)
+        for serving in ["1 cup", "serving", "8 fl oz", "100 ml", "0 g", "1 bar (14 g protein)"] {
+            XCTAssertNil(ServingNutritionCalculator.measuredGrams(in: serving), serving)
+        }
+    }
+
+    func testLoggedPackageReopensInSelectedUnitWithTheSameWeightAndNutrition() throws {
+        let yogurt = ServingSizeOption(description: "100 g", servingWeightGrams: 100, calories: 100, protein: 10, carbs: 10, fats: 2)
+        let grams = try XCTUnwrap(InventoryQuantityRules.convert(5.3, from: "oz", to: "g"))
+        let saved = ServingNutritionCalculator.adjustedNutrition(base: yogurt, quantityValue: grams / 100, displayMassUnit: "oz")
+        let item = FoodItem(name: "Vanilla yogurt", calories: saved.calories, protein: saved.protein, carbs: saved.carbs, fats: saved.fats,
+                            servingSize: saved.servingDescription, servingWeight: saved.servingWeightGrams,
+                            quantityValue: saved.quantityValue, servingUnit: saved.servingUnit)
+        XCTAssertEqual(item.diaryPortionSummary, "5.3 oz · 150 cal")
+        let reopened = ServingNutritionCalculator.adjustedNutrition(base: ServingNutritionCalculator.baseServing(from: item), quantityValue: 5.3)
+        XCTAssertEqual(reopened.calories, saved.calories, accuracy: 0.000001)
+        XCTAssertEqual(reopened.servingWeightGrams, grams, accuracy: 0.000001)
+        let cup = ServingSizeOption(description: "1 cup", servingWeightGrams: 1, calories: 80, protein: 2, carbs: 14, fats: 2)
+        XCTAssertEqual(ServingNutritionCalculator.adjustedNutrition(base: cup, quantityValue: 1, displayMassUnit: "oz").servingUnit, "1 cup")
+    }
+
     func testServingNutritionCalculatorParseQuantity() {
         let parsed1 = ServingNutritionCalculator.parseQuantity(from: "2 x slices")
         XCTAssertEqual(parsed1.quantity, 2.0)
@@ -98,6 +129,22 @@ final class NutritionLogModelsTests: XCTestCase {
         XCTAssertEqual(baseOption.protein, 2)
         XCTAssertEqual(baseOption.carbs, 22.5)
         XCTAssertEqual(baseOption.fats, 0.5)
+    }
+
+    func testGenericCatalogUnitKeepsPrintedSupplementServingWhenReopened() {
+        var item = FoodItem(name: "Vitamin D", calories: 0, servingSize: "2 Softgels", servingWeight: 0,
+                            vitaminD: 25, quantityValue: 1, servingUnit: "serving")
+        let base = ServingNutritionCalculator.baseServing(from: item)
+        XCTAssertEqual(base.description, "2 Softgels")
+        let two = ServingNutritionCalculator.adjustedNutrition(base: base, quantityValue: 2)
+        XCTAssertEqual(two.servingDescription, "2 x 2 Softgels")
+        XCTAssertEqual(two.vitaminD, 50)
+        item.quantityValue = 2
+        item.servingSize = two.servingDescription
+        item.vitaminD = two.vitaminD
+        let reopened = ServingNutritionCalculator.baseServing(from: item)
+        XCTAssertEqual(reopened.description, base.description)
+        XCTAssertEqual(reopened.vitaminD, base.vitaminD)
     }
 
     func testServingNutritionCalculatorAdjustedNutritionByText() {

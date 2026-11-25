@@ -88,11 +88,11 @@ public class CycleTrackingService: ObservableObject {
             self.cycleDay = nil
             return
         }
-        
+
         let today = Calendar.current.startOfDay(for: Date())
         let components = Calendar.current.dateComponents([.day], from: startDate, to: today)
         let dayNumber = (components.day ?? 0) + 1
-        
+
         let phase = CycleTrackingRules.determinePhase(
             cycleDay: dayNumber,
             typicalPeriodLength: cycleSettings.typicalPeriodLength,
@@ -100,7 +100,7 @@ public class CycleTrackingService: ObservableObject {
         )
         self.cycleDay = CycleDay(date: today, cycleDayNumber: dayNumber, phase: phase)
     }
-    
+
     private func saveCycleSettings() {
         guard let activeUserID else { return }
         let encoder = JSONEncoder()
@@ -108,7 +108,7 @@ public class CycleTrackingService: ObservableObject {
             defaults.set(encoded, forKey: Self.settingsStorageKey(for: activeUserID))
         }
     }
-    
+
     private func loadCycleSettings(for userID: String) {
         if let data = defaults.data(forKey: Self.settingsStorageKey(for: userID)) {
             let decoder = JSONDecoder()
@@ -178,7 +178,7 @@ public class CycleTrackingService: ObservableObject {
                 goal: goalString,
                 recentLogs: logs
             )
-            
+
             let response = await fetchAIResponse(prompt: prompt)
 
             guard !Task.isCancelled, activeUserID == userID else { return }
@@ -193,14 +193,14 @@ public class CycleTrackingService: ObservableObject {
             }
         }
     }
-    
+
     private func fetchAIResponse(prompt: String) async -> String? {
         let result = await DIContainer.shared.aiService.performRequest(
             messages: [["role": "user", "content": prompt]],
-            model: "gpt-4o-mini",
+            model: "gpt-6-astra",
             maxTokens: 800,
             temperature: 0.6,
-            responseFormat: ["type": "json_object"]
+            responseFormat: ["type": "json_object"], requestKind: .coaching
         )
 
         switch result {

@@ -140,7 +140,8 @@ final class FatSecretFoodAPIServiceTests: XCTestCase {
             case .success(let items):
                 XCTAssertEqual(items.count, 1)
                 XCTAssertEqual(items.first?.id, "123")
-                XCTAssertEqual(items.first?.name, "Generic Apple")
+                XCTAssertEqual(items.first?.name, "Apple")
+                XCTAssertNil(items.first?.sourceMetadata?.brandName, "Generic is a missing-brand placeholder")
                 XCTAssertEqual(items.first?.calories, 52.0)
                 XCTAssertEqual(items.first?.fats, 0.17)
                 XCTAssertEqual(items.first?.carbs, 13.81)
@@ -189,6 +190,7 @@ final class FatSecretFoodAPIServiceTests: XCTestCase {
             case .success(let data):
                 XCTAssertEqual(data.foodInfo.id, "456")
                 XCTAssertEqual(data.foodInfo.name, "Chiquita Banana")
+                XCTAssertEqual(data.foodInfo.sourceMetadata?.brandName, "Chiquita")
                 XCTAssertEqual(data.foodInfo.calories, 89.0)
                 XCTAssertEqual(data.foodInfo.servingWeight, 118.0)
                 XCTAssertEqual(data.availableServings.count, 1)

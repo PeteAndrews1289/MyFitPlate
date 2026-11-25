@@ -35,6 +35,53 @@ data is used to make product decisions.
 | Is logging becoming habitual? | Weekly active loggers | Distinct users with `logging_day_active` in a rolling seven-day window. The app emits at most one event per app instance and local day. |
 | Are users returning? | D1/D7 return | Firebase retention for the onboarding cohort, segmented by app version. Use Firebase's app-instance identity; MyFitPlate account IDs remain disabled. |
 
+## Onboarding and account creation (next release)
+
+The plan-first onboarding (PR #10) measures the steps before `onboarding_completed`. Each event
+carries at most the enum `method` (`apple` or `email`); quiz answers, targets, names, and email
+addresses are never sent.
+
+| Question | Event and definition |
+|---|---|
+| Did a visitor start the quiz? | `onboarding_started`: the pre-account quiz opened from Welcome. |
+| Did the quiz produce a plan? | `onboarding_plan_revealed`: a complete answer set reached the plan screen. |
+| Did the plan become an account? | `account_created` with `method`: authentication created a new account. |
+| Did a returning person sign in? | `sign_in_completed` with `method`: authentication reached an existing account. |
+
+Report quiz completion as distinct `onboarding_plan_revealed` / `onboarding_started`, and account
+conversion as distinct `account_created` / `onboarding_plan_revealed`, split by `method`. Register
+`method` as a custom dimension before analysis. `account_deletion_completed` also carries
+`apple_token` (`revoked` or `revocation_failed`) for Sign in with Apple accounts; any
+`revocation_failed` means the Firebase Apple provider's OAuth code-flow settings need attention.
+
+## App Store rating requests
+
+`app_review_prompt_requested` records that MyFitPlate asked StoreKit for a rating, with enum
+`moment` (`logging_day`, `weekly_check_in`, or `completed_session`). StoreKit decides whether the
+system prompt actually appears, so this event is an upper bound on prompts shown. Eligibility needs
+three distinct positive moments over at least three days, at most one request per app version,
+and a 120-day cooldown. Compare weekly counts with App Store Connect ratings by version.
+
+## First-week guidance (next release)
+
+New accounts see a "Get set up" checklist on Home for up to 21 days after onboarding. Notification
+and Apple Health permission prompts appear only after a tap on its steps; onboarding no longer asks
+for notifications. People on the formula estimate see an adaptive-targets offer once their logs and
+weigh-ins give a medium- or high-confidence estimate. Events carry only enum and count values.
+
+| Question | Event and definition |
+|---|---|
+| Did new people see the checklist? | `setup_checklist_viewed` with `completed_count` and `item_count`, once per account per launch. |
+| Which steps did they start? | `setup_checklist_action` with `checklist_item` (`first_meal`, `daily_reminder`, `apple_health`, or `first_workout`). |
+| Did they hide it early? | `setup_checklist_dismissed` with `completed_count`. |
+| Did formula users see the offer? | `adaptive_targets_offer_viewed` with `confidence` (`high` or `medium`), once per account per launch. |
+| Did they open it? | `adaptive_targets_offer_opened` with `surface` (`home_card`). |
+| Did they put it off? | `adaptive_targets_offer_declined` with `surface` (`home_card` or `check_in`); the offer returns after 14 days. |
+
+Measure the notification change as distinct `setup_checklist_action` users with `daily_reminder`
+divided by distinct `first_food_logged` users. Acceptance comes from `weekly_goal_proposal_decision`,
+whose `surface` is `adaptive_offer` for the offer and `weekly_check_in` for the regular check-in.
+
 ## Training and fuel leading indicators
 
 These events evaluate the replacement 2.2 loop before waiting for D7 retention:

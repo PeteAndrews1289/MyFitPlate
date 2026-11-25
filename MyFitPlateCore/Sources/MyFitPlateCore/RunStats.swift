@@ -17,8 +17,8 @@ public enum RunStats {
     public static func personalRecords(from runs: [Run]) -> PersonalRecords {
         var records = PersonalRecords()
 
-        for run in runs {
-            guard run.distanceMeters > 0, run.movingSeconds > 0 else { continue }
+        for run in uniqueRecordings(runs) {
+            guard run.distanceMeters.isFinite, run.movingSeconds.isFinite, run.distanceMeters > 0, run.movingSeconds > 0 else { continue }
 
             if run.distanceMeters > (records.longestRun?.distanceMeters ?? 0) {
                 records.longestRun = run
@@ -47,7 +47,7 @@ public enum RunStats {
     /// True when `run` sets at least one record against the rest of the history —
     /// the celebrate-once moment after a recorded run.
     public static func setsRecord(_ run: Run, against history: [Run]) -> Bool {
-        let others = history.filter { $0.id != run.id }
+        let others = history.filter { !sameRecording($0, run) }
         let withoutRun = personalRecords(from: others)
         let withRun = personalRecords(from: others + [run])
         if withRun.longestRun?.id == run.id && withoutRun.longestRun != nil { return true }
@@ -80,8 +80,9 @@ public enum RunStats {
     public static func ghostPaceComparison(for run: Run, against history: [Run]) -> GhostPaceComparison? {
         guard let currentPace = run.averagePaceSecondsPerKm, run.distanceMeters >= 500 else { return nil }
 
-        let similarRuns = history.filter { other in
-            other.id != run.id &&
+        let similarRuns = uniqueRecordings(history).filter { other in
+            !sameRecording(other, run) && other.isIndoor == run.isIndoor &&
+            workoutContext(other) == workoutContext(run) &&
             other.distanceMeters >= 500 &&
             other.averagePaceSecondsPerKm != nil &&
             abs(other.distanceMeters - run.distanceMeters) / run.distanceMeters <= 0.05
@@ -105,6 +106,32 @@ public enum RunStats {
         )
     }
 
+    /// Compare known prescribed/recorded step patterns, ignoring editing IDs and
+    /// names. A structured interval session is not an unstructured easy run merely
+    /// because both cover the same distance. Route and terrain remain unknown.
+    private static func workoutContext(_ run: Run) -> [RunWorkoutStep]? {
+        let steps = run.scheduledContext?.plan.steps ?? run.workoutResult?.steps.map(\.step)
+        return steps?.map { step in
+            RunWorkoutStep(id: "context", kind: step.kind, title: "", goal: step.goal,
+                target: RunWorkoutTarget(fastestSecondsPerKm: step.target?.fastestSecondsPerKm,
+                                         slowestSecondsPerKm: step.target?.slowestSecondsPerKm))
+        }
+    }
+
+    private static func uniqueRecordings(_ runs: [Run]) -> [Run] {
+        var seen: Set<String> = []
+        return runs.filter { run in
+            let identity = run.source == .recorded ? "recording:\(run.recordingID ?? run.id)" : "health:\(run.id)"
+            return seen.insert(identity).inserted
+        }
+    }
+
+    private static func sameRecording(_ left: Run, _ right: Run) -> Bool {
+        if left.id == right.id { return true }
+        guard left.source == .recorded, right.source == .recorded else { return false }
+        return (left.recordingID ?? left.id) == (right.recordingID ?? right.id)
+    }
+
     /// Determines if a run achieved a "Negative Split" (running the second half faster than the first half).
     public static func isNegativeSplit(splits: [RunSplit]) -> Bool {
         guard let delta = negativeSplitDeltaSecondsPerKm(splits: splits) else { return false }
@@ -122,21 +149,7 @@ public enum RunStats {
 
     /// Returns the speedup in seconds per km of the second half compared to the first half, if any.
     public static func negativeSplitDeltaSecondsPerKm(splits: [RunSplit]) -> Double? {
-        guard splits.count >= 2 else { return nil }
-        let mid = splits.count / 2
-        let firstHalf = splits.prefix(mid)
-        let secondHalf = splits.suffix(splits.count - mid)
-
-        let dist1 = firstHalf.reduce(0.0) { $0 + $1.distanceMeters }
-        let sec1 = firstHalf.reduce(0.0) { $0 + $1.seconds }
-        let dist2 = secondHalf.reduce(0.0) { $0 + $1.distanceMeters }
-        let sec2 = secondHalf.reduce(0.0) { $0 + $1.seconds }
-
-        guard dist1 > 0, dist2 > 0 else { return nil }
-        let pace1 = sec1 / (dist1 / 1000.0)
-        let pace2 = sec2 / (dist2 / 1000.0)
-
-        return pace1 - pace2
+        RunPacingAnalysis.equalHalfDeltaSecondsPerKm(splits: splits)
     }
 
     /// Identifies the fastest split in a run, ignoring tiny partial tail splits (< 200m) unless no other splits exist.

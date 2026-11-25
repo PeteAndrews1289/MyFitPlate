@@ -1,129 +1,160 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct SetWaterGoalView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var targetInputHeight: CGFloat = 34
     @EnvironmentObject var goalSettings: GoalSettings
     @Binding var waterGoalInput: String
-    @FocusState private var inputIsFocused: Bool
-    var onSave: () -> Void
-
-    private let presetGoals = [64, 80, 100, 128]
+    @State private var baseline: Double?
+    @State private var baselinePreferences: HydrationPreferences?
+    @State private var preferences = HydrationPreferences()
+    @State private var capturedUserID: String?
+    @State private var trackingOnly = false
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var containerName = ""
+    @State private var containerAmount = ""
+    @State private var containerUnit: WaterVolumeUnit = .ounces
+    private enum Input { case goal, containerName, containerAmount }
+    @FocusState private var focusedInput: Input?
+    var onAccepted: () -> Void
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    AppScreenHeader(
-                        eyebrow: "Hydration",
-                        title: "Daily Water Goal",
-                        subtitle: "Choose a target that matches the amount you want to track each day."
-                    )
-
-                    VStack(alignment: .leading, spacing: AppSpacing.row) {
-                        AppSectionHeader(
-                            title: "Target",
-                            subtitle: "Enter fluid ounces or choose a common target."
-                        )
-
-                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-                            TextField("0", text: $waterGoalInput)
-                                .keyboardType(.numberPad)
-                                .appTextRole(.metric)
-                                .foregroundStyle(AppPalette.text)
-                                .monospacedDigit()
-                                .focused($inputIsFocused)
-
-                            Text("oz")
-                                .appTextRole(.control)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(AppSpacing.group)
-                        .background(
-                            AppPalette.control,
-                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                                .stroke(AppPalette.separator, lineWidth: 1)
-                        }
-
-                        if dynamicTypeSize.isAccessibilitySize {
-                            Picker("Common target", selection: presetSelection) {
-                                ForEach(presetGoals, id: \.self) { preset in
-                                    Text("\(preset.formatted()) oz")
-                                        .tag(Optional(preset))
-                                }
+            Form {
+                Section {
+                    Picker("Water tracking", selection: $trackingOnly) {
+                        Text("Daily target").tag(false)
+                        Text("Tracking only").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("water_tracking_mode")
+                    if trackingOnly {
+                        Text("Record drinks without a target, progress ring or target reminders.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Picker("Display unit", selection: Binding(get: { preferences.unit }, set: { new in
+                        if let value = Double(waterGoalInput) { waterGoalInput = inputText(new.amount(fromOunces: preferences.unit.ounces(from: value))) }
+                        preferences.unit = new
+                    })) {
+                        ForEach(WaterVolumeUnit.allCases) { Text($0.symbol).tag($0) }
+                    }
+                    if !trackingOnly {
+                        let targetLayout = dynamicTypeSize.isAccessibilitySize
+                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.compact))
+                            : AnyLayout(HStackLayout(spacing: AppSpacing.row))
+                        targetLayout {
+                            Text("Daily target")
+                            HStack(spacing: AppSpacing.compact) {
+                                TextField("", text: $waterGoalInput)
+                                    .keyboardType(.decimalPad).focused($focusedInput, equals: .goal)
+                                    .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+                                    .frame(minHeight: max(44, targetInputHeight))
+                                    .accessibilityLabel("Daily water target in \(preferences.unit.symbol)")
+                                    .accessibilityIdentifier("water_target_amount")
+                                Text(preferences.unit.symbol).foregroundStyle(.secondary).fixedSize()
                             }
-                            .pickerStyle(.menu)
-                        } else {
-                            Picker("Common target", selection: presetSelection) {
-                                ForEach(presetGoals, id: \.self) { preset in
-                                    Text(preset.formatted())
-                                        .tag(Optional(preset))
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .accessibilityLabel("Common water target")
+                        }
+                    }
+                    Text("Changes start today. Past targets and logs stay intact. Containers and target history are saved on this device.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Your containers") {
+                    Picker("Quick-add container", selection: Binding(get: { preferences.preferredContainer?.id }, set: { preferences.preferredContainerID = $0 })) {
+                        ForEach(preferences.containers) { Text($0.label).tag(Optional($0.id)) }
+                    }.accessibilityIdentifier("water_default_container")
+                    ForEach(preferences.containers) { container in
+                        HStack {
+                            Text(container.label)
+                                .accessibilityIdentifier("water_saved_container_\(container.id)")
+                            Spacer()
+                            Button("Remove") {
+                                preferences.containers.removeAll { $0.id == container.id }
+                                if preferences.preferredContainerID == container.id { preferences.preferredContainerID = preferences.containers.first?.id }
+                            }.buttonStyle(.borderless)
+                            .accessibilityLabel("Remove \(container.label)")
                         }
                     }
                 }
-                .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.vertical, AppSpacing.group)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .background(AppPalette.canvas.ignoresSafeArea())
-            .navigationTitle("Water Goal")
-            .navigationBarTitleDisplayMode(.inline)
+                Section("Add a container") {
+                    TextField("Container name", text: $containerName).focused($focusedInput, equals: .containerName)
+                        .accessibilityIdentifier("water_container_name")
+                    HStack {
+                        TextField("Amount", text: $containerAmount).keyboardType(.decimalPad)
+                            .focused($focusedInput, equals: .containerAmount).accessibilityIdentifier("water_container_amount")
+                        Picker("Container unit", selection: $containerUnit) { ForEach(WaterVolumeUnit.allCases) { Text($0.symbol).tag($0) } }.labelsHidden().accessibilityIdentifier("water_container_unit")
+                    }
+                    Button("Add container") {
+                        guard let amount = Double(containerAmount) else { return }
+                        let container = WaterContainer(name: containerName.trimmingCharacters(in: .whitespacesAndNewlines), amount: amount, unit: containerUnit)
+                        guard container.isValid else { return }
+                        preferences.containers.append(container)
+                        if preferences.preferredContainerID == nil { preferences.preferredContainerID = container.id }
+                        containerName = ""
+                        containerAmount = ""
+                        focusedInput = nil
+                    }.disabled(!validContainer || preferences.containers.count >= 20).accessibilityIdentifier("water_add_container")
+                }
+                if !preferences.targetHistory.isEmpty {
+                    Section {
+                        DisclosureGroup("Target history · \(preferences.targetHistory.count)") {
+                            ForEach(preferences.targetHistory.reversed()) { period in
+                                LabeledContent(period.effectiveDay.formatted(date: .abbreviated, time: .omitted),
+                                    value: period.targetOunces.map { "\(preferences.unit.amount(fromOunces: $0).formatted(.number.precision(.fractionLength(0...1)))) \(preferences.unit.symbol)" } ?? "Tracking only")
+                            }
+                        }
+                    }
+                }
+                if let errorMessage = errorMessage ?? goalSettings.hydrationPreferenceNotice {
+                    Text(errorMessage).foregroundStyle(AppPalette.critical).accessibilityIdentifier("settings_water_error")
+                }
+            }.appFormStyle()
+            .disabled(isSaving)
+            .navigationTitle("Water preferences").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { inputIsFocused = false }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(isSaving) }
+                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focusedInput = nil } }
             }
             .safeAreaInset(edge: .bottom) {
-                Button("Save Goal") {
-                    inputIsFocused = false
-                    onSave()
-                }
-                .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(!hasValidGoal)
-                .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.top, AppSpacing.row)
-                .padding(.bottom, AppSpacing.compact)
-                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(AppPalette.separator)
-                        .frame(height: 1)
-                }
-                .accessibilityIdentifier("settings_water_save")
+                Button(isSaving ? "Saving…" : "Save preferences", action: save)
+                    .buttonStyle(AppActionButtonStyle(.primary)).disabled(!hasValidGoal || isSaving)
+                    .padding().background(AppPalette.canvas).accessibilityIdentifier("settings_water_save")
+            }
+        }.interactiveDismissDisabled(isSaving).accessibilityIdentifier("settings_water_screen")
+            .onAppear {
+                guard baseline == nil else { return }
+                baseline = goalSettings.waterGoal; baselinePreferences = goalSettings.hydrationPreferences
+                preferences = goalSettings.hydrationPreferences; trackingOnly = preferences.isTrackingOnly
+                waterGoalInput = inputText(preferences.unit.amount(fromOunces: goalSettings.waterGoal))
+                capturedUserID = DIContainer.shared.authService.currentUserID
+            }
+    }
+    private func inputText(_ value: Double) -> String {
+        value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.fractionLength(0...2)))
+    }
+    private var validContainer: Bool {
+        guard let amount = Double(containerAmount) else { return false }
+        return WaterContainer(name: containerName, amount: amount, unit: containerUnit).isValid
+    }
+    private var hasValidGoal: Bool {
+        trackingOnly || Double(waterGoalInput).map { (1...512).contains(preferences.unit.ounces(from: $0)) } == true
+    }
+    private func save() {
+        focusedInput = nil
+        guard hasValidGoal, !isSaving, let baseline, let baselinePreferences, let capturedUserID else { return }
+        do { try preferences.acceptTarget(trackingOnly ? nil : Double(waterGoalInput).map { preferences.unit.ounces(from: $0) }) } catch { errorMessage = error.localizedDescription; return }
+        isSaving = true; errorMessage = nil
+        Task { @MainActor in
+            defer { isSaving = false }
+            do {
+                try await goalSettings.saveHydrationPreferences(preferences, baseline: baselinePreferences, baselineGoal: baseline, userID: capturedUserID)
+                onAccepted()
+            } catch {
+                self.baseline = goalSettings.waterGoal
+                errorMessage = error.localizedDescription
             }
         }
-        .tint(AppPalette.brand)
-        .background(AppPalette.canvas.ignoresSafeArea())
-        .accessibilityIdentifier("settings_water_screen")
-    }
-
-    private var presetSelection: Binding<Int?> {
-        Binding(
-            get: {
-                guard let value = Int(waterGoalInput), presetGoals.contains(value) else { return nil }
-                return value
-            },
-            set: { value in
-                guard let value else { return }
-                waterGoalInput = "\(value)"
-            }
-        )
-    }
-
-    private var hasValidGoal: Bool {
-        guard let value = Double(waterGoalInput) else { return false }
-        return (1...512).contains(value)
     }
 }

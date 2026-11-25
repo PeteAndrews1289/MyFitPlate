@@ -46,6 +46,8 @@ struct AIItemResponse: Codable {
 struct ScannedMenuValueItem {
     let food: FoodItem
     let listedPrice: Double
+    var currency: String?
+    var priceText: String?
 }
 
 private struct AIMenuPriceResponse: Decodable {
@@ -60,10 +62,14 @@ private struct AIMenuPriceItemResponse: Decodable {
     let carbs: Double
     let fats: Double
     let price: Double?
+    let currency: String?
+    let priceText: String?
 }
 
 struct ReceiptParseResponse: Codable {
     let items: [ReceiptItemResponse]
+    let storeName: String?
+    let currency: String?
 }
 
 struct ReceiptItemResponse: Codable {
@@ -71,6 +77,9 @@ struct ReceiptItemResponse: Codable {
     let quantity: Double
     let unit: String
     let category: String
+    let originalName: String?
+    let printedLinePrice: Double?
+    let currency: String?
 }
 
 struct NutritionLabelData: Decodable {
@@ -170,7 +179,7 @@ class MLImageModel {
         Task {
             let result = await AIService.shared.performRequest(
                 messages: messages,
-                model: "gpt-4o-mini",
+                model: "gpt-6-luna",
                 responseFormat: ["type": "json_object"],
                 requestKind: .nutritionLabel
             )
@@ -403,7 +412,9 @@ class MLImageModel {
         next to that item. Never infer, calculate, or invent a price. Use null when no price is visible.
 
         JSON object only with root key "foods". Each item must contain:
-        "itemName", "servingSize", "calories", "protein", "carbs", "fats", and "price".
+        "itemName", "servingSize", "calories", "protein", "carbs", "fats", "price", "currency", and "priceText".
+        Copy the visible price wording into priceText, including ranges, add-ons or market price.
+        Use null price for a range or missing/ambiguous amount. currency is an ISO code only when explicit; otherwise null.
         """
         let messages: [[String: Any]] = [[
             "role": "user",
@@ -416,7 +427,8 @@ class MLImageModel {
         Task {
             let result = await AIService.shared.performRequest(
                 messages: messages,
-                model: "gpt-4o-mini",
+                model: "gpt-6-luna",
+                maxTokens: 7500,
                 responseFormat: ["type": "json_object"],
                 requestKind: .menuPhoto
             )
@@ -429,7 +441,9 @@ class MLImageModel {
                 do {
                     let response = try JSONDecoder().decode(AIMenuPriceResponse.self, from: data)
                     let items = response.foods.compactMap { item -> ScannedMenuValueItem? in
-                        guard let price = item.price, price > 0 else { return nil }
+                        // Missing/range prices remain reviewable; zero is an unranked sentinel,
+                        // never an invented price or an invitation to divide by zero.
+                        let price = item.price.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 0
                         let food = FoodItem(
                             name: item.itemName,
                             calories: item.calories,
@@ -438,7 +452,7 @@ class MLImageModel {
                             fats: item.fats,
                             servingSize: item.servingSize
                         ).withAIEstimateSource(.aiMenu, sourceName: "Maia Menu")
-                        return ScannedMenuValueItem(food: food, listedPrice: price)
+                        return ScannedMenuValueItem(food: food, listedPrice: price, currency: item.currency, priceText: item.priceText)
                     }
                     completion(.success(items))
                 } catch {
@@ -519,7 +533,12 @@ class MLImageModel {
            - "quantity": A numerical value representing how much was bought (e.g. 1.0, 2.5).
            - "unit": The unit of measurement (e.g. "lbs", "oz", "count", "gallon"). Default to "count" if unsure.
            - "category": The food category (e.g. "Produce", "Meat", "Dairy", "Pantry", "Frozen", "Beverages").
+           - "originalName": The exact abbreviated receipt wording, or null.
+           - "printedLinePrice": The exact printed price for the full transaction line, including only clearly associated discounts, or null. Never infer a unit price or package size.
+           - "currency": A three-letter currency code only when explicit, or null.
         4. Exclude non-food items (like toilet paper, batteries, bags, tax).
+        5. Optional root keys "storeName" and "currency" copy only explicitly visible receipt context; otherwise null.
+        6. Quantities are receipt counts or explicit measured quantities. A nutritional serving is never a package size; do not infer edible mass.
         """
 
         let messages: [[String: Any]] = [
@@ -535,7 +554,8 @@ class MLImageModel {
         Task {
             let result = await AIService.shared.performRequest(
                 messages: messages,
-                model: "gpt-4o-mini",
+                model: "gpt-6-luna",
+                maxTokens: 8000,
                 responseFormat: ["type": "json_object"],
                 requestKind: .receiptPhoto
             )
@@ -553,7 +573,10 @@ class MLImageModel {
                             name: item.name,
                             quantity: item.quantity,
                             unit: item.unit,
-                            category: item.category
+                            category: item.category,
+                            purchaseEvidence: PantryPurchaseEvidence(storeName: decodedResponse.storeName,
+                                printedLinePrice: item.printedLinePrice, currency: (item.currency ?? decodedResponse.currency)?.uppercased(),
+                                originalReceiptName: item.originalName ?? item.name, receiptRowQuantity: item.quantity, receiptRowUnit: item.unit)
                         )
                     }
                     DispatchQueue.main.async { completion(.success(pantryItems)) }
@@ -580,7 +603,7 @@ class MLImageModel {
             // so we pass retryCount: 0 to the service to avoid double-retrying network errors.
             let result = await AIService.shared.performRequest(
                 messages: messages,
-                model: "gpt-4o-mini",
+                model: "gpt-6-luna",
                 maxTokens: 3_000,
                 requestKind: requestKind,
                 retryCount: 0

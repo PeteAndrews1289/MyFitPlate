@@ -11,7 +11,7 @@ public struct AppFont: ViewModifier {
 
     public func body(content: Content) -> some View {
         let factor = min(max(scaleReference / 100, 0.95), 1.35)
-        return content.font(.system(size: size * factor, weight: weight, design: .rounded))
+        return content.font(.system(size: size * factor, weight: weight, design: .default))
     }
 }
 
@@ -54,13 +54,13 @@ public struct AnimatedCardButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(!reduceMotion && configuration.isPressed ? 0.96 : 1.0)
             .animation(
-                reduceMotion ? nil : .interpolatingSpring(stiffness: 300, damping: 20),
+                reduceMotion ? nil : AppMotion.standard,
                 value: configuration.isPressed
             )
     }
 }
 
-/// Reusable, friendly empty state — icon in a tinted circle, title, message, and an optional CTA.
+/// Reusable, friendly empty state — a quiet icon, title, message, and an optional CTA.
 /// Use for "nothing here yet" moments, especially first-run, so screens guide rather than dead-end.
 public struct GuidanceEmptyState: View {
     public let icon: String
@@ -82,9 +82,10 @@ public struct GuidanceEmptyState: View {
         VStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundColor(.brandForeground)
+                .foregroundStyle(.secondary)
                 .frame(width: 58, height: 58)
-                .background(Color.brandPrimary.opacity(0.10), in: Circle())
+                .background(AppPalette.control, in: Circle())
+                .accessibilityHidden(true)
 
             VStack(spacing: 5) {
                 Text(title)

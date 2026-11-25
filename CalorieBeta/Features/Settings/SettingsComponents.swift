@@ -22,6 +22,7 @@ struct SettingsSectionCard<Content: View>: View {
             VStack(spacing: 0) {
                 content
             }
+            .buttonStyle(.plain)
             .appSurface(.quiet, padding: 0, radius: AppRadius.control)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,7 +40,7 @@ struct SettingsLabel: View {
     init(
         icon: String,
         title: String,
-        subtitle: String,
+        subtitle: String = "",
         showsDisclosure: Bool = false
     ) {
         self.icon = icon
@@ -49,40 +50,44 @@ struct SettingsLabel: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppSpacing.row) {
-            Image(systemName: icon)
-                .appFont(size: 17, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .frame(width: 36, height: 36)
-                .background(
-                    AppPalette.surface,
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                )
-                .accessibilityHidden(true)
+        HStack(alignment: .center, spacing: AppSpacing.row) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: icon)
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        AppPalette.surface,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+                    .accessibilityHidden(true)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .appTextRole(.control)
                     .foregroundStyle(AppPalette.text)
-                if !dynamicTypeSize.isAccessibilitySize {
+                    .fixedSize(horizontal: false, vertical: true)
+                if !subtitle.isEmpty && !dynamicTypeSize.isAccessibilitySize {
                     Text(subtitle)
                         .appTextRole(.secondary)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .layoutPriority(1)
 
-            Spacer(minLength: AppSpacing.compact)
+            Spacer(minLength: 0)
 
-            if showsDisclosure {
+            if showsDisclosure && !dynamicTypeSize.isAccessibilitySize {
                 Image(systemName: "chevron.right")
                     .appTextRole(.secondary)
                     .foregroundStyle(.tertiary)
-                    .padding(.top, AppSpacing.compact)
                     .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .multilineTextAlignment(.leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
         .accessibilityHint(subtitle)

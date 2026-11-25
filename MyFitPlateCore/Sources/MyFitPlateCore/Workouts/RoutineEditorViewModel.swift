@@ -2,7 +2,7 @@ import Combine
 import SwiftUI
 
 public final class RoutineEditorViewModel: ObservableObject {
-    private let sourceRoutine: WorkoutRoutine
+    private var sourceRoutine: WorkoutRoutine
     private let onSaveCallback: (WorkoutRoutine) -> Void
 
     @Published public var routineName: String
@@ -12,7 +12,41 @@ public final class RoutineEditorViewModel: ObservableObject {
     @Published public var exerciseToEdit: RoutineExercise?
 
     public var canSave: Bool {
-        !routineName.trimmed.isEmpty
+        validationMessage == nil
+    }
+
+    public var validationMessage: String? {
+        if routineName.trimmed.isEmpty { return "Name this routine before saving." }
+        if exercises.isEmpty { return "Add at least one exercise before saving." }
+        if exercises.contains(where: { $0.name.trimmed.isEmpty || $0.sets.isEmpty }) {
+            return "Each exercise needs a name and at least one set."
+        }
+        return nil
+    }
+
+    public var hasChanges: Bool {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(draft)) != (try? encoder.encode(sourceRoutine))
+    }
+
+    public var draft: WorkoutRoutine {
+        WorkoutRoutine(
+            id: sourceRoutine.id, userID: sourceRoutine.userID, name: routineName.trimmed,
+            dateCreated: sourceRoutine.dateCreated, exercises: exercises,
+            notes: routineNotes.trimmed.isEmpty ? nil : routineNotes.trimmed
+        )
+    }
+
+    public var checkpoint: RoutineEditorDraft {
+        RoutineEditorDraft(routine: draft, baseline: sourceRoutine)
+    }
+
+    public func restore(_ checkpoint: RoutineEditorDraft) {
+        sourceRoutine = checkpoint.baseline.deepCopy() ?? checkpoint.baseline
+        routineName = checkpoint.routine.name
+        routineNotes = checkpoint.routine.notes ?? ""
+        exercises = checkpoint.routine.exercises
     }
 
     public var totalSetCount: Int {
@@ -30,7 +64,7 @@ public final class RoutineEditorViewModel: ObservableObject {
     }
 
     public init(routine: WorkoutRoutine, onSave: @escaping (WorkoutRoutine) -> Void) {
-        self.sourceRoutine = routine
+        self.sourceRoutine = routine.deepCopy() ?? routine
         self.routineName = routine.name
         self.routineNotes = routine.notes ?? ""
         self.exercises = routine.exercises
@@ -38,15 +72,7 @@ public final class RoutineEditorViewModel: ObservableObject {
     }
 
     public func saveRoutine() {
-        let updatedRoutine = WorkoutRoutine(
-            id: sourceRoutine.id,
-            userID: sourceRoutine.userID,
-            name: routineName.trimmed,
-            dateCreated: sourceRoutine.dateCreated,
-            exercises: exercises,
-            notes: routineNotes.trimmed.isEmpty ? nil : routineNotes.trimmed
-        )
-        onSaveCallback(updatedRoutine)
+        onSaveCallback(draft)
     }
 
     public func applyTemplate(_ template: RoutineEditorTemplate) {
@@ -58,7 +84,9 @@ public final class RoutineEditorViewModel: ObservableObject {
     }
 
     public func addExercise(from draft: ExercisePickerDraft) {
-        exercises.append(makeExercise(name: draft.name, category: draft.category, type: draft.type))
+        var exercise = makeExercise(name: draft.name, category: draft.category, type: draft.type)
+        exercise.movementIdentity = draft.movementIdentity ?? WorkoutMovementCatalog.identity(for: draft.name)
+        exercises.append(exercise)
         HapticManager.instance.feedback(.light)
     }
 
@@ -66,6 +94,7 @@ public final class RoutineEditorViewModel: ObservableObject {
         guard let index = exercises.firstIndex(where: { $0.id == exercise.id }) else { return }
         var copy = exercise
         copy.id = UUID().uuidString
+        copy.groupPlan = nil; copy.supersetGroupID = nil
         copy.sets = copy.sets.map { set in
             var newSet = set
             newSet.id = UUID().uuidString
@@ -81,6 +110,7 @@ public final class RoutineEditorViewModel: ObservableObject {
 
     public func deleteExercise(_ exercise: RoutineExercise) {
         exercises.removeAll { $0.id == exercise.id }
+        exercises = WorkoutExerciseGroupRules.repairing(exercises)
     }
 
     public func moveExercise(_ exercise: RoutineExercise, direction: RoutineMoveDirection) {
@@ -96,6 +126,12 @@ public final class RoutineEditorViewModel: ObservableObject {
         exercises.move(fromOffsets: IndexSet(integer: index), toOffset: targetIndex > index ? targetIndex + 1 : targetIndex)
     }
 
+    public func moveExercise(id: String, to destinationID: String) {
+        guard let source = exercises.firstIndex(where: { $0.id == id }),
+              let destination = exercises.firstIndex(where: { $0.id == destinationID }), source != destination else { return }
+        exercises.move(fromOffsets: IndexSet(integer: source), toOffset: destination > source ? destination + 1 : destination)
+    }
+
     public func updateExercise(_ updatedExercise: RoutineExercise) {
         if let index = exercises.firstIndex(where: { $0.id == updatedExercise.id }) {
             exercises[index] = updatedExercise
@@ -109,7 +145,7 @@ public final class RoutineEditorViewModel: ObservableObject {
     private func makeExercise(name: String, category: String?, type: ExerciseType) -> RoutineExercise {
         let defaults = RoutineEditorDefaults.defaults(for: type)
         let setTarget = RoutineEditorDefaults.setTarget(for: type, target: defaults.target)
-        return RoutineExercise(
+        var exercise = RoutineExercise(
             name: name,
             type: type,
             sets: (0..<defaults.sets).map { _ in ExerciseSet(target: setTarget) },
@@ -117,5 +153,7 @@ public final class RoutineEditorViewModel: ObservableObject {
             targetSets: defaults.sets,
             targetReps: defaults.target
         )
+        exercise.movementIdentity = WorkoutMovementCatalog.identity(for: name)
+        return exercise
     }
 }

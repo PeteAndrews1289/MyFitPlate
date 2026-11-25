@@ -16,6 +16,7 @@ final class DailyLogRecentFoodStore {
               let cacheKey = prepareCache(for: userID) else { return }
         
         let stableID = stableID(for: foodItem)
+        FoodServingPreferences(defaults: defaults).remember(foodItem, userID: userID)
 
         // 1. Update local cache immediately
         updateLocalCache(cacheKey: cacheKey, adding: foodItem)

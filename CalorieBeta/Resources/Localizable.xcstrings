@@ -1553,6 +1553,9 @@
     "Coaching dashboard" : {
 
     },
+    "Collapsed" : {
+
+    },
     "Combining completed sets with your latest sleep signal." : {
 
     },
@@ -2047,6 +2050,9 @@
 
     },
     "Exercise Note" : {
+
+    },
+    "Expanded" : {
 
     },
     "Experience" : {
@@ -3739,6 +3745,9 @@
     "Score %lld out of 100" : {
 
     },
+    "Search" : {
+
+    },
     "Search %@ menu" : {
 
     },
@@ -3758,6 +3767,9 @@
 
     },
     "Search exercises" : {
+
+    },
+    "Search foods" : {
 
     },
     "Search foods you already use or find a new ingredient." : {
@@ -3977,6 +3989,9 @@
 
     },
     "Shows Apple's Health access request" : {
+
+    },
+    "Shows optional detailed nutrition fields" : {
 
     },
     "Shows the symbols and evidence recorded for this day." : {
@@ -4503,6 +4518,9 @@
 
     },
     "View recipe" : {
+
+    },
+    "Vitamins and minerals" : {
 
     },
     "Voice search" : {

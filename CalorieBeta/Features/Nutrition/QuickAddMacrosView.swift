@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct QuickAddMacrosView: View {
     @Environment(\.dismiss) private var dismiss
@@ -7,6 +8,7 @@ struct QuickAddMacrosView: View {
 
     let selectedMealType: String
     let targetDate: Date
+    @State private var trainingFuelTarget: TrainingFuelTarget?
 
     @State private var calories: String = ""
     @State private var protein: String = ""
@@ -15,14 +17,49 @@ struct QuickAddMacrosView: View {
 
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var foodID = UUID().uuidString
+    @State private var numberLocaleIdentifier = Locale.current.identifier
+    @State private var unreadableDraft = false
+    @StateObject private var saveQueue: QuickFoodLogQueue
+    private let ownerID: String?
+    private let draftStore = EditorDraftStore()
+    private let draftScope = "quick-macro-input"
 
-    init(selectedMealType: String, targetDate: Date) {
-        self.selectedMealType = selectedMealType
-        self.targetDate = targetDate
+    init(selectedMealType: String, targetDate: Date, trainingFuelTarget: TrainingFuelTarget? = nil) {
+        let owner = DIContainer.shared.authService.currentUserID
+        ownerID = owner
+        let store = EditorDraftStore()
+        let queue = QuickFoodLogQueue(userID: owner ?? "", store: store, scope: "quick-macro-submit")
+        _saveQueue = StateObject(wrappedValue: queue)
+        var restored: QuickMacroDraft?
+        if let owner {
+            do { restored = try store.load(QuickMacroDraft.self, userID: owner, scope: "quick-macro-input")?.value } catch {
+                _unreadableDraft = State(initialValue: true); _errorMessage = State(initialValue: "Your previous quick entry could not be opened. It has been kept unchanged.")
+            }
+        }
+        let restoredTarget: TrainingFuelTarget?
+        if let operation = queue.operations.first { restoredTarget = operation.draft.trainingFuelTarget } else if let restored { restoredTarget = restored.trainingFuelTarget } else { restoredTarget = trainingFuelTarget }
+        _trainingFuelTarget = State(initialValue: restoredTarget)
+        self.selectedMealType = queue.operations.first?.draft.mealName ?? restored?.mealName ?? selectedMealType
+        self.targetDate = queue.operations.first?.draft.date ?? restored?.date ?? targetDate
+        if let restored {
+            _calories = State(initialValue: restored.calories)
+            _protein = State(initialValue: restored.protein)
+            _carbs = State(initialValue: restored.carbs)
+            _fats = State(initialValue: restored.fats)
+            _foodID = State(initialValue: restored.foodID)
+            _numberLocaleIdentifier = State(initialValue: restored.numberLocaleIdentifier ?? Locale.current.identifier)
+        } else if let pending = queue.operations.first, let food = pending.draft.entries.first?.food {
+            _calories = State(initialValue: food.calories.formatted(.number.grouping(.never)))
+            _protein = State(initialValue: food.protein.formatted(.number.grouping(.never)))
+            _carbs = State(initialValue: food.carbs.formatted(.number.grouping(.never)))
+            _fats = State(initialValue: food.fats.formatted(.number.grouping(.never)))
+            _foodID = State(initialValue: pending.sourceFoodID)
+        }
 
         #if DEBUG
         if ScreenshotDemoMode.isEnabled,
-           ScreenshotDemoData.requestedScreen == "quick-add-macros" {
+           ScreenshotDemoData.requestedScreen == "quick-add-macros", restored == nil, queue.operations.isEmpty {
             _calories = State(initialValue: "485")
             _protein = State(initialValue: "38")
             _carbs = State(initialValue: "52")
@@ -36,12 +73,8 @@ struct QuickAddMacrosView: View {
     private var parsedCarbs: Double { parsed(carbs) }
     private var parsedFats: Double { parsed(fats) }
 
-    private var calculatedCalories: Double {
-        parsedProtein * 4 + parsedCarbs * 4 + parsedFats * 9
-    }
-
     private var finalCalories: Double {
-        parsedCalories > 0 ? parsedCalories : calculatedCalories
+        inputDraft.food?.calories ?? 0
     }
 
     private var hasMacroEntry: Bool {
@@ -49,7 +82,7 @@ struct QuickAddMacrosView: View {
     }
 
     private var hasEntry: Bool {
-        parsedCalories > 0 || hasMacroEntry
+        inputDraft.food != nil || !saveQueue.operations.isEmpty
     }
 
     private var inputColumns: [GridItem] {
@@ -62,6 +95,13 @@ struct QuickAddMacrosView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        if let target = trainingFuelTarget {
+                            TrainingFuelTargetContextView(target: target, onDismiss: isSaving || saveQueue.operations.first?.draft.isSubmitted == true ? nil : {
+                                if let operation = saveQueue.operations.first, !saveQueue.removeFuelContext(id: operation.id) { return }
+                                trainingFuelTarget = nil; _ = checkpointInput()
+                            })
+                        }
+
                     AppScreenHeader(
                         eyebrow: selectedMealType,
                         title: "Quick Add",
@@ -69,17 +109,14 @@ struct QuickAddMacrosView: View {
                     )
                     .accessibilityIdentifier("quick_add_header")
 
-                    nutritionSection
+                    nutritionSection.disabled(isSaving || !saveQueue.operations.isEmpty)
                     summarySection
-
-                    if let errorMessage {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .appTextRole(.secondary)
-                            .foregroundStyle(AppPalette.critical)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .appSurface(.quiet)
-                            .accessibilityIdentifier("quick_add_error")
+                    Text("\(selectedMealType) · \(targetDate.formatted(date: .abbreviated, time: .omitted))")
+                        .appTextRole(.secondary).accessibilityIdentifier("quick_add_destination")
+                    if !saveQueue.operations.isEmpty {
+                        Text("This submitted amount is kept for safe retry.").appTextRole(.secondary)
                     }
+
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.group)
@@ -91,21 +128,29 @@ struct QuickAddMacrosView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Close") { dismiss() }.disabled(isSaving)
                         .tint(AppPalette.brand)
                 }
             }
             .safeAreaInset(edge: .bottom) {
+                VStack(spacing: AppSpacing.compact) {
+                    if let message = errorMessage ?? validationMessage {
+                        Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.critical)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("quick_add_error")
+                    }
                 Button(action: saveMacros) {
                     if isSaving {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Label("Add to \(selectedMealType)", systemImage: "plus.circle.fill")
+                        Label(saveQueue.operations.isEmpty ? "Add to \(selectedMealType)" : "Retry saving", systemImage: "plus.circle.fill")
                     }
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(isSaving || !hasEntry)
+                .disabled(isSaving || !hasEntry || unreadableDraft)
+                .accessibilityIdentifier("quick_add_action")
+                }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.row)
                 .padding(.bottom, AppSpacing.compact)
@@ -115,10 +160,11 @@ struct QuickAddMacrosView: View {
                         .fill(AppPalette.separator)
                         .frame(height: 1)
                 }
-                .accessibilityIdentifier("quick_add_action")
             }
         }
         .accessibilityIdentifier("quick_add_macros")
+        .interactiveDismissDisabled(isSaving)
+        .onChange(of: [calories, protein, carbs, fats]) { _, _ in _ = checkpointInput() }
     }
 
     private var nutritionSection: some View {
@@ -178,7 +224,7 @@ struct QuickAddMacrosView: View {
             AppMetricStrip(items: [
                 AppMetricItem(
                     label: "Calories",
-                    value: "\(Int(finalCalories.rounded()).formatted()) cal",
+                    value: "\(finalCalories.formatted(.number.precision(.fractionLength(0)))) cal",
                     accent: AppPalette.energy
                 ),
                 AppMetricItem(
@@ -203,59 +249,76 @@ struct QuickAddMacrosView: View {
         .accessibilityIdentifier("quick_add_summary")
     }
 
+    private var inputDraft: QuickMacroDraft {
+        var draft = QuickMacroDraft(date: targetDate, mealName: selectedMealType, foodID: foodID)
+        draft.calories = calories
+        draft.protein = protein
+        draft.carbs = carbs
+        draft.fats = fats
+        draft.numberLocaleIdentifier = numberLocaleIdentifier
+        draft.trainingFuelTarget = trainingFuelTarget
+        return draft
+    }
+
+    private var validationMessage: String? {
+        guard saveQueue.operations.isEmpty, [calories, protein, carbs, fats].contains(where: { !$0.isEmpty }), inputDraft.food == nil else { return nil }
+        return "Enter positive nutrition amounts using your device's number format. Leave calories blank to calculate them from macros."
+    }
+
+    @discardableResult
+    private func checkpointInput() -> Bool {
+        guard !unreadableDraft, let ownerID, DIContainer.shared.authService.currentUserID == ownerID else { return false }
+        if !saveQueue.operations.isEmpty { return true }
+        do {
+            try draftStore.save(inputDraft, userID: ownerID, scope: draftScope)
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = "Could not keep this entry on the device. Your input is still here; retry."
+            return false
+        }
+    }
+
     private func saveMacros() {
-        guard let userID = DIContainer.shared.authService.currentUserID else {
-            errorMessage = "You need to be signed in."
+        guard !isSaving, let ownerID, DIContainer.shared.authService.currentUserID == ownerID else {
+            errorMessage = "Sign back into the account that opened this entry."
             return
         }
-
-        let p = parsedProtein
-        let c = parsedCarbs
-        let f = parsedFats
-
-        let newFood = FoodItem(
-            id: UUID().uuidString,
-            name: "Quick add macros",
-            calories: finalCalories,
-            protein: p,
-            carbs: c,
-            fats: f,
-            servingSize: "1 custom entry",
-            servingWeight: 1,
-            timestamp: Date(),
-            sourceMetadata: .userEntered(sourceName: "Quick add")
-        )
-
+        guard checkpointInput() else { return }
+        var pending = saveQueue.operations.first
+        if pending == nil, let food = inputDraft.food {
+            pending = saveQueue.begin(food: food, date: targetDate, mealName: selectedMealType, source: "quick_macros", needsHydration: false, trainingFuelTarget: trainingFuelTarget)
+        }
+        guard let pending else {
+            errorMessage = saveQueue.errorMessage ?? "Enter valid nonnegative nutrition amounts using your device's number format."
+            return
+        }
         isSaving = true
-
-        dailyLogService.fetchLog(for: userID, date: targetDate) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(var log):
-                    if let index = log.meals.firstIndex(where: { $0.name == selectedMealType }) {
-                        log.meals[index].foodItems.append(newFood)
-                    } else {
-                        let newMeal = Meal(name: selectedMealType, foodItems: [newFood])
-                        log.meals.append(newMeal)
-                    }
-                    dailyLogService.updateDailyLog(for: userID, updatedLog: log) { success in
-                        isSaving = false
-                        if success {
-                            dismiss()
-                        } else {
-                            errorMessage = "Failed to save macros."
-                        }
-                    }
-                case .failure(let error):
-                    isSaving = false
-                    errorMessage = "Failed to fetch log: \(error.localizedDescription)"
-                }
+        saveQueue.save(id: pending.id, using: dailyLogService) { accepted in
+            isSaving = false
+            guard DIContainer.shared.authService.currentUserID == ownerID else {
+                errorMessage = "This entry is kept with its original account. Sign back in to finish."
+                return
             }
+            guard accepted else {
+                errorMessage = saveQueue.errorMessage ?? "Your entry is kept. Retry saving."
+                return
+            }
+            do {
+                // Keep the accepted operation until both checkpoints clear. If either
+                // cleanup fails, reopening reuses its accepted receipt and food ID.
+                try draftStore.remove(userID: ownerID, scope: draftScope)
+                guard saveQueue.finish(id: pending.id) else {
+                    errorMessage = "Your entry was saved. Retry to clear its receipt without adding it twice."
+                    return
+                }
+                dismiss()
+            } catch { errorMessage = "Your entry was saved. Retry to finish clearing the draft; it will not be added twice." }
         }
     }
 
     private func parsed(_ value: String) -> Double {
-        max(Double(value.replacingOccurrences(of: ",", with: ".")) ?? 0, 0)
+        QuickMacroDraft.number(value, locale: Locale(identifier: numberLocaleIdentifier)) ?? 0
     }
 
     private func formatted(_ value: Double) -> String {

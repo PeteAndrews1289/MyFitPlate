@@ -1,11 +1,24 @@
 import SwiftUI
 
 struct UserProfileView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var accountChanged = false
     @EnvironmentObject private var goalSettings: GoalSettings
     @EnvironmentObject private var achievementService: AchievementService
     @Environment(\.dismiss) private var dismiss
+    var onClose: (() -> Void)?
 
+    private func closeProfile() {
+        if let onClose { onClose() } else { dismiss() }
+    }
+
+    @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits = Locale.current.measurementSystem != .us
     @State private var showingChallenges = false
+    @State private var showingSettings = false
+    @State private var preferences = PersonalReportPreferences()
+    @State private var preferenceOwner: String?
+    @State private var preferenceError: String?
+    @State private var preferenceReadFailed = false
 
     private var levelProgress: AchievementRules.LevelProgress {
         AchievementRules.levelProgress(
@@ -44,17 +57,28 @@ struct UserProfileView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                AppScreenHeader(
-                    eyebrow: "Profile",
-                    title: "Your Progress",
-                    subtitle: "A clear view of your level, weekly momentum, and earned milestones."
-                )
-
-                progressSummary
-                levelProgressSection
-                weeklyChallengesLink
+                objectiveSection
                 currentTargetsSection
-                achievementsSection
+                displayPreferences
+                if let notice = achievementService.achievementSyncNotice {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        Text(notice).appTextRole(.secondary).foregroundStyle(.secondary)
+                        Button("Retry milestone sync") {
+                            achievementService.retryPendingAwards()
+                            refreshProgressIfNeeded()
+                        }
+                    }.appSurface(.quiet)
+                }
+                if preferences.showsGamification {
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
+                        progressSummary
+                        Divider()
+                        levelProgressSection
+                    }
+                    .appSurface(.quiet)
+                    weeklyChallengesLink
+                    achievementsSection
+                }
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.group)
@@ -67,41 +91,135 @@ struct UserProfileView: View {
             ChallengesView()
         }
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    dismiss()
+            ToolbarItem(placement: .topBarLeading) {
+                Button { showingSettings = true } label: {
+                    Image(systemName: "gearshape")
                 }
+                .accessibilityLabel("Account details and settings")
+                .accessibilityIdentifier("profile_account_settings")
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done", action: closeProfile)
+                    .accessibilityIdentifier("profile_done")
             }
         }
-        .onAppear(perform: refreshProgressIfNeeded)
+        .opacity(accountChanged ? 0 : 1)
+        .accessibilityHidden(accountChanged)
+        .allowsHitTesting(!accountChanged)
+        .onReceive(appState.$isUserLoggedIn) { _ in
+            if let owner = preferenceOwner, owner != DIContainer.shared.authService.currentUserID {
+                accountChanged = true; showingSettings = false; showingChallenges = false; closeProfile()
+            }
+        }
+        .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView(showSettings: $showingSettings) } }
+        .onAppear {
+            preferenceOwner = DIContainer.shared.authService.currentUserID
+            if let owner = preferenceOwner {
+                do { preferences = try PersonalReportPreferenceStore.load(userID: owner) } catch { preferenceReadFailed = true; preferenceError = "Display preferences could not be opened. Existing settings are kept." }
+            }
+            refreshProgressIfNeeded()
+        }
+    }
+
+    private var objectiveSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Current objective", subtitle: goalSettings.goal)
+            NavigationLink { WeightTrackingView() } label: {
+                AppListRow(icon: "chart.line.uptrend.xyaxis", iconColor: AppPalette.brand,
+                    title: "Recorded weight", subtitle: recordedWeightSummary) {
+                    Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                }
+            }.buttonStyle(.plain).accessibilityIdentifier("profile_weight_evidence")
+        }.appSurface(.quiet)
+    }
+
+    private var recordedWeightSummary: String {
+        let unit = useMetricBodyUnits ? "kg" : "lb"
+        let factor = useMetricBodyUnits ? 0.45359237 : 1.0
+        let now = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
+        let records = goalSettings.weightHistory.filter { $0.date >= start && $0.date <= now && $0.weight.isFinite && $0.weight > 0 }
+            .sorted { $0.date < $1.date }
+        guard let latest = records.last else { return "No recorded weigh-ins in the past 30 days" }
+        guard let first = records.first, first.id != latest.id else {
+            return "\((latest.weight * factor).formatted(.number.precision(.fractionLength(1)))) \(unit) · \(latest.date.formatted(date: .abbreviated, time: .omitted))"
+        }
+        let change = (latest.weight - first.weight) * factor
+        let sign = change > 0 ? "+" : ""
+        return "\(sign)\(change.formatted(.number.precision(.fractionLength(1)))) \(unit) across \(records.count) recorded weigh-ins · past 30 days"
+    }
+
+    private var displayPreferences: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Toggle("Show points and milestones", isOn: Binding(get: { preferences.showsGamification }, set: {
+                var next = preferences; next.showsGamification = $0; savePreferences(next)
+            })).accessibilityIdentifier("profile_show_gamification")
+            Toggle("Show BMI estimate", isOn: Binding(get: { preferences.showsBMI }, set: {
+                var next = preferences; next.showsBMI = $0; savePreferences(next)
+            })).accessibilityIdentifier("profile_show_bmi")
+            if let preferenceError { Text(preferenceError).appTextRole(.caption).foregroundStyle(.secondary) }
+            }.padding(.top, AppSpacing.row)
+        } label: {
+            Text("Display preferences")
+                .accessibilityIdentifier("profile_display_preferences")
+        }
+        .appTextRole(.control)
+        .disabled(preferenceReadFailed).appSurface(.quiet)
+    }
+
+    private func savePreferences(_ next: PersonalReportPreferences) {
+        guard let owner = preferenceOwner else { return }
+        do {
+            try PersonalReportPreferenceStore.save(next, userID: owner, currentUserID: DIContainer.shared.authService.currentUserID)
+            preferences = next; preferenceError = nil
+        } catch { preferenceError = "The display preference could not be saved. Try again." }
     }
 
     private var progressSummary: some View {
-        AppMetricStrip(items: [
-            AppMetricItem(
-                label: "Level",
-                value: "\(levelProgress.level)",
-                accent: AppPalette.brand
-            ),
-            AppMetricItem(
-                label: "Points",
-                value: achievementService.userTotalAchievementPoints.formatted(),
-                accent: AppPalette.achievement
-            ),
-            AppMetricItem(
-                label: "Unlocked",
-                value: "\(achievementService.unlockedAchievementsCount)/\(achievementService.achievementDefinitions.count)",
-                accent: AppPalette.effort
-            )
-        ])
-        .appSurface(.emphasized)
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Level",
+                    value: "\(levelProgress.level)",
+                    accent: AppPalette.text
+                ),
+                AppMetricItem(
+                    label: "Points",
+                    value: achievementService.hasConfirmedPointBalance ? achievementService.userTotalAchievementPoints.formatted() : "—",
+                    accent: AppPalette.achievement
+                ),
+                AppMetricItem(
+                    label: "Milestones",
+                    value: "\(achievementService.unlockedAchievementsCount)",
+                    accent: AppPalette.effort
+                )
+            ])
+            if let receipt = achievementService.legacyBalanceReceipt {
+                DisclosureGroup("Points history") {
+                    Text(receipt.explanation).appTextRole(.secondary).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("profile_points_provenance")
+                }
+                .appTextRole(.control).tint(AppPalette.text)
+                .accessibilityIdentifier("profile_points_history")
+            } else if let notice = achievementService.legacyBalanceNotice {
+                Text(notice).appTextRole(.caption).foregroundStyle(AppPalette.caution)
+                Button("Retry balance receipt") { achievementService.retryLegacyBalanceReceipt() }
+                    .appTextRole(.control).accessibilityIdentifier("profile_points_retry")
+            } else {
+                Text("Checking the recorded opening balance. No points are added by this migration.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profile_progress_summary")
     }
 
     private var levelProgressSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
-                title: "Level Progress",
+                title: "Level progress",
                 subtitle: levelProgress.isMaximumLevel
                     ? "You have reached the highest current level."
                     : "Every unlocked achievement moves you toward Level \(levelProgress.level + 1)."
@@ -126,7 +244,6 @@ struct UserProfileView: View {
             }
             .monospacedDigit()
         }
-        .appSurface(.quiet)
     }
 
     private var weeklyChallengesLink: some View {
@@ -136,7 +253,7 @@ struct UserProfileView: View {
             AppListRow(
                 icon: "flag.checkered",
                 iconColor: AppPalette.achievement,
-                title: "Weekly Challenges",
+                title: "Weekly challenges",
                 subtitle: weeklyChallengeSummary
             ) {
                 Image(systemName: "chevron.right")
@@ -153,29 +270,17 @@ struct UserProfileView: View {
     private var currentTargetsSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppSectionHeader(
-                title: "Current Targets",
+                title: "Current targets",
                 subtitle: "The baseline currently used by your daily plan."
             )
 
-            AppMetricStrip(items: [
-                AppMetricItem(
-                    label: "Calorie Target",
-                    value: calorieGoalText,
-                    accent: AppPalette.energy
-                ),
-                AppMetricItem(
-                    label: "BMI Estimate",
-                    value: bmiText,
-                    accent: AppPalette.effort
-                )
-            ])
+            LabeledContent("Calorie target", value: calorieGoalText)
+            if preferences.showsBMI {
+                LabeledContent("BMI estimate", value: bmiText)
+                Text("BMI does not describe body composition or lifting performance. This optional screening estimate uses your saved height and weight.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
 
-            Divider()
-
-            Text("BMI is a general screening estimate, not a diagnosis or a complete measure of health.")
-                .appTextRole(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .appSurface(.quiet)
     }
@@ -252,7 +357,7 @@ struct UserProfileView: View {
         guard let calories = goalSettings.calories, calories > 0 else {
             return "Not set"
         }
-        return "\(Int(calories).formatted()) cal"
+        return "\(Int(calories.rounded()).formatted()) cal"
     }
 
     private var bmiText: String {
@@ -319,6 +424,16 @@ private struct AchievementProgressRow: View {
                     .appTextRole(.caption)
                     .foregroundStyle(AppPalette.brandText)
                     .fixedSize(horizontal: false, vertical: true)
+                if let evidence = status?.awardEvidence {
+                    DisclosureGroup("Milestone evidence") {
+                        Text(evidence.explanation).appTextRole(.caption)
+                        Text(evidence.recordedAt.formatted(date: .abbreviated, time: .shortened)).appTextRole(.caption)
+                        Text(status?.awardRulesVersion ?? "Earlier definition").appTextRole(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Earlier earned milestone. Original points are preserved; a detailed source receipt was not recorded.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
             } else {
                 VStack(alignment: .leading, spacing: AppSpacing.compact) {
                     ProgressView(value: progressFraction)
@@ -359,7 +474,7 @@ private struct AchievementProgressRow: View {
 
     private var metadata: some View {
         HStack(spacing: AppSpacing.compact) {
-            Label("\(definition.pointsValue) points", systemImage: "star.fill")
+            Label("\(status?.awardedPoints ?? definition.pointsValue) points", systemImage: "star.fill")
                 .appTextRole(.caption)
                 .foregroundStyle(isUnlocked ? AppPalette.brandText : Color.secondary)
 

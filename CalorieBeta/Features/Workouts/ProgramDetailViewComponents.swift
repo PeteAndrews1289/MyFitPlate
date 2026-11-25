@@ -11,55 +11,36 @@ struct ProgramDetailHeroCard: View {
     let trainingDays: Int
     let exerciseCount: Int
     let setCount: Int
+    let skippedCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppScreenHeader(
-                eyebrow: "Training Program",
-                title: programName,
-                subtitle: statusText
-            ) {
-                Text("\(Int((progress * 100).rounded()))% complete")
-                    .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brandText)
-                    .padding(.horizontal, AppSpacing.row)
-                    .frame(minHeight: 36)
-                    .background(
-                        AppPalette.brand.opacity(0.10),
-                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    )
-                    .accessibilityLabel("\(Int((progress * 100).rounded())) percent complete")
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text(programName)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(statusText)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("\(completedWorkouts) of \(totalWorkouts) sessions passed")
+                .appTextRole(.secondary)
+                .foregroundStyle(AppPalette.text)
+                .accessibilityIdentifier("program_progress_summary")
+            if skippedCount > 0 {
+                Text("Includes \(skippedCount.formatted()) explicitly skipped sessions")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
             }
-
-            VStack(alignment: .leading, spacing: AppSpacing.row) {
-                Text("\(completedWorkouts) of \(totalWorkouts) sessions complete")
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(AppPalette.brand.opacity(0.12))
-
-                        Capsule()
-                            .fill(AppPalette.brand)
-                            .frame(width: geometry.size.width * CGFloat(progress))
-                            .animation(AppMotion.standard, value: progress)
-                    }
-                }
-                .frame(height: 8)
+            AppProgressTrack(progress: progress, role: .effort, height: 6)
                 .accessibilityHidden(true)
-
-                AppMetricStrip(items: [
-                    AppMetricItem(label: "Routines", value: routineCount.formatted()),
-                    AppMetricItem(label: "Days / week", value: trainingDays.formatted(), accent: AppPalette.effort),
-                    AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: AppPalette.achievement),
-                    AppMetricItem(label: "Working sets", value: setCount.formatted(), accent: .accentPositive)
-                ])
-            }
-            .appSurface(.emphasized)
+            Text("\(routineCount.formatted()) routines · \(trainingDays.formatted()) training days per week")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface(.quiet)
     }
+
 }
 
 struct ProgramPreviewActionCard: View {
@@ -103,6 +84,8 @@ struct ProgramScheduleSetupCard: View {
     @Binding var startDate: Date
     @Binding var selectedDays: [Int]
     let isScheduled: Bool
+    var isSaving = false
+    var feedback: String?
     let onSave: () -> Void
 
     var body: some View {
@@ -131,13 +114,16 @@ struct ProgramScheduleSetupCard: View {
 
                 Button(action: onSave) {
                     Label(
-                        isScheduled ? "Update Schedule" : "Save Schedule",
+                        isSaving ? "Saving schedule…" : isScheduled ? "Update Schedule" : "Save Schedule",
                         systemImage: "checkmark.circle.fill"
                     )
                 }
                 .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(selectedDays.isEmpty)
+                .disabled(selectedDays.isEmpty || isSaving)
+                .accessibilityIdentifier("program_schedule_save")
+                if let feedback { Text(feedback).appTextRole(.secondary).fixedSize(horizontal: false, vertical: true) }
             }
+            .disabled(isSaving)
             .appSurface(.quiet)
         }
         .accessibilityIdentifier("program_detail_schedule")
@@ -355,10 +341,10 @@ struct CalendarView: View {
     let workoutMap: [Date: WorkoutRoutine]
     let completedLogs: [Date: WorkoutSessionLog]
     let skippedDates: Set<Date>
-    @Binding var routineToPlay: WorkoutRoutine?
+    let onStart: (WorkoutRoutine, Date) -> Void
     let onReview: (WorkoutSessionLog) -> Void
     @State private var month: Date = Date()
-    
+
     private let weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
 
@@ -418,7 +404,7 @@ struct CalendarView: View {
                             if let log = dayEntry.completedLog {
                                 onReview(log)
                             } else if let workout = dayEntry.workout {
-                                self.routineToPlay = workout
+                                onStart(workout, dayEntry.date)
                             }
                         }) {
                             ZStack(alignment: .topTrailing) {
@@ -459,20 +445,20 @@ struct CalendarView: View {
             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
     }
-    
+
     private var monthYearFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
         return formatter
     }
-    
+
     private func daysForMonth() -> [DayEntry] {
         let calendar = Calendar.current
         guard let monthInterval = calendar.dateInterval(of: .month, for: month) else { return [] }
         let firstDayOfMonth = monthInterval.start
-        
+
         var entries: [DayEntry] = []
-        
+
         let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
         if firstWeekday > 1 {
             for _ in 1..<firstWeekday {
@@ -499,14 +485,14 @@ struct CalendarView: View {
         }
         return entries
     }
-    
+
     private func dayOfMonth(_ date: Date) -> String {
         guard date != Date.distantPast else { return "" }
         let formatter = DateFormatter()
         formatter.dateFormat = "d"
         return formatter.string(from: date)
     }
-    
+
     private func isSameDay(_ date1: Date, _ date2: Date) -> Bool {
         guard date1 != Date.distantPast, date2 != Date.distantPast else { return false }
         return Calendar.current.isDate(date1, inSameDayAs: date2)
@@ -556,5 +542,203 @@ struct CalendarView: View {
             return "\(date), \(workout.name). Double tap to start."
         }
         return date
+    }
+}
+
+struct ProgramBlockReviewCard: View {
+    let review: WorkoutBlockReview
+    let isLoading: Bool
+    let hasLoaded: Bool
+    let errorMessage: String?
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text("Block review").appTextRole(.sectionTitle)
+            Text("Your position and your recorded training are shown separately.")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+            if isLoading && !hasLoaded {
+                ProgressView("Loading workout evidence").appTextRole(.secondary)
+            }
+            if hasLoaded {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: AppSpacing.group) { evidenceMetrics }
+                    VStack(alignment: .leading, spacing: AppSpacing.row) { evidenceMetrics }
+                }
+                .accessibilityIdentifier("program_block_evidence_summary")
+                Text("\(review.completedSlots) positions with complete sets · \(review.partialSlots) partial · \(review.unknownSlots) coverage unknown")
+                    .appTextRole(.secondary).accessibilityIdentifier("program_block_outcome_summary")
+                Text("\(review.movedSlots) explicitly moved positions · \(review.substitutedReceipts) receipts with substitutions")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+                if review.legacyMatches > 0 {
+                    Text("\(review.legacyMatches) older logs matched by routine and date.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                if review.loggedAhead > 0 {
+                    Text("\(review.loggedAhead) linked logs are ahead of the current position.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                if review.logsOnSkippedSlots > 0 {
+                    Text("\(review.logsOnSkippedSlots) previously skipped positions also have logs. They appear with the recorded work.")
+                        .appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                DisclosureGroup("Review by week") {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        ForEach(Array(review.weeks.enumerated()), id: \.element.id) { index, week in
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(week.name).appTextRole(.control)
+                                Text("\(week.passedSlots) of \(week.totalSlots) positions passed · \(week.linkedLogs) linked logs · \(week.skippedSlots) skipped")
+                                    .appTextRole(.secondary).foregroundStyle(.secondary)
+                                Text("\(week.outcomes.filter { $0.state == .completed }.count) completed · \(week.outcomes.filter { $0.state == .partial }.count) partial · \(week.outcomes.filter { $0.state == .unknown }.count) unknown · \(week.outcomes.filter(\.isMoved).count) moved")
+                                    .appTextRole(.caption).foregroundStyle(.secondary)
+                                if week.legacyMatches > 0 {
+                                    Text("\(week.legacyMatches) older matched logs").appTextRole(.caption).foregroundStyle(.secondary)
+                                }
+                                if week.passedWithoutLog > 0 {
+                                    Text("\(week.passedWithoutLog) passed without a matching log")
+                                        .appTextRole(.caption).foregroundStyle(.secondary)
+                                }
+                                if week.isDeload {
+                                    Text("Lighter-week label").appTextRole(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("program_block_review_week_\(index)")
+                            if index < review.weeks.count - 1 { Divider() }
+                        }
+                    }
+                    .padding(.top, AppSpacing.row)
+                }
+                .appTextRole(.control)
+                .accessibilityIdentifier("program_block_review_weeks")
+                DisclosureGroup("Inspect position outcomes") {
+                    ForEach(review.outcomes) { outcome in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("Position \(outcome.slotIndex + 1) · \(outcome.state.title)").appTextRole(.control)
+                            if outcome.isMoved, let old = outcome.originalDay?.date(), let new = outcome.scheduledDay?.date() {
+                                Text("Reviewed move: \(old.formatted(date: .abbreviated, time: .omitted)) → \(new.formatted(date: .abbreviated, time: .omitted))")
+                                    .appTextRole(.secondary)
+                            }
+                            Text(outcome.explanation).appTextRole(.caption).foregroundStyle(.secondary)
+                            ForEach(outcome.sessions) { receipt in
+                                Text("\(receipt.date.formatted(date: .abbreviated, time: .omitted)) · \(receipt.title) · \(receipt.substitutionExerciseIDs.count) substitutions")
+                                    .appTextRole(.secondary)
+                                Text(receipt.explanation).appTextRole(.caption).foregroundStyle(.secondary)
+                                Text("Receipt: \(receipt.sessionID)").appTextRole(.caption).textSelection(.enabled)
+                            }
+                        }.padding(.vertical, AppSpacing.compact)
+                    }
+                }.buttonStyle(AppListButtonStyle()).frame(minHeight: 44).accessibilityIdentifier("program_block_outcome_details")
+                Text("A linked log identifies this program and position. Coverage compares frozen original working sets; it does not mean load, reps or effort targets were achieved. Replacement movements are not assumed equivalent. Older or incomplete evidence stays Unknown.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+                if review.passedSlots == review.totalSlots && review.totalSlots > 0 {
+                    Text("All positions passed. Review skipped sessions and missing logs before planning your next block.")
+                        .appTextRole(.secondary).foregroundStyle(AppPalette.brandText)
+                }
+            }
+            if let errorMessage {
+                Text(errorMessage).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                    .accessibilityIdentifier("program_block_history_error")
+                if hasLoaded {
+                    Text("The review still shows your last loaded evidence.").appTextRole(.caption).foregroundStyle(.secondary)
+                }
+                Button("Retry workout evidence", action: onRetry)
+                    .frame(minHeight: 44).disabled(isLoading)
+                    .accessibilityIdentifier("program_block_history_retry")
+            }
+        }
+        .appSurface(.quiet).accessibilityElement(children: .contain)
+        .accessibilityIdentifier("program_block_review")
+    }
+
+    private var evidenceMetrics: some View {
+        Group {
+            metric("Linked logs", value: review.linkedLogs, identifier: "program_block_linked_logs")
+            metric("Skipped", value: review.skippedSlots, identifier: "program_block_skipped")
+            metric("Passed, no log", value: review.passedWithoutLog, identifier: "program_block_unlinked_passed")
+        }
+    }
+
+    private func metric(_ title: String, value: Int, identifier: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value.formatted()).appTextRole(.sectionTitle).monospacedDigit()
+            Text(title).appTextRole(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine).accessibilityIdentifier(identifier)
+    }
+}
+
+struct ProgramBlockPerformanceCard: View {
+    let evidence: WorkoutBlockPerformance
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text("Comparable lifting").appTextRole(.sectionTitle)
+            Text("First and latest linked sessions, at the same reps and in the same exercise and equipment context.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+            if evidence.comparisons.isEmpty {
+                Text("Two comparable linked sessions are needed. Missing logs and different equipment are not counted as zero performance.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+            } else {
+                DisclosureGroup("Review \(evidence.comparisons.count) exercise comparisons") {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        ForEach(evidence.comparisons) { comparison in
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(comparison.name).appTextRole(.control)
+                                Text(comparison.context).appTextRole(.caption).foregroundStyle(.secondary)
+                                Text("\(comparison.unit.displayWeight(comparison.firstWeightPounds).formatted(.number.precision(.fractionLength(0...2)))) → \(comparison.unit.displayWeight(comparison.latestWeightPounds).formatted(.number.precision(.fractionLength(0...2)))) \(comparison.unit.rawValue) × \(comparison.repetitions) reps")
+                                    .appTextRole(.secondary).monospacedDigit()
+                                Text("\(comparison.firstDate.formatted(date: .abbreviated, time: .omitted)) to \(comparison.latestDate.formatted(date: .abbreviated, time: .omitted)) · \(comparison.comparableSessions) comparable sessions")
+                                    .appTextRole(.caption).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading).accessibilityElement(children: .combine)
+                        }
+                    }.padding(.top, AppSpacing.row)
+                }
+                .accessibilityIdentifier("program_block_load_comparisons")
+            }
+            Text("Effort recorded on \(evidence.effortRecordedSets) of \(evidence.workingSets) eligible working sets. Warm-ups are excluded.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+            if let gap = evidence.longestGapDays, gap > 0 {
+                Text("Longest gap between linked logs: \(gap) days.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .appSurface(.quiet).accessibilityElement(children: .contain)
+        .accessibilityIdentifier("program_block_performance")
+    }
+}
+
+struct ProgramPlanningReviewCard: View {
+    let program: WorkoutProgram
+    private var summary: WorkoutProgramPlanningSummary { WorkoutProgramPlanningSummary.make(program) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Text("Plan fit").appTextRole(.sectionTitle)
+            Text("Equipment families inferred from the listed movements: \(summary.equipment.isEmpty ? "review each movement" : summary.equipment.joined(separator: ", ")).")
+                .appTextRole(.secondary).foregroundStyle(.secondary)
+            if !summary.ambiguousMovements.isEmpty {
+                Text("Confirm the implement for: \(summary.ambiguousMovements.prefix(3).joined(separator: ", "))\(summary.ambiguousMovements.count > 3 ? " and \(summary.ambiguousMovements.count - 3) more" : "").")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
+            if let minimum = summary.minimumEstimatedMinutes, let maximum = summary.maximumEstimatedMinutes {
+                Text(minimum == maximum ? "Planning estimate: \(maximum) min per session" : "Planning estimate: \(minimum)–\(maximum) min per session")
+                    .appTextRole(.control)
+            } else {
+                Text("Session time needs review because some targets are open-ended or manual.")
+                    .appTextRole(.secondary).foregroundStyle(.secondary)
+            }
+            if summary.manualTargetSets > 0 {
+                Text("\(summary.manualTargetSets) sets have manual or open-ended targets. Review them before starting or automating progression.")
+                    .appTextRole(.caption).foregroundStyle(.secondary)
+            }
+            Text("Time estimates include 5 minutes warm-up, setup, upper-target reps and prescribed rest. Actual time varies. Automatic progression is not inferred from a program's name.")
+                .appTextRole(.caption).foregroundStyle(.secondary)
+        }
+        .appSurface(.quiet).accessibilityElement(children: .contain)
+        .accessibilityIdentifier("program_planning_review")
     }
 }

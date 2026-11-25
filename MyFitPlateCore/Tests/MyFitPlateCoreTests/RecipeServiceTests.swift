@@ -103,7 +103,7 @@ final class RecipeServiceTests: XCTestCase {
         XCTAssertEqual(foodItem.magnesium, 75)
         XCTAssertEqual(foodItem.vitaminB6, 0.8)
         XCTAssertEqual(foodItem.quantityValue, 1.0)
-        XCTAssertEqual(foodItem.servingUnit, "serving")
+        XCTAssertEqual(foodItem.servingUnit, "saved amount", "Legacy yield is not a confirmed serving basis")
     }
     
     func testCreateRecipeFromAISuccess() async {

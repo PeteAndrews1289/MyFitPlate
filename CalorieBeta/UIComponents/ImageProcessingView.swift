@@ -45,32 +45,16 @@ enum ImageProcessingKind {
         }
     }
 
-    var stages: [String] {
+    var processingMessage: String {
         switch self {
         case .mealPhoto:
-            return [
-                "Finding visible foods",
-                "Estimating portions",
-                "Preparing your review"
-            ]
+            return "Analyzing foods and portions…"
         case .menuPhoto:
-            return [
-                "Finding menu items",
-                "Reading names and details",
-                "Preparing choices"
-            ]
+            return "Analyzing menu items…"
         case .nutritionLabel:
-            return [
-                "Finding serving details",
-                "Reading nutrients",
-                "Checking the result"
-            ]
+            return "Reading serving details and nutrients…"
         case .receiptPhoto:
-            return [
-                "Finding purchased items",
-                "Reading quantities",
-                "Preparing your pantry review"
-            ]
+            return "Reading items and quantities…"
         }
     }
 
@@ -91,8 +75,6 @@ enum ImageProcessingKind {
 struct ImageProcessingView: View {
     let kind: ImageProcessingKind
     var onCancel: (() -> Void)?
-
-    @State private var stageIndex = 0
 
     init(kind: ImageProcessingKind = .mealPhoto, onCancel: (() -> Void)? = nil) {
         self.kind = kind
@@ -132,11 +114,9 @@ struct ImageProcessingView: View {
                         .tint(AppPalette.brand)
                         .accessibilityHidden(true)
 
-                    Text(kind.stages[stageIndex])
+                    Text(kind.processingMessage)
                         .appTextRole(.control)
                         .foregroundStyle(AppPalette.text)
-                        .contentTransition(.opacity)
-                        .animation(AppMotion.visibility, value: stageIndex)
                 }
                 .padding(AppSpacing.row)
                 .background(AppPalette.control, in: RoundedRectangle(
@@ -167,15 +147,7 @@ struct ImageProcessingView: View {
             }
             .padding(AppSpacing.screenHorizontal)
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("\(kind.title). \(kind.stages[stageIndex])")
-            .task(id: kind.eyebrow) {
-                stageIndex = 0
-                for index in kind.stages.indices.dropFirst() {
-                    try? await Task.sleep(for: .seconds(1.6))
-                    guard !Task.isCancelled else { return }
-                    stageIndex = index
-                }
-            }
+            .accessibilityLabel("\(kind.title). \(kind.processingMessage)")
         }
     }
 }

@@ -1,12 +1,12 @@
 import Foundation
 
-public enum ChainIngredientControlStyle: Hashable, Sendable {
+public enum ChainIngredientControlStyle: Codable, Hashable, Sendable {
     case portion
     case stepper(unit: String)
     case fixed
 }
 
-public struct ChainIngredient: Identifiable, Hashable, Sendable {
+public struct ChainIngredient: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let name: String
     public let servingDescription: String
@@ -15,6 +15,7 @@ public struct ChainIngredient: Identifiable, Hashable, Sendable {
     public let carbs: Double
     public let fat: Double
     public let fiber: Double
+    public let fiberReported: Bool
     public let sodium: Double?
     public let controlStyle: ChainIngredientControlStyle
 
@@ -26,7 +27,7 @@ public struct ChainIngredient: Identifiable, Hashable, Sendable {
         protein: Double,
         carbs: Double,
         fat: Double,
-        fiber: Double = 0,
+        fiber: Double? = nil,
         sodium: Double? = nil,
         controlStyle: ChainIngredientControlStyle = .portion
     ) {
@@ -37,7 +38,8 @@ public struct ChainIngredient: Identifiable, Hashable, Sendable {
         self.protein = protein
         self.carbs = carbs
         self.fat = fat
-        self.fiber = fiber
+        self.fiber = fiber ?? 0
+        self.fiberReported = fiber != nil
         self.sodium = sodium
         self.controlStyle = controlStyle
     }
@@ -123,7 +125,7 @@ public struct ChainRestaurant: Identifiable, Hashable, Sendable {
     }
 }
 
-public enum ChainMealPortion: Double, CaseIterable, Identifiable, Sendable {
+public enum ChainMealPortion: Double, Codable, CaseIterable, Identifiable, Sendable {
     case light = 0.5
     case regular = 1.0
     case double = 2.0
@@ -147,7 +149,7 @@ public enum ChainMealPortion: Double, CaseIterable, Identifiable, Sendable {
     }
 }
 
-public struct ChainSelectionItem: Identifiable, Hashable, Sendable {
+public struct ChainSelectionItem: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let ingredient: ChainIngredient
     public var portion: ChainMealPortion
@@ -226,7 +228,7 @@ public extension ChainRestaurant {
             carbs: orderedItems.reduce(0) { $0 + $1.carbs },
             fat: orderedItems.reduce(0) { $0 + $1.fat },
             fiber: orderedItems.reduce(0) { $0 + $1.fiber },
-            sodium: knownSodiumValues.isEmpty ? nil : knownSodiumValues.reduce(0, +)
+            sodium: knownSodiumValues.count == orderedItems.count && !orderedItems.isEmpty ? knownSodiumValues.reduce(0, +) : nil
         )
     }
 
@@ -258,14 +260,14 @@ public extension ChainRestaurant {
         let summary = ingredientSummary(for: selections)
         let sourceID = catalogSourceID(catalogVersion: catalogVersion)
 
-        return FoodItem(
+        var food = FoodItem(
             id: id,
             name: "\(name) Custom Meal",
             calories: totals.calories,
             protein: totals.protein,
             carbs: totals.carbs,
             fats: totals.fat,
-            fiber: totals.fiber,
+            fiber: orderedItems.allSatisfy { $0.ingredient.fiberReported } ? totals.fiber : nil,
             servingSize: "\(orderedItems.count) \(orderedItems.count == 1 ? "item" : "items")",
             servingWeight: 0,
             sourceMetadata: FoodSourceMetadata(
@@ -287,6 +289,19 @@ public extension ChainRestaurant {
             ),
             sodium: totals.sodium
         )
+        food.mealComposition = MealCompositionSnapshot(title: food.name,
+            components: orderedItems.map { selection in
+                FoodItem(id: "\(id)-\(selection.id)", name: selection.ingredient.name,
+                    calories: selection.calories, protein: selection.protein, carbs: selection.carbs,
+                    fats: selection.fat, fiber: selection.ingredient.fiberReported ? selection.fiber : nil,
+                    servingSize: "\(selection.totalMultiplier) × \(selection.ingredient.servingDescription)",
+                    servingWeight: 0,
+                    sourceMetadata: FoodSourceMetadata(sourceType: .chainBuilder, confidence: .estimated,
+                        reviewStatus: .unreviewed, sourceName: name,
+                        sourceID: "\(sourceID):\(selection.id)", notes: "Frozen catalog component; local portions may differ."),
+                    sodium: selection.sodium)
+            }, sourceID: sourceID, revisionID: catalogVersion)
+        return food
     }
 }
 

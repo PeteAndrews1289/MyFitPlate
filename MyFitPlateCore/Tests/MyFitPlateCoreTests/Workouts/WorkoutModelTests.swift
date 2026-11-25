@@ -2,6 +2,132 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class WorkoutModelTests: XCTestCase {
+    // Older installed versions stored targets on each set, before the exercise-level
+    // targetSets/targetReps fields existed. Keep this fixture independent of today's encoder.
+    private let legacyExerciseJSON = """
+    {
+      "id": "legacy-exercise", "name": "Bench Press", "type": "Strength",
+      "restTimeInSeconds": 120, "notes": "Keep my original targets",
+      "sets": [
+        {"id": "set-1", "isCompleted": true, "isWarmup": false, "target": "6-8",
+         "reps": 8, "weight": 135, "distance": 0, "durationInSeconds": 0},
+        {"id": "set-2", "isCompleted": false, "isWarmup": false, "target": "6-8",
+         "reps": 6, "weight": 130, "distance": 0, "durationInSeconds": 0}
+      ]
+    }
+    """
+
+    func testLegacyProgramPreservesProgressAndInfersTargetsFromItsSavedSets() throws {
+        let json = """
+        {
+          "id": "original-program", "userID": "owner", "name": "PHUL",
+          "dateCreated": 700000000, "startDate": 700000000,
+          "daysOfWeek": [2, 3, 5, 6], "currentProgressIndex": 12, "skippedIndices": [2],
+          "routines": [
+            {"id": "original-routine", "userID": "owner", "name": "Upper Power",
+             "dateCreated": 700000000, "exercises": [\(legacyExerciseJSON)]}
+          ]
+        }
+        """
+        let program = try JSONDecoder().decode(WorkoutProgram.self, from: Data(json.utf8))
+        XCTAssertEqual(program.id, "original-program")
+        XCTAssertEqual(program.currentProgressIndex, 12)
+        XCTAssertEqual(program.skippedIndices, [2])
+        XCTAssertEqual(program.routines[0].id, "original-routine")
+        let exercise = program.routines[0].exercises[0]
+        XCTAssertEqual(exercise.id, "legacy-exercise")
+        XCTAssertEqual(exercise.targetSets, 2)
+        XCTAssertEqual(exercise.targetReps, "6-8")
+        XCTAssertEqual(exercise.sets.map(\.weight), [135, 130])
+        XCTAssertEqual(exercise.sets.map(\.isCompleted), [true, false])
+        XCTAssertEqual(exercise.notes, "Keep my original targets")
+        let restored = try JSONDecoder().decode(WorkoutProgram.self, from: JSONEncoder().encode(program))
+        XCTAssertEqual(restored.currentProgressIndex, 12)
+        XCTAssertEqual(restored.routines[0].exercises[0].sets.map(\.id), ["set-1", "set-2"])
+    }
+
+    func testLegacyWorkoutHistoryDecodesTheEmbeddedExerciseWithoutNewTargets() throws {
+        let json = """
+        {"id": "old-session", "date": 700000000, "routineID": "original-routine",
+         "completedExercises": [
+           {"id": "completed", "exerciseName": "Bench Press", "exercise": \(legacyExerciseJSON),
+            "sets": [{"id": "completed-set", "reps": 8, "weight": 135}]}
+         ]}
+        """
+        let session = try JSONDecoder().decode(WorkoutSessionLog.self, from: Data(json.utf8))
+        XCTAssertEqual(session.routineID, "original-routine")
+        XCTAssertEqual(session.completedExercises[0].exercise.targetSets, 2)
+        XCTAssertEqual(session.completedExercises[0].sets[0].weight, 135)
+    }
+
+    func testExistingExerciseTargetsArePreservedAndMalformedTargetsStillFail() throws {
+        var fields = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(legacyExerciseJSON.utf8)) as? [String: Any])
+        fields["targetSets"] = 4
+        fields["targetReps"] = "10-12"
+        let exercise = try JSONDecoder().decode(RoutineExercise.self, from: JSONSerialization.data(withJSONObject: fields))
+        XCTAssertEqual(exercise.targetSets, 4)
+        XCTAssertEqual(exercise.targetReps, "10-12")
+        fields["targetSets"] = "invalid"
+        XCTAssertThrowsError(try JSONDecoder().decode(RoutineExercise.self, from: JSONSerialization.data(withJSONObject: fields)))
+    }
+
+    func testOldestStrengthRoutinesGetStableIdentitiesWithoutLosingSetValues() throws {
+        var exercise = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(legacyExerciseJSON.utf8)) as? [String: Any])
+        exercise.removeValue(forKey: "type")
+        exercise["sets"] = try XCTUnwrap(exercise["sets"] as? [[String: Any]]).map { savedSet in
+            var set = savedSet
+            set.removeValue(forKey: "distance")
+            set.removeValue(forKey: "durationInSeconds")
+            return set
+        }
+        let routine: [String: Any] = [
+            "userID": "owner", "name": "Legacy strength", "dateCreated": 700000000,
+            "exercises": [exercise]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: [routine, routine])
+        let firstRead = try JSONDecoder().decode([WorkoutRoutine].self, from: data)
+        let secondRead = try JSONDecoder().decode([WorkoutRoutine].self, from: data)
+        XCTAssertEqual(firstRead.map(\.id), secondRead.map(\.id))
+        XCTAssertNotEqual(firstRead[0].id, firstRead[1].id)
+        XCTAssertEqual(firstRead[0].exercises[0].type, .strength)
+        XCTAssertEqual(firstRead[0].exercises[0].sets.map(\.weight), [135, 130])
+        XCTAssertEqual(firstRead[0].exercises[0].sets.map(\.distance), [0, 0])
+        XCTAssertEqual(firstRead[0].exercises[0].sets.map(\.durationInSeconds), [0, 0])
+        XCTAssertEqual(firstRead[0].exercises[0].restTimeInSeconds, 120)
+        let roundTrip = try JSONDecoder().decode([WorkoutRoutine].self, from: JSONEncoder().encode(firstRead))
+        XCTAssertEqual(roundTrip.map(\.id), firstRead.map(\.id))
+    }
+
+    func testLegacyExerciseWithoutAnySetsUsesTheExistingEditorDefaults() throws {
+        var exercise = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(legacyExerciseJSON.utf8)) as? [String: Any])
+        exercise["sets"] = []
+        let decoded = try JSONDecoder().decode(RoutineExercise.self, from: JSONSerialization.data(withJSONObject: exercise))
+        XCTAssertEqual(decoded.targetSets, 3)
+        XCTAssertEqual(decoded.targetReps, "8-12")
+        XCTAssertTrue(decoded.sets.isEmpty)
+    }
+
+    func testEarliestStandaloneRoutineUsesDefaultsForLaterRestAndWarmupFields() throws {
+        let json = """
+        {"id": "old-routine", "userID": "owner", "name": "Early saved routine",
+         "dateCreated": 700000000, "exercises": [
+           {"id": "old-exercise", "name": "Row", "sets": [
+             {"id": "old-set", "isCompleted": true, "reps": 10, "weight": 75}
+           ]}
+         ]}
+        """
+        let routine = try JSONDecoder().decode(WorkoutRoutine.self, from: Data(json.utf8))
+        let exercise = try XCTUnwrap(routine.exercises.first)
+        XCTAssertEqual(exercise.restTimeInSeconds, 60)
+        XCTAssertEqual(exercise.sets.first?.isWarmup, false)
+        XCTAssertEqual(exercise.sets.first?.resolvedSetType, .normal)
+        XCTAssertEqual(exercise.sets.first?.isCompleted, true)
+        XCTAssertEqual(exercise.sets.first?.reps, 10)
+        XCTAssertEqual(exercise.sets.first?.weight, 75)
+        let restored = try JSONDecoder().decode(WorkoutRoutine.self, from: JSONEncoder().encode(routine))
+        XCTAssertEqual(restored.id, "old-routine")
+        XCTAssertEqual(restored.exercises.first?.sets.first?.id, "old-set")
+    }
 
     func testWorkoutRoutineDeepCopyCreatesIndependentRoutine() throws {
         let original = WorkoutRoutine(

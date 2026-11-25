@@ -65,11 +65,12 @@ export async function searchDietarySupplements(
 ): Promise<SupplementSearchResult[]> {
   const candidateLimit = Math.min(Math.max(limit * 3, 12), 24);
   const ids = await searchLabelIDs(query, candidateLimit);
-  const records = await Promise.all(ids.map((id) => getSupplement(id)));
-  return rankSupplementResults(
-    query,
-    records.filter((record): record is SupplementSearchResult => record !== undefined)
-  ).slice(0, limit);
+  const details = await collectAvailable(ids.map(getSupplement));
+  const records = details.values.filter((record): record is SupplementSearchResult => record !== undefined);
+  if (records.length === 0 && details.incomplete) {
+    throw new Error("DSLD label details unavailable.");
+  }
+  return rankSupplementResults(query, records).slice(0, limit);
 }
 
 export async function lookupDietarySupplementBarcode(
@@ -81,10 +82,23 @@ export async function lookupDietarySupplementBarcode(
   }
   const candidates = equivalentBarcodes(normalized);
   const queries = supplementBarcodeSearchQueries(normalized);
-  const idGroups = await Promise.all(queries.map((query) => searchLabelIDs(query, 20)));
-  const ids = [...new Set(idGroups.flat())].slice(0, 40);
-  const records = await Promise.all(ids.map((id) => getSupplement(id)));
-  return records.find((record) => record?.barcode && candidates.includes(record.barcode));
+  const searches = await collectAvailable(queries.map((query) => searchLabelIDs(query, 20)));
+  const ids = [...new Set(searches.values.flat())].slice(0, 40);
+  const details = await collectAvailable(ids.map(getSupplement));
+  const match = details.values.find((record) => record?.barcode && candidates.includes(record.barcode));
+  if (!match && (searches.incomplete || details.incomplete)) {
+    throw new Error("DSLD barcode lookup incomplete.");
+  }
+  return match;
+}
+
+async function collectAvailable<T>(requests: Promise<T>[]): Promise<{ values: T[]; incomplete: boolean }> {
+  const results = await Promise.allSettled(requests);
+  const values: T[] = [];
+  for (const result of results) {
+    if (result.status === "fulfilled") values.push(result.value);
+  }
+  return { values, incomplete: values.length < results.length };
 }
 
 export function rankSupplementResults(
@@ -196,7 +210,10 @@ async function searchLabelIDs(query: string, size: number): Promise<string[]> {
   url.searchParams.set("sort_by", "_score");
   url.searchParams.set("sort_order", "desc");
   const response = await fetchJSON<DSLDSearchResponse>(url);
-  return (response.hits ?? [])
+  if (!Array.isArray(response?.hits)) {
+    throw new Error("DSLD search index unavailable.");
+  }
+  return response.hits
     .map((hit) => hit._id)
     .filter((id): id is string => typeof id === "string" && /^\d+$/.test(id));
 }
@@ -206,19 +223,17 @@ async function getSupplement(id: string): Promise<SupplementSearchResult | undef
   if (cached) {
     return cached;
   }
-  try {
-    const label = await fetchJSON<DSLDLabel>(new URL(`${API_BASE}/label/${id}`));
-    const mapped = mapDSLDLabel(label);
-    if (mapped) {
-      labelCache.set(id, mapped);
-    }
-    return mapped;
-  } catch {
-    return undefined;
+  const label = await fetchJSON<DSLDLabel>(new URL(`${API_BASE}/label/${id}`));
+  if (label === undefined) return undefined;
+  if (!label || String(label.id) !== id) {
+    throw new Error("DSLD returned an invalid label.");
   }
+  const mapped = mapDSLDLabel(label);
+  if (mapped) labelCache.set(id, mapped);
+  return mapped;
 }
 
-async function fetchJSON<T>(url: URL): Promise<T> {
+async function fetchJSON<T>(url: URL): Promise<T | undefined> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -226,6 +241,7 @@ async function fetchJSON<T>(url: URL): Promise<T> {
       headers: { Accept: "application/json" },
       signal: controller.signal,
     });
+    if (response.status === 404 || response.status === 410) return undefined;
     if (!response.ok) {
       throw new Error(`DSLD returned ${response.status}.`);
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum CycleTrackingRules {
-    
+
     public static func determinePhase(cycleDay: Int, typicalPeriodLength: Int, typicalCycleLength: Int) -> MenstrualPhase {
         let periodEnd = typicalPeriodLength
         let ovulationStart = (typicalCycleLength / 2) - 2
@@ -17,7 +17,7 @@ public enum CycleTrackingRules {
             return .luteal
         }
     }
-    
+
     public static func createAIInsightPrompt(cycleDayNumber: Int, phase: MenstrualPhase, goal: String, recentLogs: [DailyLog]) -> String {
         var logSummary = "No recent activity logged."
         if !recentLogs.isEmpty {
@@ -36,7 +36,7 @@ public enum CycleTrackingRules {
         The cycle phase is a calendar estimate based on a self-reported period start. It is not a
         hormone measurement, fertility prediction, or diagnosis. Use cautious language such as
         "may," "often," and "typically." Never claim that the user's hormone levels are known.
-        
+
         Your response MUST be a valid JSON object. Do not include any other text.
         The JSON object must have these exact keys: "phaseTitle", "phaseDescription", "trainingFocus", "hormonalState", "energyLevel", "nutritionTip", "symptomTip".
         - "phaseTitle": A short, empowering title for this phase (e.g., "Your Power Phase").
@@ -48,7 +48,7 @@ public enum CycleTrackingRules {
         - "symptomTip": A helpful tip for managing common symptoms of this phase.
         """
     }
-    
+
     public static func parseAIInsightResponse(_ jsonString: String) throws -> AIInsight {
         guard let data = jsonString.data(using: .utf8) else {
             throw NSError(domain: "CycleTrackingRules", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid string encoding"])

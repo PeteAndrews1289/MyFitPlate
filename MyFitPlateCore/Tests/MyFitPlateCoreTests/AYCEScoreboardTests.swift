@@ -8,7 +8,7 @@ final class AYCEScoreboardTests: XCTestCase {
         return AYCESession(
             cuisine: .sushi,
             buffetPrice: buffetPrice,
-            entries: [AYCESessionEntry(item: roll, count: rolls)],
+            entries: [AYCESessionEntry(item: roll, count: Double(rolls))],
             citySlug: citySlug
         )
     }
