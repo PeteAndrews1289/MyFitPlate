@@ -93,7 +93,9 @@ final class CookingDesignUITests: XCTestCase {
         let button = app.buttons["cooking_start_step_timer"]
         reveal(button, app: app); XCTAssertEqual(button.label, "Start 12 min"); button.tap()
         let timer = app.buttons["cooking_featured_timer_manage"]
-        XCTAssertTrue(timer.waitForExistence(timeout: 5)); XCTAssertEqual(button.label, "View step timer")
+        XCTAssertTrue(timer.waitForExistence(timeout: 5))
+        XCTAssertTrue(timer.label.contains("Step 1"))
+        XCTAssertFalse(button.exists, "The active step has one timer control.")
         let next = app.buttons["cooking_next_step"]; reveal(next, app: app); next.tap()
         reveal(button, app: app); XCTAssertEqual(button.label, "10–15 min…"); button.tap()
         let stepper = app.steppers.firstMatch
@@ -101,8 +103,8 @@ final class CookingDesignUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["11 min"].exists)
         app.buttons["meal_prep_timer_start"].tap()
         reveal(timer, app: app); XCTAssertTrue(timer.label.contains("Step 2"))
-        XCTAssertEqual(button.label, "View step timer")
-        reveal(button, app: app); button.tap()
+        XCTAssertFalse(button.exists, "The range timer replaces the start button for its step.")
+        timer.tap()
         XCTAssertTrue(app.navigationBars["Cooking timers"].waitForExistence(timeout: 5))
         for instruction in ["Simmer for 12 minutes.", "Rest for 10–15 minutes."] {
             let originalStep = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS %@",

@@ -763,9 +763,9 @@ struct SleepHistoryDetailView: View {
                 }
             }
         }
-        .confirmationDialog("Discard unsaved sleep changes?", isPresented: $confirmsDiscard, titleVisibility: .visible) {
-            Button("Discard changes", role: .destructive) { dismiss() }
+        .alert("Discard unsaved sleep changes?", isPresented: $confirmsDiscard) {
             Button("Keep editing", role: .cancel) {}
+            Button("Discard changes", role: .destructive) { dismiss() }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sleep_history_detail")

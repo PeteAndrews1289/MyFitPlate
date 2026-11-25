@@ -50,6 +50,11 @@ struct ExerciseCardView: View {
         exercise.sets.count
     }
 
+    private var isCurrentExercise: Bool {
+        guard let activeSetID else { return false }
+        return exercise.sets.contains { $0.id == activeSetID }
+    }
+
     private var exerciseProgress: Double {
         guard totalSetCount > 0 else { return 0 }
         return min(Double(completedSetCount) / Double(totalSetCount), 1)
@@ -202,6 +207,17 @@ struct ExerciseCardView: View {
 
     private var exerciseMenu: some View {
         HStack(spacing: 8) {
+            if isCurrentExercise, !isParked, let onChangeParked {
+                Button { onChangeParked(true) } label: {
+                    Text("Do Later")
+                        .appTextRole(.caption)
+                        .foregroundStyle(AppPalette.brandText)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("park_exercise_\(exercise.id)")
+            }
             if restTimer.timeRemaining <= 0 {
                 Button {
                     restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds), routineName: routineName, exerciseID: exercise.id)

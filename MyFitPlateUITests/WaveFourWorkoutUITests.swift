@@ -162,10 +162,11 @@ final class WaveFourWorkoutUITests: XCTestCase {
         let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'set_complete_'")).firstMatch
         let set = app.buttons[first.identifier]; reveal(set, app: app); set.tap()
         waitValue(set, "Completed")
-        let options = app.buttons["Options for Dumbbell Bench Press"]
-        reveal(options, app: app)
-        options.tap()
-        tapMenuChoice(app.buttons["Do Later"], in: app)
+        let park = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'park_exercise_'"))
+        XCTAssertEqual(park.count, 1)
+        reveal(park.firstMatch, app: app)
+        XCTAssertEqual(park.firstMatch.label, "Do Later")
+        park.firstMatch.tap()
         let active = app.staticTexts["workout_current_exercise"]
         XCTAssertTrue(active.wait(for: \.label, toEqual: "Dumbbell Row", timeout: 5))
         app.terminate()
@@ -178,6 +179,23 @@ final class WaveFourWorkoutUITests: XCTestCase {
         XCTAssertEqual(active.label, "Dumbbell Bench Press")
         XCTAssertEqual(set.value as? String, "Completed")
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'resume_parked_'")).firstMatch.exists)
+    }
+
+    func testAnotherLiftCanBeParkedFromItsOptionsWithoutMovingTheCurrentSet() {
+        let app = launch()
+        let current = app.staticTexts["workout_current_exercise"]
+        XCTAssertEqual(current.label, "Dumbbell Bench Press")
+        let options = app.buttons["Options for Dumbbell Row"]
+        reveal(options, app: app)
+        let rowID = options.identifier.dropFirst("exercise_options_".count)
+        options.tap()
+        let choice = app.buttons.matching(NSPredicate(format:
+            "label == %@ AND NOT (identifier BEGINSWITH %@)", "Do Later", "park_exercise_")).firstMatch
+        tapMenuChoice(choice, in: app)
+        let resume = app.buttons["resume_parked_\(rowID)"]
+        reveal(resume, app: app)
+        XCTAssertTrue(resume.isHittable)
+        XCTAssertEqual(current.label, "Dumbbell Bench Press")
     }
 
     private func launch() -> XCUIApplication {

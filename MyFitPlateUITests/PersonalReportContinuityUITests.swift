@@ -93,11 +93,15 @@ final class PersonalReportContinuityUITests: XCTestCase {
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let back = app.navigationBars["Sleep history"].buttons["Back"]
         back.tap()
-        app.buttons["Keep editing"].tap()
+        let alert = app.alerts["Discard unsaved sleep changes?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.buttons["Discard changes"].exists)
+        alert.buttons["Keep editing"].tap()
         XCTAssertTrue(app.buttons["sleep_history_save_notes"].exists)
         XCTAssertEqual(toggle.value as? String, "1")
         back.tap()
-        app.buttons["Discard changes"].tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Discard changes"].tap()
         XCTAssertTrue(app.segmentedControls["reports_focus"].waitForExistence(timeout: 8))
         app.terminate()
         let restored = launch("sleep-history", reset: false)
