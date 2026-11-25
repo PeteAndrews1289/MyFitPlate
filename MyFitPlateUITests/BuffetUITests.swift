@@ -90,13 +90,13 @@ final class BuffetUITests: XCTestCase {
     @MainActor
     private func start(_ cuisine: String, extra: [String] = [], restaurant: String? = nil) -> XCUIApplication {
         let app = launch("ayce-start", extras: ["-ui-testing-reset-ayce"] + extra)
-        if !app.buttons[cuisine].waitForExistence(timeout: 12), app.buttons["welcome_get_started"].exists {
+        let cuisineButton = app.buttons[cuisine]
+        if !cuisineButton.waitForExistence(timeout: 12), app.buttons["welcome_get_started"].exists {
             app.terminate(); app.launch()
         }
-        settle(app.buttons[cuisine])
-        app.buttons[cuisine].press(forDuration: 0.1)
-        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons[cuisine])
-        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
+        XCTAssertTrue(cuisineButton.wait(for: \.isHittable, toEqual: true, timeout: 12))
+        cuisineButton.tap()
+        XCTAssertTrue(cuisineButton.wait(for: \.isSelected, toEqual: true, timeout: 5))
         let price = app.textFields["ayce_price_field"]
         reveal(price, in: app)
         price.press(forDuration: 0.1)
