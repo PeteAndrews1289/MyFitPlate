@@ -345,8 +345,6 @@ struct WeeklyCheckInView: View {
                 .init(label: "Carbs", value: "\(Int(macros.carbs.rounded())) g", accent: .accentCarbs),
                 .init(label: "Fat", value: "\(Int(macros.fats.rounded())) g", accent: .accentFats)
             ])
-
-
         }
     }
 

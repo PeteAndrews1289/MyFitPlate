@@ -322,15 +322,25 @@ public class FatSecretFoodAPIService {
         return item
     }
 
-    private func parseSearchNutritionPreview(from description: String?) -> (servingDescription: String, servingWeightGrams: Double, calories: Double?, protein: Double, carbs: Double, fats: Double) {
+    private struct SearchNutritionPreview {
+        let servingDescription: String
+        let servingWeightGrams: Double
+        let calories: Double?
+        let protein: Double
+        let carbs: Double
+        let fats: Double
+    }
+
+    private func parseSearchNutritionPreview(from description: String?) -> SearchNutritionPreview {
         guard let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return ("Tap to see details", 0, nil, 0, 0, 0)
+            return SearchNutritionPreview(servingDescription: "Tap to see details", servingWeightGrams: 0,
+                                          calories: nil, protein: 0, carbs: 0, fats: 0)
         }
 
         let servingDescription = description.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespacesAndNewlines)
         let servingWeight = parseServingWeightGrams(from: servingDescription ?? "")
 
-        return (
+        return SearchNutritionPreview(
             servingDescription: servingDescription ?? "Tap to see details",
             servingWeightGrams: servingWeight,
             calories: extractNutritionValue(afterAny: ["Calories"], in: description),
