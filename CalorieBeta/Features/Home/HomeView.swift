@@ -565,7 +565,7 @@ struct HomeView: View {
           }
           .sheet(isPresented: $showingProfileSheet) {
               NavigationStack {
-                  UserProfileView()
+                  UserProfileView(onClose: { showingProfileSheet = false })
               }
           }
           .sheet(isPresented: $showingAddExerciseView) {

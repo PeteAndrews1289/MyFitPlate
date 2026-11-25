@@ -219,13 +219,29 @@ struct MealCardView: View {
             Button("Custom amount…", systemImage: "pencil", action: onAdjustAmount)
                 .accessibilityIdentifier("planner_custom_log_amount")
         } label: {
-            Text("\(Text(amount).foregroundStyle(AppPalette.brandText)) \(Image(systemName: "chevron.down"))  ·  \(nutrition)")
-                .appTextRole(.secondary).foregroundStyle(.secondary)
-                .frame(minHeight: 32, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
+            let portion = HStack(spacing: 3) {
+                Text(amount).foregroundStyle(AppPalette.brandText)
+                Image(systemName: "chevron.down").imageScale(.small).accessibilityHidden(true)
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppSpacing.compact) {
+                    portion
+                    Text("·").accessibilityHidden(true)
+                    Text(nutrition)
+                }
+                .fixedSize()
+                VStack(alignment: .leading, spacing: 3) {
+                    portion
+                    Text(nutrition).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .appTextRole(.secondary).foregroundStyle(.secondary)
+            .padding(.vertical, 3)
+            .frame(minHeight: 32, alignment: .leading)
         }
         .buttonStyle(.plain).disabled(isLogging || isRegenerating)
         .accessibilityLabel("Choose a portion to log for " + name + ", planned " + amount)
+        .accessibilityValue(nutrition)
         .accessibilityIdentifier("planner_actual_amount_" + meal.id)
     }
 

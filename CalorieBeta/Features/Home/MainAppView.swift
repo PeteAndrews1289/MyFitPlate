@@ -986,7 +986,7 @@ struct ContentView: View {
         case .cookingTimer:
             CookingTimersInspectionView(notificationID: presentedDeepLinkRequest?.objectID)
         case .profile:
-            NavigationStack { UserProfileView() }
+            NavigationStack { UserProfileView(onClose: { presentedDeepLinkRoute = nil }) }
         case .settings:
             NavigationStack {
                 SettingsView(showSettings: Binding(get: { presentedDeepLinkRoute == .settings }, set: { if !$0 { presentedDeepLinkRoute = nil } }))

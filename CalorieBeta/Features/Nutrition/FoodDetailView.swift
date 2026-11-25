@@ -47,6 +47,9 @@ struct FoodDetailView: View {
     @State private var displayMassUnit: String?
     @State private var massText = ""
     @FocusState private var amountFocused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .headline) private var quantityFieldHeight: CGFloat = 34
+    @ScaledMetric(relativeTo: .headline) private var quantityFieldWidth: CGFloat = 52
     @State private var showNutritionDetails = false
     @State private var isLoadingDetails: Bool = false
     @State private var errorLoading: String?
@@ -901,19 +904,23 @@ struct FoodDetailView: View {
     }
 
     private var quantityControl: some View {
-        HStack(spacing: AppSpacing.compact) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: AppSpacing.compact))
+            : AnyLayout(HStackLayout(spacing: AppSpacing.compact))
+        return layout {
             Text("Amount").appTextRole(.control)
-            Spacer(minLength: AppSpacing.compact)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: AppSpacing.compact) }
             HStack(spacing: 0) {
                 stepButton(increasing: false)
                 HStack(spacing: 3) {
-                    TextField("Quantity", text: displayedQuantity)
+                    TextField("0", text: displayedQuantity)
                         .focused($amountFocused)
                         .accessibilityLabel("Quantity")
                         .keyboardType(.decimalPad)
                         .appTextRole(.sectionTitle).monospacedDigit()
                         .multilineTextAlignment(.center)
-                        .frame(minWidth: 40, idealWidth: 52, maxWidth: 76)
+                        .frame(minWidth: 40, idealWidth: quantityFieldWidth, maxWidth: max(76, quantityFieldWidth))
+                        .frame(minHeight: quantityFieldHeight)
                     if let unit = displayMassUnit ?? nativeMassUnit(selectedServingOption?.description) {
                         Text(unit).appTextRole(.control).foregroundStyle(.secondary)
                             .fixedSize().accessibilityIdentifier("food_detail_amount_unit")

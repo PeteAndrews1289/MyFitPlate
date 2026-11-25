@@ -253,13 +253,10 @@ final class WaveFourDailyTasksUITests: XCTestCase {
         app.buttons["repeat_food_review_0"].tap()
         let amount = app.textFields["Quantity"]
         XCTAssertTrue(amount.waitForExistence(timeout: 8))
-        amount.tap()
-        amount.typeKey("a", modifierFlags: .command)
-        amount.typeText(XCUIKeyboardKey.delete.rawValue + "0")
+        amount.replaceContents(with: "0", in: app)
         let log = app.buttons["food_detail_log_action"]
-        XCTAssertFalse(log.isEnabled)
-        amount.typeKey("a", modifierFlags: .command)
-        amount.typeText(XCUIKeyboardKey.delete.rawValue + "3.75")
+        XCTAssertTrue(log.wait(for: \.isEnabled, toEqual: false, timeout: 5))
+        amount.replaceContents(with: "3.75", in: app)
         XCTAssertEqual(amount.value as? String, "3.75")
         XCTAssertTrue(log.isHittable)
         log.tap()

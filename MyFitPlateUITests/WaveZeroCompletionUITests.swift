@@ -349,7 +349,7 @@ final class WaveZeroCompletionUITests: XCTestCase {
         XCTAssertTrue(any(app, "profile_progress_summary").waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["profile_weekly_challenges_button"].exists)
         record(app, "Deep link - real Profile destination")
-        app.buttons["Done"].firstMatch.tap()
+        app.buttons["profile_done"].tap()
         expectGone(any(app, "profile_progress_summary"), timeout: 5)
         XCTAssertTrue(app.scrollViews["home_scroll"].waitForExistence(timeout: 5))
     }

@@ -6,6 +6,11 @@ struct UserProfileView: View {
     @EnvironmentObject private var goalSettings: GoalSettings
     @EnvironmentObject private var achievementService: AchievementService
     @Environment(\.dismiss) private var dismiss
+    var onClose: (() -> Void)?
+
+    private func closeProfile() {
+        if let onClose { onClose() } else { dismiss() }
+    }
 
     @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits = Locale.current.measurementSystem != .us
     @State private var showingChallenges = false
@@ -94,9 +99,8 @@ struct UserProfileView: View {
                 .accessibilityIdentifier("profile_account_settings")
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    dismiss()
-                }
+                Button("Done", action: closeProfile)
+                    .accessibilityIdentifier("profile_done")
             }
         }
         .opacity(accountChanged ? 0 : 1)
@@ -104,7 +108,7 @@ struct UserProfileView: View {
         .allowsHitTesting(!accountChanged)
         .onReceive(appState.$isUserLoggedIn) { _ in
             if let owner = preferenceOwner, owner != DIContainer.shared.authService.currentUserID {
-                accountChanged = true; showingSettings = false; showingChallenges = false; dismiss()
+                accountChanged = true; showingSettings = false; showingChallenges = false; closeProfile()
             }
         }
         .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView(showSettings: $showingSettings) } }

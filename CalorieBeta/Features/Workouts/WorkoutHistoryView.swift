@@ -127,12 +127,18 @@ struct WorkoutHistoryView: View {
                         let count = filteredLogs.count
                         let sessionCount = "\(count) \(count == 1 ? "session" : "sessions")"
                         let coverage = hasCompleteCoverage ? nil : "More history available"
-                        AppSectionHeader(
-                            title: selectedExercise ?? sessionCount,
-                            subtitle: selectedExercise == nil ? coverage : [sessionCount, coverage].compactMap { $0 }.joined(separator: " · ")
-                        )
-                        .accessibilityElement(children: .combine)
-                        .accessibilityAddTraits(.isHeader)
+                        if let selectedExercise {
+                            AppSectionHeader(title: selectedExercise, subtitle: [sessionCount, coverage].compactMap { $0 }.joined(separator: " · "))
+                                .accessibilityElement(children: .combine)
+                                .accessibilityAddTraits(.isHeader)
+                        } else {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(sessionCount).appTextRole(.control)
+                                if let coverage { Text(coverage).appTextRole(.secondary).foregroundStyle(.secondary) }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
 
                         LazyVStack(spacing: 0) {
                             ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in

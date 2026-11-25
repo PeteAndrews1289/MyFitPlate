@@ -146,7 +146,7 @@ final class WaveFourWorkoutUITests: XCTestCase {
         let choice = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "3. Dumbbell Shoulder Press")).firstMatch
         XCTAssertTrue(choice.waitForExistence(timeout: 5))
         record(app, "Workout - exercise jump menu")
-        choice.tap()
+        tapMenuChoice(choice, in: app)
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == YES"), object: later)
         XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 5), .completed)
         XCTAssertEqual(active.label, original)
@@ -163,9 +163,11 @@ final class WaveFourWorkoutUITests: XCTestCase {
         let set = app.buttons[first.identifier]; reveal(set, app: app); set.tap()
         waitValue(set, "Completed")
         let options = app.buttons["Options for Dumbbell Bench Press"]
-        reveal(options, app: app); options.tap(); app.buttons["Do Later"].tap()
+        reveal(options, app: app)
+        options.tap()
+        tapMenuChoice(app.buttons["Do Later"], in: app)
         let active = app.staticTexts["workout_current_exercise"]
-        XCTAssertEqual(active.label, "Dumbbell Row")
+        XCTAssertTrue(active.wait(for: \.label, toEqual: "Dumbbell Row", timeout: 5))
         app.terminate()
         app.launchArguments.removeAll { $0 == "-ui-testing-reset-workout-draft" }
         app.launch()
@@ -211,6 +213,20 @@ final class WaveFourWorkoutUITests: XCTestCase {
             XCTFail("Missing valid rest countdown"); return 0
         }
         return Date().timeIntervalSince1970 + Double(minutes * 60 + seconds)
+    }
+
+    // The system menu can expose a visible cell before XCTest supplies its activation point.
+    private func tapMenuChoice(_ choice: XCUIElement, in app: XCUIApplication,
+                               file: StaticString = #filePath, line: UInt = #line) {
+        guard choice.waitForExistence(timeout: 5) else {
+            return XCTFail("The workout menu did not open.", file: file, line: line)
+        }
+        let visible = choice.frame.intersection(app.frame)
+        guard !visible.isNull, !visible.isEmpty else {
+            return XCTFail("The workout menu choice is outside the screen.", file: file, line: line)
+        }
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: visible.midX - app.frame.minX, dy: visible.midY - app.frame.minY)).tap()
     }
 
     private func reveal(_ element: XCUIElement, app: XCUIApplication) {

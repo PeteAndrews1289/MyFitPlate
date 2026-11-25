@@ -76,7 +76,6 @@ struct WorkoutPlayerView: View {
     @State private var setInputCommand: StrengthSetCommand?
     @State private var selectedSetID: String?
     @State private var scrollTarget: String?
-    @State private var visibleExerciseID: String?
     @State private var currentSetScrollRequest = UUID()
     @State private var lastCompletedSetID: String?
     @State private var showingAddExercise = false
@@ -633,7 +632,6 @@ struct WorkoutPlayerView: View {
                             .id(exercise.id)
                     }
                 }
-                .scrollTargetLayout()
                 Button {
                     showingAddExercise = true
                 } label: {
@@ -652,7 +650,6 @@ struct WorkoutPlayerView: View {
             }
             .padding()
         }
-        .scrollPosition(id: $visibleExerciseID, anchor: .top)
     }
 
     private func exerciseCard(at index: Int, exercise: RoutineExercise) -> some View {
@@ -774,12 +771,9 @@ struct WorkoutPlayerView: View {
             exercises: routine.exercises,
             parkedExerciseIDs: draft.parkedExerciseIDs ?? [],
             onBrowseExercise: { exerciseID in
+                finishInput()
                 withAnimation(reduceMotion ? nil : AppMotion.standard) {
-                    if visibleExerciseID == exerciseID {
-                        proxy.scrollTo(exerciseID, anchor: .top)
-                    } else {
-                        visibleExerciseID = exerciseID
-                    }
+                    proxy.scrollTo(exerciseID, anchor: .top)
                 }
             }
         )

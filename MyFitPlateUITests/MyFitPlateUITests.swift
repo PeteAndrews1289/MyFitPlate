@@ -238,8 +238,8 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         // Wait for the home dashboard to load
-        let homeTitle = app.staticTexts["Home"]
-        XCTAssertTrue(homeTitle.waitForExistence(timeout: 10), "Home dashboard should be visible")
+        let diary = app.buttons["home_diary_index"]
+        XCTAssertTrue(diary.waitForExistence(timeout: 10), "The diary meal menu should be visible on Home")
 
         // Check for key elements like the weekly check-in or progress circles
         let progressElement = app.otherElements["MetabolismProgress"]
@@ -2383,7 +2383,7 @@ final class MyFitPlateUITests: XCTestCase {
         let homeHeader = app.descendants(matching: .any)
             .matching(identifier: "home_screen_header").firstMatch
         XCTAssertTrue(homeHeader.waitForExistence(timeout: 10))
-        XCTAssertTrue(homeHeader.staticTexts["Home"].exists)
+        XCTAssertTrue(homeHeader.buttons["home_diary_index"].exists)
         XCTAssertTrue(livingDay.waitForExistence(timeout: 10))
 
         let reportsHeader = app.staticTexts
