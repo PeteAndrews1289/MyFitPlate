@@ -448,7 +448,7 @@ struct WorkoutPlayerView: View {
                 }
                 .onChange(of: scrollTarget) { _, target in
                     if let input = setInputFocus {
-                        proxy.scrollTo(inputScrollAnchor(input), anchor: .center)
+                        revealInput(input, using: proxy)
                     } else if let target {
                         withAnimation(AppMotion.standard) { proxy.scrollTo(target, anchor: .center) }
                     }
@@ -461,13 +461,11 @@ struct WorkoutPlayerView: View {
                     }
                 }
                 .onChange(of: setInputFocus) { _, input in
-                    if let input { proxy.scrollTo(inputScrollAnchor(input), anchor: .center) }
+                    if let input { revealInput(input, using: proxy) }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
-                    // The keyboard changes the usable viewport after focus moves.
-                    // Center the numeric field, not its possibly expanded inspector.
-                if let input = setInputFocus { proxy.scrollTo(inputScrollAnchor(input), anchor: .center) }
-            }
+                    if let input = setInputFocus { revealInput(input, using: proxy) }
+                }
             if let focusedInputContext {
                 Text(focusedInputContext)
                     .appFont(size: 11, weight: .semibold).foregroundStyle(.secondary)
@@ -780,8 +778,10 @@ struct WorkoutPlayerView: View {
         }
     }
 
-    private func inputScrollAnchor(_ input: StrengthSetInput) -> String {
-        "strength_input_\(input.setID)_\(input.field == .weight ? "weight" : "reps")"
+    private func revealInput(_ input: StrengthSetInput, using proxy: ScrollViewProxy) {
+        let target = "strength_input_\(input.setID)_\(input.field == .weight ? "weight" : "reps")"
+        // Leave room for the set context and rest actions above the keyboard.
+        proxy.scrollTo(target, anchor: UnitPoint(x: 0.5, y: 0.35))
     }
 
     private func loadPreviousPerformance() {

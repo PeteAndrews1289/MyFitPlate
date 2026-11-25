@@ -299,9 +299,16 @@ final class WaveZeroCompletionUITests: XCTestCase {
     func testUnknownDeepLinkShowsUnavailableInsteadOfSilentlyOpeningHome() {
         let app = launch("home", flags: ["-deep-link-url", "myfitplate://unshipped-destination"])
         XCTAssertTrue(any(app, "deep_link_unavailable").waitForExistence(timeout: 15))
-        app.buttons["deep_link_unavailable_home"].firstMatch.tap()
-        expectGone(any(app, "deep_link_unavailable"), timeout: 5)
+        let goHome = app.buttons["deep_link_unavailable_home"].firstMatch
+        goHome.tap()
         XCTAssertTrue(app.scrollViews["home_scroll"].waitForExistence(timeout: 5))
+        let previous = app.buttons["home_diary_previous"]
+        XCTAssertTrue(previous.wait(for: \.isHittable, toEqual: true, timeout: 8))
+        previous.tap()
+        let calendar = app.buttons["home_diary_calendar"]
+        let historical = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Historical day"), object: calendar)
+        XCTAssertEqual(XCTWaiter.wait(for: [historical], timeout: 5), .completed)
+        if goHome.exists { XCTAssertFalse(goHome.isHittable) }
     }
 
     @MainActor
