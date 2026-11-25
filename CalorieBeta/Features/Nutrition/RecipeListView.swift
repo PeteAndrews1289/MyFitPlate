@@ -4,6 +4,7 @@ import SwiftUI
 struct RecipeListView: View {
     @EnvironmentObject private var recipeService: RecipeService
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var showingCreateRecipeSheet = false
     @State private var pendingDeletion: Recipe?
@@ -41,7 +42,8 @@ struct RecipeListView: View {
             .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("My Recipes")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "Recipes, ingredients, tags or source")
+            .modifier(SystemSearchBar(isEnabled: !dynamicTypeSize.isAccessibilitySize, text: $searchText,
+                                      prompt: "Recipes, ingredients, tags or source"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -102,6 +104,9 @@ struct RecipeListView: View {
     private var recipeLibrary: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    LibraryInlineSearchField(prompt: "Search recipes", text: $searchText, identifier: "recipe_library_inline_search")
+                }
                 collectionHeader
                 if let libraryError {
                     Text(libraryError).appTextRole(.secondary).foregroundStyle(AppPalette.caution)

@@ -93,6 +93,27 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    private func revealRecipeName(_ name: XCUIElement, in library: XCUIElement, app: XCUIApplication) {
+        let navigation = app.navigationBars["My Recipes"]
+        for _ in 0..<16 {
+            let viewport = library.frame
+            let top = max(viewport.minY, navigation.frame.maxY) + 12
+            let bottom = min(viewport.maxY, app.frame.maxY - 34) - 8
+            let middle = (top + bottom) / 2
+            let titleY = name.exists ? name.frame.midY : bottom + 160
+            if name.exists, name.isHittable, (top...bottom).contains(titleY) { return }
+
+            // Drag the list gutter so a partially visible navigation link cannot receive the gesture.
+            let start = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: viewport.minX + 12, dy: middle))
+            let distance = min(200, max(-200, titleY - middle))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)),
+                        withVelocity: .slow, thenHoldForDuration: 0.15)
+        }
+        XCTFail("Could not bring the recipe name into view. \(library.debugDescription)")
+    }
+
+    @MainActor
     private func revealIncrementally(
         _ element: XCUIElement,
         in scrollable: XCUIElement,
@@ -454,7 +475,11 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(supplementRow.label.contains("1 Softgel"))
         supplementRow.tap()
 
-        XCTAssertTrue(app.staticTexts["1 Softgel"].waitForExistence(timeout: 5))
+        let softgel = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND label == %@", "food_portion_serving_", "1 Softgel"
+        )).firstMatch
+        XCTAssertTrue(softgel.waitForExistence(timeout: 5))
+        XCTAssertTrue(softgel.isSelected)
         expandNutritionDetails(in: app)
         let supplementTrustSummary = app.buttons["food_trust_summary"]
         XCTAssertTrue(supplementTrustSummary.waitForExistence(timeout: 5))
@@ -902,6 +927,7 @@ final class MyFitPlateUITests: XCTestCase {
         let firstRecipe = app.buttons["recipe_open_demo-recipe-chicken-bowl"]
         let detail = app.descendants(matching: .any)["recipe_detail"]
         XCTAssertTrue(library.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["recipe_library_inline_search"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
         XCTAssertEqual(app.descendants(matching: .any)["recipe_summary_saved"].label, "3 recipes")
         XCTAssertTrue(app.descendants(matching: .any)["recipe_library_filter"].exists)
@@ -912,15 +938,17 @@ final class MyFitPlateUITests: XCTestCase {
         libraryScreenshot.lifetime = .keepAlways
         add(libraryScreenshot)
 
-        reveal(firstRecipe, in: library, topInset: 8, bottomInset: 24)
+        let recipeName = firstRecipe.staticTexts["Weeknight Chicken Power Bowl"]
+        revealRecipeName(recipeName, in: library, app: app)
+        XCTAssertTrue(recipeName.isHittable)
         XCTAssertTrue(firstRecipe.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(firstRecipe.frame.minX, app.frame.minX - 1)
         XCTAssertLessThanOrEqual(firstRecipe.frame.maxX, app.frame.maxX + 1)
         XCTAssertTrue(firstRecipe.isHittable)
-        firstRecipe.press(forDuration: 0.1)
+        recipeName.tap()
         if !detail.waitForExistence(timeout: 3) {
             XCTAssertTrue(firstRecipe.isHittable, "Recipe should remain tappable after a dropped input")
-            firstRecipe.press(forDuration: 0.1)
+            recipeName.tap()
         }
 
         let detailTitle = app.staticTexts["recipe_detail_title"]
@@ -1893,7 +1921,8 @@ final class MyFitPlateUITests: XCTestCase {
             "-ui-testing",
             "-screenshot-mode",
             "-screenshot-screen",
-            "maia"
+            "maia",
+            "-ui-testing-reset-editor-drafts"
         ]
         app.launch()
 
@@ -3847,7 +3876,7 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let screens = [
             (name: "AYCE Start", route: "ayce-start", title: "Buffet meal", action: "ayce_start_button"),
-            (name: "AYCE Live", route: "ayce-live", title: "Sushi", action: "Review session"),
+            (name: "AYCE Live", route: "ayce-live", title: "Sushi", action: "ayce_end_button"),
             (name: "AYCE Review", route: "ayce-review", title: "Review Plate Estimate", action: "ayce_review_add_button"),
             (name: "AYCE Summary", route: "ayce-summary", title: "Buffet Summary", action: "ayce_log_diary_button"),
             (name: "Value Radar", route: "value-radar", title: "Value Radar", action: "value_radar_scan_button")
@@ -3886,7 +3915,7 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let screens = [
             (name: "AYCE Start", route: "ayce-start", title: "Buffet meal", action: "ayce_start_button"),
-            (name: "AYCE Live", route: "ayce-live", title: "Sushi", action: "Review session"),
+            (name: "AYCE Live", route: "ayce-live", title: "Sushi", action: "ayce_end_button"),
             (name: "AYCE Review", route: "ayce-review", title: "Review Plate Estimate", action: "ayce_review_add_button"),
             (name: "AYCE Summary", route: "ayce-summary", title: "Buffet Summary", action: "ayce_log_diary_button"),
             (name: "Value Radar", route: "value-radar", title: "Value Radar", action: "value_radar_scan_button")
