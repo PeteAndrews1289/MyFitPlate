@@ -269,10 +269,11 @@ struct MyFoodsLibraryView: View {
             .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("My Foods")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(
+            .modifier(SystemSearchBar(
+                isEnabled: !dynamicTypeSize.isAccessibilitySize,
                 text: $viewModel.query,
-                prompt: dynamicTypeSize.isAccessibilitySize ? "Search" : "Search saved foods"
-            )
+                prompt: "Search saved foods"
+            ))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -307,6 +308,10 @@ struct MyFoodsLibraryView: View {
     private var libraryContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    inlineSearchField
+                }
+
                 libraryControls
 
                 if let loadError = viewModel.loadError {
@@ -328,6 +333,23 @@ struct MyFoodsLibraryView: View {
             .padding(.bottom, AppSpacing.section)
         }
         .accessibilityIdentifier("my_foods_library")
+    }
+
+    /// At accessibility sizes the system search bar clips even a one-word prompt, so search moves
+    /// into the list as a field that wraps with the text.
+    private var inlineSearchField: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField("Search saved foods", text: $viewModel.query, axis: .vertical)
+                .appTextRole(.body)
+                .lineLimit(1...4)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("my_foods_inline_search")
+        }
+        .appSurface(.quiet)
     }
 
     private var libraryControls: some View {
@@ -824,6 +846,21 @@ private extension MyFoodsLibrarySort {
         case .name: return "textformat"
         case .lastUsed: return "clock"
         case .trust: return "checkmark.seal"
+        }
+    }
+}
+
+/// Applies the system search bar only when it can render its prompt without clipping.
+private struct SystemSearchBar: ViewModifier {
+    let isEnabled: Bool
+    @Binding var text: String
+    let prompt: String
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.searchable(text: $text, prompt: prompt)
+        } else {
+            content
         }
     }
 }

@@ -667,9 +667,13 @@ struct HomeView: View {
     private var homeScreenHeader: some View {
         AppScreenHeader(
             title: "Home",
-            subtitle: isToday
-                ? "Your food, training, and recovery today."
-                : "Review your food, training, and recovery."
+            // The header is pinned above the scrolling day, so at accessibility sizes the
+            // decorative subtitle would truncate; the day summary below carries the same meaning.
+            subtitle: dynamicTypeSize.isAccessibilitySize
+                ? nil
+                : isToday
+                    ? "Your food, training, and recovery today."
+                    : "Review your food, training, and recovery."
         ) {
             HStack(spacing: AppSpacing.compact) {
                 Button(action: { showingProfileSheet = true }) {
