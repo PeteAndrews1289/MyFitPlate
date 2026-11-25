@@ -1140,87 +1140,96 @@ struct InventoryOperationReviewView: View {
     }
     var body: some View {
         NavigationStack {
-            List {
-                if let value = session.checkpoint {
-                    if let target = value.trainingFuelTarget { TrainingFuelTargetContextView(target: target, onDismiss: value.submitted || session.isWorking ? nil : { _ = session.removeFuelContext() }) }
-                    Section {
-                        Text(value.mutation.title).appTextRole(.sectionTitle)
-                        Text(value.accepted ? "Saved to your account" : value.cancelled ? "Cancelled before saving" : value.submitted ? "Exact submitted review kept for recovery" : "Review before changing stock")
-                            .accessibilityIdentifier("inventory_review_status")
-                    }
-                    Section("Stock changes") {
-                        ForEach(value.mutation.after) { item in
-                            let previous = value.mutation.before.first { $0.id == item.id }
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(item.name).fontWeight(.semibold)
-                                Text("\((previous?.quantity ?? 0).formatted(.number.precision(.fractionLength(0...3)))) → \(item.quantity.formatted(.number.precision(.fractionLength(0...3)))) \(item.unit)")
-                                if item.quantityUnknown == true { Text("Quantity unknown; excluded from shopping coverage") }
-                                if let date = item.bestBefore { Text("Entered date · \(date.formatted(date: .abbreviated, time: .omitted))") }
-                            }
-                        }
-                    }
-                    if let diary = value.mutation.diary {
-                        Section(diary.desired == nil ? "Remove linked food entry" : "Food diary") {
-                            Text("\(diary.day.displayDate.formatted(date: .complete, time: .omitted)) · \(diary.mealName)")
-                            Text((diary.desired ?? diary.expected)?.name ?? "Linked portion")
-                            Text("The stock and diary changes save together. Other foods and stock purchases stay in place.")
-                        }
-                    }
-                    if value.mutation.grocery != nil {
-                        Section("Shopping record") {
-                            ForEach(value.mutation.grocery?.upserts ?? []) { item in
-                                Text("\(item.name) · total bought \((item.purchasedQuantity ?? 0).formatted()) \(item.unit) · transferred \((item.transferredToPantryQuantity ?? 0).formatted()) \(item.unit)")
-                            }
-                            Text("Only the reviewed transfer creates pantry stock. Checking alone does not.")
-                        }
-                    }
-                    if value.submitted, !value.accepted, !value.cancelled {
-                        Section {
-                            Button { Task { await session.resolve(using: DIContainer.shared.nutritionRepository, cancelPending: false, dailyLogService: dailyLogService) } } label: {
-                                Text("Check saved status").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            }.accessibilityIdentifier("inventory_check_status")
-                            Button { Task { await session.resolve(using: DIContainer.shared.nutritionRepository, cancelPending: true, dailyLogService: dailyLogService) } } label: {
-                                Text("Cancel pending save").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            }.accessibilityIdentifier("inventory_cancel_pending")
-                        } header: {
-                            Text("Recover this save").accessibilityIdentifier("inventory_review_recovery")
-                        }
-                    }
-                    if !value.submitted {
-                        Button("Discard this review", role: .destructive) { if session.finish() { onResolved(); dismiss() } }
-                    }
-                }
-            }.appFormStyle()
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("inventory_review_list")
+            VStack(spacing: 0) {
+                reviewList
+                saveFooter
+            }
             .navigationTitle("Review stock").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.disabled(session.isWorking) } }
-            .safeAreaInset(edge: .bottom) {
-                VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                    if let message = session.errorMessage {
-                        Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                            .accessibilityIdentifier("inventory_review_error")
-                    }
-                    Button(actionTitle) {
-                        if session.checkpoint?.accepted == true || session.checkpoint?.cancelled == true {
-                            if session.finish() { onResolved(); dismiss() }
-                        } else { Task { await session.save(using: DIContainer.shared.nutritionRepository, dailyLogService: dailyLogService) } }
-                    }
-                    .buttonStyle(AppActionButtonStyle(.primary)).disabled(session.isWorking || session.checkpoint == nil)
-                    .accessibilityIdentifier("inventory_review_confirm")
-                }
-                .padding().background(AppPalette.canvas)
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("inventory_review_footer")
-            }
         }
         .onAppear { reportAccepted() }
         .onChange(of: session.checkpoint?.accepted) { _, _ in reportAccepted() }
         .interactiveDismissDisabled(session.isWorking)
         .disabled(session.isWorking)
     }
+
+    private var reviewList: some View {
+        List {
+            if let value = session.checkpoint {
+                if let target = value.trainingFuelTarget { TrainingFuelTargetContextView(target: target, onDismiss: value.submitted || session.isWorking ? nil : { _ = session.removeFuelContext() }) }
+                Section {
+                    Text(value.mutation.title).appTextRole(.sectionTitle)
+                    Text(value.accepted ? "Saved to your account" : value.cancelled ? "Cancelled before saving" : value.submitted ? "Exact submitted review kept for recovery" : "Review before changing stock")
+                        .accessibilityIdentifier("inventory_review_status")
+                }
+                Section("Stock changes") {
+                    ForEach(value.mutation.after) { item in
+                        let previous = value.mutation.before.first { $0.id == item.id }
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(item.name).fontWeight(.semibold)
+                            Text("\((previous?.quantity ?? 0).formatted(.number.precision(.fractionLength(0...3)))) → \(item.quantity.formatted(.number.precision(.fractionLength(0...3)))) \(item.unit)")
+                            if item.quantityUnknown == true { Text("Quantity unknown; excluded from shopping coverage") }
+                            if let date = item.bestBefore { Text("Entered date · \(date.formatted(date: .abbreviated, time: .omitted))") }
+                        }
+                    }
+                }
+                if let diary = value.mutation.diary {
+                    Section(diary.desired == nil ? "Remove linked food entry" : "Food diary") {
+                        Text("\(diary.day.displayDate.formatted(date: .complete, time: .omitted)) · \(diary.mealName)")
+                        Text((diary.desired ?? diary.expected)?.name ?? "Linked portion")
+                        Text("The stock and diary changes save together. Other foods and stock purchases stay in place.")
+                    }
+                }
+                if value.mutation.grocery != nil {
+                    Section("Shopping record") {
+                        ForEach(value.mutation.grocery?.upserts ?? []) { item in
+                            Text("\(item.name) · total bought \((item.purchasedQuantity ?? 0).formatted()) \(item.unit) · transferred \((item.transferredToPantryQuantity ?? 0).formatted()) \(item.unit)")
+                        }
+                        Text("Only the reviewed transfer creates pantry stock. Checking alone does not.")
+                    }
+                }
+                if value.submitted, !value.accepted, !value.cancelled {
+                    Section {
+                        Button { Task { await session.resolve(using: DIContainer.shared.nutritionRepository, cancelPending: false, dailyLogService: dailyLogService) } } label: {
+                            Text("Check saved status").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }.accessibilityIdentifier("inventory_check_status")
+                        Button { Task { await session.resolve(using: DIContainer.shared.nutritionRepository, cancelPending: true, dailyLogService: dailyLogService) } } label: {
+                            Text("Cancel pending save").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }.accessibilityIdentifier("inventory_cancel_pending")
+                    } header: {
+                        Text("Recover this save").accessibilityIdentifier("inventory_review_recovery")
+                    }
+                }
+                if !value.submitted {
+                    Button("Discard this review", role: .destructive) { if session.finish() { onResolved(); dismiss() } }
+                }
+            }
+        }.appFormStyle()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("inventory_review_list")
+    }
+
+    private var saveFooter: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            if let message = session.errorMessage {
+                Text(message).appTextRole(.secondary).foregroundStyle(AppPalette.caution)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .accessibilityIdentifier("inventory_review_error")
+            }
+            Button(actionTitle) {
+                if session.checkpoint?.accepted == true || session.checkpoint?.cancelled == true {
+                    if session.finish() { onResolved(); dismiss() }
+                } else { Task { await session.save(using: DIContainer.shared.nutritionRepository, dailyLogService: dailyLogService) } }
+            }
+            .buttonStyle(AppActionButtonStyle(.primary)).disabled(session.isWorking || session.checkpoint == nil)
+            .accessibilityIdentifier("inventory_review_confirm")
+        }
+        .padding().background(AppPalette.canvas)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("inventory_review_footer")
+    }
+
     private func reportAccepted() {
         guard let value = session.checkpoint, value.accepted, notifiedAcceptedID != value.mutation.id else { return }
         notifiedAcceptedID = value.mutation.id; onAccepted?(value.mutation, value.trainingFuelTarget)
