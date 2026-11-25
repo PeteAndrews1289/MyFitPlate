@@ -162,13 +162,19 @@ struct SwipeableFoodItemView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(initialFoodItem.name)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .appFont(size: 16, weight: .semibold)
                         .foregroundColor(.textPrimary)
 
                     if dynamicTypeSize.isAccessibilitySize {
+                        // At accessibility sizes the calories move under the name, so the name
+                        // gets the row's full width instead of a narrow, clipped column.
                         VStack(alignment: .leading, spacing: 4) {
+                            Text("\(Int(initialFoodItem.calories.rounded())) cal")
+                                .appFont(size: 16, weight: .bold)
+                                .foregroundColor(.textPrimary)
                             macroSummaryText
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -184,16 +190,19 @@ struct SwipeableFoodItemView: View {
                         .lineLimit(1)
                     }
                 }
+                .layoutPriority(1)
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(Int(initialFoodItem.calories.rounded()))")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("cal")
-                        .appFont(size: 11)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                if !dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(Int(initialFoodItem.calories.rounded()))")
+                            .appFont(size: 16, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Text("cal")
+                            .appFont(size: 11)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
                 }
 
                 Image(systemName: "chevron.right")

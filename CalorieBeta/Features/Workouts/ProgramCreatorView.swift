@@ -309,7 +309,7 @@ private struct ProgramScheduleSection: View {
             )
 
             VStack(alignment: .leading, spacing: AppSpacing.group) {
-                DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                AppDateField("Start Date", selection: $startDate)
                     .appTextRole(.control)
 
                 Divider()
